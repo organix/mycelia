@@ -25,26 +25,27 @@ KOBJS=	start.o mycelia.o raspberry.o timer.o serial.o xmodem.o
 all: kernel.img
 
 start.o: start.s
-    $(AS) start.s -o start.o
+	$(AS) start.s -o start.o
 
 mycelia.o: mycelia.s
-    $(AS) mycelia.s -o mycelia.o
+	$(AS) mycelia.s -o mycelia.o
 
 kernel.img: loadmap $(KOBJS)
-    $(LD) $(KOBJS) -T loadmap -o mycelia.elf
-    objdump -D mycelia.elf > mycelia.list
-    objcopy mycelia.elf -O ihex mycelia.hex
-    objcopy --only-keep-debug mycelia.elf kernel.sym
-    objcopy mycelia.elf -O binary kernel.img
+	$(LD) $(KOBJS) -T loadmap -o mycelia.elf
+	objdump -D mycelia.elf > mycelia.list
+	objcopy mycelia.elf -O ihex mycelia.hex
+	objcopy --only-keep-debug mycelia.elf kernel.sym
+	objcopy mycelia.elf -O binary kernel.img
 
 .c.o:
-    $(CC) -c $<
+	$(CC) -c $<
 
 clean:
-    rm -f *.o
-    rm -f *.bin
-    rm -f *.hex
-    rm -f *.elf
-    rm -f *.list
-    rm -f *.img
-    rm -f *~ core
+	rm -f *.o
+	rm -f *.bin
+	rm -f *.hex
+	rm -f *.elf
+	rm -f *.list
+	rm -f *.img
+	rm -f *~ core
+
