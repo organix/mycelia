@@ -11,11 +11,17 @@
 @ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 @ See the License for the specific language governing permissions and
 @ limitations under the License.
+@
+@ View this file with hard tabs every 8 positions.
+@	|	|	.	|	.	.	.	.  max width ->
+@       |       |       .       |       .       .       .       .  max width ->
+@ If your tabs are set correctly, the lines above should be aligned.
+@
 
 @ mycelia is the entry point for the kernel
 	.text
-	.align 2                        @ alignment 2^n (2^2 = 4 byte alignment)
+	.align 2		@ alignment 2^n (2^2 = 4 byte alignment)
 	.global mycelia
 mycelia:
-	bl monitor                      @ monitor();
+	bl monitor		@ monitor();
 	b mycelia
