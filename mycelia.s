@@ -33,6 +33,8 @@ mycelia:
 	bl	monitor		@ monitor();
 	b	mycelia
 
+	.text
+	.align 2		@ align to machine word
 reserve:		@ reserve a block (32 bytes) of memory
 	ldr	r1, =block_free	@ address of free list pointer
 	ldr	r0, [r1]	@ address of first free block
@@ -57,6 +59,20 @@ release:		@ release the memory block pointed to by r0
 	stmia	r0, {r2-r9}	@ write 8 words (incl. next free block pointer)
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
 
+	.section .rodata
+	.align 5		@ align to cache-line
+block_clr:
+	.ascii "Who is licking my HONEYPOT?\0"
+
+	.data
+	.align 2		@ align to machine word
+block_free:
+	.int 0			@ pointer to next free block, 0 if none
+block_end:
+	.int heap_start		@ pointer to end of block memory
+
+	.text
+	.align 2		@ align to machine word
 enqueue:		@ enqueue event pointed to by r0
 	ldr	r1, [sl, #1024]	@ event queue head/tail indicies
 	uxtb	r2, r1, ROR #8	@ get head index
@@ -84,18 +100,6 @@ dequeue:		@ dequeue next event from queue
 sponsor_0:
 	.space 256*4		@ event queue (offset 0)
 	.int 0			@ queue head/tail (offset 1024)
-
-	.section .rodata
-	.align 5		@ align to cache-line
-block_clr:
-	.ascii "Who is licking my HONEYPOT?\0"
-
-	.data
-	.align 2		@ align to machine word
-block_free:
-	.int 0			@ pointer to next free block, 0 if none
-block_end:
-	.int heap_start		@ pointer to end of block memory
 
 	.section .heap
 	.align 5		@ align to cache-line
