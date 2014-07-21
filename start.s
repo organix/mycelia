@@ -42,6 +42,7 @@ _start:
 	subs	r2, #32		@ Decrement len
 	bgt	1b		@ More to copy?
 	bx	lr		@ Jump to bootstrap entry-point
+	.global halt
 halt:
 	b	halt		@ Full stop
 

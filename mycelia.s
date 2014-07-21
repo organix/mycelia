@@ -35,7 +35,8 @@ mycelia:
 
 reserve:		@ reserve a block (32 bytes) of memory
 	ldr	r1, =block_free	@ address of free list pointer
-	ldrs	r0, [r1]	@ address of first free block
+	ldr	r0, [r1]	@ address of first free block
+	cmp	r0, #0
 	beq	1f		@ if not null
 	ldr	r2, [r0]	@	follow link to next free block
 	str	r2, [r1]	@	update free list pointer
@@ -57,25 +58,25 @@ release:		@ release the memory block pointed to by r0
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
 
 enqueue:		@ enqueue event pointed to by r0
-	ldr	r1, sl, #1024	@ event queue head/tail indicies
-	uxtb	r2, r1, #8	@ get head index
-	uxtb	r3, r1, #16	@ get tail index
+	ldr	r1, [sl, #1024]	@ event queue head/tail indicies
+	uxtb	r2, r1, ROR #8	@ get head index
+	uxtb	r3, r1, ROR #16	@ get tail index
 	str	r0, [sl,r3,LSL #2] @ store event pointer at tail
 	add	r3, r3, #1	@ advance tail
 	cmp	r2, r3		@ if queue full
 	beq	halt		@	KERNEL PANIC!
-	strb	r3, sl, #1026	@ update tail index
+	strb	r3, [sl, #1026]	@ update tail index
 	bx	lr		@ return
 
 dequeue:		@ dequeue next event from queue
-	ldr	r1, sl, #1024	@ event queue head/tail indicies
-	uxtb	r2, r1, #8	@ get head index
-	uxtb	r3, r1, #16	@ get tail index
+	ldr	r1, [sl, #1024]	@ event queue head/tail indicies
+	uxtb	r2, r1, ROR #8	@ get head index
+	uxtb	r3, r1, ROR #16	@ get tail index
 	cmp	r2, r3		@ if queue empty
 	moveq	r0, #0		@	return null
 	ldrne	r0, [sl,r2,LSL #2] @ else
 	addne	r2, r2, #1	@	advance head
-	strneb	r2, sl, #1025	@	update head index
+	strneb	r2, [sl, #1025]	@	update head index
 	bx	lr		@	return event pointer
 
 	.data
@@ -84,7 +85,7 @@ sponsor_0:
 	.space 256*4		@ event queue (offset 0)
 	.int 0			@ queue head/tail (offset 1024)
 
-	.rodata
+	.section .rodata
 	.align 5		@ align to cache-line
 block_clr:
 	.ascii "Who is licking my HONEYPOT?\0"
@@ -96,6 +97,6 @@ block_free:
 block_end:
 	.int heap_start		@ pointer to end of block memory
 
-	.bss
+	.section .heap
 	.align 5		@ align to cache-line
 heap_start:
