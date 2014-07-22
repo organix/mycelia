@@ -157,9 +157,13 @@ reserve:		@ reserve a block (32 bytes) of memory
 	str	r2, [r1]	@	update free list pointer
 	bx	lr		@	return
 1:				@ else
+	stmdb	sp!, {lr}	@	preserve link register
 	ldr	r1, =block_end	@	address of block end pointer
 	ldr	r0, [r1]	@	address of new memory block
+	add	r2, r0, #32	@	calculate next block address
+	str	r2, [r1]	@	update block end pointer
 	bl	release		@	"free" new memory block
+	ldmia	sp!, {lr}	@	restore link register
 	b	reserve		@	try again
 
 release:		@ release the memory block pointed to by r0
@@ -217,6 +221,8 @@ sponsor_0:
 
 	.text
 	.align 5		@ align to cache-line
+_a_answer:		@ send answer to customer and return (r0=event, r1=answer)
+	str	r1, [r0, #4]	@ UART data
 _a_reply:		@ reply to customer and return from actor (r0=event)
 	ldr	r1, [fp, #4]	@ customer
 _a_send:		@ send a message and return from actor (r0=event, r1=target)
@@ -241,10 +247,10 @@ a_poll:			@ poll for serial i/o ()
 	.align 5		@ align to cache-line
 a_in_ready:		@ check for serial input (ok, fail)
 	bl	reserve		@ allocate event block
-@	ldr	r1, =0x20201000	@ UART0
-	ldr	r1, [pc, #16]	@ UART0
-	ldr	r2, [r1, #0x18]	@ UART0->FR
-	tst	r2, #0x10	@ FR.RXFE
+@	ldr	r2, =0x20201000	@ UART0
+	ldr	r2, [pc, #16]	@ UART0
+	ldr	r1, [r2, #0x18]	@ UART0->FR
+	tst	r1, #0x10	@ FR.RXFE
 	ldrne	r1, [fp, #4]	@ if ready, notify ok customer
 	ldreq	r1, [fp, #8]	@ otherwise, notify fail customer
 	b	_a_send		@ send message
@@ -265,11 +271,10 @@ a_do_in:		@ request input ()
 	.align 5		@ align to cache-line
 a_char_in:		@ read serial input (cust)
 	bl	reserve		@ allocate event block
-@	ldr	r1, =0x20201000	@ UART0
-	ldr	r1, [pc, #8]	@ UART0
-	ldr	r2, [r1]	@ UART0->DR
-	str	r2, [r0, #4]	@ UART data
-	b	_a_reply	@ reply and return
+@	ldr	r2, =0x20201000	@ UART0
+	ldr	r2, [pc, #4]	@ UART0
+	ldr	r1, [r2]	@ UART0->DR
+	b	_a_answer	@ answer and return
 	.int	0x20201000	@ UART0 base address
 
 	.text
@@ -288,10 +293,10 @@ a_do_out:		@ request output (char)
 	.align 5		@ align to cache-line
 a_char_out:		@ write serial output (cust, char)
 	bl	reserve		@ allocate event block
-	ldr	r2, [fp, #8]	@ character
-@	ldr	r1, =0x20201000	@ UART0
-	ldr	r1, [pc, #4]	@ UART0
-	str	r2, [r1]	@ UART0->DR
+	ldr	r1, [fp, #8]	@ character
+@	ldr	r2, =0x20201000	@ UART0
+	ldr	r2, [pc, #4]	@ UART0
+	str	r1, [r2]	@ UART0->DR
 	b	_a_reply	@ reply and return
 	.int	0x20201000	@ UART0 base address
 
