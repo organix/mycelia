@@ -25,6 +25,98 @@
 @   fp (r11) the event being processed, including the message and target actor
 @   sl (r10) the sponsor providing resources for this computation
 
+@ Event structure:
+@	+-------+-------+-------+-------+
+@ 0x00	| address of target actor	|
+@	+-------------------------------+
+@ 0x04	| message contents		|
+@	+	.	.	.	+
+@ 0x08	|				|
+@	+	.	.	.	+
+@ 0x0c	|				|
+@	+	.	.	.	+
+@ 0x10	|				|
+@	+	.	.	.	+
+@ 0x14	|				|
+@	+	.	.	.	+
+@ 0x18	|				|
+@	+	.	.	.	+
+@ 0x1c	|				|
+@	+-------+-------+-------+-------+
+
+@ Actor structure(s):
+@	+-------+-------+-------+-------+
+@ 0x00	| machine instructions		|
+@	+	.	.	.	+
+@ 0x04	|				|
+@	+	.	.	.	+
+@ 0x08	|				|
+@	+	.	.	.	+
+@ 0x0c	|				|
+@	+	.	.	.	+
+@ 0x10	|				|
+@	+	.	.	.	+
+@ 0x14	|				|
+@	+	.	.	.	+
+@ 0x18	|				|
+@	+-------------------------------+
+@ 0x1c	|	b	commit		|
+@	+-------+-------+-------+-------+
+@
+@	+-------+-------+-------+-------+
+@ 0x00	|	ldr	pc, [pc, -#4]	|
+@	+-------------------------------+
+@ 0x04	| address of actor behavior	|
+@	+-------------------------------+
+@ 0x08	| actor state			|
+@	+	.	.	.	+
+@ 0x0c	|				|
+@	+	.	.	.	+
+@ 0x10	|				|
+@	+	.	.	.	+
+@ 0x14	|				|
+@	+	.	.	.	+
+@ 0x18	|				|
+@	+	.	.	.	+
+@ 0x1c	|				|
+@	+-------+-------+-------+-------+
+@
+@	+-------+-------+-------+-------+
+@ 0x00	|	ldr	lr, [pc]	|
+@	+-------------------------------+
+@ 0x04	|	blx	lr		|
+@	+-------------------------------+
+@ 0x08	| address of actor behavior	|
+@	+-------------------------------+
+@ 0x0c	| actor state			|
+@	+	.	.	.	+
+@ 0x10	|				|
+@	+	.	.	.	+
+@ 0x14	|				|
+@	+	.	.	.	+
+@ 0x18	|				|
+@	+	.	.	.	+
+@ 0x1c	|				|
+@	+-------+-------+-------+-------+
+@
+@	+-------+-------+-------+-------+
+@ 0x00	|	ldmia	pc,{r0-r3,ip,pc}|
+@	+-------------------------------+
+@ 0x04	| *UNUSED* (skipped)		|
+@	+-------------------------------+
+@ 0x08	| value for r0			|
+@	+-------------------------------+
+@ 0x0c	| value for r1			|
+@	+-------------------------------+
+@ 0x10	| value for r2			|
+@	+-------------------------------+
+@ 0x14	| value for r3			|
+@	+-------------------------------+
+@ 0x18	| value for ip			|
+@	+-------------------------------+
+@ 0x1c	| value for pc			|
+@	+-------+-------+-------+-------+
+
 @ mycelia is the entry point for the actor kernel
 	.text
 	.align 2		@ alignment 2^n (2^2 = 4 byte machine word)
@@ -100,6 +192,45 @@ dequeue:		@ dequeue next event from queue
 sponsor_0:
 	.space 256*4		@ event queue (offset 0)
 	.int 0			@ queue head/tail (offset 1024)
+
+	.text
+_a_reply:		@ reply to customer and return from actor (r0=event)
+	ldr	r1, [fp, #4]	@ customer
+	str	r1, [r0]	@ target actor
+	bl	enqueue		@ add event to queue
+	b	commit		@ return
+
+	.text
+	.align 5		@ align to cache-line
+a_poll_in:		@ poll for serial input (actor)
+@	ldr	r1, =0x20201000	@ UART0
+	ldr	r1, [pc, #12]	@ UART0
+	ldr	r0, [r1, #0x18]	@ UART0->FR
+	tst	r0, #0x10	@ FR.RXFE
+	beq	1f		@ if not ready
+	b	commit		@	return
+	.int	0x20201000	@ UART0 base address
+	.align 5		@ align to cache-line
+1:
+	ldr	r4, [r1]	@ UART0->DR
+	bl	reserve		@ allocate event block
+	str	r4, [r0, #4]	@ UART data
+@	ldr	r1, [fp, #4]	@ customer
+@	str	r1, [r0]	@ target actor
+@	bl	enqueue		@ add event to queue
+@	b	commit		@ return
+	b	a_reply		@ reply and return
+
+	.text
+	.align 5		@ align to cache-line
+a_char_out:		@ write serial output (actor)
+	ldr	r0, [fp, #8]	@ character
+@	ldr	r1, =0x20201000	@ UART0
+	ldr	r1, [pc, #8]	@ UART0
+	str	r0, [r1]	@ UART0->DR
+	bl	reserve		@ allocate event block
+	b	a_reply		@ reply and return
+	.int	0x20201000	@ UART0 base address
 
 	.section .heap
 	.align 5		@ align to cache-line
