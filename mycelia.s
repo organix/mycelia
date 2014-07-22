@@ -123,18 +123,27 @@
 mycelia:		@ entry point for the actor kernel
 	bl	monitor		@ monitor();
 @ inject initial event
+	ldr	sl, =sponsor_0	@ initialize sponsor link
 	bl	reserve		@ allocate event block
-	ldr	r1, [pc]	@ get target actor
-	b	_a_send		@ send message
-	.int	a_poll		@ target actor
+	ldr	r1, =a_poll	@ get target actor
+	str	r1, [r0]	@ set target actor
+	bl	enqueue		@ add event to queue
+	b	dispatch	@ start dispatch loop
 
 	.text
 	.align 2		@ align to machine word
 commit:			@ commit effects of actor behavior
+	mov	r0, fp		@ get completed event
+	bl	release		@ free completed event
+	mov	fp, #0		@ clear frame pointer
+	str	fp, [sl, #1028]	@ clear current event
+dispatch:		@ dispatch next event
 	bl	dequeue		@ try to get next event
 	cmp	r0, #0		@ check for null
-	beq	commit		@ if no event, try again
-	ldr	lr, [r0]	@ get target actor address
+	beq	dispatch	@ if no event, try again...
+	mov	fp, r0		@ initialize frame pointer
+	str	fp, [sl, #1028]	@ update current event
+	ldr	lr, [fp]	@ get target actor address
 	bx	lr		@ jump to actor behavior
 
 	.text
@@ -204,6 +213,7 @@ dequeue:		@ dequeue next event from queue
 sponsor_0:
 	.space 256*4		@ event queue (offset 0)
 	.int 0			@ queue head/tail (offset 1024)
+	.int 0			@ current event (offset 1028)
 
 	.text
 	.align 5		@ align to cache-line
