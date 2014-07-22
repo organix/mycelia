@@ -117,13 +117,25 @@
 @ 0x1c	| value for pc			|
 @	+-------+-------+-------+-------+
 
-@ mycelia is the entry point for the actor kernel
 	.text
 	.align 2		@ alignment 2^n (2^2 = 4 byte machine word)
 	.global mycelia
-mycelia:
+mycelia:		@ entry point for the actor kernel
 	bl	monitor		@ monitor();
-	b	mycelia
+@ inject initial event
+	bl	reserve		@ allocate event block
+	ldr	r1, [pc]	@ get target actor
+	b	_a_send		@ send message
+	.int	a_poll		@ target actor
+
+	.text
+	.align 2		@ align to machine word
+commit:			@ commit effects of actor behavior
+	bl	dequeue		@ try to get next event
+	cmp	r0, #0		@ check for null
+	beq	commit		@ if no event, try again
+	ldr	lr, [r0]	@ get target actor address
+	bx	lr		@ jump to actor behavior
 
 	.text
 	.align 2		@ align to machine word
@@ -194,42 +206,88 @@ sponsor_0:
 	.int 0			@ queue head/tail (offset 1024)
 
 	.text
+	.align 5		@ align to cache-line
 _a_reply:		@ reply to customer and return from actor (r0=event)
 	ldr	r1, [fp, #4]	@ customer
+_a_send:		@ send a message and return from actor (r0=event, r1=target)
 	str	r1, [r0]	@ target actor
 	bl	enqueue		@ add event to queue
 	b	commit		@ return
 
 	.text
 	.align 5		@ align to cache-line
-a_poll_in:		@ poll for serial input (actor)
-@	ldr	r1, =0x20201000	@ UART0
-	ldr	r1, [pc, #12]	@ UART0
-	ldr	r0, [r1, #0x18]	@ UART0->FR
-	tst	r0, #0x10	@ FR.RXFE
-	beq	1f		@ if not ready
-	b	commit		@	return
-	.int	0x20201000	@ UART0 base address
-	.align 5		@ align to cache-line
-1:
-	ldr	r4, [r1]	@ UART0->DR
+a_poll:			@ poll for serial i/o ()
 	bl	reserve		@ allocate event block
-	str	r4, [r0, #4]	@ UART data
-@	ldr	r1, [fp, #4]	@ customer
-@	str	r1, [r0]	@ target actor
-@	bl	enqueue		@ add event to queue
-@	b	commit		@ return
-	b	a_reply		@ reply and return
+	ldmia	pc, {r1-r3}	@ read (target, ok, fail)
+	b	1f
+	.int	a_in_ready	@ target actor
+	.int	a_do_in		@ ok customer
+	.int	a_poll		@ fail customer
+	.align 5		@ align to cache-line
+1:			@ a_poll continued...
+	stmia	r0, {r1-r3}	@ write (target, ok, fail)
+	bl	enqueue		@ add event to queue
+	b	commit		@ return
 
 	.text
 	.align 5		@ align to cache-line
-a_char_out:		@ write serial output (actor)
-	ldr	r0, [fp, #8]	@ character
+a_in_ready:		@ check for serial input (ok, fail)
+	bl	reserve		@ allocate event block
+@	ldr	r1, =0x20201000	@ UART0
+	ldr	r1, [pc, #16]	@ UART0
+	ldr	r2, [r1, #0x18]	@ UART0->FR
+	tst	r2, #0x10	@ FR.RXFE
+	ldrne	r1, [fp, #4]	@ if ready, notify ok customer
+	ldreq	r1, [fp, #8]	@ otherwise, notify fail customer
+	b	_a_send		@ send message
+	.int	0x20201000	@ UART0 base address
+
+	.text
+	.align 5		@ align to cache-line
+a_do_in:		@ request input ()
+	bl	reserve		@ allocate event block
+	ldr	r1, [pc, #8]	@ target actor
+	ldr	r2, [pc, #8]	@ customer
+	bl	enqueue		@ add event to queue
+	b	commit		@ return
+	.int	a_char_in	@ target actor
+	.int	a_do_out	@ customer
+
+	.text
+	.align 5		@ align to cache-line
+a_char_in:		@ read serial input (cust)
+	bl	reserve		@ allocate event block
 @	ldr	r1, =0x20201000	@ UART0
 	ldr	r1, [pc, #8]	@ UART0
-	str	r0, [r1]	@ UART0->DR
+	ldr	r2, [r1]	@ UART0->DR
+	str	r2, [r0, #4]	@ UART data
+	b	_a_reply	@ reply and return
+	.int	0x20201000	@ UART0 base address
+
+	.text
+	.align 5		@ align to cache-line
+a_do_out:		@ request output (char)
 	bl	reserve		@ allocate event block
-	b	a_reply		@ reply and return
+	ldmia	pc, {r1,r2}	@ read (target, cust)
+	b	1f
+	.int	a_char_out	@ target actor
+	.int	a_poll		@ customer
+	.align 5		@ align to cache-line
+1:			@ a_do_out continued...
+	ldr	r3, [fp, #4]	@ character
+	stmia	r0, {r1-r3}	@ write (target, cust, char)
+	bl	enqueue		@ add event to queue
+	b	commit		@ return
+
+	.text
+	.align 5		@ align to cache-line
+a_char_out:		@ write serial output (cust, char)
+	bl	reserve		@ allocate event block
+	ldr	r2, [fp, #8]	@ character
+@	ldr	r1, =0x20201000	@ UART0
+	ldr	r1, [pc, #4]	@ UART0
+	str	r2, [r1]	@ UART0->DR
+	b	_a_reply	@ reply and return
 	.int	0x20201000	@ UART0 base address
 
 	.section .heap
