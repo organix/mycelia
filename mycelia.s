@@ -211,6 +211,7 @@ _a_reply:		@ reply to customer and return from actor (r0=event)
 	ldr	r1, [fp, #4]	@ customer
 _a_send:		@ send a message and return from actor (r0=event, r1=target)
 	str	r1, [r0]	@ target actor
+_a_end:			@ queue message and return from actor (r0=event)
 	bl	enqueue		@ add event to queue
 	b	commit		@ return
 
@@ -218,16 +219,13 @@ _a_send:		@ send a message and return from actor (r0=event, r1=target)
 	.align 5		@ align to cache-line
 a_poll:			@ poll for serial i/o ()
 	bl	reserve		@ allocate event block
-	ldmia	pc, {r1-r3}	@ read (target, ok, fail)
-	b	1f
+	add	r1, pc, #8	@ event template address
+	ldmia	r1, {r1-r3}	@ read (target, ok, fail)
+	stmia	r0, {r1-r3}	@ write (target, ok, fail)
+	b	_a_end		@ queue message
 	.int	a_in_ready	@ target actor
 	.int	a_do_in		@ ok customer
 	.int	a_poll		@ fail customer
-	.align 5		@ align to cache-line
-1:			@ a_poll continued...
-	stmia	r0, {r1-r3}	@ write (target, ok, fail)
-	bl	enqueue		@ add event to queue
-	b	commit		@ return
 
 	.text
 	.align 5		@ align to cache-line
@@ -268,16 +266,13 @@ a_char_in:		@ read serial input (cust)
 	.align 5		@ align to cache-line
 a_do_out:		@ request output (char)
 	bl	reserve		@ allocate event block
-	ldmia	pc, {r1,r2}	@ read (target, cust)
-	b	1f
+	ldr	r1, [pc, #12]	@ get target
+	ldr	r2, [pc, #12]	@ get customer
+	ldr	r3, [fp, #4]	@ get character
+	stmia	r0, {r1-r3}	@ write (target, cust, char)
+	b	_a_end		@ queue message
 	.int	a_char_out	@ target actor
 	.int	a_poll		@ customer
-	.align 5		@ align to cache-line
-1:			@ a_do_out continued...
-	ldr	r3, [fp, #4]	@ character
-	stmia	r0, {r1-r3}	@ write (target, cust, char)
-	bl	enqueue		@ add event to queue
-	b	commit		@ return
 
 	.text
 	.align 5		@ align to cache-line
