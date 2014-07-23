@@ -263,8 +263,8 @@ a_do_in:		@ request input ()
 	bl	reserve		@ allocate event block
 	ldr	r1, [pc, #8]	@ target actor
 	ldr	r2, [pc, #8]	@ customer
-	bl	enqueue		@ add event to queue
-	b	commit		@ return
+	stmia	r0, {r1,r2}	@ write (target, cust)
+	b	_a_end		@ queue message
 	.int	a_char_in	@ target actor
 	.int	a_do_out	@ customer
 
