@@ -100,19 +100,19 @@
 @	+-------+-------+-------+-------+
 @
 @	+-------+-------+-------+-------+
-@ 0x00	|	mov	lr, pc		|
+@ 0x00	|	mov	ip, pc		|
 @	+-------------------------------+
-@ 0x04	|	ldmia	lr,{r0-r3,ip,pc}|
+@ 0x04	|	ldmia	ip,{r4-r7,lr,pc}|
 @	+-------------------------------+
-@ 0x08	| value for r0			|
+@ 0x08	| value for r4			|
 @	+-------------------------------+
-@ 0x0c	| value for r1			|
+@ 0x0c	| value for r5			|
 @	+-------------------------------+
-@ 0x10	| value for r2			|
+@ 0x10	| value for r6			|
 @	+-------------------------------+
-@ 0x14	| value for r3			|
+@ 0x14	| value for r7			|
 @	+-------------------------------+
-@ 0x18	| value for ip			|
+@ 0x18	| value for lr			|
 @	+-------------------------------+
 @ 0x1c	| value for pc			|
 @	+-------+-------+-------+-------+
@@ -144,8 +144,8 @@ dispatch:		@ dispatch next event
 	beq	dispatch	@ if no event, try again...
 	mov	fp, r0		@ initialize frame pointer
 	str	fp, [sl, #1028]	@ update current event
-	ldr	lr, [fp]	@ get target actor address
-	bx	lr		@ jump to actor behavior
+	ldr	ip, [fp]	@ get target actor address
+	bx	ip		@ jump to actor behavior
 
 	.text
 	.align 2		@ align to machine word
