@@ -26,60 +26,6 @@
 @   fp (r11) the event being processed, including the message and target actor
 @   ip (r12) the base address of the target actor
 
-@ Actor structure(s):
-@	+-------+-------+-------+-------+
-@ 0x00	|	ldr	pc, [pc, -#4]	|
-@	+-------------------------------+
-@ 0x04	| address of actor behavior	|
-@	+-------------------------------+
-@ 0x08	| actor state			|
-@	+	.	.	.	+
-@ 0x0c	|				|
-@	+	.	.	.	+
-@ 0x10	|				|
-@	+	.	.	.	+
-@ 0x14	|				|
-@	+	.	.	.	+
-@ 0x18	|				|
-@	+	.	.	.	+
-@ 0x1c	|				|
-@	+-------+-------+-------+-------+
-@
-@	+-------+-------+-------+-------+
-@ 0x00	|	ldr	lr, [pc]	|
-@	+-------------------------------+
-@ 0x04	|	blx	lr		|
-@	+-------------------------------+
-@ 0x08	| address of actor behavior	|
-@	+-------------------------------+
-@ 0x0c	| actor state			|
-@	+	.	.	.	+
-@ 0x10	|				|
-@	+	.	.	.	+
-@ 0x14	|				|
-@	+	.	.	.	+
-@ 0x18	|				|
-@	+	.	.	.	+
-@ 0x1c	|				|
-@	+-------+-------+-------+-------+
-@
-@	+-------+-------+-------+-------+
-@ 0x00	|	mov	ip, pc		|
-@	+-------------------------------+
-@ 0x04	|	ldmia	ip,{r4-r7,lr,pc}|
-@	+-------------------------------+
-@ 0x08	| value for r4			|
-@	+-------------------------------+
-@ 0x0c	| value for r5			|
-@	+-------------------------------+
-@ 0x10	| value for r6			|
-@	+-------------------------------+
-@ 0x14	| value for r7			|
-@	+-------------------------------+
-@ 0x18	| value for lr			|
-@	+-------------------------------+
-@ 0x1c	| value for pc			|
-@	+-------+-------+-------+-------+
 
 	.text
 	.align 2		@ alignment 2^n (2^2 = 4 byte machine word)
@@ -97,7 +43,17 @@ mycelia:		@ entry point for the actor kernel
 
 	.text
 	.align 2		@ align to machine word
-complete:		@ actor behavior completion
+panic:			@ kernel panic!
+	ldr	r0, =panic_txt	@ load address of panic text
+	bl	serial_puts	@ write text to console
+	b	halt
+	.section .rodata
+panic_txt:
+	.ascii "\nPANIC!\0"
+
+	.text
+	.align 2		@ align to machine word
+complete:		@ completion of event pointed to by fp
 	mov	r0, fp		@ get completed event
 	bl	release		@ free completed event
 	mov	fp, #0		@ clear frame pointer
@@ -162,7 +118,7 @@ enqueue:		@ enqueue event pointed to by r0
 	str	r0, [sl,r3,LSL #2] @ store event pointer at tail
 	add	r3, r3, #1	@ advance tail
 	cmp	r2, r3		@ if queue full
-	beq	halt		@	KERNEL PANIC!
+	beq	panic		@	kernel panic!
 	strb	r3, [sl, #1026]	@ update tail index
 	bx	lr		@ return
 
@@ -264,6 +220,54 @@ a_char_out:		@ write serial output (cust, char)
 	str	r1, [r2]	@ UART0->DR
 	b	_a_reply	@ reply and return
 	.int	0x20201000	@ UART0 base address
+
+	.text
+	.align 5		@ align to cache-line
+example_0:
+	bl	reserve		@ allocate event block
+	ldr	r1, [ip, #0x1c] @ get answer
+	str	r1, [r0, #0x04]	@ set answer
+	ldr	r1, [fp, #0x04]	@ get customer
+	str	r1, [r0]	@ set target actor
+	bl	enqueue		@ add event to queue
+	b	complete	@ return to dispatcher
+	.int	0x42424242	@ answer data
+
+	.text
+	.align 5		@ align to cache-line
+example_1:
+	ldr	pc, [pc, -#4]	@ jump to actor behavior
+	.int	complete	@ address of actor behavior
+	.int	0x00000000	@ state field 0
+	.int	0x11111111	@ state field 1
+	.int	0x22222222	@ state field 2
+	.int	0x33333333	@ state field 3
+	.int	0x44444444	@ state field 4
+	.int	0x55555555	@ state field 5
+
+	.text
+	.align 5		@ align to cache-line
+example_2:
+	ldr	lr, [pc]	@ get actor behavior address
+	blx	lr		@ jump to behavior, lr points to state
+	.int	complete	@ address of actor behavior
+	.int	0x00000000	@ state field 0
+	.int	0x11111111	@ state field 1
+	.int	0x22222222	@ state field 2
+	.int	0x33333333	@ state field 3
+	.int	0x44444444	@ state field 4
+
+	.text
+	.align 5		@ align to cache-line
+example_3:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip,{r4-r7,lr,pc} @ copy state and jump to behavior
+	.int	0x04040404	@ value for r4
+	.int	0x05050505	@ value for r5
+	.int	0x06060606	@ value for r6
+	.int	0x07070707	@ value for r7
+	.int	0x14141414	@ value for r14 (lr)
+	.int	complete	@ address of actor behavior
 
 	.section .heap
 	.align 5		@ align to cache-line
