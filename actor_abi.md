@@ -21,15 +21,15 @@
 | r13 (sp) | link register   | link register   |
 | r15 (pc) | program counter | program counter |
 
-## Message Structure
+## Event Structure
 ~~~
         +-------+-------+-------+-------+
   0x00  | address of target actor       |
         +-------------------------------+
   0x04  | customer / ok                 |  m
-        +       .       .       .       +  e
+        + . . . . . . . . . . . . . . . +  e
   0x08  | parameter / fail              |  s
-        +       .       .       .       +  s
+        + . . . . . . . . . . . . . . . +  s
   0x0c  |                               |  a
         +       .       .       .       +  g
   0x10  |                               |  e
@@ -39,5 +39,26 @@
   0x18  |                               |  t
         +       .       .       .       +  a
   0x1c  |                               |
+        +-------+-------+-------+-------+
+~~~
+
+## Actor Structure
+~~~
+        +-------+-------+-------+-------+
+  0x00  |       bl      reserve         |  m
+        +-------------------------------+  a
+  0x04  |       ldr     r1, [ip, #0x1c] |  c
+        +-------------------------------+  h
+  0x08  |       str	r1, [r0, #0x04] |  i  (_a_answer)
+        +-------------------------------+  n
+  0x0c  |       ldr     r1, [fp, #0x04] |  e  (_a_reply)
+        +-------------------------------+
+  0x10  |       str     r1, [r0]        |  c  (_a_send)
+        +-------------------------------+  o
+  0x14  |       bl      enqueue         |  d  (_a_end)
+        +-------------------------------+  e
+  0x18  |       b       complete        |
+        +-------------------------------+
+  0x1c  | data field containing answer  |
         +-------+-------+-------+-------+
 ~~~

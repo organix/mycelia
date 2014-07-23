@@ -22,47 +22,11 @@
 @
 
 @ Special register usage:
-@   fp (r11) the event being processed, including the message and target actor
 @   sl (r10) the sponsor providing resources for this computation
-
-@ Event structure:
-@	+-------+-------+-------+-------+
-@ 0x00	| address of target actor	|
-@	+-------------------------------+
-@ 0x04	| message contents		|
-@	+	.	.	.	+
-@ 0x08	|				|
-@	+	.	.	.	+
-@ 0x0c	|				|
-@	+	.	.	.	+
-@ 0x10	|				|
-@	+	.	.	.	+
-@ 0x14	|				|
-@	+	.	.	.	+
-@ 0x18	|				|
-@	+	.	.	.	+
-@ 0x1c	|				|
-@	+-------+-------+-------+-------+
+@   fp (r11) the event being processed, including the message and target actor
+@   ip (r12) the base address of the target actor
 
 @ Actor structure(s):
-@	+-------+-------+-------+-------+
-@ 0x00	| machine instructions		|
-@	+	.	.	.	+
-@ 0x04	|				|
-@	+	.	.	.	+
-@ 0x08	|				|
-@	+	.	.	.	+
-@ 0x0c	|				|
-@	+	.	.	.	+
-@ 0x10	|				|
-@	+	.	.	.	+
-@ 0x14	|				|
-@	+	.	.	.	+
-@ 0x18	|				|
-@	+-------------------------------+
-@ 0x1c	|	b	commit		|
-@	+-------+-------+-------+-------+
-@
 @	+-------+-------+-------+-------+
 @ 0x00	|	ldr	pc, [pc, -#4]	|
 @	+-------------------------------+
@@ -133,7 +97,7 @@ mycelia:		@ entry point for the actor kernel
 
 	.text
 	.align 2		@ align to machine word
-commit:			@ commit effects of actor behavior
+complete:		@ actor behavior completion
 	mov	r0, fp		@ get completed event
 	bl	release		@ free completed event
 	mov	fp, #0		@ clear frame pointer
@@ -223,14 +187,14 @@ sponsor_0:
 	.text
 	.align 5		@ align to cache-line
 _a_answer:		@ send answer to customer and return (r0=event, r1=answer)
-	str	r1, [r0, #4]	@ UART data
+	str	r1, [r0, #0x04]	@ answer
 _a_reply:		@ reply to customer and return from actor (r0=event)
-	ldr	r1, [fp, #4]	@ customer
+	ldr	r1, [fp, #0x04]	@ customer
 _a_send:		@ send a message and return from actor (r0=event, r1=target)
 	str	r1, [r0]	@ target actor
 _a_end:			@ queue message and return from actor (r0=event)
 	bl	enqueue		@ add event to queue
-	b	commit		@ return
+	b	complete	@ return to dispatcher
 
 	.text
 	.align 5		@ align to cache-line
@@ -252,8 +216,8 @@ a_in_ready:		@ check for serial input (ok, fail)
 	ldr	r2, [pc, #16]	@ UART0
 	ldr	r1, [r2, #0x18]	@ UART0->FR
 	tst	r1, #0x10	@ FR.RXFE
-	ldreq	r1, [fp, #4]	@ if ready, notify ok customer
-	ldrne	r1, [fp, #8]	@ otherwise, notify fail customer
+	ldreq	r1, [fp, #0x04]	@ if ready, notify ok customer
+	ldrne	r1, [fp, #0x08]	@ otherwise, notify fail customer
 	b	_a_send		@ send message
 	.int	0x20201000	@ UART0 base address
 
@@ -284,7 +248,7 @@ a_do_out:		@ request output (char)
 	bl	reserve		@ allocate event block
 	ldr	r1, [pc, #12]	@ get target
 	ldr	r2, [pc, #12]	@ get customer
-	ldr	r3, [fp, #4]	@ get character
+	ldr	r3, [fp, #0x04]	@ get character
 	stmia	r0, {r1-r3}	@ write (target, cust, char)
 	b	_a_end		@ queue message
 	.int	a_char_out	@ target actor
@@ -294,7 +258,7 @@ a_do_out:		@ request output (char)
 	.align 5		@ align to cache-line
 a_char_out:		@ write serial output (cust, char)
 	bl	reserve		@ allocate event block
-	ldr	r1, [fp, #8]	@ character
+	ldr	r1, [fp, #0x08]	@ character
 @	ldr	r2, =0x20201000	@ UART0
 	ldr	r2, [pc, #4]	@ UART0
 	str	r1, [r2]	@ UART0->DR
