@@ -252,8 +252,8 @@ a_in_ready:		@ check for serial input (ok, fail)
 	ldr	r2, [pc, #16]	@ UART0
 	ldr	r1, [r2, #0x18]	@ UART0->FR
 	tst	r1, #0x10	@ FR.RXFE
-	ldrne	r1, [fp, #4]	@ if ready, notify ok customer
-	ldreq	r1, [fp, #8]	@ otherwise, notify fail customer
+	ldreq	r1, [fp, #4]	@ if ready, notify ok customer
+	ldrne	r1, [fp, #8]	@ otherwise, notify fail customer
 	b	_a_send		@ send message
 	.int	0x20201000	@ UART0 base address
 
