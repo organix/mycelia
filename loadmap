@@ -10,4 +10,5 @@ SECTIONS
     .rodata : { *(.rodata*) } > arm
     .data : { *(.data*) } > arm
     .bss : { *(.bss*) } > arm
+    .heap : { *(.heap*) } > arm
 }

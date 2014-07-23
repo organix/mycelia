@@ -1,14 +1,6 @@
 @@
 @@ start.s -- Bootstrap entry point for Mycelia
 @@
-@@ This code is loaded at 0x00008000 on the Raspberry Pi ARM processor
-@@ and is the first code that runs to boot the O/S kernel.
-@@
-@@ View this file with hard tabs every 8 positions.
-@@	|	|	.	|	.	.	.	.  max width ->
-@@      |       |       .       |       .       .       .       .  max width ->
-@@ If your tabs are set correctly, the lines above should be aligned.
-@@
 @@ Copyright 2014 Dale Schumacher, Tristan Slominski
 @@
 @@ Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +14,14 @@
 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 @@ See the License for the specific language governing permissions and
 @@ limitations under the License.
+@@
+@@ This code is loaded at 0x00008000 on the Raspberry Pi ARM processor
+@@ and is the first code that runs to boot the O/S kernel.
+@@
+@@ View this file with hard tabs every 8 positions.
+@@	|	|	.	|	.	.	.	.  max width ->
+@@      |       |       .       |       .       .       .       .  max width ->
+@@ If your tabs are set correctly, the lines above should be aligned.
 @@
 
 @ _start is the bootstrap entry point
@@ -42,6 +42,7 @@ _start:
 	subs	r2, #32		@ Decrement len
 	bgt	1b		@ More to copy?
 	bx	lr		@ Jump to bootstrap entry-point
+	.global halt
 halt:
 	b	halt		@ Full stop
 
