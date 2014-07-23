@@ -43,16 +43,6 @@ mycelia:		@ entry point for the actor kernel
 
 	.text
 	.align 2		@ align to machine word
-panic:			@ kernel panic!
-	ldr	r0, =panic_txt	@ load address of panic text
-	bl	serial_puts	@ write text to console
-	b	halt
-	.section .rodata
-panic_txt:
-	.ascii "\nPANIC!\0"
-
-	.text
-	.align 2		@ align to machine word
 complete:		@ completion of event pointed to by fp
 	mov	r0, fp		@ get completed event
 	bl	release		@ free completed event
@@ -155,71 +145,74 @@ _a_end:			@ queue message and return from actor (r0=event)
 	.text
 	.align 5		@ align to cache-line
 a_poll:			@ poll for serial i/o ()
+	add	r1, ip, #0x14	@ event template address
+	ldmia	r1, {r4-r6}	@ get (target, ok, fail)
 	bl	reserve		@ allocate event block
-	add	r1, pc, #8	@ event template address
-	ldmia	r1, {r1-r3}	@ read (target, ok, fail)
-	stmia	r0, {r1-r3}	@ write (target, ok, fail)
+	stmia	r0, {r4-r6}	@ set (target, ok, fail)
 	b	_a_end		@ queue message
-	.int	a_in_ready	@ target actor
-	.int	a_do_in		@ ok customer
-	.int	a_poll		@ fail customer
+	.int	a_in_ready	@ 0x14: target actor
+	.int	a_do_in		@ 0x18: ok customer
+	.int	a_poll		@ 0x1c: fail customer
 
 	.text
 	.align 5		@ align to cache-line
 a_in_ready:		@ check for serial input (ok, fail)
 	bl	reserve		@ allocate event block
-@	ldr	r2, =0x20201000	@ UART0
-	ldr	r2, [pc, #16]	@ UART0
-	ldr	r1, [r2, #0x18]	@ UART0->FR
-	tst	r1, #0x10	@ FR.RXFE
+	ldr	r2, [ip, #0x1c]	@ UART0
+	ldr	r3, [r2, #0x18]	@ UART0->FR
+	tst	r3, #0x10	@ FR.RXFE
 	ldreq	r1, [fp, #0x04]	@ if ready, notify ok customer
 	ldrne	r1, [fp, #0x08]	@ otherwise, notify fail customer
 	b	_a_send		@ send message
-	.int	0x20201000	@ UART0 base address
+	.int	0x20201000	@ 0x1c: UART0 base address
 
 	.text
 	.align 5		@ align to cache-line
 a_do_in:		@ request input ()
+	add	r1, ip, #0x18	@ event template address
+	ldmia	r1, {r4,r5}	@ get (target, cust)
 	bl	reserve		@ allocate event block
-	ldr	r1, [pc, #8]	@ target actor
-	ldr	r2, [pc, #8]	@ customer
-	stmia	r0, {r1,r2}	@ write (target, cust)
+	stmia	r0, {r4,r5}	@ set (target, cust)
 	b	_a_end		@ queue message
-	.int	a_char_in	@ target actor
-	.int	a_do_out	@ customer
+	.int	0		@ 0x14: --
+	.int	a_char_in	@ 0x18: target actor
+	.int	a_do_out	@ 0x1c: customer
 
 	.text
 	.align 5		@ align to cache-line
 a_char_in:		@ read serial input (cust)
 	bl	reserve		@ allocate event block
-@	ldr	r2, =0x20201000	@ UART0
-	ldr	r2, [pc, #4]	@ UART0
+	ldr	r2, [ip, #0x1c]	@ UART0
 	ldr	r1, [r2]	@ UART0->DR
 	b	_a_answer	@ answer and return
-	.int	0x20201000	@ UART0 base address
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0x20201000	@ 0x1c: UART0 base address
 
 	.text
 	.align 5		@ align to cache-line
 a_do_out:		@ request output (char)
+	ldr	r4, [ip, #0x18]	@ get target
+	ldr	r5, [ip, #0x1c]	@ get customer
+	ldr	r6, [fp, #0x04]	@ get character
 	bl	reserve		@ allocate event block
-	ldr	r1, [pc, #12]	@ get target
-	ldr	r2, [pc, #12]	@ get customer
-	ldr	r3, [fp, #0x04]	@ get character
-	stmia	r0, {r1-r3}	@ write (target, cust, char)
+	stmia	r0, {r4-r6}	@ set (target, cust, char)
 	b	_a_end		@ queue message
-	.int	a_char_out	@ target actor
-	.int	a_poll		@ customer
+	.int	a_char_out	@ 0x18: target actor
+	.int	a_poll		@ 0x1c: customer
 
 	.text
 	.align 5		@ align to cache-line
 a_char_out:		@ write serial output (cust, char)
-	bl	reserve		@ allocate event block
 	ldr	r1, [fp, #0x08]	@ character
-@	ldr	r2, =0x20201000	@ UART0
-	ldr	r2, [pc, #4]	@ UART0
+	ldr	r2, [ip, #0x1c]	@ UART0
 	str	r1, [r2]	@ UART0->DR
+	bl	reserve		@ allocate event block
 	b	_a_reply	@ reply and return
-	.int	0x20201000	@ UART0 base address
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0x20201000	@ 0x1c: UART0 base address
 
 	.text
 	.align 5		@ align to cache-line
@@ -236,7 +229,7 @@ example_0:
 	.text
 	.align 5		@ align to cache-line
 example_1:
-	ldr	pc, [pc, -#4]	@ jump to actor behavior
+	ldr	pc, [pc, #-4]	@ jump to actor behavior
 	.int	complete	@ address of actor behavior
 	.int	0x00000000	@ state field 0
 	.int	0x11111111	@ state field 1
@@ -268,6 +261,16 @@ example_3:
 	.int	0x07070707	@ value for r7
 	.int	0x14141414	@ value for r14 (lr)
 	.int	complete	@ address of actor behavior
+
+	.text
+	.align 2		@ align to machine word
+panic:			@ kernel panic!
+	ldr	r0, =panic_txt	@ load address of panic text
+	bl	serial_puts	@ write text to console
+	b	halt
+	.section .rodata
+panic_txt:
+	.ascii "\nPANIC!\0"
 
 	.section .heap
 	.align 5		@ align to cache-line
