@@ -5,7 +5,7 @@
 Memory is managed in cache-line-aligned blocks of 32 bytes (8x32-bit words).
 An event-block holds a message and the target actor
 to whom it will be dispatched.
-An actor-block holds actor's behavior and state.
+An actor-block holds actor behavior and state.
 Blocks may be chained
 in order to extend the available storage
 as needed.
@@ -243,6 +243,10 @@ which is the beginning of the actor's state
 (and the pointer to the current behavior).
 
 ### Example 3
+
+A more powerful indirect-behavior implementation
+can pre-load a group of registers from the actor state
+while jumping to the actual behavior code.
 ~~~
         +-------+-------+-------+-------+
   0x00  |       mov     ip, pc          |
@@ -262,3 +266,25 @@ which is the beginning of the actor's state
   0x1c  | address of actor behavior     |
         +-------+-------+-------+-------+
 ~~~
+The first instruction loads the actor state address
+(offset 0x08 into the actor block)
+into the index pointer (ip).
+The second instruction loads up to 6 registers,
+including the program counter (pc),
+from the actor block.
+Loading the program counter causes a jump
+to the address loaded,
+which is the address of the actual behavior code.
+
+The behavior then begins executing
+with several actor-state fields
+already loaded into convenient registers.
+Any combination of registers may be loaded,
+as long as the final register is the pc
+(to jump to the behavior).
+Note that the register values must be in numerical order
+based on the register numbers to be loaded.
+The actor behavior may use the pre-loaded state in registers,
+but must write back to the actor block
+(through ip, which is offset +0x08)
+to update the persistent actor state.
