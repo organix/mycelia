@@ -1,6 +1,18 @@
 # Actor ABI
 
+## Memory
+
+Memory is managed in cache-line-aligned blocks of 32 bytes (8x32-bit words).
+
+
 ## Registers
+
+On entry to an actor behavior,
+we want as many registers available as we can get.
+The kernel's event dispatch loop does not use r4-r9 at all.
+Kernel procedures called from actor behaviors
+are required to preserve r4-r9, but may freely use r0-r3.
+Consistent special meanings are given to r10-r15.
 
 | Register | Kernel Usage    | Actor Usage     |
 |----------|-----------------|-----------------|
@@ -18,8 +30,16 @@
 | r11 (fp) | event frame ptr | event frame ptr |
 | r12 (ip) | actor index ptr | actor index ptr |
 | r13 (sp) | stack pointer   | stack pointer   |
-| r14 (sp) | link register   | link register   |
+| r14 (lr) | link register   | link register   |
 | r15 (pc) | program counter | program counter |
+
+All computation is driven by dispatching events.
+An event designates a target actor and
+up 7 words of additional message content.
+When the target actor's behavior begins executing,
+r10 (sl) will indicate the sponsor of the computation,
+r11 (fp) will point to the base of the event block, and
+r12 (ip) will point to the base of the actor block.
 
 ## Event Structure
 ~~~
@@ -41,10 +61,33 @@
   0x1c  |                               |
         +-------+-------+-------+-------+
 ~~~
+An event block begins with the address of the actor
+to whom the event will be dispatched.
+The rest of the block may contain 0 to 7 additional words of message content.
+By convention, the first word of the message (at offset 0x04)
+is often the customer (an actor) to whom a reply may be directed.
+The second word of the message (at offset 0x08) is usually the first parameter.
+In the case that an actor may report success or failure,
+two customers are provided.
+The ok customer (at offset 0x04) for success/true results,
+and the fail customer (at offet 0x08) for failure/false results.
 
 ## Actor Structure
 
+The target actor may be accessed through the event (at offset 0x00),
+or more directly via register r12 (ip).
+An actor block must begin with directly executable code.
+The block may also contain data fields
+accessed by the behavior code.
+
 ### Example 0
+
+There are several reasonable strategies
+for organizing an actor's behavior.
+The most basic is to embed the behavior
+directly in the actor block.
+Example 0 illustrates the typical elements
+of a directly-coded actor behavior.
 ~~~
         +-------+-------+-------+-------+
   0x00  |       bl      reserve         |  m
