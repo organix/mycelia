@@ -26,7 +26,6 @@
 @   fp (r11) the event being processed, including the message and target actor
 @   ip (r12) the base address of the target actor
 
-
 	.text
 	.align 2		@ alignment 2^n (2^2 = 4 byte machine word)
 	.global mycelia
@@ -132,15 +131,55 @@ sponsor_0:
 
 	.text
 	.align 5		@ align to cache-line
+example_0:
+	bl	reserve		@ allocate event block
+	ldr	r1, [ip, #0x1c] @ get answer
 _a_answer:		@ send answer to customer and return (r0=event, r1=answer)
-	str	r1, [r0, #0x04]	@ answer
+	str	r1, [r0, #0x04]	@ set answer
 _a_reply:		@ reply to customer and return from actor (r0=event)
-	ldr	r1, [fp, #0x04]	@ customer
+	ldr	r1, [fp, #0x04]	@ get customer
 _a_send:		@ send a message and return from actor (r0=event, r1=target)
-	str	r1, [r0]	@ target actor
+	str	r1, [r0]	@ set target actor
 _a_end:			@ queue message and return from actor (r0=event)
 	bl	enqueue		@ add event to queue
 	b	complete	@ return to dispatcher
+	.int	0x42424242	@ answer data
+
+	.text
+	.align 5		@ align to cache-line
+example_1:
+	ldr	pc, [pc, #-4]	@ jump to actor behavior
+	.int	complete	@ address of actor behavior
+	.int	0x11111111	@ state field 1
+	.int	0x22222222	@ state field 2
+	.int	0x33333333	@ state field 3
+	.int	0x44444444	@ state field 4
+	.int	0x55555555	@ state field 5
+	.int	0x66666666	@ state field 6
+
+	.text
+	.align 5		@ align to cache-line
+example_2:
+	ldr	lr, [pc]	@ get actor behavior address
+	blx	lr		@ jump to behavior, lr points to state
+	.int	complete	@ address of actor behavior
+	.int	0x11111111	@ state field 1
+	.int	0x22222222	@ state field 2
+	.int	0x33333333	@ state field 3
+	.int	0x44444444	@ state field 4
+	.int	0x55555555	@ state field 5
+
+	.text
+	.align 5		@ align to cache-line
+example_3:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip,{r4-r7,lr,pc} @ copy state and jump to behavior
+	.int	0x04040404	@ value for r4
+	.int	0x05050505	@ value for r5
+	.int	0x06060606	@ value for r6
+	.int	0x07070707	@ value for r7
+	.int	0x14141414	@ value for r14 (lr)
+	.int	complete	@ address of actor behavior
 
 	.text
 	.align 5		@ align to cache-line
@@ -213,54 +252,6 @@ a_char_out:		@ write serial output (cust, char)
 	.int	0		@ 0x14: --
 	.int	0		@ 0x18: --
 	.int	0x20201000	@ 0x1c: UART0 base address
-
-	.text
-	.align 5		@ align to cache-line
-example_0:
-	bl	reserve		@ allocate event block
-	ldr	r1, [ip, #0x1c] @ get answer
-	str	r1, [r0, #0x04]	@ set answer
-	ldr	r1, [fp, #0x04]	@ get customer
-	str	r1, [r0]	@ set target actor
-	bl	enqueue		@ add event to queue
-	b	complete	@ return to dispatcher
-	.int	0x42424242	@ answer data
-
-	.text
-	.align 5		@ align to cache-line
-example_1:
-	ldr	pc, [pc, #-4]	@ jump to actor behavior
-	.int	complete	@ address of actor behavior
-	.int	0x00000000	@ state field 0
-	.int	0x11111111	@ state field 1
-	.int	0x22222222	@ state field 2
-	.int	0x33333333	@ state field 3
-	.int	0x44444444	@ state field 4
-	.int	0x55555555	@ state field 5
-
-	.text
-	.align 5		@ align to cache-line
-example_2:
-	ldr	lr, [pc]	@ get actor behavior address
-	blx	lr		@ jump to behavior, lr points to state
-	.int	complete	@ address of actor behavior
-	.int	0x00000000	@ state field 0
-	.int	0x11111111	@ state field 1
-	.int	0x22222222	@ state field 2
-	.int	0x33333333	@ state field 3
-	.int	0x44444444	@ state field 4
-
-	.text
-	.align 5		@ align to cache-line
-example_3:
-	mov	ip, pc		@ point ip to data fields (state)
-	ldmia	ip,{r4-r7,lr,pc} @ copy state and jump to behavior
-	.int	0x04040404	@ value for r4
-	.int	0x05050505	@ value for r5
-	.int	0x06060606	@ value for r6
-	.int	0x07070707	@ value for r7
-	.int	0x14141414	@ value for r14 (lr)
-	.int	complete	@ address of actor behavior
 
 	.text
 	.align 2		@ align to machine word
