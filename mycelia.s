@@ -42,11 +42,13 @@ mycelia:		@ entry point for the actor kernel
 
 	.text
 	.align 2		@ align to machine word
+	.global complete
 complete:		@ completion of event pointed to by fp
 	mov	r0, fp		@ get completed event
 	bl	release		@ free completed event
 	mov	fp, #0		@ clear frame pointer
 	str	fp, [sl, #1028]	@ clear current event
+	.global dispatch
 dispatch:		@ dispatch next event
 	bl	dequeue		@ try to get next event
 	cmp	r0, #0		@ check for null
@@ -58,6 +60,7 @@ dispatch:		@ dispatch next event
 
 	.text
 	.align 2		@ align to machine word
+	.global reserve
 reserve:		@ reserve a block (32 bytes) of memory
 	ldr	r1, =block_free	@ address of free list pointer
 	ldr	r0, [r1]	@ address of first free block
@@ -76,6 +79,7 @@ reserve:		@ reserve a block (32 bytes) of memory
 	ldmia	sp!, {lr}	@	restore link register
 	b	reserve		@	try again
 
+	.global release
 release:		@ release the memory block pointed to by r0
 	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
 	ldr	r1, =block_free	@ address of free list pointer
@@ -100,6 +104,7 @@ block_end:
 
 	.text
 	.align 2		@ align to machine word
+	.global enqueue
 enqueue:		@ enqueue event pointed to by r0
 	ldr	r1, [sl, #1024]	@ event queue head/tail indicies
 	uxtb	r2, r1, ROR #8	@ get head index
@@ -134,12 +139,16 @@ sponsor_0:
 example_0:
 	bl	reserve		@ allocate event block
 	ldr	r1, [ip, #0x1c] @ get answer
+	.global _a_answer
 _a_answer:		@ send answer to customer and return (r0=event, r1=answer)
 	str	r1, [r0, #0x04]	@ set answer
+	.global _a_reply
 _a_reply:		@ reply to customer and return from actor (r0=event)
 	ldr	r1, [fp, #0x04]	@ get customer
+	.global _a_send
 _a_send:		@ send a message and return from actor (r0=event, r1=target)
 	str	r1, [r0]	@ set target actor
+	.global _a_end
 _a_end:			@ queue message and return from actor (r0=event)
 	bl	enqueue		@ add event to queue
 	b	complete	@ return to dispatcher
@@ -182,79 +191,8 @@ example_3:
 	.int	complete	@ address of actor behavior
 
 	.text
-	.align 5		@ align to cache-line
-a_poll:			@ poll for serial i/o ()
-	add	r1, ip, #0x14	@ event template address
-	ldmia	r1, {r4-r6}	@ get (target, ok, fail)
-	bl	reserve		@ allocate event block
-	stmia	r0, {r4-r6}	@ set (target, ok, fail)
-	b	_a_end		@ queue message
-	.int	a_in_ready	@ 0x14: target actor
-	.int	a_do_in		@ 0x18: ok customer
-	.int	a_poll		@ 0x1c: fail customer
-
-	.text
-	.align 5		@ align to cache-line
-a_in_ready:		@ check for serial input (ok, fail)
-	bl	reserve		@ allocate event block
-	ldr	r2, [ip, #0x1c]	@ UART0
-	ldr	r3, [r2, #0x18]	@ UART0->FR
-	tst	r3, #0x10	@ FR.RXFE
-	ldreq	r1, [fp, #0x04]	@ if ready, notify ok customer
-	ldrne	r1, [fp, #0x08]	@ otherwise, notify fail customer
-	b	_a_send		@ send message
-	.int	0x20201000	@ 0x1c: UART0 base address
-
-	.text
-	.align 5		@ align to cache-line
-a_do_in:		@ request input ()
-	add	r1, ip, #0x18	@ event template address
-	ldmia	r1, {r4,r5}	@ get (target, cust)
-	bl	reserve		@ allocate event block
-	stmia	r0, {r4,r5}	@ set (target, cust)
-	b	_a_end		@ queue message
-	.int	0		@ 0x14: --
-	.int	a_char_in	@ 0x18: target actor
-	.int	a_do_out	@ 0x1c: customer
-
-	.text
-	.align 5		@ align to cache-line
-a_char_in:		@ read serial input (cust)
-	bl	reserve		@ allocate event block
-	ldr	r2, [ip, #0x1c]	@ UART0
-	ldr	r1, [r2]	@ UART0->DR
-	b	_a_answer	@ answer and return
-	.int	0		@ 0x10: --
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	0x20201000	@ 0x1c: UART0 base address
-
-	.text
-	.align 5		@ align to cache-line
-a_do_out:		@ request output (char)
-	ldr	r4, [ip, #0x18]	@ get target
-	ldr	r5, [ip, #0x1c]	@ get customer
-	ldr	r6, [fp, #0x04]	@ get character
-	bl	reserve		@ allocate event block
-	stmia	r0, {r4-r6}	@ set (target, cust, char)
-	b	_a_end		@ queue message
-	.int	a_char_out	@ 0x18: target actor
-	.int	a_poll		@ 0x1c: customer
-
-	.text
-	.align 5		@ align to cache-line
-a_char_out:		@ write serial output (cust, char)
-	ldr	r1, [fp, #0x08]	@ character
-	ldr	r2, [ip, #0x1c]	@ UART0
-	str	r1, [r2]	@ UART0->DR
-	bl	reserve		@ allocate event block
-	b	_a_reply	@ reply and return
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	0x20201000	@ 0x1c: UART0 base address
-
-	.text
 	.align 2		@ align to machine word
+	.global panic
 panic:			@ kernel panic!
 	ldr	r0, =panic_txt	@ load address of panic text
 	bl	serial_puts	@ write text to console
