@@ -18,7 +18,7 @@
 | r11 (fp) | event frame ptr | event frame ptr |
 | r12 (ip) | actor index ptr | actor index ptr |
 | r13 (sp) | stack pointer   | stack pointer   |
-| r13 (sp) | link register   | link register   |
+| r14 (sp) | link register   | link register   |
 | r15 (pc) | program counter | program counter |
 
 ## Event Structure
