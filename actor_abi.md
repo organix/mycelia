@@ -152,7 +152,7 @@ before calling `enqueue`.
 If the target for the new event is
 the customer from the current event,
 the actor can jump to `_a_reply`,
-which load the target address
+which loads the target address
 from the current event block (offset 0x04).
 
 If the answer is in r1,
@@ -163,6 +163,14 @@ which stores the answer in the new event
 and performs all the previously described steps.
 
 ### Example 1
+
+It is often useful for an actor's behavior
+to be separated from it's state,
+especially when the actor wants to switch
+among several behaviors.
+This can be accomplished by maintaining a pointer
+to the desired behavior,
+and jumping through that pointer to handle an event.
 ~~~
         +-------+-------+-------+-------+
   0x00  |       ldr     pc, [pc, #-4]   |
@@ -182,8 +190,23 @@ and performs all the previously described steps.
   0x1c  |                               |
         +-------+-------+-------+-------+
 ~~~
+As always, the kernel invokes an actor's behavior
+by jumping to the beginning of the actor block.
+The first instruction in the actor block
+simply reloads the program counter
+with the address of the current behavior.
+Note that the value of pc is offset +8
+from the currently executing instruction,
+thus [pc, #-4] loads the new pc from 0x04
+in the actor block.
+The actor behavior will be able to access
+the rest of the actor state
+through the ip register,
+which points to the beginning of the actor block.
 
 ### Example 2
+
+Here is another way to implement an indirect call to the actor behavior.
 ~~~
         +-------+-------+-------+-------+
   0x00  |       ldr     lr, [pc]        |
@@ -203,6 +226,13 @@ and performs all the previously described steps.
   0x1c  |                               |
         +-------+-------+-------+-------+
 ~~~
+The first instruction loads the actor behavior address
+from offset 0x08 in the actor block into the link register.
+The second instruction jumps to that address,
+which setting the link register
+to the address following the instruction,
+which is the beginning of the actor's state
+(and the pointer to the current behavior).
 
 ### Example 3
 ~~~
