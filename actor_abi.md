@@ -3,13 +3,19 @@
 ## Memory
 
 Memory is managed in cache-line-aligned blocks of 32 bytes (8x32-bit words).
-
+An event-block holds a message and the target actor
+to whom it will be dispatched.
+An actor-block holds actor's behavior and state.
+Blocks may be chained
+in order to extend the available storage
+as needed.
 
 ## Registers
 
 On entry to an actor behavior,
 we want as many registers available as we can get.
-The kernel's event dispatch loop does not use r4-r9 at all.
+The kernel's event dispatch loop does not make any assumptions
+about the contents of r0-r9.
 Actor behaviors may use r4-r9 freely, without preserving them.
 Actor behaviors may also use r0-r3,
 although they should not expect them to survive a kernel call.
@@ -52,7 +58,7 @@ Note that actors should consider the sponsor opaque.
 
 An event block begins with the address of the actor
 to whom the event will be dispatched.
-The rest of the block may contain 0 to 7 additional words of message content.
+The rest of the block may contain 0 to 7 additional words of message data.
 ~~~
         +-------+-------+-------+-------+
   0x00  | address of target actor       |
@@ -79,14 +85,15 @@ In the case that an actor may report success or failure,
 two customers are provided.
 The ok customer (at offset 0x04) for success/true results,
 and the fail customer (at offet 0x08) for failure/false results.
+Additional parameters may follow starting at offset 0x0c.
 
 ## Actor Structure
 
-The target actor may be accessed through the event (at offset 0x00),
+The target actor may be accessed through the event block (offset 0x00),
 or more directly via register r12 (ip).
 An actor block must begin with directly executable code.
 The block may also contain data fields
-accessed by the behavior code.
+accessed by the code of the behavior.
 
 ### Example 0
 
@@ -102,13 +109,13 @@ of a directly-coded actor behavior.
         +-------------------------------+  a
   0x04  |       ldr     r1, [ip, #0x1c] |  c
         +-------------------------------+  h
-  0x08  |       str     r1, [r0, #0x04] |  i  (_a_answer)
+  0x08  |       str     r1, [r0, #0x04] |  i  (_a_answer: r0=event, r1=answer)
         +-------------------------------+  n
-  0x0c  |       ldr     r1, [fp, #0x04] |  e  (_a_reply)
+  0x0c  |       ldr     r1, [fp, #0x04] |  e  (_a_reply: r0=event)
         +-------------------------------+
-  0x10  |       str     r1, [r0]        |  c  (_a_send)
+  0x10  |       str     r1, [r0]        |  c  (_a_send: r0=event, r1=target)
         +-------------------------------+  o
-  0x14  |       bl      enqueue         |  d  (_a_end)
+  0x14  |       bl      enqueue         |  d  (_a_end: r0=event)
         +-------------------------------+  e
   0x18  |       b       complete        |
         +-------------------------------+
@@ -120,10 +127,10 @@ to allocate a new block for a reply-message event.
 The kernel procedure `reserve` is allowed to change r0-r3,
 but must preserve r4-r9, and returns the block address in r0.
 Next, r1 is loaded from the actor block offset 0x1c (the answer).
-The answer in r1 is stored in the event block at offset 0x04.
+The answer in r1 is stored in the reply-event block at offset 0x04.
 Now, r1 is reloaded with the customer
 from the request-event block offset 0x04.
-The customer is r1 is stored as the target
+The customer in r1 is stored as the target
 of the reply-message event.
 The reply-message event is added to the event queue
 by calling the `enqueue` kernel procedure (which may change r0-r3).
@@ -131,9 +138,9 @@ Finally, the actor behavior jumps to `complete`,
 which ends the processing of the request-event
 and dispatches the next event.
 
-Many directly-coded actor behaviors end with similar steps,
-so they have been extracted into a series of jump labels
-that can be used to end an actor behavior.
+Many directly-coded actor behaviors end with similar steps.
+These steps have been extracted into a series of jump labels
+that can be used to complete an actor behavior.
 They can be considered abbreviations
 for common sequences of completion steps.
 Working backwards, we will consider the circumstances
@@ -159,7 +166,7 @@ If the answer is in r1,
 the target is the current-event customer,
 and the new event is in r0,
 the actor can jump to `_a_answer`,
-which stores the answer in the new event
+which stores the answer in the new event (offset 0x04)
 and performs all the previously described steps.
 
 ### Example 1
@@ -197,10 +204,10 @@ simply reloads the program counter
 with the address of the current behavior.
 Note that the value of pc is offset +8
 from the currently executing instruction,
-thus [pc, #-4] loads the new pc from 0x04
-in the actor block.
-The actor behavior will be able to access
-the rest of the actor state
+thus [pc, #-4] loads the new pc
+from offset 0x04 in the actor block.
+The actor behavior will have access to
+the actor state
 through the ip register,
 which points to the beginning of the actor block.
 
@@ -227,9 +234,10 @@ Here is another way to implement an indirect call to the actor behavior.
         +-------+-------+-------+-------+
 ~~~
 The first instruction loads the actor behavior address
-from offset 0x08 in the actor block into the link register.
+(from offset 0x08 in the actor block)
+into the link register.
 The second instruction jumps to that address,
-which setting the link register
+while setting the link register
 to the address following the instruction,
 which is the beginning of the actor's state
 (and the pointer to the current behavior).
