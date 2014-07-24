@@ -10,6 +10,9 @@ Memory is managed in cache-line-aligned blocks of 32 bytes (8x32-bit words).
 On entry to an actor behavior,
 we want as many registers available as we can get.
 The kernel's event dispatch loop does not use r4-r9 at all.
+Actor behaviors may use r4-r9 freely, without preserving them.
+Actor behaviors may also use r0-r3,
+although they should not expect them to survive a kernel call.
 Kernel procedures called from actor behaviors
 are required to preserve r4-r9, but may freely use r0-r3.
 Consistent special meanings are given to r10-r15.
@@ -40,8 +43,16 @@ When the target actor's behavior begins executing,
 r10 (sl) will indicate the sponsor of the computation,
 r11 (fp) will point to the base of the event block, and
 r12 (ip) will point to the base of the actor block.
+Kernel procedures called from an actor behavior
+will expect r10 (sl) to remain stable,
+pointing to the sponsor.
+Note that actors should consider the sponsor opaque.
 
 ## Event Structure
+
+An event block begins with the address of the actor
+to whom the event will be dispatched.
+The rest of the block may contain 0 to 7 additional words of message content.
 ~~~
         +-------+-------+-------+-------+
   0x00  | address of target actor       |
@@ -61,9 +72,6 @@ r12 (ip) will point to the base of the actor block.
   0x1c  |                               |
         +-------+-------+-------+-------+
 ~~~
-An event block begins with the address of the actor
-to whom the event will be dispatched.
-The rest of the block may contain 0 to 7 additional words of message content.
 By convention, the first word of the message (at offset 0x04)
 is often the customer (an actor) to whom a reply may be directed.
 The second word of the message (at offset 0x08) is usually the first parameter.
@@ -107,6 +115,52 @@ of a directly-coded actor behavior.
   0x1c  | data field containing answer  |
         +-------+-------+-------+-------+
 ~~~
+This actor behavior begins by calling `reserve`
+to allocate a new block for a reply-message event.
+The kernel procedure `reserve` is allowed to change r0-r3,
+but must preserve r4-r9, and returns the block address in r0.
+Next, r1 is loaded from the actor block offset 0x1c (the answer).
+The answer in r1 is stored in the event block at offset 0x04.
+Now, r1 is reloaded with the customer
+from the request-event block offset 0x04.
+The customer is r1 is stored as the target
+of the reply-message event.
+The reply-message event is added to the event queue
+by calling the `enqueue` kernel procedure (which may change r0-r3).
+Finally, the actor behavior jumps to `complete`,
+which ends the processing of the request-event
+and dispatches the next event.
+
+Many directly-coded actor behaviors end with similar steps,
+so they have been extracted into a series of jump labels
+that can be used to end an actor behavior.
+They can be considered abbreviations
+for common sequences of completion steps.
+Working backwards, we will consider the circumstances
+in with each jump label is useful.
+
+All actor behaviors must end with a jump to `complete`.
+If they also want to `enqueue` an event,
+they can jump to `_a_end` instead,
+with the new event in r0.
+
+If the target for the new event is in r1,
+the actor can jump to `_a_send`,
+which stores the target in the event
+before calling `enqueue`.
+
+If the target for the new event is
+the customer from the current event,
+the actor can jump to `_a_reply`,
+which load the target address
+from the current event block (offset 0x04).
+
+If the answer is in r1,
+the target is the current-event customer,
+and the new event is in r0,
+the actor can jump to `_a_answer`,
+which stores the answer in the new event
+and performs all the previously described steps.
 
 ### Example 1
 ~~~
