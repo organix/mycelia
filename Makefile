@@ -20,15 +20,15 @@ AS=	as
 CC=	gcc -g -Wall -O2 -nostdlib -nostartfiles -ffreestanding
 LD=	ld
 
-KOBJS=	start.o mycelia.o raspberry.o timer.o serial.o xmodem.o
+KOBJS=	start.o \
+	mycelia.o \
+	console.o \
+	raspberry.o \
+	timer.o \
+	serial.o \
+	xmodem.o
 
 all: kernel.img
-
-start.o: start.s
-	$(AS) start.s -o start.o
-
-mycelia.o: mycelia.s
-	$(AS) mycelia.s -o mycelia.o
 
 kernel.img: loadmap $(KOBJS)
 	$(LD) $(KOBJS) -T loadmap -o mycelia.elf
@@ -37,8 +37,11 @@ kernel.img: loadmap $(KOBJS)
 	objcopy --only-keep-debug mycelia.elf kernel.sym
 	objcopy mycelia.elf -O binary kernel.img
 
+.s.o:
+	$(AS) -o $@ $<
+
 .c.o:
-	$(CC) -c $<
+	$(CC) -c -o $@ $<
 
 clean:
 	rm -f *.o
