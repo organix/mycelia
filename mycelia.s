@@ -260,14 +260,6 @@ create_2:		@ create 2 parameter actor (r0=behavior, r1=r4, r2=r5)
 
 	.text
 	.align 2		@ align to machine word
-	.global _a_vanish
-_a_vanish:		@ destroy currently running actor -- DANGEROUS!
-	mov	r0, ip		@ address of running actor (ip must be at base)
-	bl	release		@ free actor memory
-	b	complete	@ return to dispatch loop
-
-	.text
-	.align 2		@ align to machine word
 	.global panic
 panic:			@ kernel panic!
 	ldr	r0, =panic_txt	@ load address of panic text

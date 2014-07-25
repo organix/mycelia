@@ -60,6 +60,40 @@ a_oneshot:		@ forward one message, then ignore
 	.int	a_oneshot+4	@ 0x18: current behavior
 	.int	a_ignore	@ 0x1c: delegate actor (used by a_forward)
 
+	.text
+	.align 5		@ align to cache-line
+	.global a_fork
+a_fork:			@ initiate two concurrent events
+			@ message = (customer, event_0, event_1)
+	@ r4=customer, r5=event_0, r6=event_1, r7=event_n, r8=tag, ip=join
+	ldmia	fp, {r4-r6}	@ load message data
+
+	ldr	r0, =b_join	@ get b_join address
+	bl	create		@ create b_join actor
+	mov	ip, r0		@ point ip to join actor
+	str	r4, [ip, #0x08] @ remember customer
+
+	mov	r7, r5		@ for event_0...
+	bl	_fork_0		@ create tag actor
+	str	r8, [ip, #0x0c] @ remember first tag actor
+
+	mov	r7, r6		@ for event_1...
+	bl	_fork_0		@ create tag actor
+	str	r8, [ip, #0x10] @ remember second tag actor
+
+	b	complete	@ return to dispatch loop
+
+_fork_0:		@ create tag actor
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	ldr	r0, =b_tag	@ get b_tag address
+	mov	r1, ip		@ customer is join
+	bl	create_1	@ create b_tag actor
+	mov	r8, r0		@ remember tag actor
+	str	r8, [r7, #0x04]	@ set/replace customer in event_n
+	mov	r0, r7
+	bl	enqueue		@ add event to queue
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+
 @
 @ indirect-coded actor behaviors (use with `create` procedures)
 @
@@ -75,51 +109,16 @@ b_label:		@ add label to message (r4=customer, r5=label)
 	stmia	r0, {r2-r9}	@ write new event
 	bl	enqueue		@ add event to queue
 	b	complete	@ return to dispatch loop
-	.int	0		@ 0x1c: --
 
 	.text
 	.align 5		@ align to cache-line
 	.global b_tag
 b_tag:			@ label one message with actor identity (r4=customer)
 	mov	r2, r4		@ move customer into position
-	ldmia	fp, {r0,r4-r9}	@ copy request (drop last word)
-	mov	r3, r0		@ move label into position
+	ldmia	fp, {r3-r9}	@ copy request (drop last word, r3=label)
 	stmia	fp, {r2-r9}	@ overwrite event
 	mov	ip, r2		@ get target actor address
-	bl	release		@ destroy current actor (r0=tag_actor)
 	bx	ip		@ jump to customer behavior
-	.int	0		@ 0x1c: --
-
-	.text
-	.align 5		@ align to cache-line
-	.global b_fork
-b_fork:			@ initiate two concurrent events
-			@ message = (customer, event_0, event_1)
-	ldr	r0, =b_join	@ get b_join address
-	bl	create		@ create b_join actor
-	mov	ip, r0		@ point ip to join actor
-	ldr	r0, [fp, #0x04]	@ get customer
-	str	r0, [ip, #0x08] @ remember customer
-
-	ldr	r0, =b_tag	@ get b_tag address
-	mov	r1, ip		@ customer is join
-	bl	create_1	@ create b_tag actor
-	str	r0, [ip, #0x0c] @ remember first tag actor
-	ldr	r1, [fp, #0x08]	@ get event_0
-	str	r0, [r1, #0x04]	@ set/replace customer in event_0
-	mov	r0, r1
-	bl	enqueue		@ add event to queue
-
-	ldr	r0, =b_tag	@ get b_tag address
-	mov	r1, ip		@ customer is join
-	bl	create_1	@ create b_tag actor
-	str	r0, [ip, #0x10] @ remember second tag actor
-	ldr	r1, [fp, #0x0c]	@ get event_1
-	str	r0, [r1, #0x04]	@ set/replace customer in event_1
-	mov	r0, r1
-	bl	enqueue		@ add event to queue
-
-	b	complete	@ return to dispatch loop
 
 	.text
 	.align 5		@ align to cache-line
