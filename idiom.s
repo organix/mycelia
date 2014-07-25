@@ -66,7 +66,7 @@ a_label:		@ add label to message
 a_tag:			@ label with actor identity
 	bl	reserve		@ allocate event block
 	ldmia	fp, {r2,r4-r9}	@ copy request (drop last word)
-	ldr	r3, ip		@ insert label
+	mov	r3, ip		@ insert label
 	stmia	r0, {r2-r9}	@ write new event
 	b	_a_end		@ queue message and return
 	.int	0		@ 0x14: --
@@ -77,11 +77,11 @@ a_tag:			@ label with actor identity
 	.align 5		@ align to cache-line
 	.global a_oneshot
 a_oneshot:		@ forward one message, then ignore
-	ldr	r0, [ip, #0x18]	@ get current behavior
-	ldr	r1, [ip, #0x14]	@ get next behavior
-	str	r1, [ip, #0x18]	@ update current behavior
-	bx	r0		@ jump to behavior
+	ldr	pc, [ip, #0x18] @ jump to current behavior
+	ldr	lr, [ip, #0x14]	@ load next behavior
+	str	lr, [ip, #0x18]	@ update current behavior
+	b	a_forward	@ forward, first time only
 	.int	0		@ 0x10: --
 	.int	complete	@ 0x14: next behavior
-	.int	a_forward	@ 0x18: current behavior
+	.int	a_oneshot+4	@ 0x18: current behavior
 	.int	a_ignore	@ 0x1c: delegate actor (used by a_forward)
