@@ -151,44 +151,120 @@ _a_send:		@ send a message and return from actor (r0=event, r1=target)
 	.global _a_end
 _a_end:			@ queue message and return from actor (r0=event)
 	bl	enqueue		@ add event to queue
-	b	complete	@ return to dispatcher
+	b	complete	@ return to dispatch loop
 	.int	0x42424242	@ answer data
 
 	.text
 	.align 5		@ align to cache-line
 example_1:
 	ldr	pc, [pc, #-4]	@ jump to actor behavior
-	.int	complete	@ address of actor behavior
-	.int	0x11111111	@ state field 1
-	.int	0x22222222	@ state field 2
-	.int	0x33333333	@ state field 3
-	.int	0x44444444	@ state field 4
-	.int	0x55555555	@ state field 5
-	.int	0x66666666	@ state field 6
+	.int	complete	@ 0x04: address of actor behavior
+	.int	0x11111111	@ 0x08: state field 1
+	.int	0x22222222	@ 0x0c: state field 2
+	.int	0x33333333	@ 0x10: state field 3
+	.int	0x44444444	@ 0x14: state field 4
+	.int	0x55555555	@ 0x18: state field 5
+	.int	0x66666666	@ 0x1c: state field 6
 
 	.text
 	.align 5		@ align to cache-line
 example_2:
 	ldr	lr, [pc]	@ get actor behavior address
 	blx	lr		@ jump to behavior, lr points to state
-	.int	complete	@ address of actor behavior
-	.int	0x11111111	@ state field 1
-	.int	0x22222222	@ state field 2
-	.int	0x33333333	@ state field 3
-	.int	0x44444444	@ state field 4
-	.int	0x55555555	@ state field 5
+	.int	complete	@ 0x08: address of actor behavior
+	.int	0x11111111	@ 0x0c: state field 1
+	.int	0x22222222	@ 0x10: state field 2
+	.int	0x33333333	@ 0x14: state field 3
+	.int	0x44444444	@ 0x18: state field 4
+	.int	0x55555555	@ 0x1c: state field 5
+
+	.text
+	.align 5		@ align to cache-line
+template_1:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
+	.int	0		@ 0x08: value for r4
+	.int	complete	@ 0x0c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+template_2:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip, {r4-r5,pc}	@ copy state and jump to behavior
+	.int	0		@ 0x08: value for r4
+	.int	0		@ 0x0c: value for r5
+	.int	complete	@ 0x10: address of actor behavior
 
 	.text
 	.align 5		@ align to cache-line
 example_3:
 	mov	ip, pc		@ point ip to data fields (state)
-	ldmia	ip,{r4-r7,lr,pc} @ copy state and jump to behavior
-	.int	0x04040404	@ value for r4
-	.int	0x05050505	@ value for r5
-	.int	0x06060606	@ value for r6
-	.int	0x07070707	@ value for r7
-	.int	0x14141414	@ value for r14 (lr)
-	.int	complete	@ address of actor behavior
+	ldmia	ip,{r4-r8,pc}	@ copy state and jump to behavior
+	.int	0		@ 0x08: value for r4
+	.int	0		@ 0x0c: value for r5
+	.int	0		@ 0x10: value for r6
+	.int	0		@ 0x14: value for r7
+	.int	0		@ 0x18: value for r8
+	.int	complete	@ 0x1c: address of actor behavior
+
+	.text
+	.align 2		@ align to machine word
+	.global create
+create:			@ create an actor from example_3 (r0=behavior)
+	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
+	mov	r9, r0		@ move behavior pointer into place
+	bl	reserve		@ allocate actor block
+	ldr	r1, =example_3	@ load template address
+	ldmia	r1, {r2-r8}	@ read template (minus behavior)
+	stmia	r0, {r2-r9}	@ write actor
+	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global create_0
+create_0:		@ create an actor from example_1 (r0=behavior)
+	stmdb	sp!, {r4,lr}	@ preserve in-use registers
+	mov	r4, r0		@ move behavior pointer into place
+	bl	reserve		@ allocate actor block
+	ldr	r1, =example_1	@ load template address
+	ldmia	r1, {r3}	@ read template (minus behavior)
+	stmia	r0, {r3-r4}	@ write actor
+	ldmia	sp!, {r4,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global create_1
+create_1:		@ create 1 parameter actor (r0=behavior, r1=r4)
+	stmdb	sp!, {r4-r5,lr}	@ preserve in-use registers
+	mov	r4, r0		@ move behavior pointer into place
+	mov	r5, r1		@ move state parameter into place
+	bl	reserve		@ allocate actor block
+	ldr	r1, =template_1	@ load template address
+	ldmia	r1, {r2-r3}	@ read template (code only)
+	stmia	r0, {r2-r5}	@ write actor
+	ldmia	sp!, {r4-r5,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global create_2
+create_2:		@ create 2 parameter actor (r0=behavior, r1=r4, r2=r5)
+	stmdb	sp!, {r4-r6,lr}	@ preserve in-use registers
+	mov	r4, r0		@ move behavior pointer into place
+	mov	r5, r1		@ move 1st state parameter into place
+	mov	r6, r2		@ move 2nd state parameter into place
+	bl	reserve		@ allocate actor block
+	ldr	r1, =template_2	@ load template address
+	ldmia	r1, {r2-r3}	@ read template (code only)
+	stmia	r0, {r2-r6}	@ write actor
+	ldmia	sp!, {r4-r6,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global _a_vanish
+_a_vanish:		@ destroy currently running actor -- DANGEROUS!
+	mov	r0, ip		@ address of running actor (ip must be at base)
+	bl	release		@ free actor memory
+	b	complete	@ return to dispatch loop
 
 	.text
 	.align 2		@ align to machine word
