@@ -260,6 +260,75 @@ create_2:		@ create 2 parameter actor (r0=behavior, r1=r4, r2=r5)
 
 	.text
 	.align 2		@ align to machine word
+	.global create_3x
+create_3x:		@ create 3 parameter actor (r4=behavior, r5-r7=state)
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	bl	reserve		@ allocate actor block
+	ldr	r1, =template_2	@ load template address
+	ldmia	r1, {r2-r3}	@ read template (code only)
+	stmia	r0, {r2-r7}	@ write actor
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global send
+send:			@ send 1 parameter message (r0=target, r1-r7=message)
+	stmdb	sp!, {r4-r8,lr}	@ preserve in-use registers
+	stmdb	sp!, {r0-r7}	@ preserve event data
+	bl	reserve		@ allocate event block
+	ldmia	sp!, {r1-r8}	@ restore event data
+	stmia	r0, {r1-r8}	@ write data to event
+	bl	enqueue		@ add event to queue
+	ldmia	sp!, {r4-r8,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global send_0
+send_0:			@ send 0 parameter message (r0=target)
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	stmdb	sp!, {r0}	@ preserve event data
+	bl	reserve		@ allocate event block
+	ldmia	sp!, {r1}	@ restore event data
+	str	r0, [r1]	@ write data to event
+	bl	enqueue		@ add event to queue
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global send_1
+send_1:			@ send 1 parameter message (r0=target, r1=message)
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	stmdb	sp!, {r0-r1}	@ preserve event data
+	bl	reserve		@ allocate event block
+	ldmia	sp!, {r1-r2}	@ restore event data
+	stmia	r0, {r1-r2}	@ write data to event
+	bl	enqueue		@ add event to queue
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global send_2
+send_2:			@ send 2 parameter message (r0=target, r1-r2=message)
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	stmdb	sp!, {r0-r2}	@ preserve event data
+	bl	reserve		@ allocate event block
+	ldmia	sp!, {r1-r3}	@ restore event data
+	stmia	r0, {r1-r3}	@ write data to event
+	bl	enqueue		@ add event to queue
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global send_3x
+send_3x:		@ send 3 parameter message (r4=target, r5-r7=message)
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	bl	reserve		@ allocate event block
+	stmia	r0, {r4-r7}	@ write data to event
+	bl	enqueue		@ add event to queue
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
 	.global panic
 panic:			@ kernel panic!
 	ldr	r0, =panic_txt	@ load address of panic text
