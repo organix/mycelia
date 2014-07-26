@@ -29,14 +29,27 @@
 	.text
 	.align 2		@ alignment 2^n (2^2 = 4 byte machine word)
 	.global mycelia
-mycelia:		@ entry point for the actor kernel
-	@ inject initial event
+mycelia:		@ entry point for the actor kernel (r0=bootstrap actor)
+	mov	ip, r0		@ bootstrap actor address
+	ldr	r0, =exit_to	@ location of return address
+	str	lr, [r0]	@ save exit address on entry
 	ldr	sl, =sponsor_0	@ initialize sponsor link
 	bl	reserve		@ allocate event block
-	ldr	r1, =a_poll	@ get target actor
-	str	r1, [r0]	@ set target actor
+	str	ip, [r0]	@ set target actor
 	bl	enqueue		@ add event to queue
 	b	dispatch	@ start dispatch loop
+
+	.text
+	.align 2		@ align to machine word
+	.global exit
+exit:			@ exit the actor kernel
+	ldr	r0, =exit_to	@ location of return address
+	ldr	lr, [r0]	@ get exit address saved on entry
+	bx	lr		@ "return" from the kernel
+	.data
+	.align 2		@ align to machine word
+exit_to:
+	.int 0			@ address to "return" to on exit
 
 	.text
 	.align 2		@ align to machine word
@@ -374,6 +387,18 @@ a_wd_cancel:		@ watchdog cancel template
 	.int	0		@ 0x14: --
 	.int	0		@ 0x18: --
 	.int	0		@ 0x1c: --
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_test
+a_test:			@ initiate unit tests
+	add	r0, ip, #0x18	@ address of output text
+	bl	serial_puts	@ write output text
+	bl	serial_eol	@ write end-of-line
+	b	exit		@ kernel exit!
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.ascii	"Passed.\0"	@ 0x18..0x1f: output text
 
 	.text
 	.align 2		@ align to machine word

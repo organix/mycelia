@@ -280,6 +280,10 @@ monitor()
 void
 k_start(u32 sp)
 {
+    extern ACTOR a_poll;
+    extern ACTOR a_test;
+
+    // device initialization
     timer_init();
     serial_init();
 
@@ -311,11 +315,10 @@ k_start(u32 sp)
             monitor();
             break;
         case '2':
-            mycelia();
+            mycelia(a_poll);
             break;
         case '3':
-            serial_puts("Tests not implemented (yet).");
-            serial_eol();
+            mycelia(a_test);
             break;
         }
     }
