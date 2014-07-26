@@ -31,7 +31,6 @@ extern int      serial_write(u8 data);          /* blocking write to serial port
 
 extern void     serial_puts(char* s);           /* print C-string to serial port */
 extern void     serial_rep(int c, int n);       /* print n repetitions of c */
-
-#define serial_eol()    serial_puts("\r\n")
+extern void	serial_eol();			/* print end-of-line */
 
 #endif /* _SERIAL_H_ */

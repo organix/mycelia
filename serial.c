@@ -249,3 +249,13 @@ serial_rep(int c, int n)
         serial_write((u8)c);
     }
 }
+
+/*
+ * Print end-of-line
+ */
+void
+serial_eol()
+{
+    serial_write((u8)'\r');
+    serial_write((u8)'\n');
+}
