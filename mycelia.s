@@ -197,6 +197,16 @@ template_2:
 
 	.text
 	.align 5		@ align to cache-line
+template_3:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip, {r4-r6,pc}	@ copy state and jump to behavior
+	.int	0		@ 0x08: value for r4
+	.int	0		@ 0x0c: value for r5
+	.int	0		@ 0x10: value for r6
+	.int	complete	@ 0x14: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
 example_3:
 	mov	ip, pc		@ point ip to data fields (state)
 	ldmia	ip,{r4-r8,pc}	@ copy state and jump to behavior
@@ -236,8 +246,8 @@ create_0:		@ create an actor from example_1 (r0=behavior)
 	.global create_1
 create_1:		@ create 1 parameter actor (r0=behavior, r1=r4)
 	stmdb	sp!, {r4-r5,lr}	@ preserve in-use registers
-	mov	r4, r0		@ move behavior pointer into place
-	mov	r5, r1		@ move state parameter into place
+	mov	r4, r1		@ move state parameter into place
+	mov	r5, r0		@ move behavior pointer into place
 	bl	reserve		@ allocate actor block
 	ldr	r1, =template_1	@ load template address
 	ldmia	r1, {r2-r3}	@ read template (code only)
@@ -249,9 +259,9 @@ create_1:		@ create 1 parameter actor (r0=behavior, r1=r4)
 	.global create_2
 create_2:		@ create 2 parameter actor (r0=behavior, r1=r4, r2=r5)
 	stmdb	sp!, {r4-r6,lr}	@ preserve in-use registers
-	mov	r4, r0		@ move behavior pointer into place
-	mov	r5, r1		@ move 1st state parameter into place
-	mov	r6, r2		@ move 2nd state parameter into place
+	mov	r4, r1		@ move 1st state parameter into place
+	mov	r5, r2		@ move 2nd state parameter into place
+	mov	r6, r0		@ move behavior pointer into place
 	bl	reserve		@ allocate actor block
 	ldr	r1, =template_2	@ load template address
 	ldmia	r1, {r2-r3}	@ read template (code only)
@@ -261,10 +271,10 @@ create_2:		@ create 2 parameter actor (r0=behavior, r1=r4, r2=r5)
 	.text
 	.align 2		@ align to machine word
 	.global create_3x
-create_3x:		@ create 3 parameter actor (r4=behavior, r5-r7=state)
+create_3x:		@ create 3 parameter actor (r4-r6=state, r7=behavior)
 	stmdb	sp!, {lr}	@ preserve in-use registers
 	bl	reserve		@ allocate actor block
-	ldr	r1, =template_2	@ load template address
+	ldr	r1, =template_3	@ load template address
 	ldmia	r1, {r2-r3}	@ read template (code only)
 	stmia	r0, {r2-r7}	@ write actor
 	ldmia	sp!, {pc}	@ restore in-use registers and return
@@ -326,6 +336,46 @@ send_3x:		@ send 3 parameter message (r4=target, r5-r7=message)
 	stmia	r0, {r4-r7}	@ write data to event
 	bl	enqueue		@ add event to queue
 	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global watchdog
+watchdog:		@ set a watchdog timer (r0=timeout, r1=customer)
+			@ returns r0=cancel_cap
+	stmdb	sp!, {r4-r7,lr}	@ preserve in-use registers
+	mov	r6, r0		@ copy timeout
+	mov	r5, r1		@ copy customer
+	bl	timer_usecs	@ get current timer value
+	add	r4, r0, r6	@ calculate limit
+	ldr	r7, =b_watchdog	@ get watchdog behavior
+	bl	create_3x	@ create watchdog actor
+	mov	r6, r0		@ r6 = watchdog pointer
+	bl	send_0		@ send empty message to watchdog
+	bl	reserve		@ allocate block for cancel actor
+	ldr	r1, =a_wd_cancel@ get actor template
+	ldmia	r1,{r2-r5}	@ copy template (minus watchdog pointer)
+	stmia	r0,{r2-r6}	@ write actor (including watchdog pointer)
+	ldmia	sp!, {r4-r7,pc}	@ restore in-use registers and return
+	.align 5		@ align to cache-line
+b_watchdog:		@ watchdog timer behavior (r4=limit, r5=customer)
+	cmp	r5, #0		@ if cancelled
+	beq	complete	@	ignore (don't send any more messages)
+	bl	timer_usecs	@ get current timer value
+	subs	r0, r0, r4	@ (now - limit) = past if <0, future if >0
+	sublt	r0, ip, #8	@ if past, send to self (ip adjusted)
+	movge	r0, r5		@ if now or future, send to customer
+	bl	send_0		@ send empty message
+	b	complete	@ return to dispatch loop
+	.align 5		@ align to cache-line
+a_wd_cancel:		@ watchdog cancel template
+	ldr	r0, [ip, #0x10]	@ get watchdog actor
+	mov	r1, #0
+	str	r1, [r0, #0x10]	@ clear watchdog customer
+	b	complete	@ return to dispatch loop
+	.int	complete	@ 0x10: watchdog actor
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
 
 	.text
 	.align 2		@ align to machine word
