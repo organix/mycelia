@@ -30,9 +30,7 @@
 	.align 2		@ alignment 2^n (2^2 = 4 byte machine word)
 	.global mycelia
 mycelia:		@ entry point for the actor kernel
-@	bl	monitor		@ monitor();
-
-@ inject initial event
+	@ inject initial event
 	ldr	sl, =sponsor_0	@ initialize sponsor link
 	bl	reserve		@ allocate event block
 	ldr	r1, =a_poll	@ get target actor

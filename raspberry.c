@@ -293,6 +293,30 @@ k_start(u32 sp)
     serial_hex32(sp);
     serial_eol();
 
-    // jump to mycelia entry-point
-    mycelia();
+    for (;;) {
+        // display menu
+        serial_eol();
+        serial_puts("Choose your adventure:");
+        serial_eol();
+        serial_puts("  1. Monitor");
+        serial_eol();
+        serial_puts("  2. Mycelia echo");
+        serial_eol();
+        serial_puts("  3. Unit tests");
+        serial_eol();
+
+        // execute selected option
+        switch (_getchar()) {
+        case '1':
+            monitor();
+            break;
+        case '2':
+            mycelia();
+            break;
+        case '3':
+            serial_puts("Tests not implemented (yet).");
+            serial_eol();
+            break;
+        }
+    }
 }
