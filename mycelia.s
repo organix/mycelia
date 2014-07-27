@@ -422,8 +422,8 @@ a_test_ok:		@ succesful completion of test suite
 	.align 5		@ align to cache-line
 	.global a_test
 a_test:			@ initiate unit tests
-	mov	r0, #1000	@ 1 millisecond
-	mul	r0, r0, r0	@ 1 second
+	mov	r1, #1000	@ 1 millisecond
+	mul	r0, r1, r1	@ 1 second
 	ldr	r1, =a_failed	@ fail after 1 second
 	bl	watchdog	@ set up watchdog timer
 	str	r0, [ip, #0x1c]	@ remember cancel capability
