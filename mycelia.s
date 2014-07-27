@@ -392,6 +392,19 @@ a_wd_cancel:		@ watchdog cancel template
 	.align 5		@ align to cache-line
 	.global a_test
 a_test:			@ initiate unit tests
+	mov	r0, #1000	@ 1 millisecond
+	mul	r0, r0, r0	@ 1 second
+	ldr	r1, =a_failed	@ fail after 1 second
+	bl	watchdog	@ set up watchdog timer
+	str	r0, [ip, #0x1c]	@ remember cancel capability
+	b	complete	@ return to dispatch loop
+	.int	0		@ 0x18: --
+	.int	complete	@ 0x1c: cancel capability
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_passed
+a_passed:		@ report tests passed, and exit
 	add	r0, ip, #0x18	@ address of output text
 	bl	serial_puts	@ write output text
 	bl	serial_eol	@ write end-of-line
@@ -399,6 +412,18 @@ a_test:			@ initiate unit tests
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
 	.ascii	"Passed.\0"	@ 0x18..0x1f: output text
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_failed
+a_failed:		@ report tests failed, and exit
+	add	r0, ip, #0x18	@ address of output text
+	bl	serial_puts	@ write output text
+	bl	serial_eol	@ write end-of-line
+	b	exit		@ kernel exit!
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.ascii	"FAILED!\0"	@ 0x18..0x1f: output text
 
 	.text
 	.align 2		@ align to machine word
