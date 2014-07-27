@@ -396,6 +396,29 @@ a_wd_cancel:		@ watchdog cancel template
 	.int	0		@ 0x1c: --
 
 	.text
+	.align 2		@ align to machine word
+@	.global test_suite
+test_suite:		@ suite of automated unit-tests
+	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
+	@ ...create tests here...
+	ldr	r1, =a_test_ok	@ get suite finished actor
+	bl	send_0		@ send message to report completion
+	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_test_ok
+a_test_ok:		@ succesful completion of test suite
+	ldr	r1, =a_test	@ get test-runner actor
+	ldr	r0, [r1, #0x1c]	@ get watchdog cancel capability
+	bl	send_0		@ send message to cancel watchdog
+	ldr	r1, =a_passed	@ get success actor
+	bl	send_0		@ send message to report success
+	b	complete	@ return to dispatch loop
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
+
+	.text
 	.align 5		@ align to cache-line
 	.global a_test
 a_test:			@ initiate unit tests
@@ -404,8 +427,8 @@ a_test:			@ initiate unit tests
 	ldr	r1, =a_failed	@ fail after 1 second
 	bl	watchdog	@ set up watchdog timer
 	str	r0, [ip, #0x1c]	@ remember cancel capability
+	bl	test_suite	@ run suite of unit-tests
 	b	complete	@ return to dispatch loop
-	.int	0		@ 0x18: --
 	.int	complete	@ 0x1c: cancel capability
 
 	.text
