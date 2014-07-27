@@ -388,7 +388,7 @@ b_watchdog:		@ watchdog timer behavior (r4=limit, r5=customer)
 a_wd_cancel:		@ watchdog cancel template
 	ldr	r0, [ip, #0x10]	@ get watchdog actor
 	mov	r1, #0
-	str	r1, [r0, #0x10]	@ clear watchdog customer
+	str	r1, [r0, #0x0c]	@ clear watchdog customer
 	b	complete	@ return to dispatch loop
 	.int	complete	@ 0x10: watchdog actor
 	.int	0		@ 0x14: --
@@ -401,7 +401,7 @@ a_wd_cancel:		@ watchdog cancel template
 test_suite:		@ suite of automated unit-tests
 	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
 	@ ...create tests here...
-	ldr	r1, =a_test_ok	@ get suite finished actor
+	ldr	r0, =a_test_ok	@ get suite finished actor
 	bl	send_0		@ send message to report completion
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
 
@@ -412,7 +412,7 @@ a_test_ok:		@ succesful completion of test suite
 	ldr	r1, =a_test	@ get test-runner actor
 	ldr	r0, [r1, #0x1c]	@ get watchdog cancel capability
 	bl	send_0		@ send message to cancel watchdog
-	ldr	r1, =a_passed	@ get success actor
+	ldr	r0, =a_passed	@ get success actor
 	bl	send_0		@ send message to report success
 	b	complete	@ return to dispatch loop
 	.int	0		@ 0x18: --
