@@ -92,6 +92,8 @@ reserve:		@ reserve a block (32 bytes) of memory
 
 	.global release
 release:		@ release the memory block pointed to by r0
+	cmp	r0, sp		@ [FIXME] sanity check
+	blt	panic		@ [FIXME] halt on bad address
 	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
 	ldr	r1, =block_free	@ address of free list pointer
 	ldr	r2, [r1]	@ address of next free block
@@ -117,6 +119,11 @@ block_end:
 	.align 2		@ align to machine word
 	.global enqueue
 enqueue:		@ enqueue event pointed to by r0
+	cmp	r0, sp		@ [FIXME] sanity check
+	blt	panic		@ [FIXME] halt on bad address
+	ldr	r1, [r0]	@ [FIXME] get target actor
+	cmp	r1, sp		@ [FIXME] sanity check
+	blt	panic		@ [FIXME] halt on bad address
 	ldr	r1, [sl, #1024]	@ event queue head/tail indicies
 	uxtb	r2, r1, ROR #8	@ get head index
 	uxtb	r3, r1, ROR #16	@ get tail index
@@ -429,8 +436,10 @@ a_failed:		@ report tests failed, and exit
 	.align 2		@ align to machine word
 	.global panic
 panic:			@ kernel panic!
+	stmdb	sp!, {r0-r3,lr}	@ preserve registers
 	ldr	r0, =panic_txt	@ load address of panic text
 	bl	serial_puts	@ write text to console
+	ldmia	sp!, {r0-r3,lr}	@ restore registers
 	b	halt
 	.section .rodata
 panic_txt:
