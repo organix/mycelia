@@ -92,7 +92,7 @@ reserve:		@ reserve a block (32 bytes) of memory
 
 	.global release
 release:		@ release the memory block pointed to by r0
-	cmp	r0, sp		@ [FIXME] sanity check
+	cmp	r0, sl		@ [FIXME] sanity check
 	blt	panic		@ [FIXME] halt on bad address
 	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
 	ldr	r1, =block_free	@ address of free list pointer
@@ -119,7 +119,7 @@ block_end:
 	.align 2		@ align to machine word
 	.global enqueue
 enqueue:		@ enqueue event pointed to by r0
-	cmp	r0, sp		@ [FIXME] sanity check
+	cmp	r0, sl		@ [FIXME] sanity check
 	blt	panic		@ [FIXME] halt on bad address
 	ldr	r1, [r0]	@ [FIXME] get target actor
 	cmp	r1, sp		@ [FIXME] sanity check
@@ -317,7 +317,7 @@ send_0:			@ send 0 parameter message (r0=target)
 	stmdb	sp!, {r0}	@ preserve event data
 	bl	reserve		@ allocate event block
 	ldmia	sp!, {r1}	@ restore event data
-	str	r0, [r1]	@ write data to event
+	stmia	r0, {r1}	@ write data to event
 	bl	enqueue		@ add event to queue
 	ldmia	sp!, {pc}	@ restore in-use registers and return
 
