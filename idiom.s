@@ -154,7 +154,7 @@ _join_1:		@ wait for answer_0
 	b	complete	@ 	ignore message
 2:
 	bl	reserve		@ allocate event block
-	ldmia	r0, {r4-r6}	@ set (customer, answer_0, answer_1)
+	stmia	r0, {r4-r6}	@ set (customer, answer_0, answer_1)
 	bl	enqueue		@ add event to queue
 	ldr	r9, =complete	@ ignore future messages
 3:
