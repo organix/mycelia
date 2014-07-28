@@ -29,15 +29,32 @@
 	.text
 	.align 2		@ alignment 2^n (2^2 = 4 byte machine word)
 	.global mycelia
-mycelia:		@ entry point for the actor kernel (r0=bootstrap actor)
+mycelia:		@ entry point for the actor kernel (r0=boot, r1=trace)
 	mov	ip, r0		@ bootstrap actor address
 	ldr	r0, =exit_to	@ location of return address
 	str	lr, [r0]	@ save exit address on entry
+	ldr	r0, =trace_to	@ location of trace procedure
+	str	r1, [r0]	@ set trace procedure
 	ldr	sl, =sponsor_0	@ initialize sponsor link
-	bl	reserve		@ allocate event block
-	str	ip, [r0]	@ set target actor
+	bl	reserve		@ allocate initial event block
+	str	ip, [r0]	@ set target to bootstrap actor
 	bl	enqueue		@ add event to queue
 	b	dispatch	@ start dispatch loop
+
+	.text
+	.align 2		@ align to machine word
+trace_event:		@ invoke event tracing hook, if present (r0=event)
+	ldr	r3, =trace_to	@ location of trace procedure
+	ldr	r1, [r3]	@ get trace procedure
+	cmp	r1, #0		@ if disabled
+	bxeq	lr		@	return
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	bx	r1		@ call trace procedure (r0=event)
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+	.data
+	.align 2		@ align to machine word
+trace_to:
+	.int 0			@ tracing procedure address, or 0 for none
 
 	.text
 	.align 2		@ align to machine word
@@ -61,19 +78,24 @@ complete:		@ completion of event pointed to by fp
 	str	fp, [sl, #1028]	@ clear current event
 	.global dispatch
 dispatch:		@ dispatch next event
-	ldr	r2, =watchdog_a	@ watchdog actor address
-	ldr	r0, [r2]	@ get watchdog actor
-	cmp	r0, #0		@ if enabled
-	blne	watchdog_check	@	check for timeout
+	bl	watchdog_check	@ check for timeout, if enabled
 	bl	dequeue		@ try to get next event
 	cmp	r0, #0		@ check for null
 	beq	dispatch	@ if no event, try again...
+
 	mov	fp, r0		@ initialize frame pointer
-	bl	dump_event	@ [FIXME] report event to trace/log
+	bl	trace_event	@ trace event, if enabled
 	str	fp, [sl, #1028]	@ update current event
 	ldr	ip, [fp]	@ get target actor address
 	bx	ip		@ jump to actor behavior
+
+	.text
+	.align 2		@ align to machine word
 watchdog_check:		@ check for timeout
+	ldr	r2, =watchdog_a	@ watchdog actor address
+	ldr	r0, [r2]	@ get watchdog actor
+	cmp	r0, #0		@ if disabled
+	bxeq	lr		@	return
 	stmdb	sp!, {lr}	@ preserve in-use registers
 	bl	timer_usecs	@ get current timer value
 	ldr	r3, =watchdog_t	@ watchdog time limit address
@@ -85,6 +107,9 @@ watchdog_check:		@ check for timeout
 	bl	send_0		@ 	send empty message to signal timeout
 1:
 	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
 	.global watchdog_set
 watchdog_set:		@ set watchdog timer (r0=customer, r1=timeout)
 	stmdb	sp!, {r4,lr}	@ preserve in-use registers
@@ -96,12 +121,16 @@ watchdog_set:		@ set watchdog timer (r0=customer, r1=timeout)
 	ldr	r3, =watchdog_t	@ watchdog time limit address
 	str	r0, [r3]	@ set watchdog time limit
 	ldmia	sp!, {r4,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
 	.global watchdog_clear
 watchdog_clear:		@ clear watchdog timer
 	ldr	r2, =watchdog_a	@ watchdog actor address
 	mov	r0, #0		@ 0 disables watchdog
 	str	r0, [r2]	@ set watchdog actor
 	bx	lr		@ return
+
 	.data
 	.align 2		@ align to machine word
 watchdog_a:

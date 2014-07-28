@@ -20,8 +20,6 @@
 #include "serial.h"
 #include "xmodem.h"
 
-extern void mycelia();
-
 /* Exported procedures (force full register discipline) */
 extern void k_start(u32 sp);
 extern void monitor();
@@ -344,10 +342,10 @@ k_start(u32 sp)
             monitor();
             break;
         case '2':
-            mycelia(a_poll);
+            mycelia(a_poll, 0);
             break;
         case '3':
-            mycelia(a_test);
+            mycelia(a_test, (u32)dump_event);
             break;
         }
     }
