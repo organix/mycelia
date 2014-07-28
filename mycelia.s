@@ -400,9 +400,16 @@ a_wd_cancel:		@ watchdog cancel template
 @	.global test_suite
 test_suite:		@ suite of automated unit-tests
 	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
-	@ ...create tests here...
-	ldr	r0, =a_test_ok	@ get suite finished actor
-	bl	send_0		@ send message to report completion
+
+	@ fork unit test
+	ldr	r0, =b_fork_t
+	bl	create_0	@ create fork unit test actor
+	ldr	r1, =a_test_ok	@ ok customer
+	ldr	r2, =a_failed	@ fail customer
+	bl	send_2
+
+@	ldr	r0, =a_test_ok	@ get suite finished actor
+@	bl	send_0		@ send message to report completion
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
 
 	.text

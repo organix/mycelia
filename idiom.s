@@ -160,3 +160,77 @@ _join_1:		@ wait for answer_0
 3:
 	stmia	ip,{r4-r9}	@ copy state and behavior
 	b	complete	@ return to dispatch loop
+
+@
+@ unit test actors and behaviors
+@
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_fork_t
+b_fork_t:		@ fork unit test
+			@ message = (ok, fail)
+	ldr	r0, =b_match2_t	@ result value matching behavior
+	bl	create		@ create matching actor
+	ldr	r1, [fp, #0x04]	@ get ok customer
+	str	r1, [r0, #0x08]	@ set ok customer
+	ldr	r1, [fp, #0x08]	@ get fail customer
+	str	r1, [r0, #0x0c]	@ set fail customer
+	mov	r1, #123	@ n1 = 123
+	str	r1, [r0, #0x10]	@ set fail customer
+	mov	r1, #456	@ n2 = 456
+	str	r1, [r0, #0x14]	@ set fail customer
+	mov	r5, r0		@ r5 = match actor
+
+	ldr	r9, =b_const_t	@ contant test "server" behavior
+
+	mov	r0, r9
+	mov	r1, #123	@ n1 = 123
+	bl	create_1	@ create constant actor
+	mov	r6, r0		@ r6 = 123 server
+	bl	reserve		@ allocate event block
+	str	r6, [r0]	@ target = 123 server
+	mov	r6, r0		@ r6 = 123 server event
+
+	mov	r0, r9
+	mov	r1, #456	@ n2 = 456
+	bl	create_1	@ create constant actor
+	mov	r7, r0		@ r7 = 456 server
+	bl	reserve		@ allocate event block
+	str	r7, [r0]	@ target = 456 server
+	mov	r7, r0		@ r7 = 456 server event
+
+	ldr	r4, =a_fork	@ target is a_fork
+	bl	send_3x		@ message = (r5=customer, r6=event_0, r7=event_1)
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_const_t
+b_const_t:		@ test "server" that returns a constant value
+			@ (0x08: r4=value)
+			@ message = (customer)
+	ldr	r0, [fp, #0x04]	@ get customer
+	mov	r1, r4		@ get constant value
+	bl	send_1		@ send value to customer
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_const_t
+b_match2_t:		@ test comparison against 2-word result
+			@ (0x08:r4=ok, 0x0c:r5=fail, 0x10:r6=n1, 0x14:r7=n2)
+			@ message = (n1, n2)
+	ldr	r0, [fp, #0x04]	@ get actual n1
+	cmp	r0, r6		@ if n1 != expected
+	bne	1f		@	fail
+	ldr	r0, [fp, #0x08]	@ get actual n2
+	cmp	r0, r7		@ if n2 != expected
+	bne	1f		@	fail
+	mov	r0, r4		@ get ok actor
+	b	2f
+1:
+	mov	r0, r5		@ get fail actor
+2:
+	bl	send_0		@ send message
+	b	complete	@ return to dispatch loop
