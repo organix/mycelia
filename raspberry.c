@@ -137,7 +137,7 @@ dump_event(const u32* p)
     serial_eol();
     if (((*p) > 0x8000) && ((*p) < 0x10000000)) {
         serial_write(' ');
-        serial_write('\');
+        serial_write('\\');
         serial_write('_');
         dump_block((u32*)(*p));
         serial_eol();
