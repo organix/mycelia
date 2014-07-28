@@ -66,7 +66,7 @@ a_oneshot:		@ forward one message, then ignore
 a_fork:			@ initiate two concurrent events
 			@ message = (customer, event_0, event_1)
 	@ r4=customer, r5=event_0, r6=event_1, r7=event_n, r8=tag, ip=join
-	ldmia	fp, {r4-r6}	@ load message data
+	ldmia	fp, {r3-r6}	@ load current event
 
 	ldr	r0, =b_join	@ get b_join address
 	bl	create		@ create b_join actor

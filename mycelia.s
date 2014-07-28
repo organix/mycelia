@@ -61,13 +61,53 @@ complete:		@ completion of event pointed to by fp
 	str	fp, [sl, #1028]	@ clear current event
 	.global dispatch
 dispatch:		@ dispatch next event
+	ldr	r2, =watchdog_a	@ watchdog actor address
+	ldr	r0, [r2]	@ get watchdog actor
+	cmp	r0, #0		@ if enabled
+	blne	watchdog_check	@	check for timeout
 	bl	dequeue		@ try to get next event
 	cmp	r0, #0		@ check for null
 	beq	dispatch	@ if no event, try again...
 	mov	fp, r0		@ initialize frame pointer
+	bl	dump_event	@ [FIXME] report event to trace/log
 	str	fp, [sl, #1028]	@ update current event
 	ldr	ip, [fp]	@ get target actor address
 	bx	ip		@ jump to actor behavior
+watchdog_check:		@ check for timeout
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	bl	timer_usecs	@ get current timer value
+	ldr	r3, =watchdog_t	@ watchdog time limit address
+	ldr	r1, [r3]	@ get watchdog time limit
+	subs	r0, r0, r1	@ (now - limit) = past if <0, future if >0
+	blt	1f		@ if now or future
+	ldr	r2, =watchdog_a	@ 	watchdog actor address
+	ldr	r0, [r2]	@ 	get watchdog actor
+	bl	send_0		@ 	send empty message to signal timeout
+1:
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+	.global watchdog_set
+watchdog_set:		@ set watchdog timer (r0=customer, r1=timeout)
+	stmdb	sp!, {r4,lr}	@ preserve in-use registers
+	ldr	r2, =watchdog_a	@ watchdog actor address
+	str	r0, [r2]	@ set watchdog actor
+	mov	r4, r1		@ copy timeout
+	bl	timer_usecs	@ get current timer value
+	add	r0, r0, r4	@ calculate time limit
+	ldr	r3, =watchdog_t	@ watchdog time limit address
+	str	r0, [r3]	@ set watchdog time limit
+	ldmia	sp!, {r4,pc}	@ restore in-use registers and return
+	.global watchdog_clear
+watchdog_clear:		@ clear watchdog timer
+	ldr	r2, =watchdog_a	@ watchdog actor address
+	mov	r0, #0		@ 0 disables watchdog
+	str	r0, [r2]	@ set watchdog actor
+	bx	lr		@ return
+	.data
+	.align 2		@ align to machine word
+watchdog_a:
+	.int 0			@ actor to notify on timeout, or 0 for none
+watchdog_t:
+	.int 0			@ watchdog time limit
 
 	.text
 	.align 2		@ align to machine word
@@ -98,14 +138,14 @@ release:		@ release the memory block pointed to by r0
 	ldr	r1, =block_free	@ address of free list pointer
 	ldr	r2, [r1]	@ address of next free block
 	str	r0, [r1]	@ update free list pointer
-	ldr	r1, =block_clr	@ address of block-erase pattern
+	ldr	r1, =block_zero	@ address of block-erase pattern
 	ldmia	r1, {r3-r9}	@ read 7 words (32 - 4 bytes)
 	stmia	r0, {r2-r9}	@ write 8 words (incl. next free block pointer)
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
 
 	.section .rodata
 	.align 5		@ align to cache-line
-block_clr:
+block_zero:
 	.ascii "Who is licking my HONEYPOT?\0"
 
 	.data
@@ -355,45 +395,9 @@ send_3x:		@ send 3 parameter message (r4=target, r5-r7=message)
 	bl	enqueue		@ add event to queue
 	ldmia	sp!, {pc}	@ restore in-use registers and return
 
-	.text
-	.align 2		@ align to machine word
-	.global watchdog
-watchdog:		@ set a watchdog timer (r0=timeout, r1=customer)
-			@ returns r0=cancel_cap
-	stmdb	sp!, {r4-r7,lr}	@ preserve in-use registers
-	mov	r6, r0		@ copy timeout
-	mov	r5, r1		@ copy customer
-	bl	timer_usecs	@ get current timer value
-	add	r4, r0, r6	@ calculate limit
-	ldr	r7, =b_watchdog	@ get watchdog behavior
-	bl	create_3x	@ create watchdog actor
-	mov	r6, r0		@ r6 = watchdog pointer
-	bl	send_0		@ send empty message to watchdog
-	bl	reserve		@ allocate block for cancel actor
-	ldr	r1, =a_wd_cancel@ get actor template
-	ldmia	r1,{r2-r5}	@ copy template (minus watchdog pointer)
-	stmia	r0,{r2-r6}	@ write actor (including watchdog pointer)
-	ldmia	sp!, {r4-r7,pc}	@ restore in-use registers and return
-	.align 5		@ align to cache-line
-b_watchdog:		@ watchdog timer behavior (r4=limit, r5=customer)
-	cmp	r5, #0		@ if cancelled
-	beq	complete	@	ignore (don't send any more messages)
-	bl	timer_usecs	@ get current timer value
-	subs	r0, r0, r4	@ (now - limit) = past if <0, future if >0
-	sublt	r0, ip, #8	@ if past, send to self (ip adjusted)
-	movge	r0, r5		@ if now or future, send to customer
-	bl	send_0		@ send empty message
-	b	complete	@ return to dispatch loop
-	.align 5		@ align to cache-line
-a_wd_cancel:		@ watchdog cancel template
-	ldr	r0, [ip, #0x10]	@ get watchdog actor
-	mov	r1, #0
-	str	r1, [r0, #0x0c]	@ clear watchdog customer
-	b	complete	@ return to dispatch loop
-	.int	complete	@ 0x10: watchdog actor
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	0		@ 0x1c: --
+@
+@ Unit test fixtures
+@
 
 	.text
 	.align 2		@ align to machine word
@@ -414,29 +418,29 @@ test_suite:		@ suite of automated unit-tests
 
 	.text
 	.align 5		@ align to cache-line
-	.global a_test_ok
-a_test_ok:		@ succesful completion of test suite
-	ldr	r1, =a_test	@ get test-runner actor
-	ldr	r0, [r1, #0x1c]	@ get watchdog cancel capability
-	bl	send_0		@ send message to cancel watchdog
-	ldr	r0, =a_passed	@ get success actor
-	bl	send_0		@ send message to report success
+	.global a_test
+a_test:			@ test suite execution actor
+	mov	r0, #1000	@ 1 millisecond
+	mul	r1, r0, r0	@ 1 second
+	ldr	r0, =a_failed	@ fail after 1 second
+	bl	watchdog_set	@ set watchdog timer
+	bl	test_suite	@ run suite of unit-tests
 	b	complete	@ return to dispatch loop
 	.int	0		@ 0x18: --
 	.int	0		@ 0x1c: --
 
 	.text
 	.align 5		@ align to cache-line
-	.global a_test
-a_test:			@ initiate unit tests
-	mov	r1, #1000	@ 1 millisecond
-	mul	r0, r1, r1	@ 1 second
-	ldr	r1, =a_failed	@ fail after 1 second
-	bl	watchdog	@ set up watchdog timer
-	str	r0, [ip, #0x1c]	@ remember cancel capability
-	bl	test_suite	@ run suite of unit-tests
+	.global a_test_ok
+a_test_ok:		@ succesful completion of test suite
+	bl	watchdog_clear	@ clear watchdog timer
+	ldr	r0, =a_passed	@ get success actor
+	bl	send_0		@ send message to report success
 	b	complete	@ return to dispatch loop
-	.int	complete	@ 0x1c: cancel capability
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
 
 	.text
 	.align 5		@ align to cache-line
