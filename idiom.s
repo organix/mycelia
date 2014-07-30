@@ -124,7 +124,7 @@ b_tag:			@ label message with actor identity (r4=delegate)
 	.align 5		@ align to cache-line
 	.global b_join
 b_join:			@ combine results of concurrent computation
-			@ (r4=customer, r5=event/result_0, r6=event/result_1)
+			@ (r4=customer, r5=tag/result_0, r6=tag/result_1)
 			@ message = (tag, result)
 	ldr	r0, [fp, #0x04]	@ get tag
 	cmp	r0, r5
