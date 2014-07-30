@@ -27,7 +27,7 @@ Consistent special meanings are given to r10-r15.
 
 | Register | Kernel Usage    | Actor Usage     |
 |----------|-----------------|-----------------|
-| r0       | arg_0 / return  | block address   |
+| r0       | arg_0 / result  | block address   |
 | r1       | arg_1 / tmp_1   | target / answer |
 | r2       | arg_2 / tmp_2   | base address    |
 | r3       | arg_3 / tmp_3   | working data    |
@@ -506,7 +506,7 @@ Ignore all messages.
 
 | Offset | Event Field |
 |--------|-------|
-| 0x00 | target | -> a_ignore
+| 0x00 | target = a_ignore |
 | 0x04 | msg_1 |
 | 0x08 | msg_2 |
 | 0x0c | msg_3 |
@@ -522,6 +522,8 @@ since `complete` can be referenced directly
 #### a_forward
 
 Foward message to `delegate`.
+**WARNING**: _Do not use `a_forward` directly.
+Clone it, then change the `delegate` in your copy._
 
 | Offset | Actor Field |
 |--------|-------|
@@ -532,7 +534,7 @@ Foward message to `delegate`.
 | 0x10 | code |
 | 0x14 | -- |
 | 0x18 | -- |
-| 0x1c | delegate |
+| 0x1c | delegate = a_ignore |
 
 | Offset | Event Field |
 |--------|-------|
@@ -549,7 +551,76 @@ Note: This actor is used in the implementation of `a_oneshot`.
 
 #### a_oneshot
 
+Forward first message to `delegate`,
+then ignore all subsequent messages.
+**WARNING**: _Do not use `a_oneshot` directly.
+Clone it, then change the `delegate` in your copy._
+
+| Offset | Actor Field |
+|--------|-------|
+| 0x00 | code |
+| 0x04 | code |
+| 0x08 | code |
+| 0x0c | code |
+| 0x10 | -- |
+| 0x14 | next behavior |
+| 0x18 | current behavior |
+| 0x1c | delegate = a_ignore |
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target = a_oneshot |
+| 0x04 | msg_1 |
+| 0x08 | msg_2 |
+| 0x0c | msg_3 |
+| 0x10 | msg_4 |
+| 0x14 | msg_5 |
+| 0x18 | msg_6 |
+| 0x1c | msg_7 |
+
+This actor uses the behavior of `a_forward`
+to forward the first message it receives.
+It then modifies the `current behavior` field
+to ignore all subsequent messages.
+
 #### a_fork
+
+Initiate two concurrent service-events.
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target = a_fork |
+| 0x04 | customer |
+| 0x08 | event_0 |
+| 0x0c | event_1 |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+This actor is a factory for a group of actors
+that collaborate to execute overlapping events.
+The `event_0` and `event_1` parameters are events,
+prepared by not enqueued,
+with appropriate targets and parameters.
+The targets for `event_0` and `event_1` must be _services_.
+This is, they must be actors which expect a single `customer`
+as their first message parameter.
+Note that the `customer` in each event will be overwritten
+with a factory-generated proxy customer.
+The results from both events will be combined into a single message
+and sent to the original `customer`, like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target = customer |
+| 0x04 | event_0 result 0x04 |
+| 0x08 | event_1 result 0x04 |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
 
 ### Built-In Behaviors
 

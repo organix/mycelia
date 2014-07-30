@@ -124,37 +124,37 @@ b_tag:			@ label one message with actor identity (r4=customer)
 	.align 5		@ align to cache-line
 	.global b_join
 b_join:			@ combine results of concurrent computation
-			@ (r4=customer, r5=event/answer_0, r6=event/answer_1)
-			@ message = (tag, answer)
+			@ (r4=customer, r5=event/result_0, r6=event/result_1)
+			@ message = (tag, result)
 	ldr	r0, [fp, #0x04]	@ get tag
 	cmp	r0, r5
 	bne	1f		@ if tag == event_0
-	ldr	r5, [fp, #0x08]	@	remember answer_0
-	ldr	r9, =_join_0	@	wait for answer_1
+	ldr	r5, [fp, #0x08]	@	remember result_0
+	ldr	r9, =_join_0	@	wait for result_1
 	b	3f
 1:
 	cmp	r0, r6
 	bne	complete	@ if tag == event_1
-	ldr	r6, [fp, #0x08]	@	remember answer_1
-	ldr	r9, =_join_1	@	wait for answer_0
+	ldr	r6, [fp, #0x08]	@	remember result_1
+	ldr	r9, =_join_1	@	wait for result_0
 	b	3f
 	.align 5		@ align to cache-line
-_join_0:		@ wait for answer_1
+_join_0:		@ wait for result_1
 	ldr	r0, [fp, #0x04]	@ get tag
 	cmp	r0, r6		@ if tag == event_1
-	ldreq	r6, [fp, #0x08]	@ 	get answer_1
+	ldreq	r6, [fp, #0x08]	@ 	get result_1
 	beq	2f		@ else
 	b	complete	@ 	ignore message
 	.align 5		@ align to cache-line
-_join_1:		@ wait for answer_0
+_join_1:		@ wait for result_0
 	ldr	r0, [fp, #0x04]	@ get tag
 	cmp	r0, r5		@ if tag == event_0
-	ldreq	r5, [fp, #0x08]	@	get answer_0
+	ldreq	r5, [fp, #0x08]	@	get result_0
 	beq	2f		@ else
 	b	complete	@ 	ignore message
 2:
 	bl	reserve		@ allocate event block
-	stmia	r0, {r4-r6}	@ set (customer, answer_0, answer_1)
+	stmia	r0, {r4-r6}	@ set (customer, result_0, result_1)
 	bl	enqueue		@ add event to queue
 	ldr	r9, =complete	@ ignore future messages
 3:
