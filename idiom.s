@@ -175,6 +175,17 @@ b_literal:		@ a literal evaluates to itself
 	bl	send_1		@ send self to customer
 	b	complete	@ return to dispatch loop
 
+	.text
+	.align 5		@ align to cache-line
+	.global b_constant
+b_constant:		@ a constant evaluates to a consistent value
+			@ (0x08: r4=value)
+			@ message = (ok, fail, environment)
+	ldr	r0, [fp, #0x04]	@ get ok customer
+	mov	r1, r4		@ get constant value
+	bl	send_1		@ send value to customer
+	b	complete	@ return to dispatch loop
+
 @
 @ unit test actors and behaviors
 @

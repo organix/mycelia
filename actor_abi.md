@@ -835,5 +835,10 @@ will **not** be the `fail` actor.
 #### b_literal
 
 The _evaluation_ capability for a _literal_
-simply responds with the identity of the target.
+always responds with the identity of the target.
 
+#### b_constant
+
+The _evaluation_ capability for a _constant_
+responds with a consistent _value_
+regardless of the _environment_ in which it is evaluated.
