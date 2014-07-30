@@ -295,10 +295,10 @@ to update the persistent actor state.
 
 #### complete
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | event | actor | stack | -- |
-| Out | xx | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | event' | actor' | stack | -- |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | event | actor |
+| Out | xx | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | event' | actor' |
 
 Signal actor behavior completion.
 Release completed `event` block,
@@ -307,19 +307,19 @@ Note: This is often used as a no-op actor and/or behavior.
 
 #### reserve
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | block | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | block | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
 
 Reserve (allocate) a `block` (32 bytes) of memory.
 
 #### release
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | block | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | xx | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | block | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | xx | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
 
 Release (free) a `block` for allocation by `reserve`.
 
@@ -327,10 +327,10 @@ Release (free) a `block` for allocation by `reserve`.
 
 #### enqueue
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | event | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | event | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
 
 Add an `event` to the dispatch queue.
 Note that an event must have the target actor at [r0] (offset 0x00).
@@ -338,10 +338,10 @@ The `event` address is returned in r0.
 
 #### send
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | target | 0x04 | 0x08 | 0x0c | 0x10 | 0x14 | 0x18 | 0x1c | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | event | xx | xx | xx | 0x10 | 0x14 | 0x18 | 0x1c | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | target | 0x04 | 0x08 | 0x0c | 0x10 | 0x14 | 0x18 | 0x1c | -- | -- | -- | sponsor | -- | -- |
+| Out | event | xx | xx | xx | 0x10 | 0x14 | 0x18 | 0x1c | -- | -- | -- | sponsor | -- | -- |
 
 Send a message.
 Registers r0-r7 are arranged
@@ -352,20 +352,20 @@ An event block is created, initialized, and enqueued.
 
 #### send_0
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | target | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | target | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
 
 Send an empty message to `target`.
 An event block is created, initialized, and enqueued.
 
 #### send_1
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | target | 0x04 | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | target | 0x04 | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
 
 Send a one-word message to `target`.
 The message data is in r1.
@@ -373,10 +373,10 @@ An event block is created, initialized, and enqueued.
 
 #### send_2
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | target | 0x04 | 0x08 | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | target | 0x04 | 0x08 | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
 
 Send a two-word message to `target`.
 The message data is in r1 and r2.
@@ -384,10 +384,10 @@ An event block is created, initialized, and enqueued.
 
 #### send_3x
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | -- | -- | -- | -- | target | 0x04 | 0x08 | 0x10 | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | event | xx | xx | xx | target | 0x04 | 0x08 | 0x10 | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | -- | -- | -- | -- | target | 0x04 | 0x08 | 0x10 | -- | -- | -- | sponsor | -- | -- |
+| Out | event | xx | xx | xx | target | 0x04 | 0x08 | 0x10 | -- | -- | -- | sponsor | -- | -- |
 
 Send a three-word message to `target`.
 The target actor is in r4.
@@ -398,10 +398,10 @@ An event block is created, initialized, and enqueued.
 
 #### create
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | behavior | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | behavior | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
 
 Create an actor from `example_3`.
 The actor behavior (offset 0x1c) is set from r0.
@@ -415,10 +415,10 @@ Actor state is loaded in registers as follows:
 
 #### create_0
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | behavior | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | behavior | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
 
 Create an actor from `example_1`.
 The actor behavior (offset 0x04) is set from r0.
@@ -428,10 +428,10 @@ and ip points to the actor.
 
 #### create_1
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | behavior | r4 | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | behavior | r4 | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
 
 Create a single-parameter actor.
 The actor behavior (offset 0x0c) is set from r0.
@@ -445,10 +445,10 @@ Actor state is loaded in registers as follows:
 
 #### create_2
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | behavior | r4 | r5 | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | behavior | r4 | r5 | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
 
 Create a two-parameter actor.
 The actor behavior (offset 0x10) is set from r0.
@@ -463,10 +463,10 @@ Actor state is loaded in registers as follows:
 
 #### create_3x
 
-| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
-|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
-| In  | -- | -- | -- | -- | r4 | r5 | r6 | behavior | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | actor | xx | xx | xx | r4 | r5 | r6 | behavior | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | -- | -- | -- | -- | r4 | r5 | r6 | behavior | -- | -- | -- | sponsor | -- | -- |
+| Out | actor | xx | xx | xx | r4 | r5 | r6 | behavior | -- | -- | -- | sponsor | -- | -- |
 
 Create a three-parameter actor.
 The actor behavior (offset 0x14) is set from r7.
