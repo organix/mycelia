@@ -333,7 +333,7 @@ Release (free) a `block` for allocation by `reserve`.
 | Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
 
 Add an `event` to the dispatch queue.
-Note that an event must have the target actor at [r0] (offset 0x00).
+Note that an event must have the target actor at \[r0\] (offset 0x00).
 The `event` address is returned in r0.
 
 #### send
@@ -408,7 +408,7 @@ The actor behavior (offset 0x1c) is set from r0.
 The default actor state is all zeros.
 On entry to the actor behavior,
 fp points to the event,
-[fp] points to the actor,
+\[fp\] points to the actor,
 and ip points to the actor + 0x08.
 Actor state is loaded in registers as follows:
 0x08:r4, 0x0c:r5, 0x10:r6, 0x14:r7, 0x18:r8.
@@ -438,7 +438,7 @@ The actor behavior (offset 0x0c) is set from r0.
 Intial value for r4 (offset 0x08) is set from r1.
 On entry to the actor behavior,
 fp points to the event,
-[fp] points to the actor,
+\[fp\] points to the actor,
 and ip points to the actor + 0x08.
 Actor state is loaded in registers as follows:
 0x08:r4.
@@ -456,7 +456,7 @@ Intial value for r4 (offset 0x08) is set from r1.
 Intial value for r5 (offset 0x0c) is set from r2.
 On entry to the actor behavior,
 fp points to the event,
-[fp] points to the actor,
+\[fp\] points to the actor,
 and ip points to the actor + 0x08.
 Actor state is loaded in registers as follows:
 0x08:r4, 0x0c:r5.
@@ -475,7 +475,7 @@ Intial value for r5 (offset 0x0c) is set from r5.
 Intial value for r6 (offset 0x10) is set from r6.
 On entry to the actor behavior,
 fp points to the event,
-[fp] points to the actor,
+\[fp\] points to the actor,
 and ip points to the actor + 0x08.
 Actor state is loaded in registers as follows:
 0x08:r4, 0x0c:r5, 0x10:r6.
