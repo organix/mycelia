@@ -1,5 +1,6 @@
 # Actor ABI
 
+
 ## Memory
 
 Memory is managed in cache-line-aligned blocks of 32 bytes (8x32-bit words).
@@ -9,6 +10,7 @@ An actor-block holds actor behavior and state.
 Blocks may be chained
 in order to extend the available storage
 as needed.
+
 
 ## Registers
 
@@ -54,6 +56,7 @@ will expect r10 (sl) to remain stable,
 pointing to the sponsor.
 Note that actors should consider the sponsor opaque.
 
+
 ## Event Structure
 
 An event block begins with the address of the actor
@@ -86,6 +89,7 @@ two customers are provided.
 The ok customer (at offset 0x04) for success/true results,
 and the fail customer (at offet 0x08) for failure/false results.
 Additional parameters may follow starting at offset 0x0c.
+
 
 ## Actor Structure
 
@@ -289,6 +293,7 @@ but must write back to the actor block
 (through ip, which is offset +0x08)
 to update the persistent actor state.
 
+
 ## Kernel Procedures
 
 ### Control
@@ -479,3 +484,77 @@ fp points to the event,
 and ip points to the actor + 0x08.
 Actor state is loaded in registers as follows:
 0x08:r4, 0x0c:r5, 0x10:r6.
+
+## Actor/Behavior Library
+
+### Built-In Actors
+
+#### a_ignore
+
+Ignore all messages.
+
+| Offset | Actor Field |
+|--------|-------|
+| 0x00 | code |
+| 0x04 | -- |
+| 0x08 | -- |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target | -> a_ignore
+| 0x04 | msg_1 |
+| 0x08 | msg_2 |
+| 0x0c | msg_3 |
+| 0x10 | msg_4 |
+| 0x14 | msg_5 |
+| 0x18 | msg_6 |
+| 0x1c | msg_7 |
+
+Note: This actor is not usually needed,
+since `complete` can be referenced directly
+(as if it were an actor).
+
+#### a_forward
+
+Foward message to `delegate`.
+
+| Offset | Actor Field |
+|--------|-------|
+| 0x00 | code |
+| 0x04 | code |
+| 0x08 | code |
+| 0x0c | code |
+| 0x10 | code |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | delegate |
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target = a_forward |
+| 0x04 | msg_1 |
+| 0x08 | msg_2 |
+| 0x0c | msg_3 |
+| 0x10 | msg_4 |
+| 0x14 | msg_5 |
+| 0x18 | msg_6 |
+| 0x1c | msg_7 |
+
+Note: This actor is used in the implementation of `a_oneshot`.
+
+#### a_oneshot
+
+#### a_fork
+
+### Built-In Behaviors
+
+#### b_label
+
+#### b_tag
+
+#### b_join
