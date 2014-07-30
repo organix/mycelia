@@ -330,9 +330,69 @@ Release (free) a `block` for allocation by `reserve`.
 | Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
 |-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
 | In  | event | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
-| Out | xx | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
 
 Add an `event` to the dispatch queue.
+Note that an event must have the target actor at [r0] (offset 0x00).
+The `event` address is returned in r0.
+
+#### send
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | target | 0x04 | 0x08 | 0x0c | 0x10 | 0x14 | 0x18 | 0x1c | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | event | xx | xx | xx | 0x10 | 0x14 | 0x18 | 0x1c | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Send a message.
+Registers r0-r7 are arranged
+exactly like the event structure,
+starting with the `target` actor in r0.
+The message data is in r1-r7.
+An event block is created, initialized, and enqueued.
+
+#### send_0
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | target | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Send an empty message to `target`.
+An event block is created, initialized, and enqueued.
+
+#### send_1
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | target | 0x04 | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Send a one-word message to `target`.
+The message data is in r1.
+An event block is created, initialized, and enqueued.
+
+#### send_2
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | target | 0x04 | 0x08 | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Send a two-word message to `target`.
+The message data is in r1 and r2.
+An event block is created, initialized, and enqueued.
+
+#### send_3x
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | -- | -- | -- | -- | target | 0x04 | 0x08 | 0x10 | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | event | xx | xx | xx | target | 0x04 | 0x08 | 0x10 | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Send a three-word message to `target`.
+The target actor is in r4.
+The message data is in r5-r7.
+An event block is created, initialized, and enqueued.
 
 ### Actors
 
