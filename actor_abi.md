@@ -251,7 +251,7 @@ while jumping to the actual behavior code.
         +-------+-------+-------+-------+
   0x00  |       mov     ip, pc          |
         +-------------------------------+
-  0x04  |       ldmia   ip,{r4-r7,lr,pc}|
+  0x04  |       ldmia   ip,{r4-r8,pc}   |
         +-------------------------------+
   0x08  | value for r4                  |
         +-------------------------------+
@@ -261,7 +261,7 @@ while jumping to the actual behavior code.
         +-------------------------------+
   0x14  | value for r7                  |
         +-------------------------------+
-  0x18  | value for lr                  |
+  0x18  | value for r8                  |
         +-------------------------------+
   0x1c  | address of actor behavior     |
         +-------+-------+-------+-------+
@@ -335,3 +335,87 @@ Release (free) a `block` for allocation by `reserve`.
 Add an `event` to the dispatch queue.
 
 ### Actors
+
+#### create
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | behavior | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Create an actor from `example_3`.
+The actor behavior (offset 0x1c) is set from r0.
+The default actor state is all zeros.
+On entry to the actor behavior,
+fp points to the event,
+[fp] points to the actor,
+and ip points to the actor + 0x08.
+Actor state is loaded in registers as follows:
+0x08:r4, 0x0c:r5, 0x10:r6, 0x14:r7, 0x18:r8.
+
+#### create_0
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | behavior | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Create an actor from `example_1`.
+The actor behavior (offset 0x04) is set from r0.
+On entry to the actor behavior,
+fp points to the event
+and ip points to the actor.
+
+#### create_1
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | behavior | r4 | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Create a single-parameter actor.
+The actor behavior (offset 0x0c) is set from r0.
+Intial value for r4 (offset 0x08) is set from r1.
+On entry to the actor behavior,
+fp points to the event,
+[fp] points to the actor,
+and ip points to the actor + 0x08.
+Actor state is loaded in registers as follows:
+0x08:r4.
+
+#### create_2
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | behavior | r4 | r5 | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Create a two-parameter actor.
+The actor behavior (offset 0x10) is set from r0.
+Intial value for r4 (offset 0x08) is set from r1.
+Intial value for r5 (offset 0x0c) is set from r2.
+On entry to the actor behavior,
+fp points to the event,
+[fp] points to the actor,
+and ip points to the actor + 0x08.
+Actor state is loaded in registers as follows:
+0x08:r4, 0x0c:r5.
+
+#### create_3x
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | -- | -- | -- | -- | r4 | r5 | r6 | behavior | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | actor | xx | xx | xx | r4 | r5 | r6 | behavior | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Create a three-parameter actor.
+The actor behavior (offset 0x14) is set from r7.
+Intial value for r4 (offset 0x08) is set from r4.
+Intial value for r5 (offset 0x0c) is set from r5.
+Intial value for r6 (offset 0x10) is set from r6.
+On entry to the actor behavior,
+fp points to the event,
+[fp] points to the actor,
+and ip points to the actor + 0x08.
+Actor state is loaded in registers as follows:
+0x08:r4, 0x0c:r5, 0x10:r6.
