@@ -288,3 +288,50 @@ The actor behavior may use the pre-loaded state in registers,
 but must write back to the actor block
 (through ip, which is offset +0x08)
 to update the persistent actor state.
+
+## Kernel Procedures
+
+### Control
+
+#### complete
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | event | actor | stack | -- |
+| Out | xx | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | event' | actor' | stack | -- |
+
+Signal actor behavior completion.
+Release completed `event` block,
+and call dispatcher.
+Note: This is often used as a no-op actor and/or behavior.
+
+#### reserve
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | block | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Reserve (allocate) a `block` (32 bytes) of memory.
+
+#### release
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | block | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | xx | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Release (free) a `block` for allocation by `reserve`.
+
+### Events
+
+#### enqueue
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip | sp | lr |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|----|----|
+| In  | event | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+| Out | xx | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- | stack | link |
+
+Add an `event` to the dispatch queue.
+
+### Actors
