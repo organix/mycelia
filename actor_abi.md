@@ -495,7 +495,7 @@ Ignore all messages.
 
 | Offset | Actor Field |
 |--------|-------|
-| 0x00 | code |
+| 0x00 | _code_ |
 | 0x04 | -- |
 | 0x08 | -- |
 | 0x0c | -- |
@@ -522,16 +522,17 @@ since `complete` can be referenced directly
 #### a_forward
 
 Foward message to `delegate`.
+
 **WARNING**: _Do not use `a_forward` directly.
 Clone it, then change the `delegate` in your copy._
 
 | Offset | Actor Field |
 |--------|-------|
-| 0x00 | code |
-| 0x04 | code |
-| 0x08 | code |
-| 0x0c | code |
-| 0x10 | code |
+| 0x00 | _code_ |
+| 0x04 | _code_ |
+| 0x08 | _code_ |
+| 0x0c | _code_ |
+| 0x10 | _code_ |
 | 0x14 | -- |
 | 0x18 | -- |
 | 0x1c | delegate = a_ignore |
@@ -553,15 +554,16 @@ Note: This actor is used in the implementation of `a_oneshot`.
 
 Forward first message to `delegate`,
 then ignore all subsequent messages.
+
 **WARNING**: _Do not use `a_oneshot` directly.
 Clone it, then change the `delegate` in your copy._
 
 | Offset | Actor Field |
 |--------|-------|
-| 0x00 | code |
-| 0x04 | code |
-| 0x08 | code |
-| 0x0c | code |
+| 0x00 | _code_ |
+| 0x04 | _code_ |
+| 0x08 | _code_ |
+| 0x0c | _code_ |
 | 0x10 | -- |
 | 0x14 | next behavior |
 | 0x18 | current behavior |
@@ -626,6 +628,89 @@ and sent to the original `customer`, like this:
 
 #### b_label
 
+Add `label` to message and forward to `delegate`.
+
+| Offset | Actor Field |
+|--------|-------|
+| 0x00 | _code_ |
+| 0x04 | _code_ |
+| 0x08 | r4: delegate |
+| 0x0c | r5: label |
+| 0x10 | behavior = b_label |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | msg_1 |
+| 0x08 | msg_2 |
+| 0x0c | msg_3 |
+| 0x10 | msg_4 |
+| 0x14 | msg_5 |
+| 0x18 | msg_6 |
+| 0x1c | -- |
+
+Note that the data at offset 0x1c in the inbound message
+is not copied because we have to make room for the label.
+After adding the label, the generated event looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | delegate |
+| 0x04 | label |
+| 0x08 | msg_1 |
+| 0x0c | msg_2 |
+| 0x10 | msg_3 |
+| 0x14 | msg_4 |
+| 0x18 | msg_5 |
+| 0x1c | msg_6 |
+
 #### b_tag
+
+Label message with actor identity and forward to `delegate`.
+Tag actors are often created as proxy customers
+when we want to identify the source of a particular response.
+
+| Offset | Actor Field |
+|--------|-------|
+| 0x00 | _code_ |
+| 0x04 | _code_ |
+| 0x08 | r4: delegate |
+| 0x0c | behavior = b_tag |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | msg_1 |
+| 0x08 | msg_2 |
+| 0x0c | msg_3 |
+| 0x10 | msg_4 |
+| 0x14 | msg_5 |
+| 0x18 | msg_6 |
+| 0x1c | -- |
+
+Note that the data at offset 0x1c in the inbound message
+is dropped because we have to make room for the label.
+This behavior modifies the inbound event,
+adding it's own identity as a label,
+and re-dispatches it without going through the event queue.
+The modified event looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | delegate |
+| 0x04 | target |
+| 0x08 | msg_1 |
+| 0x0c | msg_2 |
+| 0x10 | msg_3 |
+| 0x14 | msg_4 |
+| 0x18 | msg_5 |
+| 0x1c | msg_6 |
 
 #### b_join

@@ -101,9 +101,9 @@ _fork_0:		@ create tag actor
 	.text
 	.align 5		@ align to cache-line
 	.global b_label
-b_label:		@ add label to message (r4=customer, r5=label)
+b_label:		@ add label to message (r4=delegate, r5=label)
 	bl	reserve		@ allocate event block
-	str	r4, [fp]	@ replace target with customer
+	str	r4, [fp]	@ replace target with delegate
 	mov	r3, r5		@ move label into position
 	ldmia	fp, {r2,r4-r9}	@ copy request (drop last word)
 	stmia	r0, {r2-r9}	@ write new event
@@ -113,12 +113,12 @@ b_label:		@ add label to message (r4=customer, r5=label)
 	.text
 	.align 5		@ align to cache-line
 	.global b_tag
-b_tag:			@ label one message with actor identity (r4=customer)
-	mov	r2, r4		@ move customer into position
+b_tag:			@ label message with actor identity (r4=delegate)
+	mov	r2, r4		@ move delegate into position
 	ldmia	fp, {r3-r9}	@ copy request (drop last word, r3=label)
 	stmia	fp, {r2-r9}	@ overwrite event
 	mov	ip, r2		@ get target actor address
-	bx	ip		@ jump to customer behavior
+	bx	ip		@ jump to delegate behavior
 
 	.text
 	.align 5		@ align to cache-line
