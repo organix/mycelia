@@ -756,3 +756,84 @@ a combined result event is generated:
 | 0x14 | -- |
 | 0x18 | -- |
 | 0x1c | -- |
+
+### Actor Capabilities
+
+A typical view of object (and actors)
+is that they have an "interface",
+or vocabulary of message types they understand.
+In practice,
+this means that a message-event
+must contain a "selector"
+(usually a "name", but sometimes a "signature")
+that identifies what kind of message it is.
+The object/actor uses the selector
+to (polymorphically) dispatch the message
+to the proper implementation code.
+
+Instead, we will consider each actor reference
+to be a _capability_ that already knows what operation is expected.
+An interface, then, consists of a collection of capabilities
+that access and/or operate on some hidden shared state.
+This is similar to the concept of "facets"
+in some object-oriented systems.
+It also provides fine-grained access control
+by limiting the availability of certain capabilities.
+The access-graph becomes the authority-graph.
+
+In addition, we will generalize the idea of "return value"
+(for services with a call-response protocol)
+by introducing a pair of _customers_ called "ok" and "fail".
+The _ok_ customer will be the capability
+to whom a successful result should be delivered.
+The _fail_ customer will be the capability
+to whom a failure notification may be send.
+This transforms exception handling into simple message-flow.
+
+#### Evaluation
+
+A critical capability for general computation
+is _evaluation_ in the context of an _environment_.
+Evaluation produces a _value_,
+but cannot cause any _effects_.
+The protocol for evaluation involves
+sending a request and receiving a response.
+The request looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | ok |
+| 0x08 | fail |
+| 0x0c | environment |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+If the request is "successful",
+a response is sent to `ok`
+that looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | ok |
+| 0x04 | result |
+| 0x08 | -- |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+If the request is "unsuccessful",
+the original event is immediately delivered to `fail`
+_without going through the event queue_.
+Note that this means the `target`
+will **not** be the `fail` actor.
+
+#### b_literal
+
+The _evaluation_ capability for a _literal_
+simply responds with the identity of the target.
+

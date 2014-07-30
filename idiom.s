@@ -162,6 +162,20 @@ _join_1:		@ wait for result_0
 	b	complete	@ return to dispatch loop
 
 @
+@ actor capabilities
+@
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_literal
+b_literal:		@ a literal evaluates to itself
+			@ message = (ok, fail, environment)
+	ldr	r0, [fp, #0x04]	@ get ok customer
+	ldr	r1, [fp]	@ get target (self)
+	bl	send_1		@ send self to customer
+	b	complete	@ return to dispatch loop
+
+@
 @ unit test actors and behaviors
 @
 
