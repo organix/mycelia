@@ -208,8 +208,8 @@ b_store:		@ store a replacement value
 	cmp	r0, r1		@ if load_cap is not a b_load actor
 	ldrne	ip, [fp, #0x08]	@	ip = fail customer
 	bxne	ip		@	dispatch to fail
-	ldr	r1, [fp, #0x0c]	@ get replacement value
-	str	r1, [r4, #0x08]	@ store replacement value
+	ldr	r1, [fp, #0x0c]	@ get parameter value
+	str	r1, [r4, #0x08]	@ replace stored value
 	ldr	r0, [fp, #0x04]	@ get ok customer
 	bl	send_1		@ send response
 	b	complete	@ return to dispatch loop

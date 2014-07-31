@@ -851,3 +851,43 @@ The _load_ capability retrieves the currently stored value,
 and responds with that value.
 The _store_ capability replaces the stored value,
 and responds with the value stored.
+The protocol for _store_ is not _evaluation_,
+but is very similar.
+Instead of receiving an _environment_,
+there is a generic _parameter_
+(the new value to store, in this case).
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | ok |
+| 0x08 | fail |
+| 0x0c | parameter |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+#### a_undefined / b_arrow
+
+A primitive generalization of partial functions
+can be expressed with `a_undefined` and `b_arrow`.
+The protocol is the same as `b_store`,
+taking a _parameter_ and returning a _result_.
+
+The actor `a_undefined` is the root/failure case.
+It immediately calls `fail`.
+It can be used to terminate a search-chain,
+or provide a default.
+
+The `b_arrow` behavior demonstrates an explicit finite-mapping,
+with each actor instance providing a _result_
+for a particular _parameter_ value.
+The resulting structure
+is a linear-search dictionary
+of "name/value" pairs
+terminated by `a_undefined`.
+
+Note that a variety of alternative implementations are possible,
+consistent with the same _parameter_/_result_-or-fail protocol.
+Functional algorithms, including recursion, can be easily supported.
