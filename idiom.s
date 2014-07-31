@@ -200,7 +200,7 @@ b_load:			@ retrieve the currently stored value
 	.text
 	.align 5		@ align to cache-line
 	.global b_store
-b_store:		@ store a replacement value
+b_store:		@ assign a replacement value
 			@ (0x08: r4=load_cap)
 			@ message = (ok, fail, value)
 	ldr	r0, [r4, #0x0c]	@ get load_cap behavior
@@ -217,7 +217,7 @@ b_store:		@ store a replacement value
 	.text
 	.align 5		@ align to cache-line
 	.global a_undefined
-a_undefined:		@ this actor immediately calls `fail`
+a_undefined:		@ undefined mapping, immediately calls `fail`
 			@ message = (ok, fail, parameter)
 	ldr	ip, [fp, #0x08]	@ ip = fail customer
 	bx	ip		@ dispatch to fail
@@ -245,6 +245,20 @@ b_arrow:		@ explicit mapping (chain of "name/value" pairs)
 	mov	r0, r7		@ prepare event
 	bl	enqueue		@ add event to queue
 	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_undefined
+a_end:			@ end of stream, immediately calls `fail`
+			@ message = (ok, fail, parameter)
+	ldr	ip, [fp, #0x08]	@ ip = fail customer
+	bx	ip		@ dispatch to fail
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
 
 @
 @ unit test actors and behaviors

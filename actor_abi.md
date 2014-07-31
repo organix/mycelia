@@ -757,7 +757,8 @@ a combined result event is generated:
 | 0x18 | -- |
 | 0x1c | -- |
 
-### Actor Capabilities
+
+## Actor Capabilities
 
 A typical view of object (and actors)
 is that they have an "interface",
@@ -790,7 +791,7 @@ The _fail_ customer will be the capability
 to whom a failure notification may be send.
 This transforms exception handling into simple message-flow.
 
-#### Evaluation
+### Evaluation
 
 A critical capability for general computation
 is _evaluation_ in the context of an _environment_.
@@ -875,7 +876,7 @@ can be expressed with `a_undefined` and `b_arrow`.
 The protocol is the same as `b_store`,
 taking a _parameter_ and returning a _result_.
 
-The actor `a_undefined` is the root/failure case.
+The actor `a_undefined` is the base/failure case.
 It immediately calls `fail`.
 It can be used to terminate a search-chain,
 or provide a default.
@@ -891,3 +892,85 @@ terminated by `a_undefined`.
 Note that a variety of alternative implementations are possible,
 consistent with the same _parameter_/_result_-or-fail protocol.
 Functional algorithms, including recursion, can be easily supported.
+
+### Streams
+
+Streams are a primitive abstraction of seqential access patterns.
+A _read_ capability consumes an element from the stream.
+A _write_ capability produces an element to the stream.
+
+A _read_ request looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | ok |
+| 0x08 | fail |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+If the request is "successful",
+a response is sent to `ok`
+that looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | ok |
+| 0x04 | element |
+| 0x08 | next |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+The `next` field in a _read_ response
+is the _read_ capability for subsequent requests.
+Each _read_ capability can be thought of
+as a "cursor position" in the stream.
+
+A _write_ request looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | ok |
+| 0x08 | fail |
+| 0x0c | element |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+If the request is "successful",
+a response is sent to `ok`
+that looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | ok |
+| 0x04 | next |
+| 0x08 | -- |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+The `next` field in a _write_ response
+is the _write_ capability for subsequent requests.
+Each _write_ capability can be thought of
+as a "cursor position" in the stream.
+
+#### a_end
+
+The actor `a_end` immediately calls `fail`.
+As a _read_ capability it represents the base/empty case.
+As a _write_ capability it represents the final/full case.
+The call to `fail` can often be avoided
+by comparing your _read_/_write_ capability
+(such as the value of `next`)
+to `a_end` before using it.
