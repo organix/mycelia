@@ -842,3 +842,12 @@ always responds with the identity of the target.
 The _evaluation_ capability for a _constant_
 responds with a consistent _value_
 regardless of the _environment_ in which it is evaluated.
+
+#### b_load / b_store
+
+A primitive mutable value supports two capabilities,
+_load_ and _store_.
+The _load_ capability retrieves the currently stored value,
+and responds with that value.
+The _store_ capability replaces the stored value,
+and responds with the value stored.

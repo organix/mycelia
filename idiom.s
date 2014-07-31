@@ -172,7 +172,7 @@ b_literal:		@ a literal evaluates to itself
 			@ message = (ok, fail, environment)
 	ldr	r0, [fp, #0x04]	@ get ok customer
 	ldr	r1, [fp]	@ get target (self)
-	bl	send_1		@ send self to customer
+	bl	send_1		@ send self to ok
 	b	complete	@ return to dispatch loop
 
 	.text
@@ -183,7 +183,35 @@ b_constant:		@ a constant evaluates to a consistent value
 			@ message = (ok, fail, environment)
 	ldr	r0, [fp, #0x04]	@ get ok customer
 	mov	r1, r4		@ get constant value
-	bl	send_1		@ send value to customer
+	bl	send_1		@ send value to ok
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_load
+b_load:			@ retrieve the currently stored value
+			@ (0x08: r4=value)
+			@ message = (ok, fail, environment)
+	ldr	r0, [fp, #0x04]	@ get ok customer
+	mov	r1, r4		@ get constant value
+	bl	send_1		@ send value to ok
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_store
+b_store:		@ store a replacement value
+			@ (0x08: r4=load_cap)
+			@ message = (ok, fail, value)
+	ldr	r0, [r4, #0x0c]	@ get load_cap behavior
+	ldr	r1, =b_load	@ get b_load behavior
+	cmp	r0, r1		@ if load_cap is not a b_load actor
+	ldrne	ip, [fp, #0x08]	@	ip = fail customer
+	bxne	ip		@	dispatch to fail
+	ldr	r1, [fp, #0x0c]	@ get replacement value
+	str	r1, [r4, #0x08]	@ store replacement value
+	ldr	r0, [fp, #0x04]	@ get ok customer
+	bl	send_1		@ send response
 	b	complete	@ return to dispatch loop
 
 @
