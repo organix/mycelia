@@ -214,6 +214,38 @@ b_store:		@ store a replacement value
 	bl	send_1		@ send response
 	b	complete	@ return to dispatch loop
 
+	.text
+	.align 5		@ align to cache-line
+	.global a_undefined
+a_undefined:		@ this actor immediately calls `fail`
+			@ message = (ok, fail, parameter)
+	ldr	ip, [fp, #0x08]	@ ip = fail customer
+	bx	ip		@ dispatch to fail
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_arrow
+b_arrow:		@ explicit mapping (chain of "name/value" pairs)
+			@ (r4=name, r5=value, r6=next)
+			@ message = (ok, fail, parameter)
+	bl	reserve		@ allocate event block
+	mov	r7, r0		@ remember block address
+	ldmia	fp, {r0-r3}	@ (r0:target, r1:ok, r2:fail, r3:parameter)
+	cmp	r3, r4		@ if parameter == name
+	streq	r2, [r7]	@	target: ok
+	streq	r5, [r7, #0x04]	@	result: value
+	movne	r0, r6		@ else
+	stmneia	r7, {r0-r3}	@	forward to next
+	mov	r0, r7		@ prepare event
+	bl	enqueue		@ add event to queue
+	b	complete	@ return to dispatch loop
+
 @
 @ unit test actors and behaviors
 @
