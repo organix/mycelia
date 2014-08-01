@@ -19,7 +19,7 @@ if the referenced block is not marked,
 mark it and add it to the scan list.
 When the scan list is empty,
 re-thread all the unmarked blocks
-into an available-block list.
+into the available-block list.
 
 ~~~
 BOOLEAN mark[];
@@ -56,7 +56,6 @@ void gc(int root[], int n_roots) {
 }
 
 void scan(int n) {
-    if ((n >= 0) && (n < n_blocks) && (mark[n] == 0)) {
     if ((n >= 0) && (n < n_blocks)          // in range
      && (mark[n] == 0)) {                   // not already marked
         mark[n] = 1;                        // mark block
@@ -69,3 +68,25 @@ void release(int n) {
     i_free = n;                             // link block at head of free chain
 }
 ~~~
+
+### Implementation Notes
+
+The actual implementation is directly in assembly-language.
+Where integer index values (into the heap array) are used in the pseudo-code,
+the assembly-code uses actual memory addresses,
+with 0 playing the role of `END`.
+
+The heap lives between `heap_start` and the current contents of `block_end`.
+The contents of `block_free` are a pointer to the first available block,
+or 0 if there are no blocks available.
+When additional blocks are needed,
+`block_end` is advanced
+and the new block is put on the available list
+(by _release_),
+then immediately allocated (by _reserve_).
+
+The `mark` array is implemented as a tightly-packed bit-string,
+positioned after `block_end`.
+The `i_scan` array (the scan list)
+is positioned on the next 32-bit word-boundry
+after the `mark` array.
