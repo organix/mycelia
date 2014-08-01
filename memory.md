@@ -8,28 +8,60 @@ This process is called "garbage collection".
 
 ## Garbage Collection
 
-In describing the operation of the garbage collector,
-we use the following color codes:
-
-  * White = Available Memory
-  * Black = Old Reserved Memory
-  * Red = New Reserved Memory
-
-As a block is reserved,
-it is marked Red.
-As a block is released,
-it is marked White.
-At the beginning of a garbage-collection pass,
-all Red blocks are marked Black.
-During a garbage-collection pass,
-we need to verify that the Black blocks
-are still in use.
-
-A garbage-pass starts by adding
-all "root references" to the _scan list_.
+To begin garbage collection,
+clear marks for all blocks.
+For each root reference,
+mark the referenced block and add it to the scan list.
 For each block on the scan list,
-if it is Black, we mark it Red
-and add all references in the block to the scan list.
+iterate over references in the block.
+For each reference,
+if the referenced block is not marked,
+mark it and add it to the scan list.
 When the scan list is empty,
-all blocks still marked Black
-are released (and marked White).
+re-thread all the unmarked blocks
+into an available-block list.
+
+~~~
+BOOLEAN mark[];
+BLOCK heap[];
+int n_blocks;
+int scan_list[];
+int n_scans;
+
+void gc(BLOCK root[], int n_roots) {
+    BLOCK* p;
+    int i;
+    int j;
+    int k;
+
+    n_scans = 0;
+    for (i = 0; i < n_blocks; ++i) {        // clear all marks
+        mark[i] = 0;
+    }
+    for (p = block_free; p; p = p.ref[0]) { // mark all "free" blocks
+        i = (int)(p - block_free);
+        mark[i] = 1;
+    }
+    for (i = 0; i < n_roots; ++i) {         // mark root references
+        scan(roots[i]);
+    }
+    for (i = 0; i < n_scans; ++i) {         // iterate over scan list
+        BLOCK b = heap[scan_list[i]];
+        for (j = 0; j < n_refs; ++j) {      // iterate over block refs
+            scan(b.ref[j]);
+        }
+    }
+    for (i = 0; i < n_blocks; ++i) {        // release "garbage" blocks
+        if (mark[i] == 0) {
+            release(heap[i]);
+        }
+    }
+}
+
+void scan(int n) {                          // mark, if not already marked
+    if (mark[n] == 0) {
+        mark[n] = 1;
+        scan_list[n_scans++] = n;
+    }
+}
+~~~
