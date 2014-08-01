@@ -24,44 +24,48 @@ into an available-block list.
 ~~~
 BOOLEAN mark[];
 BLOCK heap[];
+int i_free = END;
 int n_blocks;
-int scan_list[];
+int i_scan[];
 int n_scans;
 
-void gc(BLOCK root[], int n_roots) {
-    BLOCK* p;
+void gc(int root[], int n_roots) {
     int i;
     int j;
-    int k;
 
-    n_scans = 0;
-    for (i = 0; i < n_blocks; ++i) {        // clear all marks
-        mark[i] = 0;
+    n_scans = 0;                            // start with empty scan list
+    for (i = 0; i < n_blocks; ++i) {
+        mark[i] = 0;                        // clear all marks
     }
-    for (p = block_free; p; p = p.ref[0]) { // mark all "free" blocks
-        i = (int)(p - block_free);
-        mark[i] = 1;
+    for (i = i_free; i != END; i = heap[i].ref[0]) {
+        mark[i] = 1;                        // mark all "free" blocks
     }
-    for (i = 0; i < n_roots; ++i) {         // mark root references
-        scan(roots[i]);
+    for (i = 0; i < n_roots; ++i) {
+        scan(root[i]);                      // mark root references
     }
     for (i = 0; i < n_scans; ++i) {         // iterate over scan list
-        BLOCK b = heap[scan_list[i]];
         for (j = 0; j < n_refs; ++j) {      // iterate over block refs
-            scan(b.ref[j]);
+            scan(heap[i_scan[i]].ref[j]);   // mark block references
         }
     }
-    for (i = 0; i < n_blocks; ++i) {        // release "garbage" blocks
+    for (i = 0; i < n_blocks; ++i) {
         if (mark[i] == 0) {
-            release(heap[i]);
+            release(heap[i]);               // release "garbage" blocks
         }
     }
 }
 
-void scan(int n) {                          // mark, if not already marked
-    if (mark[n] == 0) {
-        mark[n] = 1;
-        scan_list[n_scans++] = n;
+void scan(int n) {
+    if ((n >= 0) && (n < n_blocks) && (mark[n] == 0)) {
+    if ((n >= 0) && (n < n_blocks)          // in range
+     && (mark[n] == 0)) {                   // not already marked
+        mark[n] = 1;                        // mark block
+        scan_list[n_scans++] = n;           // add to scan list
     }
+}
+
+void release(int n) {
+    heap[n].ref[0] = i_free;                // thread free blocks through ref_0
+    i_free = n;                             // link block at head of free chain
 }
 ~~~
