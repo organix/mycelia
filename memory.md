@@ -71,9 +71,9 @@ void release(int n) {
 
 ### Implementation Notes
 
-The actual implementation is directly in assembly-language.
-Where integer index values (into the heap array) are used in the pseudo-code,
-the assembly-code uses actual memory addresses,
+The actual implementation is coded directly in assembly-language.
+The pseudo-code uses integer index values (into the heap array).
+The assembly-code uses actual memory addresses,
 with 0 playing the role of `END`.
 
 The heap lives between `heap_start` and the current contents of `block_end`.
@@ -85,8 +85,12 @@ and the new block is put on the available list
 (by _release_),
 then immediately allocated (by _reserve_).
 
+The heap is initially aligned to a 1k boundary.
+At the beginning of garbage-collection,
+`block_end` is rounded up to a 1k boundary.
 The `mark` array is implemented as a tightly-packed bit-string,
 positioned after `block_end`.
+Each 32-bit word in the `mark` array represents 32 blocks of 32 bytes.
 The `i_scan` array (the scan list)
-is positioned on the next 32-bit word-boundry
+begins at the next 32-bit word-boundary
 after the `mark` array.
