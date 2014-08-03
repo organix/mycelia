@@ -51,7 +51,7 @@ release:		@ release the memory block pointed to by r0
 	ldr	r1, =block_free	@ address of free list pointer
 	ldr	r2, [r1]	@ address of next free block
 	str	r0, [r1]	@ update free list pointer
-	ldr	r1, =block_zero	@ address of block-erase pattern
+	ldr	r1, =block_junk	@ address of block-erase pattern
 	ldmia	r1, {r3-r9}	@ read 7 words (32 - 4 bytes)
 	stmia	r0, {r2-r9}	@ write 8 words (incl. next free block pointer)
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
@@ -60,7 +60,7 @@ release:		@ release the memory block pointed to by r0
 	.align 2		@ align to machine word
 	.global sync_gc
 sync_gc:		@ synchronous garbage-collection
-	@ r4=n_blocks, r5=mark, r6=scan_list, r7=scan_end, r8=i, r9=j
+	@ r3=heap, r4=n_blocks, r5=mark, r6=scan_list, r7=scan_end, r8=i, r9=j
 	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
 
 	ldr	r2, =block_end	@ address of block end pointer
@@ -70,8 +70,8 @@ sync_gc:		@ synchronous garbage-collection
 	bic	r0, r1		@ truncate to 1k boundary
 	str	r0, [r2]	@ set unused heap address
 
-	ldr	r1, =heap_start	@ base address of heap
-	sub	r4, r0, r1	@ number of bytes in heap
+	ldr	r3, =heap_start	@ r3: base address of heap
+	sub	r4, r0, r3	@ number of bytes in heap
 	mov	r4, r4, ASR #5	@ r4: number of blocks in heap
 	mov	r5, r0		@ r5: bit-string for marks
 	add	r6,r5,r4,ASR #5	@ r6: beginning of scan_list
@@ -85,67 +85,70 @@ sync_gc:		@ synchronous garbage-collection
 	subgts	r2, r2, #-1	@	decrement word count
 	bgt	1b		@ }
 
-	ldr	r0, =block_free	@ address of free list pointer
-	ldr	lr, [r0]	@ address of first free block
-	ldr	r3, =heap_start	@ cache base address of heap
+	ldr	r8, =block_free	@ mark all free blocks, but don't scan them
+	b	3f		@ for each free-list entry {
 2:
-	cmp	lr, #0		@ while block not null
-	beq	3f		@ {
-	sub	r1, lr, r3	@	byte offset of block
-	mov	r1, r1, ASR #5	@	block number
+	sub	r1, r8, r3	@	byte offset of block
+	mov	r1, r1, ASR #5	@	r1: block number
 	and	r2, r1, #0x1F	@	extract bit number
 	mov	r0, #1		@	set bit
-	mov	r2, r0, LSL r2	@	move bit into place
+	mov	r2, r0, LSL r2	@	r2: mask for mark bit
 	ldr	r0,[r5,r1,ASR #5]@	load mark word
 	orr	r0, r0, r2	@	set mark bit
 	str	r0,[r5,r1,ASR #5]@	store mark word
-	ldr	lr, [lr]	@	block = block->next
-	b	2b		@ }
 3:
-	str	r3, [r7], #4	@ add root block to scan list
-	mov	r2, #1		@ bit number zero
-	ldr	r0,[r5]		@ load mark word
-	orr	r0, r0, r2	@ set mark bit
-	str	r0,[r5]		@ store mark word
+	ldr	r8, [r8]	@	get next block in free-list
+	cmp	r8, #0
+	bne	2b		@ }
 
-	cmp	r6, r7		@ while scan list not empty
-	bge	7f		@ {
+	mov	r0, r3		@ root_block is allocated at heap_start
+	bl	scan_gc		@ mark and scan root_block
+
+	b	6f		@ for each block in scan_list {
 4:
-	ldr	r9, [r6], #4	@	b = *scan_list++
-	mov	r8, #0x18	@	n = 6
+	ldr	r8, [r6], #4	@	r8: next block from scan_list
+	mov	r9, #0x1c	@	for each block field {
 5:
-	ldr	r0, [r9, r8]	@	r = b[n]
-
-	subs	r1, r0, r3	@	byte offset of block
-	blt	6f
-	mov	r1, r1, ASR #5	@	block number
-	cmp	r1, r4
-	bge	6f
-
-	and	r2, r1, #0x1F	@	extract bit number
-	mov	r0, #1		@	set bit
-	mov	r2, r0, LSL r2	@	move bit into place
-	ldr	r0,[r5,r1,ASR #5]@	load mark word
-
-	tst	r0, r2		@	if mark bit not set
-
-	orrne	r0, r0, r2	@		set mark bit
-	strne	r0,[r5,r1,ASR #5]@		store mark word
-	ldrne	r0, [r9, r8]	@		r = b[n]
-	strne	r0, [r7], #4	@		add to scan list
-	
-	subs	r8, r8, #4	@	--n
-	bge	5b
+	ldr	r0, [r8, r9]	@		get block field
+	bl	scan_gc		@		mark and scan field
+	subs	r9, r9, #4	@		decrement field offset
+	bge	5b		@	}
 6:
-	b	4b		@ }
-7:
+	cmp	r6, r7
+	bge	4b		@ }
 
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
 
+	.text
+	.align 2		@ align to machine word
+scan_gc:		@ mark block (r0) in-use and include in scan_list
+	@ r3=heap, r4=n_blocks, r5=mark, r6=scan_list, r7=scan_end, r8=i, r9=j
+	subs	r1, r0, r3	@ byte offset of block
+	bxlt	lr		@ return, if block < heap
+	mov	r1, r1, ASR #5	@ r1: block number
+	cmp	r1, r4		@ compare with n_blocks
+	bxge	lr		@ return, if block number >= n_blocks
+
+	and	r2, r1, #0x1F	@ extract bit number
+	mov	r0, #1		@ set bit
+	mov	r2, r0, LSL r2	@ r2: mask for mark bit
+	ldr	r0,[r5,r1,ASR #5]@ load mark word
+	tst	r0, r2		@ check for mark bit
+	bxne	lr		@ return, if already marked
+
+	orr	r0, r0, r2	@ set mark bit
+	str	r0,[r5,r1,ASR #5]@ store mark word
+	add	r0, r3, r1	@ address of block
+	str	r0, [r7], #4	@ add block to scan list (increment scan_end)
+	bx	lr		@ return
+
 	.section .rodata
 	.align 5		@ align to cache-line
-block_zero:
+block_junk:
 	.ascii "Who is licking my HONEYPOT?\0"
+	.align 5		@ align to cache-line
+block_zero:
+	.int 0, 0, 0, 0, 0, 0, 0, 0
 
 	.data
 	.align 5		@ align to cache-line

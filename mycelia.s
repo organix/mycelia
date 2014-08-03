@@ -36,16 +36,12 @@ mycelia:		@ entry point for the actor kernel (r0=boot, r1=trace)
 	ldr	r0, =trace_to	@ location of trace procedure
 	str	r1, [r0]	@ set trace procedure
 	ldr	sl, =sponsor_0	@ initialize sponsor link
+
 	bl	reserve		@ allocate garbage-collector root block
-	mov	r1, #0		@ null pointer
-	str	r1, [r0]	@ clear root block + 0x00
-	str	r1, [r0, #0x04]	@ clear root block + 0x04
-	str	r1, [r0, #0x08]	@ clear root block + 0x08
-	str	r1, [r0, #0x0c]	@ clear root block + 0x0c
-	str	r1, [r0, #0x10]	@ clear root block + 0x10
-	str	r1, [r0, #0x14]	@ clear root block + 0x14
-	str	r1, [r0, #0x18]	@ clear root block + 0x18
-	str	r1, [r0, #0x1c]	@ clear root block + 0x1c
+	ldr	r1, =block_zero	@ address of block-clear pattern
+	ldmia	r1, {r2-r9}	@ read 8 words of zeros
+	stmia	r0, {r2-r9}	@ write 8 words of zeros
+
 	bl	reserve		@ allocate initial event block
 	str	ip, [r0]	@ set target to bootstrap actor
 	bl	enqueue		@ add event to queue
