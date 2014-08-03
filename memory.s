@@ -104,6 +104,19 @@ sync_gc:		@ synchronous garbage-collection
 	mov	r0, r3		@ root_block is allocated at heap_start
 	bl	scan_gc		@ mark and scan root_block
 
+	ldr	r1, [sl, #1024]	@ event queue head/tail indicies
+	uxtb	r8, r1, ROR #8	@ r8: head index
+	uxtb	r9, r1, ROR #16	@ r9: tail index
+	b	8f		@ for each event in queue {
+7:
+	ldr	r0,[sl,r8,LSL #2]@	next event block
+	bl	scan_gc		@	mark and scan event
+	add	r8, r8, #1	@	increment head
+	and	r8, r8, #0xFF	@	wrap index
+8:
+	cmp	r8, r9
+	bne	7b		@ }
+
 	b	6f		@ for each block in scan_list {
 4:
 	ldr	r8, [r6], #4	@	r8: next block from scan_list
@@ -147,6 +160,7 @@ scan_gc:		@ mark block (r0) in-use and include in scan_list
 block_junk:
 	.ascii "Who is licking my HONEYPOT?\0"
 	.align 5		@ align to cache-line
+	.global block_zero
 block_zero:
 	.int 0, 0, 0, 0, 0, 0, 0, 0
 

@@ -45,6 +45,7 @@ mycelia:		@ entry point for the actor kernel (r0=boot, r1=trace)
 	bl	reserve		@ allocate initial event block
 	str	ip, [r0]	@ set target to bootstrap actor
 	bl	enqueue		@ add event to queue
+	bl	sync_gc		@ [FIXME] immediate garbage-collection
 	b	dispatch	@ start dispatch loop
 
 	.text
