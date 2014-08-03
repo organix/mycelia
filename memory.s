@@ -60,11 +60,8 @@ release:		@ release the memory block pointed to by r0
 	.align 2		@ align to machine word
 	.global sync_gc
 sync_gc:		@ synchronous garbage-collection
-			@ (r0:root_list, r1:n_roots)
 	@ r4=n_blocks, r5=mark, r6=scan_list, r7=scan_end, r8=i, r9=j
 	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
-	mov	r8, r0		@ remember root_list
-	mov	r9, r1		@ remember n_roots
 
 	ldr	r2, =block_end	@ address of block end pointer
 	ldr	r0, [r2]	@ get unused heap address
@@ -105,6 +102,43 @@ sync_gc:		@ synchronous garbage-collection
 	ldr	lr, [lr]	@	block = block->next
 	b	2b		@ }
 3:
+	str	r3, [r7], #4	@ add root block to scan list
+	mov	r2, #1		@ bit number zero
+	ldr	r0,[r5]		@ load mark word
+	orr	r0, r0, r2	@ set mark bit
+	str	r0,[r5]		@ store mark word
+
+	cmp	r6, r7		@ while scan list not empty
+	bge	7f		@ {
+4:
+	ldr	r9, [r6], #4	@	b = *scan_list++
+	mov	r8, #0x18	@	n = 6
+5:
+	ldr	r0, [r9, r8]	@	r = b[n]
+
+	subs	r1, r0, r3	@	byte offset of block
+	blt	6f
+	mov	r1, r1, ASR #5	@	block number
+	cmp	r1, r4
+	bge	6f
+
+	and	r2, r1, #0x1F	@	extract bit number
+	mov	r0, #1		@	set bit
+	mov	r2, r0, LSL r2	@	move bit into place
+	ldr	r0,[r5,r1,ASR #5]@	load mark word
+
+	tst	r0, r2		@	if mark bit not set
+
+	orrne	r0, r0, r2	@		set mark bit
+	strne	r0,[r5,r1,ASR #5]@		store mark word
+	ldrne	r0, [r9, r8]	@		r = b[n]
+	strne	r0, [r7], #4	@		add to scan list
+	
+	subs	r8, r8, #4	@	--n
+	bge	5b
+6:
+	b	4b		@ }
+7:
 
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
 
