@@ -29,16 +29,44 @@
 	.text
 	.align 2		@ alignment 2^n (2^2 = 4 byte machine word)
 	.global mycelia
-mycelia:		@ entry point for the actor kernel
-@	bl	monitor		@ monitor();
-
-@ inject initial event
+mycelia:		@ entry point for the actor kernel (r0=boot, r1=trace)
+	mov	ip, r0		@ bootstrap actor address
+	ldr	r0, =exit_to	@ location of return address
+	str	lr, [r0]	@ save exit address on entry
+	ldr	r0, =trace_to	@ location of trace procedure
+	str	r1, [r0]	@ set trace procedure
 	ldr	sl, =sponsor_0	@ initialize sponsor link
-	bl	reserve		@ allocate event block
-	ldr	r1, =a_poll	@ get target actor
-	str	r1, [r0]	@ set target actor
+	bl	reserve		@ allocate initial event block
+	str	ip, [r0]	@ set target to bootstrap actor
 	bl	enqueue		@ add event to queue
 	b	dispatch	@ start dispatch loop
+
+	.text
+	.align 2		@ align to machine word
+trace_event:		@ invoke event tracing hook, if present (r0=event)
+	ldr	r3, =trace_to	@ location of trace procedure
+	ldr	r1, [r3]	@ get trace procedure
+	cmp	r1, #0		@ if disabled
+	bxeq	lr		@	return
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	bx	r1		@ call trace procedure (r0=event)
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+	.data
+	.align 2		@ align to machine word
+trace_to:
+	.int 0			@ tracing procedure address, or 0 for none
+
+	.text
+	.align 2		@ align to machine word
+	.global exit
+exit:			@ exit the actor kernel
+	ldr	r0, =exit_to	@ location of return address
+	ldr	lr, [r0]	@ get exit address saved on entry
+	bx	lr		@ "return" from the kernel
+	.data
+	.align 2		@ align to machine word
+exit_to:
+	.int 0			@ address to "return" to on exit
 
 	.text
 	.align 2		@ align to machine word
@@ -50,13 +78,65 @@ complete:		@ completion of event pointed to by fp
 	str	fp, [sl, #1028]	@ clear current event
 	.global dispatch
 dispatch:		@ dispatch next event
+	bl	watchdog_check	@ check for timeout, if enabled
 	bl	dequeue		@ try to get next event
 	cmp	r0, #0		@ check for null
 	beq	dispatch	@ if no event, try again...
+
 	mov	fp, r0		@ initialize frame pointer
+	bl	trace_event	@ trace event, if enabled
 	str	fp, [sl, #1028]	@ update current event
 	ldr	ip, [fp]	@ get target actor address
 	bx	ip		@ jump to actor behavior
+
+	.text
+	.align 2		@ align to machine word
+watchdog_check:		@ check for timeout
+	ldr	r2, =watchdog_a	@ watchdog actor address
+	ldr	r0, [r2]	@ get watchdog actor
+	cmp	r0, #0		@ if disabled
+	bxeq	lr		@	return
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	bl	timer_usecs	@ get current timer value
+	ldr	r3, =watchdog_t	@ watchdog time limit address
+	ldr	r1, [r3]	@ get watchdog time limit
+	subs	r0, r0, r1	@ (now - limit) = past if <0, future if >0
+	blt	1f		@ if now or future
+	ldr	r2, =watchdog_a	@ 	watchdog actor address
+	ldr	r0, [r2]	@ 	get watchdog actor
+	bl	send_0		@ 	send empty message to signal timeout
+1:
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global watchdog_set
+watchdog_set:		@ set watchdog timer (r0=customer, r1=timeout)
+	stmdb	sp!, {r4,lr}	@ preserve in-use registers
+	ldr	r2, =watchdog_a	@ watchdog actor address
+	str	r0, [r2]	@ set watchdog actor
+	mov	r4, r1		@ copy timeout
+	bl	timer_usecs	@ get current timer value
+	add	r0, r0, r4	@ calculate time limit
+	ldr	r3, =watchdog_t	@ watchdog time limit address
+	str	r0, [r3]	@ set watchdog time limit
+	ldmia	sp!, {r4,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global watchdog_clear
+watchdog_clear:		@ clear watchdog timer
+	ldr	r2, =watchdog_a	@ watchdog actor address
+	mov	r0, #0		@ 0 disables watchdog
+	str	r0, [r2]	@ set watchdog actor
+	bx	lr		@ return
+
+	.data
+	.align 2		@ align to machine word
+watchdog_a:
+	.int 0			@ actor to notify on timeout, or 0 for none
+watchdog_t:
+	.int 0			@ watchdog time limit
 
 	.text
 	.align 2		@ align to machine word
@@ -64,10 +144,12 @@ dispatch:		@ dispatch next event
 reserve:		@ reserve a block (32 bytes) of memory
 	ldr	r1, =block_free	@ address of free list pointer
 	ldr	r0, [r1]	@ address of first free block
-	cmp	r0, #0
+	mov	r3, #0		@ null pointer
+	cmp	r0, r3
 	beq	1f		@ if not null
 	ldr	r2, [r0]	@	follow link to next free block
 	str	r2, [r1]	@	update free list pointer
+	str	r3, [r0]	@	set link to null
 	bx	lr		@	return
 1:				@ else
 	stmdb	sp!, {lr}	@	preserve link register
@@ -81,18 +163,20 @@ reserve:		@ reserve a block (32 bytes) of memory
 
 	.global release
 release:		@ release the memory block pointed to by r0
+	cmp	r0, sl		@ [FIXME] sanity check
+	blt	panic		@ [FIXME] halt on bad address
 	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
 	ldr	r1, =block_free	@ address of free list pointer
 	ldr	r2, [r1]	@ address of next free block
 	str	r0, [r1]	@ update free list pointer
-	ldr	r1, =block_clr	@ address of block-erase pattern
+	ldr	r1, =block_zero	@ address of block-erase pattern
 	ldmia	r1, {r3-r9}	@ read 7 words (32 - 4 bytes)
 	stmia	r0, {r2-r9}	@ write 8 words (incl. next free block pointer)
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
 
 	.section .rodata
 	.align 5		@ align to cache-line
-block_clr:
+block_zero:
 	.ascii "Who is licking my HONEYPOT?\0"
 
 	.data
@@ -106,6 +190,11 @@ block_end:
 	.align 2		@ align to machine word
 	.global enqueue
 enqueue:		@ enqueue event pointed to by r0
+	cmp	r0, sl		@ [FIXME] sanity check
+	blt	panic		@ [FIXME] halt on bad address
+	ldr	r1, [r0]	@ [FIXME] get target actor
+	cmp	r1, sp		@ [FIXME] sanity check
+	blt	panic		@ [FIXME] halt on bad address
 	ldr	r1, [sl, #1024]	@ event queue head/tail indicies
 	uxtb	r2, r1, ROR #8	@ get head index
 	uxtb	r3, r1, ROR #16	@ get tail index
@@ -151,51 +240,271 @@ _a_send:		@ send a message and return from actor (r0=event, r1=target)
 	.global _a_end
 _a_end:			@ queue message and return from actor (r0=event)
 	bl	enqueue		@ add event to queue
-	b	complete	@ return to dispatcher
+	b	complete	@ return to dispatch loop
 	.int	0x42424242	@ answer data
 
 	.text
 	.align 5		@ align to cache-line
 example_1:
 	ldr	pc, [pc, #-4]	@ jump to actor behavior
-	.int	complete	@ address of actor behavior
-	.int	0x11111111	@ state field 1
-	.int	0x22222222	@ state field 2
-	.int	0x33333333	@ state field 3
-	.int	0x44444444	@ state field 4
-	.int	0x55555555	@ state field 5
-	.int	0x66666666	@ state field 6
+	.int	complete	@ 0x04: address of actor behavior
+	.int	0x11111111	@ 0x08: state field 1
+	.int	0x22222222	@ 0x0c: state field 2
+	.int	0x33333333	@ 0x10: state field 3
+	.int	0x44444444	@ 0x14: state field 4
+	.int	0x55555555	@ 0x18: state field 5
+	.int	0x66666666	@ 0x1c: state field 6
 
 	.text
 	.align 5		@ align to cache-line
 example_2:
 	ldr	lr, [pc]	@ get actor behavior address
 	blx	lr		@ jump to behavior, lr points to state
-	.int	complete	@ address of actor behavior
-	.int	0x11111111	@ state field 1
-	.int	0x22222222	@ state field 2
-	.int	0x33333333	@ state field 3
-	.int	0x44444444	@ state field 4
-	.int	0x55555555	@ state field 5
+	.int	complete	@ 0x08: address of actor behavior
+	.int	0x11111111	@ 0x0c: state field 1
+	.int	0x22222222	@ 0x10: state field 2
+	.int	0x33333333	@ 0x14: state field 3
+	.int	0x44444444	@ 0x18: state field 4
+	.int	0x55555555	@ 0x1c: state field 5
+
+	.text
+	.align 5		@ align to cache-line
+template_1:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
+	.int	0		@ 0x08: value for r4
+	.int	complete	@ 0x0c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+template_2:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip, {r4-r5,pc}	@ copy state and jump to behavior
+	.int	0		@ 0x08: value for r4
+	.int	0		@ 0x0c: value for r5
+	.int	complete	@ 0x10: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+template_3:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip, {r4-r6,pc}	@ copy state and jump to behavior
+	.int	0		@ 0x08: value for r4
+	.int	0		@ 0x0c: value for r5
+	.int	0		@ 0x10: value for r6
+	.int	complete	@ 0x14: address of actor behavior
 
 	.text
 	.align 5		@ align to cache-line
 example_3:
 	mov	ip, pc		@ point ip to data fields (state)
-	ldmia	ip,{r4-r7,lr,pc} @ copy state and jump to behavior
-	.int	0x04040404	@ value for r4
-	.int	0x05050505	@ value for r5
-	.int	0x06060606	@ value for r6
-	.int	0x07070707	@ value for r7
-	.int	0x14141414	@ value for r14 (lr)
-	.int	complete	@ address of actor behavior
+	ldmia	ip,{r4-r8,pc}	@ copy state and jump to behavior
+	.int	0		@ 0x08: value for r4
+	.int	0		@ 0x0c: value for r5
+	.int	0		@ 0x10: value for r6
+	.int	0		@ 0x14: value for r7
+	.int	0		@ 0x18: value for r8
+	.int	complete	@ 0x1c: address of actor behavior
+
+	.text
+	.align 2		@ align to machine word
+	.global create
+create:			@ create an actor from example_3 (r0=behavior)
+	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
+	mov	r9, r0		@ move behavior pointer into place
+	bl	reserve		@ allocate actor block
+	ldr	r1, =example_3	@ load template address
+	ldmia	r1, {r2-r8}	@ read template (minus behavior)
+	stmia	r0, {r2-r9}	@ write actor
+	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global create_0
+create_0:		@ create an actor from example_1 (r0=behavior)
+	stmdb	sp!, {r4,lr}	@ preserve in-use registers
+	mov	r4, r0		@ move behavior pointer into place
+	bl	reserve		@ allocate actor block
+	ldr	r1, =example_1	@ load template address
+	ldmia	r1, {r3}	@ read template (minus behavior)
+	stmia	r0, {r3-r4}	@ write actor
+	ldmia	sp!, {r4,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global create_1
+create_1:		@ create 1 parameter actor (r0=behavior, r1=r4)
+	stmdb	sp!, {r4-r5,lr}	@ preserve in-use registers
+	mov	r4, r1		@ move state parameter into place
+	mov	r5, r0		@ move behavior pointer into place
+	bl	reserve		@ allocate actor block
+	ldr	r1, =template_1	@ load template address
+	ldmia	r1, {r2-r3}	@ read template (code only)
+	stmia	r0, {r2-r5}	@ write actor
+	ldmia	sp!, {r4-r5,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global create_2
+create_2:		@ create 2 parameter actor (r0=behavior, r1=r4, r2=r5)
+	stmdb	sp!, {r4-r6,lr}	@ preserve in-use registers
+	mov	r4, r1		@ move 1st state parameter into place
+	mov	r5, r2		@ move 2nd state parameter into place
+	mov	r6, r0		@ move behavior pointer into place
+	bl	reserve		@ allocate actor block
+	ldr	r1, =template_2	@ load template address
+	ldmia	r1, {r2-r3}	@ read template (code only)
+	stmia	r0, {r2-r6}	@ write actor
+	ldmia	sp!, {r4-r6,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global create_3x
+create_3x:		@ create 3 parameter actor (r4-r6=state, r7=behavior)
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	bl	reserve		@ allocate actor block
+	ldr	r1, =template_3	@ load template address
+	ldmia	r1, {r2-r3}	@ read template (code only)
+	stmia	r0, {r2-r7}	@ write actor
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global send
+send:			@ send 1 parameter message (r0=target, r1-r7=message)
+	stmdb	sp!, {r4-r8,lr}	@ preserve in-use registers
+	stmdb	sp!, {r0-r7}	@ preserve event data
+	bl	reserve		@ allocate event block
+	ldmia	sp!, {r1-r8}	@ restore event data
+	stmia	r0, {r1-r8}	@ write data to event
+	bl	enqueue		@ add event to queue
+	ldmia	sp!, {r4-r8,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global send_0
+send_0:			@ send 0 parameter message (r0=target)
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	stmdb	sp!, {r0}	@ preserve event data
+	bl	reserve		@ allocate event block
+	ldmia	sp!, {r1}	@ restore event data
+	stmia	r0, {r1}	@ write data to event
+	bl	enqueue		@ add event to queue
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global send_1
+send_1:			@ send 1 parameter message (r0=target, r1=message)
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	stmdb	sp!, {r0-r1}	@ preserve event data
+	bl	reserve		@ allocate event block
+	ldmia	sp!, {r1-r2}	@ restore event data
+	stmia	r0, {r1-r2}	@ write data to event
+	bl	enqueue		@ add event to queue
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global send_2
+send_2:			@ send 2 parameter message (r0=target, r1-r2=message)
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	stmdb	sp!, {r0-r2}	@ preserve event data
+	bl	reserve		@ allocate event block
+	ldmia	sp!, {r1-r3}	@ restore event data
+	stmia	r0, {r1-r3}	@ write data to event
+	bl	enqueue		@ add event to queue
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global send_3x
+send_3x:		@ send 3 parameter message (r4=target, r5-r7=message)
+	stmdb	sp!, {lr}	@ preserve in-use registers
+	bl	reserve		@ allocate event block
+	stmia	r0, {r4-r7}	@ write data to event
+	bl	enqueue		@ add event to queue
+	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+@
+@ Unit test fixtures
+@
+
+	.text
+	.align 2		@ align to machine word
+@	.global test_suite
+test_suite:		@ suite of automated unit-tests
+	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
+
+	@ fork unit test
+	ldr	r0, =b_fork_t
+	bl	create_0	@ create fork unit test actor
+	ldr	r1, =a_test_ok	@ ok customer
+	ldr	r2, =a_failed	@ fail customer
+	bl	send_2
+
+@	ldr	r0, =a_test_ok	@ get suite finished actor
+@	bl	send_0		@ send message to report completion
+	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_test
+a_test:			@ test suite execution actor
+	mov	r0, #1000	@ 1 millisecond
+	mul	r1, r0, r0	@ 1 second
+	ldr	r0, =a_failed	@ fail after 1 second
+	bl	watchdog_set	@ set watchdog timer
+	bl	test_suite	@ run suite of unit-tests
+	b	complete	@ return to dispatch loop
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_test_ok
+a_test_ok:		@ succesful completion of test suite
+	bl	watchdog_clear	@ clear watchdog timer
+	ldr	r0, =a_passed	@ get success actor
+	bl	send_0		@ send message to report success
+	b	complete	@ return to dispatch loop
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_passed
+a_passed:		@ report tests passed, and exit
+	add	r0, ip, #0x18	@ address of output text
+	bl	serial_puts	@ write output text
+	bl	serial_eol	@ write end-of-line
+	b	exit		@ kernel exit!
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.ascii	"Passed.\0"	@ 0x18..0x1f: output text
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_failed
+a_failed:		@ report tests failed, and exit
+	add	r0, ip, #0x18	@ address of output text
+	bl	serial_puts	@ write output text
+	bl	serial_eol	@ write end-of-line
+	b	exit		@ kernel exit!
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.ascii	"FAILED!\0"	@ 0x18..0x1f: output text
 
 	.text
 	.align 2		@ align to machine word
 	.global panic
 panic:			@ kernel panic!
+	stmdb	sp!, {r0-r3,lr}	@ preserve registers
 	ldr	r0, =panic_txt	@ load address of panic text
 	bl	serial_puts	@ write text to console
+	ldmia	sp!, {r0-r3,lr}	@ restore registers
 	b	halt
 	.section .rodata
 panic_txt:

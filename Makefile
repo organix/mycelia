@@ -23,6 +23,7 @@ LD=	ld
 KOBJS=	start.o \
 	mycelia.o \
 	console.o \
+	idiom.o \
 	raspberry.o \
 	timer.o \
 	serial.o \

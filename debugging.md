@@ -1,8 +1,17 @@
 # Kernel Debugging
 
 ## qemu
+To run normally:
 ~~~
-$ qemu-system-arm -cpu arm1176 -M raspi -kernel kernel.img -initrd kernel.img -nographic -s -S <loadmap &
+$ qemu-system-arm -cpu arm1176 -M raspi -kernel kernel.img -initrd kernel.img -nographic
+~~~
+To trace instruction execution:
+~~~
+$ qemu-system-arm -cpu arm1176 -M raspi -kernel kernel.img -initrd kernel.img -nographic -d in_asm 2>qemu.log
+~~~
+To halt and allow connection from gdb:
+~~~
+$ qemu-system-arm -cpu arm1176 -M raspi -kernel kernel.img -initrd kernel.img -nographic -s -S
 ~~~
 
 ## gdb

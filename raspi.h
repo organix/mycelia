@@ -23,6 +23,11 @@
 typedef unsigned char u8;
 typedef unsigned int u32;
 
+typedef void (ACTOR)(void);
+
+/* Declare kernel entry-point */
+extern void mycelia(ACTOR start, u32 trace);
+
 /* Declare ARM assembly-language helper functions */
 extern void PUT_32(u32 addr, u32 data);
 extern u32 GET_32(u32 addr);

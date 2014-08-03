@@ -20,8 +20,6 @@
 #include "serial.h"
 #include "xmodem.h"
 
-extern void mycelia();
-
 /* Exported procedures (force full register discipline) */
 extern void k_start(u32 sp);
 extern void monitor();
@@ -116,6 +114,35 @@ dump256(const u8* p)
 }
 
 /*
+@ 12345678 12345678 12345678 12345678 12345678 12345678 12345678 12345678
+ \_ 12345678 12345678 12345678 12345678 12345678 12345678 12345678 12345678
+*/
+void
+dump_block(const u32* p)
+{
+    int i;
+
+    for (i = 0; i < 8; ++i) {
+        serial_write(' ');
+        serial_hex32(*p++);
+    }
+}
+void
+dump_event(const u32* p)
+{
+    serial_write('@');
+    dump_block(p);
+    serial_eol();
+    if (((*p) > 0x8000) && ((*p) < 0x10000000)) {
+        serial_write(' ');
+        serial_write('\\');
+        serial_write('_');
+        dump_block((u32*)(*p));
+        serial_eol();
+    }
+}
+
+/*
  * Traditional single-character "cooked" output
  */
 int
@@ -203,9 +230,9 @@ wait_for_kb()
     }
 }
 
-#define	KERNEL_ADDR     (0x00008000)
-#define	UPLOAD_ADDR     (0x00010000)
-#define	UPLOAD_LIMIT    (0x00007F00)
+#define KERNEL_ADDR     (0x00008000)
+#define UPLOAD_ADDR     (0x00010000)
+#define UPLOAD_LIMIT    (0x00007F00)
 
 /*
  * Simple bootstrap monitor
@@ -280,6 +307,10 @@ monitor()
 void
 k_start(u32 sp)
 {
+    extern ACTOR a_poll;
+    extern ACTOR a_test;
+
+    // device initialization
     timer_init();
     serial_init();
 
@@ -288,11 +319,34 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia 0.0.0 ");
+    serial_puts("mycelia 0.0.2 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
     serial_eol();
 
-    // jump to mycelia entry-point
-    mycelia();
+    for (;;) {
+        // display menu
+        serial_eol();
+        serial_puts("Choose your adventure:");
+        serial_eol();
+        serial_puts("  1. Monitor");
+        serial_eol();
+        serial_puts("  2. Mycelia echo");
+        serial_eol();
+        serial_puts("  3. Unit tests");
+        serial_eol();
+
+        // execute selected option
+        switch (_getchar()) {
+        case '1':
+            monitor();
+            break;
+        case '2':
+            mycelia(a_poll, 0);
+            break;
+        case '3':
+            mycelia(a_test, (u32)dump_event);
+            break;
+        }
+    }
 }
