@@ -42,9 +42,13 @@ mycelia:		@ entry point for the actor kernel (r0=boot, r1=trace)
 	ldmia	r1, {r2-r9}	@ read 8 words of zeros
 	stmia	r0, {r2-r9}	@ write 8 words of zeros
 
+	bl	reserve		@ [FIXME] allocate dummy block
+	mov	r8, r0		@ [FIXME] remember dummy block
 	bl	reserve		@ allocate initial event block
 	str	ip, [r0]	@ set target to bootstrap actor
 	bl	enqueue		@ add event to queue
+	mov	r0, r8		@ [FIXME] recall dummy block
+	bl	release		@ [FIXME] free dummy block
 	bl	sync_gc		@ [FIXME] immediate garbage-collection
 	b	dispatch	@ start dispatch loop
 
@@ -83,6 +87,7 @@ complete:		@ completion of event pointed to by fp
 	bl	release		@ free completed event
 	mov	fp, #0		@ clear frame pointer
 	str	fp, [sl, #1028]	@ clear current event
+	bl	sync_gc		@ [FIXME] GC after each event
 	.global dispatch
 dispatch:		@ dispatch next event
 	bl	watchdog_check	@ check for timeout, if enabled

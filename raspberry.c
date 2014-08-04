@@ -315,7 +315,7 @@ k_start(u32 sp)
     serial_init();
 
     // wait for initial interaction
-    serial_puts(";-) ");
+    serial_puts("<|:-) ");
     putchar(wait_for_kb());
 
     // display banner
