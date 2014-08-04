@@ -90,7 +90,7 @@ sync_gc:		@ synchronous garbage-collection
 2:
 	sub	r1, r8, r3	@	byte offset of block
 	mov	r1, r1, ASR #5	@	r1: block number
-	and	r2, r1, #0x1F	@	extract bit number
+	and	r2, r1, #0x1f	@	extract bit number
 	mov	r1, r1, ASR #5	@	r1: mark word number
 	mov	r0, #1		@	set bit
 	mov	r2, r0, LSL r2	@	r2: mask for mark bit
@@ -113,7 +113,7 @@ sync_gc:		@ synchronous garbage-collection
 	ldr	r0,[sl,r8,LSL #2]@	next event block
 	bl	scan_gc		@	mark and scan event
 	add	r8, r8, #1	@	increment head
-	and	r8, r8, #0xFF	@	wrap index
+	and	r8, r8, #0xff	@	wrap index
 8:
 	cmp	r8, r9
 	bne	7b		@ }
@@ -130,6 +130,18 @@ sync_gc:		@ synchronous garbage-collection
 6:
 	cmp	r6, r7
 	blt	4b		@ }
+
+	mov	r6, r3		@ r6: current heap block (`release` uses r3)
+9:
+	tst	r6, #0x3e0	@ on each 1k boundary
+	ldreq	r7, [r5], #4	@	load next mark word
+	tst	r7, #1		@ if LSB of mark word is zero
+	moveq	r0, r6		@	the current block is not reachable
+	bleq	release		@	so, release it
+	mov	r7, r7, LSR #1	@ shift to next bit in mark word
+	add	r6, r6, #0x20	@ advance to next heap block
+	subs	r4, #1		@ decrement block count
+	bgt	9b		@ until there are no more blocks
 
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
 
