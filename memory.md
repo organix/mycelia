@@ -10,26 +10,45 @@ This process is called "garbage collection".
 
 To begin garbage collection,
 clear marks for all blocks.
-For each root reference,
-mark the referenced block and add it to the scan list.
+Mark each each block in the free list.
+Free blocks are unreachable,
+but we don't want to release them.
+Mark the root block and add it to the scan list.
+The root block points to 
+dynamically-allocated structures
+we want to preserve,
+even if they are not reachable through events.
+For each block in the event queue,
+if the event block is not marked,
+mark it and add it to the scan list.
+Events represent the work to be done,
+thus nearly all in-use memory can be reached
+through some pending event.
+
 For each block on the scan list,
 iterate over references in the block.
 For each reference,
 if the referenced block is not marked,
 mark it and add it to the scan list.
 When the scan list is empty,
-re-thread all the unmarked blocks
-into the available-block list.
+release all the unmarked blocks,
+linking them into the free list.
 
+### GC Algorithm Pseudo-Code
 ~~~
-BOOLEAN mark[];
+BLOCK queue[];
+int q_head;
+int q_tail;
+int q_size;
 BLOCK heap[];
+BOOLEAN mark[];
 int i_free = END;
 int n_blocks;
 int i_scan[];
 int n_scans;
+int i_root;
 
-void gc(int root[], int n_roots) {
+void gc() {
     int i;
     int j;
 
@@ -40,8 +59,11 @@ void gc(int root[], int n_roots) {
     for (i = i_free; i != END; i = heap[i].ref[0]) {
         mark[i] = 1;                        // mark all "free" blocks
     }
-    for (i = 0; i < n_roots; ++i) {
-        scan(root[i]);                      // mark root references
+    scan(i_root);                           // mark root block
+    i = q_head;
+    while (i != q_tail) {                   // mark event blocks
+        scan(queue[i]);
+        i = ((i + 1) % q_size);
     }
     for (i = 0; i < n_scans; ++i) {         // iterate over scan list
         for (j = 0; j < n_refs; ++j) {      // iterate over block refs
@@ -92,5 +114,5 @@ The `mark` array is implemented as a tightly-packed bit-string,
 positioned after `block_end`.
 Each 32-bit word in the `mark` array represents 32 blocks of 32 bytes.
 The `i_scan` array (the scan list)
-begins at the next 32-bit word-boundary
-after the `mark` array.
+begins immediately after the `mark` array.
+The `mark` array and `i_scan` array area re-created for each GC run.
