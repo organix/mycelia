@@ -27,7 +27,8 @@
 reserve:		@ reserve a block (32 bytes) of memory
 	ldr	r1, =block_free	@ address of free list pointer
 	ldr	r0, [r1]	@ address of first free block
-	cmp	r0, #0		@ check for null pointer
+	mov	r3, #0		@ r3: null pointer
+	cmp	r0, r3		@ check for null pointer
 	beq	1f		@ if not null
 	ldr	r2, [r0]	@	follow link to next free block
 	str	r2, [r1]	@	update free list pointer
