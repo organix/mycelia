@@ -49,7 +49,9 @@ mycelia:		@ entry point for the actor kernel (r0=boot, r1=trace)
 	bl	enqueue		@ add event to queue
 	mov	r0, r8		@ [FIXME] recall dummy block
 	bl	release		@ [FIXME] free dummy block
+	bl	report_gc	@ [FIXME] display GC metrics
 	bl	sync_gc		@ [FIXME] immediate garbage-collection
+	bl	report_gc	@ [FIXME] display GC metrics
 	b	dispatch	@ start dispatch loop
 
 	.text
@@ -87,7 +89,8 @@ complete:		@ completion of event pointed to by fp
 	bl	release		@ free completed event
 	mov	fp, #0		@ clear frame pointer
 	str	fp, [sl, #1028]	@ clear current event
-	bl	sync_gc		@ [FIXME] GC after each event
+@	bl	sync_gc		@ [FIXME] GC after each event
+	bl	report_gc	@ [FIXME] display GC metrics
 	.global dispatch
 dispatch:		@ dispatch next event
 	bl	watchdog_check	@ check for timeout, if enabled

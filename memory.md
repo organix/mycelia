@@ -99,7 +99,7 @@ The assembly-code uses actual memory addresses,
 with 0 playing the role of `END`.
 
 The heap lives between `heap_start` and the current contents of `block_end`.
-The contents of `block_free` are a pointer to the first available block,
+The contents of `block_next` are a pointer to the first available block,
 or 0 if there are no blocks available.
 When additional blocks are needed,
 `block_end` is advanced

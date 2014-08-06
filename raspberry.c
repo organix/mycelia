@@ -27,6 +27,8 @@ extern int putchar(int c);
 extern int getchar();
 extern void hexdump(const u8* p, int n);
 extern void dump256(const u8* p);
+extern void dump_event(const u32* p);
+extern void report_mem(u32 n_heap, u32 n_free);
 
 /* Private data structures */
 static char linebuf[256];  // line editing buffer
@@ -117,7 +119,7 @@ dump256(const u8* p)
 @ 12345678 12345678 12345678 12345678 12345678 12345678 12345678 12345678
  \_ 12345678 12345678 12345678 12345678 12345678 12345678 12345678 12345678
 */
-void
+static void
 dump_block(const u32* p)
 {
     int i;
@@ -140,6 +142,21 @@ dump_event(const u32* p)
         dump_block((u32*)(*p));
         serial_eol();
     }
+}
+
+/*
+ * Report automatic memory management metrics
+ */
+void
+report_mem(u32 n_heap, u32 n_free)
+{
+    serial_puts("heap=0x");
+    serial_hex32(n_heap);
+    serial_write(' ');
+    serial_puts("free=0x");
+    serial_hex32(n_free);
+    serial_puts(" (bytes)");
+    serial_eol();
 }
 
 /*
