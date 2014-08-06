@@ -35,10 +35,10 @@ reserve:		@ reserve a block (32 bytes) of memory
 	str	r2, [r1]	@	update free list pointer
 	str	r3, [r0]	@	set link to null
 
-	ldr	r1, =block_free	@	address of free-block counter
-	ldr	r0, [r1]	@	count of blocks in free-chain
-	sub	r0, r0, #1	@	decrement free-block count
-	str	r0, [r1]	@	update free-block counter
+	ldr	r2, =block_free	@	address of free-block counter
+	ldr	r1, [r2]	@	count of blocks in free-chain
+	sub	r1, r1, #1	@	decrement free-block count
+	str	r1, [r2]	@	update free-block counter
 
 	bx	lr		@	return
 1:				@ else
@@ -67,10 +67,10 @@ release:		@ release the memory block pointed to by r0
 	ldmia	r1, {r3-r9}	@ read 7 words (32 - 4 bytes)
 	stmia	r0, {r2-r9}	@ write 8 words (incl. next free block pointer)
 
-	ldr	r1, =block_free	@ address of free-block counter
-	ldr	r0, [r1]	@ count of blocks in free-chain
-	add	r0, r0, #1	@ increment free-block count
-	str	r0, [r1]	@ update free-block counter
+	ldr	r2, =block_free	@ address of free-block counter
+	ldr	r1, [r2]	@ count of blocks in free-chain
+	add	r1, r1, #1	@ increment free-block count
+	str	r1, [r2]	@ update free-block counter
 
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
 
