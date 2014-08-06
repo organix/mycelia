@@ -371,7 +371,7 @@ create_3x:		@ create 3 parameter actor (r4-r6=state, r7=behavior)
 	.text
 	.align 2		@ align to machine word
 	.global send
-send:			@ send 1 parameter message (r0=target, r1-r7=message)
+send:			@ send a message (r0=target, r1-r7=message)
 	stmdb	sp!, {r4-r8,lr}	@ preserve in-use registers
 	stmdb	sp!, {r0-r7}	@ preserve event data
 	bl	reserve		@ allocate event block

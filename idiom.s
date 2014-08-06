@@ -101,9 +101,9 @@ _fork_0:		@ create tag actor
 	.text
 	.align 5		@ align to cache-line
 	.global b_label
-b_label:		@ add label to message (r4=customer, r5=label)
+b_label:		@ add label to message (r4=delegate, r5=label)
 	bl	reserve		@ allocate event block
-	str	r4, [fp]	@ replace target with customer
+	str	r4, [fp]	@ replace target with delegate
 	mov	r3, r5		@ move label into position
 	ldmia	fp, {r2,r4-r9}	@ copy request (drop last word)
 	stmia	r0, {r2-r9}	@ write new event
@@ -113,53 +113,152 @@ b_label:		@ add label to message (r4=customer, r5=label)
 	.text
 	.align 5		@ align to cache-line
 	.global b_tag
-b_tag:			@ label one message with actor identity (r4=customer)
-	mov	r2, r4		@ move customer into position
+b_tag:			@ label message with actor identity (r4=delegate)
+	mov	r2, r4		@ move delegate into position
 	ldmia	fp, {r3-r9}	@ copy request (drop last word, r3=label)
 	stmia	fp, {r2-r9}	@ overwrite event
 	mov	ip, r2		@ get target actor address
-	bx	ip		@ jump to customer behavior
+	bx	ip		@ jump to delegate behavior
 
 	.text
 	.align 5		@ align to cache-line
 	.global b_join
 b_join:			@ combine results of concurrent computation
-			@ (r4=customer, r5=event/answer_0, r6=event/answer_1)
-			@ message = (tag, answer)
+			@ (r4=customer, r5=tag/result_0, r6=tag/result_1)
+			@ message = (tag, result)
 	ldr	r0, [fp, #0x04]	@ get tag
 	cmp	r0, r5
 	bne	1f		@ if tag == event_0
-	ldr	r5, [fp, #0x08]	@	remember answer_0
-	ldr	r9, =_join_0	@	wait for answer_1
+	ldr	r5, [fp, #0x08]	@	remember result_0
+	ldr	r9, =_join_0	@	wait for result_1
 	b	3f
 1:
 	cmp	r0, r6
 	bne	complete	@ if tag == event_1
-	ldr	r6, [fp, #0x08]	@	remember answer_1
-	ldr	r9, =_join_1	@	wait for answer_0
+	ldr	r6, [fp, #0x08]	@	remember result_1
+	ldr	r9, =_join_1	@	wait for result_0
 	b	3f
 	.align 5		@ align to cache-line
-_join_0:		@ wait for answer_1
+_join_0:		@ wait for result_1
 	ldr	r0, [fp, #0x04]	@ get tag
 	cmp	r0, r6		@ if tag == event_1
-	ldreq	r6, [fp, #0x08]	@ 	get answer_1
+	ldreq	r6, [fp, #0x08]	@ 	get result_1
 	beq	2f		@ else
 	b	complete	@ 	ignore message
 	.align 5		@ align to cache-line
-_join_1:		@ wait for answer_0
+_join_1:		@ wait for result_0
 	ldr	r0, [fp, #0x04]	@ get tag
 	cmp	r0, r5		@ if tag == event_0
-	ldreq	r5, [fp, #0x08]	@	get answer_0
+	ldreq	r5, [fp, #0x08]	@	get result_0
 	beq	2f		@ else
 	b	complete	@ 	ignore message
 2:
 	bl	reserve		@ allocate event block
-	stmia	r0, {r4-r6}	@ set (customer, answer_0, answer_1)
+	stmia	r0, {r4-r6}	@ set (customer, result_0, result_1)
 	bl	enqueue		@ add event to queue
 	ldr	r9, =complete	@ ignore future messages
 3:
 	stmia	ip,{r4-r9}	@ copy state and behavior
 	b	complete	@ return to dispatch loop
+
+@
+@ actor capabilities
+@
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_literal
+b_literal:		@ a literal evaluates to itself
+			@ message = (ok, fail, environment)
+	ldr	r0, [fp, #0x04]	@ get ok customer
+	ldr	r1, [fp]	@ get target (self)
+	bl	send_1		@ send self to ok
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_constant
+b_constant:		@ a constant evaluates to a consistent value
+			@ (0x08: r4=value)
+			@ message = (ok, fail, environment)
+	ldr	r0, [fp, #0x04]	@ get ok customer
+	mov	r1, r4		@ get constant value
+	bl	send_1		@ send value to ok
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_load
+b_load:			@ retrieve the currently stored value
+			@ (0x08: r4=value)
+			@ message = (ok, fail, environment)
+	ldr	r0, [fp, #0x04]	@ get ok customer
+	mov	r1, r4		@ get constant value
+	bl	send_1		@ send value to ok
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_store
+b_store:		@ assign a replacement value
+			@ (0x08: r4=load_cap)
+			@ message = (ok, fail, value)
+	ldr	r0, [r4, #0x0c]	@ get load_cap behavior
+	ldr	r1, =b_load	@ get b_load behavior
+	cmp	r0, r1		@ if load_cap is not a b_load actor
+	ldrne	ip, [fp, #0x08]	@	ip = fail customer
+	bxne	ip		@	dispatch to fail
+	ldr	r1, [fp, #0x0c]	@ get parameter value
+	str	r1, [r4, #0x08]	@ replace stored value
+	ldr	r0, [fp, #0x04]	@ get ok customer
+	bl	send_1		@ send response
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_undefined
+a_undefined:		@ undefined mapping, immediately calls `fail`
+			@ message = (ok, fail, parameter)
+	ldr	ip, [fp, #0x08]	@ ip = fail customer
+	bx	ip		@ dispatch to fail
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_arrow
+b_arrow:		@ explicit mapping (chain of "name/value" pairs)
+			@ (r4=name, r5=value, r6=next)
+			@ message = (ok, fail, parameter)
+	bl	reserve		@ allocate event block
+	mov	r7, r0		@ remember block address
+	ldmia	fp, {r0-r3}	@ (r0:target, r1:ok, r2:fail, r3:parameter)
+	cmp	r3, r4		@ if parameter == name
+	streq	r2, [r7]	@	target: ok
+	streq	r5, [r7, #0x04]	@	result: value
+	movne	r0, r6		@ else
+	stmneia	r7, {r0-r3}	@	forward to next
+	mov	r0, r7		@ prepare event
+	bl	enqueue		@ add event to queue
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_undefined
+a_end:			@ end of stream, immediately calls `fail`
+			@ message = (ok, fail, parameter)
+	ldr	ip, [fp, #0x08]	@ ip = fail customer
+	bx	ip		@ dispatch to fail
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
 
 @
 @ unit test actors and behaviors

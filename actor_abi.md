@@ -1,5 +1,6 @@
 # Actor ABI
 
+
 ## Memory
 
 Memory is managed in cache-line-aligned blocks of 32 bytes (8x32-bit words).
@@ -9,6 +10,7 @@ An actor-block holds actor behavior and state.
 Blocks may be chained
 in order to extend the available storage
 as needed.
+
 
 ## Registers
 
@@ -25,7 +27,7 @@ Consistent special meanings are given to r10-r15.
 
 | Register | Kernel Usage    | Actor Usage     |
 |----------|-----------------|-----------------|
-| r0       | arg_0 / return  | block address   |
+| r0       | arg_0 / result  | block address   |
 | r1       | arg_1 / tmp_1   | target / answer |
 | r2       | arg_2 / tmp_2   | base address    |
 | r3       | arg_3 / tmp_3   | working data    |
@@ -53,6 +55,7 @@ Kernel procedures called from an actor behavior
 will expect r10 (sl) to remain stable,
 pointing to the sponsor.
 Note that actors should consider the sponsor opaque.
+
 
 ## Event Structure
 
@@ -86,6 +89,7 @@ two customers are provided.
 The ok customer (at offset 0x04) for success/true results,
 and the fail customer (at offet 0x08) for failure/false results.
 Additional parameters may follow starting at offset 0x0c.
+
 
 ## Actor Structure
 
@@ -251,7 +255,7 @@ while jumping to the actual behavior code.
         +-------+-------+-------+-------+
   0x00  |       mov     ip, pc          |
         +-------------------------------+
-  0x04  |       ldmia   ip,{r4-r7,lr,pc}|
+  0x04  |       ldmia   ip,{r4-r8,pc}   |
         +-------------------------------+
   0x08  | value for r4                  |
         +-------------------------------+
@@ -261,7 +265,7 @@ while jumping to the actual behavior code.
         +-------------------------------+
   0x14  | value for r7                  |
         +-------------------------------+
-  0x18  | value for lr                  |
+  0x18  | value for r8                  |
         +-------------------------------+
   0x1c  | address of actor behavior     |
         +-------+-------+-------+-------+
@@ -288,3 +292,685 @@ The actor behavior may use the pre-loaded state in registers,
 but must write back to the actor block
 (through ip, which is offset +0x08)
 to update the persistent actor state.
+
+
+## Kernel Procedures
+
+### Control
+
+#### complete
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | event | actor |
+| Out | xx | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | event' | actor' |
+
+Signal actor behavior completion.
+Release completed `event` block,
+and call dispatcher.
+Note: This is often used as a no-op actor and/or behavior.
+
+#### reserve
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | block | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+
+Reserve (allocate) a `block` (32 bytes) of memory.
+
+#### release
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | block | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | xx | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+
+Release (free) a `block` for allocation by `reserve`.
+
+### Events
+
+#### enqueue
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | event | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+
+Add an `event` to the dispatch queue.
+Note that an event must have the target actor at \[r0\] (offset 0x00).
+The `event` address is returned in r0.
+
+#### send
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | target | 0x04 | 0x08 | 0x0c | 0x10 | 0x14 | 0x18 | 0x1c | -- | -- | -- | sponsor | -- | -- |
+| Out | event | xx | xx | xx | 0x10 | 0x14 | 0x18 | 0x1c | -- | -- | -- | sponsor | -- | -- |
+
+Send a message.
+Registers r0-r7 are arranged
+exactly like the event structure,
+starting with the `target` actor in r0.
+The message data is in r1-r7.
+An event block is created, initialized, and enqueued.
+
+#### send_0
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | target | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+
+Send an empty message to `target`.
+An event block is created, initialized, and enqueued.
+
+#### send_1
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | target | 0x04 | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+
+Send a one-word message to `target`.
+The message data is in r1.
+An event block is created, initialized, and enqueued.
+
+#### send_2
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | target | 0x04 | 0x08 | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | event | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+
+Send a two-word message to `target`.
+The message data is in r1 and r2.
+An event block is created, initialized, and enqueued.
+
+#### send_3x
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | -- | -- | -- | -- | target | 0x04 | 0x08 | 0x10 | -- | -- | -- | sponsor | -- | -- |
+| Out | event | xx | xx | xx | target | 0x04 | 0x08 | 0x10 | -- | -- | -- | sponsor | -- | -- |
+
+Send a three-word message to `target`.
+The target actor is in r4.
+The message data is in r5-r7.
+An event block is created, initialized, and enqueued.
+
+### Actors
+
+#### create
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | behavior | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+
+Create an actor from `example_3`.
+The actor behavior (offset 0x1c) is set from r0.
+The default actor state is all zeros.
+On entry to the actor behavior,
+fp points to the event,
+\[fp\] points to the actor,
+and ip points to the actor + 0x08.
+Actor state is loaded in registers as follows:
+0x08:r4, 0x0c:r5, 0x10:r6, 0x14:r7, 0x18:r8.
+
+#### create_0
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | behavior | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+
+Create an actor from `example_1`.
+The actor behavior (offset 0x04) is set from r0.
+On entry to the actor behavior,
+fp points to the event
+and ip points to the actor.
+
+#### create_1
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | behavior | r4 | -- | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+
+Create a single-parameter actor.
+The actor behavior (offset 0x0c) is set from r0.
+Intial value for r4 (offset 0x08) is set from r1.
+On entry to the actor behavior,
+fp points to the event,
+\[fp\] points to the actor,
+and ip points to the actor + 0x08.
+Actor state is loaded in registers as follows:
+0x08:r4.
+
+#### create_2
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | behavior | r4 | r5 | -- | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+| Out | actor | xx | xx | xx | -- | -- | -- | -- | -- | -- | -- | sponsor | -- | -- |
+
+Create a two-parameter actor.
+The actor behavior (offset 0x10) is set from r0.
+Intial value for r4 (offset 0x08) is set from r1.
+Intial value for r5 (offset 0x0c) is set from r2.
+On entry to the actor behavior,
+fp points to the event,
+\[fp\] points to the actor,
+and ip points to the actor + 0x08.
+Actor state is loaded in registers as follows:
+0x08:r4, 0x0c:r5.
+
+#### create_3x
+
+| Reg | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10 | sl | fp | ip |
+|-----|----|----|----|----|----|----|----|----|----|----|-----|----|----|----|
+| In  | -- | -- | -- | -- | r4 | r5 | r6 | behavior | -- | -- | -- | sponsor | -- | -- |
+| Out | actor | xx | xx | xx | r4 | r5 | r6 | behavior | -- | -- | -- | sponsor | -- | -- |
+
+Create a three-parameter actor.
+The actor behavior (offset 0x14) is set from r7.
+Intial value for r4 (offset 0x08) is set from r4.
+Intial value for r5 (offset 0x0c) is set from r5.
+Intial value for r6 (offset 0x10) is set from r6.
+On entry to the actor behavior,
+fp points to the event,
+\[fp\] points to the actor,
+and ip points to the actor + 0x08.
+Actor state is loaded in registers as follows:
+0x08:r4, 0x0c:r5, 0x10:r6.
+
+## Actor/Behavior Library
+
+### Built-In Actors
+
+#### a_ignore
+
+Ignore all messages.
+
+| Offset | Actor Field |
+|--------|-------|
+| 0x00 | _code_ |
+| 0x04 | -- |
+| 0x08 | -- |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target = a_ignore |
+| 0x04 | msg_1 |
+| 0x08 | msg_2 |
+| 0x0c | msg_3 |
+| 0x10 | msg_4 |
+| 0x14 | msg_5 |
+| 0x18 | msg_6 |
+| 0x1c | msg_7 |
+
+Note: This actor is not usually needed,
+since `complete` can be referenced directly
+(as if it were an actor).
+
+#### a_forward
+
+Foward message to `delegate`.
+
+**WARNING**: _Do not use `a_forward` directly.
+Clone it, then change the `delegate` in your copy._
+
+| Offset | Actor Field |
+|--------|-------|
+| 0x00 | _code_ |
+| 0x04 | _code_ |
+| 0x08 | _code_ |
+| 0x0c | _code_ |
+| 0x10 | _code_ |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | delegate = a_ignore |
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target = a_forward |
+| 0x04 | msg_1 |
+| 0x08 | msg_2 |
+| 0x0c | msg_3 |
+| 0x10 | msg_4 |
+| 0x14 | msg_5 |
+| 0x18 | msg_6 |
+| 0x1c | msg_7 |
+
+Note: This actor is used in the implementation of `a_oneshot`.
+
+#### a_oneshot
+
+Forward first message to `delegate`,
+then ignore all subsequent messages.
+
+**WARNING**: _Do not use `a_oneshot` directly.
+Clone it, then change the `delegate` in your copy._
+
+| Offset | Actor Field |
+|--------|-------|
+| 0x00 | _code_ |
+| 0x04 | _code_ |
+| 0x08 | _code_ |
+| 0x0c | _code_ |
+| 0x10 | -- |
+| 0x14 | next behavior |
+| 0x18 | current behavior |
+| 0x1c | delegate = a_ignore |
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target = a_oneshot |
+| 0x04 | msg_1 |
+| 0x08 | msg_2 |
+| 0x0c | msg_3 |
+| 0x10 | msg_4 |
+| 0x14 | msg_5 |
+| 0x18 | msg_6 |
+| 0x1c | msg_7 |
+
+This actor uses the behavior of `a_forward`
+to forward the first message it receives.
+It then modifies the `current behavior` field
+to ignore all subsequent messages.
+
+#### a_fork
+
+Initiate two concurrent service-events.
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target = a_fork |
+| 0x04 | customer |
+| 0x08 | event_0 |
+| 0x0c | event_1 |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+This actor is a factory for a group of actors
+that collaborate to execute overlapping events.
+The `event_0` and `event_1` parameters are events,
+prepared by not enqueued,
+with appropriate targets and parameters.
+The targets for `event_0` and `event_1` must be _services_.
+This is, they must be actors which expect a single `customer`
+as their first message parameter.
+Note that the `customer` in each event will be overwritten
+with a factory-generated proxy customer.
+The results from both events will be combined into a single message
+and sent to the original `customer`, like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target = customer |
+| 0x04 | event_0 result 0x04 |
+| 0x08 | event_1 result 0x04 |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+### Built-In Behaviors
+
+#### b_label
+
+Add `label` to message and forward to `delegate`.
+
+| Offset | Actor Field |
+|--------|-------|
+| 0x00 | _code_ |
+| 0x04 | _code_ |
+| 0x08 | r4: delegate |
+| 0x0c | r5: label |
+| 0x10 | behavior = b_label |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | msg_1 |
+| 0x08 | msg_2 |
+| 0x0c | msg_3 |
+| 0x10 | msg_4 |
+| 0x14 | msg_5 |
+| 0x18 | msg_6 |
+| 0x1c | -- |
+
+Note that the data at offset 0x1c in the inbound message
+is not copied because we have to make room for the label.
+After adding the label, the generated event looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | delegate |
+| 0x04 | label |
+| 0x08 | msg_1 |
+| 0x0c | msg_2 |
+| 0x10 | msg_3 |
+| 0x14 | msg_4 |
+| 0x18 | msg_5 |
+| 0x1c | msg_6 |
+
+#### b_tag
+
+Label message with actor identity and forward to `delegate`.
+Tag actors are often created as proxy customers
+when we want to identify the source of a particular response.
+
+| Offset | Actor Field |
+|--------|-------|
+| 0x00 | _code_ |
+| 0x04 | _code_ |
+| 0x08 | r4: delegate |
+| 0x0c | behavior = b_tag |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | msg_1 |
+| 0x08 | msg_2 |
+| 0x0c | msg_3 |
+| 0x10 | msg_4 |
+| 0x14 | msg_5 |
+| 0x18 | msg_6 |
+| 0x1c | -- |
+
+Note that the data at offset 0x1c in the inbound message
+is dropped because we have to make room for the label.
+This behavior modifies the inbound event,
+adding it's own identity as a label,
+and re-dispatches it without going through the event queue.
+The modified event looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | delegate |
+| 0x04 | target |
+| 0x08 | msg_1 |
+| 0x0c | msg_2 |
+| 0x10 | msg_3 |
+| 0x14 | msg_4 |
+| 0x18 | msg_5 |
+| 0x1c | msg_6 |
+
+#### b_join
+
+Combine results of concurrent computation.
+Join actors are automatically generated by `a_fork`
+to capture the results of concurrent event processing.
+Results are expected to come through proxy customers with `b_tag` behavior,
+so `b_join` can distinguish between the two results.
+
+| Offset | Actor Field |
+|--------|-------|
+| 0x00 | _code_ |
+| 0x04 | _code_ |
+| 0x08 | r4: customer |
+| 0x0c | r5: tag/result_0 |
+| 0x10 | r6: tag/result_1 |
+| 0x14 | behavior = b_join |
+| 0x18 | -- |
+| 0x1c | -- |
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | tag |
+| 0x08 | result |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+After both results have arrived,
+a combined result event is generated:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | customer |
+| 0x04 | result_0 |
+| 0x08 | result_1 |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+
+## Actor Capabilities
+
+A typical view of object (and actors)
+is that they have an "interface",
+or vocabulary of message types they understand.
+In practice,
+this means that a message-event
+must contain a "selector"
+(usually a "name", but sometimes a "signature")
+that identifies what kind of message it is.
+The object/actor uses the selector
+to (polymorphically) dispatch the message
+to the proper implementation code.
+
+Instead, we will consider each actor reference
+to be a _capability_ that already knows what operation is expected.
+An interface, then, consists of a collection of capabilities
+that access and/or operate on some hidden shared state.
+This is similar to the concept of "facets"
+in some object-oriented systems.
+It also provides fine-grained access control
+by limiting the availability of certain capabilities.
+The access-graph becomes the authority-graph.
+
+In addition, we will generalize the idea of "return value"
+(for services with a call-response protocol)
+by introducing a pair of _customers_ called "ok" and "fail".
+The _ok_ customer will be the capability
+to whom a successful result should be delivered.
+The _fail_ customer will be the capability
+to whom a failure notification may be send.
+This transforms exception handling into simple message-flow.
+
+### Evaluation
+
+A critical capability for general computation
+is _evaluation_ in the context of an _environment_.
+Evaluation produces a _value_,
+but cannot cause any _effects_.
+The protocol for evaluation involves
+sending a request and receiving a response.
+The request looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | ok |
+| 0x08 | fail |
+| 0x0c | environment |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+If the request is "successful",
+a response is sent to `ok`
+that looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | ok |
+| 0x04 | result |
+| 0x08 | -- |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+If the request is "unsuccessful",
+the original event is immediately delivered to `fail`
+_without going through the event queue_.
+Note that this means the `target`
+will **not** be the `fail` actor.
+
+#### b_literal
+
+The _evaluation_ capability for a _literal_
+always responds with the identity of the target.
+
+#### b_constant
+
+The _evaluation_ capability for a _constant_
+responds with a consistent _value_
+regardless of the _environment_ in which it is evaluated.
+
+#### b_load / b_store
+
+A primitive mutable value supports two capabilities,
+_load_ and _store_.
+The _load_ capability retrieves the currently stored value,
+and responds with that value.
+The _store_ capability replaces the stored value,
+and responds with the value stored.
+The protocol for _store_ is not _evaluation_,
+but is very similar.
+Instead of receiving an _environment_,
+there is a generic _parameter_
+(the new value to store, in this case).
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | ok |
+| 0x08 | fail |
+| 0x0c | parameter |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+#### a_undefined / b_arrow
+
+A primitive generalization of partial functions
+can be expressed with `a_undefined` and `b_arrow`.
+The protocol is the same as `b_store`,
+taking a _parameter_ and returning a _result_.
+
+The actor `a_undefined` is the base/failure case.
+It immediately calls `fail`.
+It can be used to terminate a search-chain,
+or provide a default.
+
+The `b_arrow` behavior demonstrates an explicit finite-mapping,
+with each actor instance providing a _result_
+for a particular _parameter_ value.
+The resulting structure
+is a linear-search dictionary
+of "name/value" pairs
+terminated by `a_undefined`.
+
+Note that a variety of alternative implementations are possible,
+consistent with the same _parameter_/_result_-or-fail protocol.
+Functional algorithms, including recursion, can be easily supported.
+
+### Streams
+
+Streams are a primitive abstraction of seqential access patterns.
+A _read_ capability consumes an element from the stream.
+A _write_ capability produces an element to the stream.
+
+A _read_ request looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | ok |
+| 0x08 | fail |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+If the request is "successful",
+a response is sent to `ok`
+that looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | ok |
+| 0x04 | element |
+| 0x08 | next |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+The `next` field in a _read_ response
+is the _read_ capability for subsequent requests.
+Each _read_ capability can be thought of
+as a "cursor position" in the stream.
+
+A _write_ request looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | target |
+| 0x04 | ok |
+| 0x08 | fail |
+| 0x0c | element |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+If the request is "successful",
+a response is sent to `ok`
+that looks like this:
+
+| Offset | Event Field |
+|--------|-------|
+| 0x00 | ok |
+| 0x04 | next |
+| 0x08 | -- |
+| 0x0c | -- |
+| 0x10 | -- |
+| 0x14 | -- |
+| 0x18 | -- |
+| 0x1c | -- |
+
+The `next` field in a _write_ response
+is the _write_ capability for subsequent requests.
+Each _write_ capability can be thought of
+as a "cursor position" in the stream.
+
+#### a_end
+
+The actor `a_end` immediately calls `fail`.
+As a _read_ capability it represents the base/empty case.
+As a _write_ capability it represents the final/full case.
+The call to `fail` can often be avoided
+by comparing your _read_/_write_ capability
+(such as the value of `next`)
+to `a_end` before using it.
