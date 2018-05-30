@@ -60,23 +60,23 @@ An event block begins with the address of the actor
 to whom the event will be dispatched.
 The rest of the block may contain 0 to 7 additional words of message data.
 ~~~
-        +-------+-------+-------+-------+
-  0x00  | address of target actor       |
-        +-------------------------------+
-  0x04  | customer / ok                 |  m
-        + . . . . . . . . . . . . . . . +  e
-  0x08  | parameter / fail              |  s
-        + . . . . . . . . . . . . . . . +  s
-  0x0c  |                               |  a
-        +       .       .       .       +  g
-  0x10  |                               |  e
-        +       .       .       .       +
-  0x14  |                               |  d
-        +       .       .       .       +  a
-  0x18  |                               |  t
-        +       .       .       .       +  a
-  0x1c  |                               |
-        +-------+-------+-------+-------+
+        +--------+--------+--------+--------+
+  0x00  | address of target actor           |
+        +-----------------------------------+
+  0x04  | customer / ok                     |  m
+        + . . . . . . . . . . . . . . . . . +  e
+  0x08  | parameter / fail                  |  s
+        + . . . . . . . . . . . . . . . . . +  s
+  0x0c  |                                   |  a
+        +        .        .        .        +  g
+  0x10  |                                   |  e
+        +        .        .        .        +
+  0x14  |                                   |  d
+        +        .        .        .        +  a
+  0x18  |                                   |  t
+        +        .        .        .        +  a
+  0x1c  |                                   |
+        +--------+--------+--------+--------+
 ~~~
 By convention, the first word of the message (at offset 0x04)
 is often the customer (an actor) to whom a reply may be directed.
@@ -104,23 +104,23 @@ directly in the actor block.
 Example 0 illustrates the typical elements
 of a directly-coded actor behavior.
 ~~~
-        +-------+-------+-------+-------+
-  0x00  |       bl      reserve         |  m
-        +-------------------------------+  a
-  0x04  |       ldr     r1, [ip, #0x1c] |  c
-        +-------------------------------+  h
-  0x08  |       str     r1, [r0, #0x04] |  i  (_a_answer: r0=event, r1=answer)
-        +-------------------------------+  n
-  0x0c  |       ldr     r1, [fp, #0x04] |  e  (_a_reply: r0=event)
-        +-------------------------------+
-  0x10  |       str     r1, [r0]        |  c  (_a_send: r0=event, r1=target)
-        +-------------------------------+  o
-  0x14  |       bl      enqueue         |  d  (_a_end: r0=event)
-        +-------------------------------+  e
-  0x18  |       b       complete        |
-        +-------------------------------+
-  0x1c  | data field containing answer  |
-        +-------+-------+-------+-------+
+        +--------+--------+--------+--------+
+  0x00  |       bl      reserve             |  m
+        +-----------------------------------+  a
+  0x04  |       ldr     r1, [ip, #0x1c]     |  c
+        +-----------------------------------+  h
+  0x08  |       str     r1, [r0, #0x04]     |  i  (_a_answer: r0=event, r1=answer)
+        +-----------------------------------+  n
+  0x0c  |       ldr     r1, [fp, #0x04]     |  e  (_a_reply: r0=event)
+        +-----------------------------------+
+  0x10  |       str     r1, [r0]            |  c  (_a_send: r0=event, r1=target)
+        +-----------------------------------+  o
+  0x14  |       bl      enqueue             |  d  (_a_end: r0=event)
+        +-----------------------------------+  e
+  0x18  |       b       complete            |
+        +-----------------------------------+
+  0x1c  | data field containing answer      |
+        +--------+--------+--------+--------+
 ~~~
 This actor behavior begins by calling `reserve`
 to allocate a new block for a reply-message event.
@@ -179,23 +179,23 @@ This can be accomplished by maintaining a pointer
 to the desired behavior,
 and jumping through that pointer to handle an event.
 ~~~
-        +-------+-------+-------+-------+
-  0x00  |       ldr     pc, [pc, #-4]   |
-        +-------------------------------+
-  0x04  | address of actor behavior     |
-        +-------------------------------+
-  0x08  | actor state                   |
-        +       .       .       .       +
-  0x0c  |                               |
-        +       .       .       .       +
-  0x10  |                               |
-        +       .       .       .       +
-  0x14  |                               |
-        +       .       .       .       +
-  0x18  |                               |
-        +       .       .       .       +
-  0x1c  |                               |
-        +-------+-------+-------+-------+
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [pc, #-4]       |
+        +-----------------------------------+
+  0x04  | address of actor behavior         |
+        +-----------------------------------+
+  0x08  | actor state                       |
+        +        .        .        .        +
+  0x0c  |                                   |
+        +        .        .        .        +
+  0x10  |                                   |
+        +        .        .        .        +
+  0x14  |                                   |
+        +        .        .        .        +
+  0x18  |                                   |
+        +        .        .        .        +
+  0x1c  |                                   |
+        +--------+--------+--------+--------+
 ~~~
 As always, the kernel invokes an actor's behavior
 by jumping to the beginning of the actor block.
@@ -215,23 +215,23 @@ which points to the beginning of the actor block.
 
 Here is another way to implement an indirect call to the actor behavior.
 ~~~
-        +-------+-------+-------+-------+
-  0x00  |       ldr     lr, [pc]        |
-        +-------------------------------+
-  0x04  |       blx     lr              |
-        +-------------------------------+
-  0x08  | address of actor behavior     |
-        +-------------------------------+
-  0x0c  | actor state                   |
-        +       .       .       .       +
-  0x10  |                               |
-        +       .       .       .       +
-  0x14  |                               |
-        +       .       .       .       +
-  0x18  |                               |
-        +       .       .       .       +
-  0x1c  |                               |
-        +-------+-------+-------+-------+
+        +--------+--------+--------+--------+
+  0x00  |       ldr     lr, [pc]            |
+        +-----------------------------------+
+  0x04  |       blx     lr                  |
+        +-----------------------------------+
+  0x08  | address of actor behavior         |
+        +-----------------------------------+
+  0x0c  | actor state                       |
+        +        .        .        .        +
+  0x10  |                                   |
+        +        .        .        .        +
+  0x14  |                                   |
+        +        .        .        .        +
+  0x18  |                                   |
+        +        .        .        .        +
+  0x1c  |                                   |
+        +--------+--------+--------+--------+
 ~~~
 The first instruction loads the actor behavior address
 (from offset 0x08 in the actor block)
@@ -248,23 +248,23 @@ A more powerful indirect-behavior implementation
 can pre-load a group of registers from the actor state
 while jumping to the actual behavior code.
 ~~~
-        +-------+-------+-------+-------+
-  0x00  |       mov     ip, pc          |
-        +-------------------------------+
-  0x04  |       ldmia   ip,{r4-r7,lr,pc}|
-        +-------------------------------+
-  0x08  | value for r4                  |
-        +-------------------------------+
-  0x0c  | value for r5                  |
-        +-------------------------------+
-  0x10  | value for r6                  |
-        +-------------------------------+
-  0x14  | value for r7                  |
-        +-------------------------------+
-  0x18  | value for lr                  |
-        +-------------------------------+
-  0x1c  | address of actor behavior     |
-        +-------+-------+-------+-------+
+        +--------+--------+--------+--------+
+  0x00  |       mov     ip, pc              |
+        +-----------------------------------+
+  0x04  |       ldmia   ip, {r4-r7,lr,pc}   |
+        +-----------------------------------+
+  0x08  | value for r4                      |
+        +-----------------------------------+
+  0x0c  | value for r5                      |
+        +-----------------------------------+
+  0x10  | value for r6                      |
+        +-----------------------------------+
+  0x14  | value for r7                      |
+        +-----------------------------------+
+  0x18  | value for lr                      |
+        +-----------------------------------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
 ~~~
 The first instruction loads the actor state address
 (offset 0x08 into the actor block)
