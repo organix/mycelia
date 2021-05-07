@@ -28,4 +28,9 @@ extern void     timer_init();                   /* initialize microsecond timer 
 extern int      timer_usecs();                  /* read microsecond timer value */
 extern int      timer_wait(int dt);             /* wait for dt microseconds */
 
+extern int      timer_start();                  /* record starting time */
+extern int      timer_split();                  /* time since start */
+extern int      timer_lap();                    /* time since last lap or start */
+extern int      timer_stop();                   /* total time, start reset */
+
 #endif /* _TIMER_H_ */

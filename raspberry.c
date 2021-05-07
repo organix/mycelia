@@ -61,6 +61,23 @@ serial_hex8(u8 b)
 }
 
 /*
+ * Print u32 in decimal to serial port
+ */
+void
+serial_dec32(u32 w)
+{
+    char dec[12];
+    char *p = dec + sizeof(dec);
+
+    *--p = '\0';
+    do {
+        *--p = (char)((w % 10) + '0');
+        w /= 10;
+    } while (w && (p > dec));
+    serial_puts(p);
+}
+
+/*
  * Pretty-printed memory dump
  */
 void
@@ -128,16 +145,41 @@ dump_block(const u32* p)
     }
 }
 void
+dump_ascii(const u32* p)
+{
+    int i;
+
+    for (i = 0; i < 8; ++i) {
+        serial_write(' ');
+        u8* q = (u8*)p++;
+        for (int j = 0; j < 4; ++j) {
+            serial_write(' ');
+            u8 c = *q++;
+            if ((c >= ' ') && (c < 0x7F)) {
+                serial_write(c);
+            } else {
+                serial_write('.');
+            }
+        }
+    }
+}
+void
 dump_event(const u32* p)
 {
     serial_write('@');
     dump_block(p);
+    serial_eol();
+    serial_write('\\');
+    dump_ascii(p);
     serial_eol();
     if (((*p) > 0x8000) && ((*p) < 0x10000000)) {
         serial_write(' ');
         serial_write('\\');
         serial_write('_');
         dump_block((u32*)(*p));
+        serial_eol();
+        serial_puts("   ");
+        dump_ascii(p);
         serial_eol();
     }
 }
@@ -309,7 +351,6 @@ k_start(u32 sp)
 {
     extern ACTOR a_poll;
     extern ACTOR a_test;
-    u32 t;
 
     // device initialization
     timer_init();
@@ -346,14 +387,12 @@ k_start(u32 sp)
             mycelia(a_poll, 0);
             break;
         case '3':
-            serial_puts("t0 = ");
-            t = timer_usecs();
-            serial_hex32(t);
-            serial_eol();
+            timer_start();
             mycelia(a_test, (u32)dump_event);
-            serial_puts("t1 = ");
-            t = timer_usecs();
-            serial_hex32(t);
+            int dt = timer_stop();
+            serial_puts("time ");
+            serial_dec32(dt);
+            serial_puts("us");
             serial_eol();
             break;
         }

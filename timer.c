@@ -73,3 +73,49 @@ timer_wait(int dt)
         }
     }
 }
+
+static int t0;
+static int t1;
+
+/*
+ * Record starting time
+ */
+int
+timer_start()
+{
+    t1 = t0 = timer_usecs();
+    return t0;
+}
+
+/*
+ * Time since start
+ */
+int
+timer_split()
+{
+    t1 = timer_usecs();
+    return t1 - t0;
+}
+
+/*
+ * Time since last lap or start
+ */
+int
+timer_lap()
+{
+    int t0 = t1;
+    t1 = timer_usecs();
+    return t1 - t0;
+}
+
+/*
+ * Total time, start reset
+ */
+int
+timer_stop()
+{
+    t1 = timer_usecs();
+    int dt = t1 - t0;
+    t0 = t1;
+    return dt;
+}

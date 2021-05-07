@@ -43,6 +43,20 @@ mycelia:		@ entry point for the actor kernel (r0=boot, r1=trace)
 
 	.text
 	.align 2		@ align to machine word
+	.global fail
+fail:			@ actor failure notification
+	stmdb	sp!, {r0-r3,lr}	@ preserve registers
+	ldr	r0, =fail_txt	@ load address of failure text
+	bl	serial_puts	@ write text to console
+	mov	r0, fp		@ get current message-event (FIXME: from sponsor?)
+	bl	dump_event	@ dump actor event structure
+	ldmia	sp!, {r0-r3,pc}	@ restore registers and return
+	.section .rodata
+fail_txt:
+	.ascii "\nFAIL!\n\0"
+
+	.text
+	.align 2		@ align to machine word
 trace_event:		@ invoke event tracing hook, if present (r0=event)
 	ldr	r3, =trace_to	@ location of trace procedure
 	ldr	r1, [r3]	@ get trace procedure
