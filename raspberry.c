@@ -20,6 +20,8 @@
 #include "serial.h"
 #include "xmodem.h"
 
+#define DUMP_ASCII 0  // show ascii translation of event data
+
 /* Exported procedures (force full register discipline) */
 extern void k_start(u32 sp);
 extern void monitor();
@@ -144,6 +146,7 @@ dump_block(const u32* p)
         serial_hex32(*p++);
     }
 }
+#if DUMP_ASCII
 void
 dump_ascii(const u32* p)
 {
@@ -163,24 +166,29 @@ dump_ascii(const u32* p)
         }
     }
 }
+#endif
 void
 dump_event(const u32* p)
 {
     serial_write('@');
     dump_block(p);
     serial_eol();
+#if DUMP_ASCII
     serial_write('\\');
     dump_ascii(p);
     serial_eol();
+#endif
     if (((*p) > 0x8000) && ((*p) < 0x10000000)) {
         serial_write(' ');
         serial_write('\\');
         serial_write('_');
-        dump_block((u32*)(*p));
+        dump_block((const u32*)(*p));
         serial_eol();
+#if DUMP_ASCII
         serial_puts("   ");
         dump_ascii(p);
         serial_eol();
+#endif
     }
 }
 
