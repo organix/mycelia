@@ -1,0 +1,48 @@
+#
+# Mycelia Actor Idioms
+#
+
+LET b_ignore = \_.[]
+CREATE a_ignore WITH b_ignore
+
+LET b_forward(cust) = \msg.[
+	SEND msg TO cust
+]
+CREATE a_forward WITH b_forward(a_ignore)
+
+LET b_oneshot(cust) = \msg.[
+	SEND msg TO cust
+	BECOME b_ignore
+]
+CREATE a_oneshot WITH b_oneshot(a_ignore)
+
+LET b_label(cust, label) = \msg.[ SEND (label, msg) TO cust ]
+LET b_tag(cust) = \msg.[ SEND (SELF, msg) TO cust ]
+
+LET b_fork(cust, head, tail) = \(h_req, t_req).[
+	CREATE k_head WITH b_tag(SELF)
+	CREATE k_tail WITH b_tag(SELF)
+	SEND (k_head, h_req) TO head
+	SEND (k_tail, t_req) TO tail
+	BECOME b_join(cust, k_head, k_tail)
+]
+LET b_join(cust, k_head, k_tail) = \msg.[
+	CASE msg OF
+	($k_head, first) : [
+		BECOME \($k_tail, rest).[
+			SEND (first, rest) TO cust
+		]
+	]
+	($k_tail, rest) : [
+		BECOME \($k_head, first).[
+			SEND (first, rest) TO cust
+		]
+	]
+	END
+]
+CREATE a_fork WITH \(cust, (head, h_req), (tail, t_req)).[
+	CREATE fork WITH b_fork(cust, head, tail)
+	SEND (h_req, t_req) TO fork
+]
+
+LET b_const(value) = \cust.[ SEND value TO cust ]

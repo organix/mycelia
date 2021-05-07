@@ -1,0 +1,71 @@
+#
+# Lambda Calculus
+#
+
+CREATE a_undef WITH \_.[]
+CREATE a_empty_env WITH \(cust, _).[ SEND a_undef TO cust ]
+LET b_binding(name, value, next) = \msg.[
+	CASE msg OF
+	(cust, $name) : [ SEND value TO cust ]
+	_ : [ SEND msg TO next ]
+	END
+]
+
+LET b_literal(value) = \(cust, #eval, _).[ SEND value TO cust ]
+LET b_variable(name) = \(cust, #eval, env).[ SEND (cust, name) TO env ]
+LET b_lambda(name, body) = \(cust, #eval, env).[
+	CREATE closure WITH b_closure(name, body, env)
+	SEND closure TO cust
+]
+LET b_application(lambda, expr) = \(cust, #eval, env).[
+	SEND (k_eval, #eval, env) TO lambda
+	CREATE k_eval WITH b_applicative(cust, expr, env)
+]
+LET b_applicative(cust, expr, env) = \closure.[
+	SEND (SELF, #eval, env) TO expr
+	BECOME b_operative(cust, closure, env)
+]
+LET b_operative(cust, closure, env) = \arg.[
+	SEND (cust, #apply, arg, env) TO closure
+]
+LET b_closure(name, body, env) = \(cust, #apply, arg, _).[
+	CREATE env' WITH b_binding(name, arg, env)
+	SEND (cust, #eval, env') TO body
+]
+
+# LET fn_true = \cnsq.\altn.cnsq
+CREATE fn_true
+	WITH b_closure(#cnsq,
+		NEW b_lambda(#altn,
+			NEW b_variable(#cnsq)),
+		a_empty_env)
+# LET fn_false = \cnsq.\altn.altn
+CREATE fn_false
+	WITH b_closure(#cnsq,
+		NEW b_lambda(#altn,
+			NEW b_variable(#altn)),
+		a_empty_env)
+# LET fn_if = \pred.\cnsq.\altn.(pred(cnsq))(altn)
+CREATE fn_if
+	WITH b_closure(#pred,
+		NEW b_lambda(#cnsq,
+			NEW b_lambda(#altn,
+			    NEW b_application(
+			    	NEW b_application(
+			    		NEW b_variable(#pred),
+			    		NEW b_variable(#cnsq)
+			    	),
+			    	NEW b_variable(#altn)
+			    )
+			)
+		),
+		a_empty_env)
+# ((if(true))(#a))(#b) -> #a
+SEND (println, #eval, a_empty_env) TO
+	NEW b_application(
+		NEW b_application(
+			NEW b_application(
+				NEW b_literal(fn_if),
+				NEW b_literal(fn_true)),
+			NEW b_literal(#a)),
+		NEW b_literal(#b))

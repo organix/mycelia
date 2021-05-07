@@ -309,6 +309,7 @@ k_start(u32 sp)
 {
     extern ACTOR a_poll;
     extern ACTOR a_test;
+    u32 t;
 
     // device initialization
     timer_init();
@@ -319,7 +320,7 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia 0.0.2 ");
+    serial_puts("mycelia 0.0.3 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
     serial_eol();
@@ -345,7 +346,15 @@ k_start(u32 sp)
             mycelia(a_poll, 0);
             break;
         case '3':
+            serial_puts("t0 = ");
+            t = timer_usecs();
+            serial_hex32(t);
+            serial_eol();
             mycelia(a_test, (u32)dump_event);
+            serial_puts("t1 = ");
+            t = timer_usecs();
+            serial_hex32(t);
+            serial_eol();
             break;
         }
     }
