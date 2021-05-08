@@ -28,7 +28,7 @@ extern void monitor();
 extern int putchar(int c);
 extern int getchar();
 extern void hexdump(const u8* p, int n);
-extern void dump256(const u8* p);
+extern void dump256(void* p);
 
 /* Private data structures */
 static char linebuf[256];  // line editing buffer
@@ -127,9 +127,9 @@ hexdump(const u8* p, int n)
  * Dump 256 bytes (handy for asm debugging, just load r0)
  */
 void
-dump256(const u8* p)
+dump256(void* p)
 {
-    hexdump(p, 256);
+    hexdump((u8*)p, 256);
 }
 
 /*
@@ -370,10 +370,19 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia 0.0.3-08:28 ");
+    char* p;
+    serial_puts(p="mycelia 0.0.3 ");
+    serial_puts("2021-05-08 09:04 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
+#if 0
+    serial_puts(" p=0x");
+    serial_hex32(p);
     serial_eol();
+#else
+    serial_eol();
+    dump256(p);
+#endif
 
     for (;;) {
         // display menu
@@ -405,6 +414,7 @@ k_start(u32 sp)
             serial_dec32(dt);
             serial_puts("us");
             serial_eol();
+            dump256(p);
             break;
         case '9':
             mycelia(a_exit, 0);
