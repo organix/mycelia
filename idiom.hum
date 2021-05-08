@@ -46,3 +46,18 @@ CREATE a_fork WITH \(cust, (head, h_req), (tail, t_req)).[
 ]
 
 LET b_const(value) = \cust.[ SEND value TO cust ]
+
+LET b_race(list) = \(cust, req).[
+	CREATE once WITH b_oneshot(cust)
+	send_to_all((once, req), list)
+]
+LET send_to_all(msg, list) = [
+	CASE list OF
+	() : []
+	(first, rest) : [
+		SEND msg TO first
+		send_to_all(msg, rest)
+	]
+	(last) : [ SEND msg TO last ]
+	END
+]

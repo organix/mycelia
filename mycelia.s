@@ -31,8 +31,10 @@
 	.global mycelia
 mycelia:		@ entry point for the actor kernel (r0=boot, r1=trace)
 	mov	ip, r0		@ bootstrap actor address
-	ldr	r0, =exit_to	@ location of return address
+	ldr	r0, =exit_lr	@ location of return address
 	str	lr, [r0]	@ save exit address on entry
+	ldr	r0, =exit_sp	@ location of stack pointer
+	str	sp, [r0]	@ save exit stack pointer on entry
 	ldr	r0, =trace_to	@ location of trace procedure
 	str	r1, [r0]	@ set trace procedure
 	ldr	sl, =sponsor_0	@ initialize sponsor link
@@ -74,12 +76,16 @@ trace_to:
 	.align 2		@ align to machine word
 	.global exit
 exit:			@ exit the actor kernel
-	ldr	r0, =exit_to	@ location of return address
+	ldr	r0, =exit_sp	@ location of stack pointer
+	ldr	sp, [r0]	@ get stack pointer saved on entry
+	ldr	r0, =exit_lr	@ location of return address
 	ldr	lr, [r0]	@ get exit address saved on entry
 	bx	lr		@ "return" from the kernel
 	.data
 	.align 2		@ align to machine word
-exit_to:
+exit_sp:
+	.int 0			@ stack pointer to restore on exit
+exit_lr:
 	.int 0			@ address to "return" to on exit
 
 	.text
@@ -510,6 +516,18 @@ a_failed:		@ report tests failed, and exit
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
 	.ascii	"FAILED!\0"	@ 0x18..0x1f: output text
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_exit
+a_exit:			@ print message, and exit
+	add	r0, ip, #0x18	@ address of output text
+	bl	serial_puts	@ write output text
+	bl	serial_eol	@ write end-of-line
+	b	exit		@ kernel exit!
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.ascii	"EXIT...\0"	@ 0x18..0x1f: output text
 
 	.text
 	.align 2		@ align to machine word

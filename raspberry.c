@@ -359,6 +359,7 @@ k_start(u32 sp)
 {
     extern ACTOR a_poll;
     extern ACTOR a_test;
+    extern ACTOR a_exit;
 
     // device initialization
     timer_init();
@@ -369,7 +370,7 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia 0.0.3 ");
+    serial_puts("mycelia 0.0.3-08:28 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
     serial_eol();
@@ -384,6 +385,8 @@ k_start(u32 sp)
         serial_puts("  2. Mycelia echo");
         serial_eol();
         serial_puts("  3. Unit tests");
+        serial_eol();
+        serial_puts("  9. Exit");
         serial_eol();
 
         // execute selected option
@@ -402,6 +405,9 @@ k_start(u32 sp)
             serial_dec32(dt);
             serial_puts("us");
             serial_eol();
+            break;
+        case '9':
+            mycelia(a_exit, 0);
             break;
         }
     }

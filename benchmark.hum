@@ -1,0 +1,31 @@
+#
+# Joe Armstrong's Erlang challenge:
+#   Create a ring of N processes
+#   Send M simple messages around the ring
+#   Increase N until out of resources
+#
+
+LET countdown_ring_beh(next) = \m.[
+    SEND m TO next
+]
+LET countdown_ring_0_beh(first) = \m.[
+#    SEND m TO println
+    IF $m = 1 [
+        BECOME \_.[]
+    ] ELSE [
+        SEND add(m, -1) TO first
+    ]
+]
+LET countdown_builder_beh(n) = \(first, m).[
+    IF $n = 1 [
+        BECOME countdown_ring_0_beh(first)
+        SEND m TO first  # start message passing phase
+    ] ELSE [
+        CREATE next WITH countdown_builder_beh(add(n, -1))
+        BECOME countdown_ring_beh(next)
+        SEND (first, m) TO next
+    ]
+]
+
+# CREATE countdown WITH countdown_builder_beh(123456)
+# SEND (countdown, 789) TO countdown
