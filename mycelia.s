@@ -519,21 +519,26 @@ a_failed:		@ report tests failed, and exit
 
 	.text
 	.align 5		@ align to cache-line
+	.global a_exitq
+a_exitq:		@ exit quietly from runtime
+	b	exit		@ kernel exit!
+
+	.text
+	.align 5		@ align to cache-line
 	.global a_bench
 a_bench:		@ benchmark bootstrap actor
 	mov	ip, pc		@ point ip to data fields (state)
-	ldmia	ip,{r4-r7,lr,pc}@ copy state and jump to behavior
-	.int	b_null_srv	@ 0x00: r4 = child behavior
+	ldmia	ip,{r4-r8,pc}	@ copy state and jump to behavior
+	.int	b_countdown	@ 0x00: r4 = child behavior
 	.int	0		@ 0x04: r5 = child state
-	.int	a_bench		@ 0x08: r6 = child message[0] (cust)
-	.int	0		@ 0x0c: r7 = child message[1] (count)
-	.int	exit		@ 0x10: next behavior
-	.int	b_bench		@ 0x14: current behavior
+	.int	a_exitq		@ 0x08: r6 = child message[0] (cust)
+	.int	1000		@ 0x0c: r7 = child message[1] (count)
+	.int	0		@ 0x10: r8 = --
+	.int	b_bench		@ 0x14: behavior
 
 	.text
 	.align 5		@ align to cache-line
 b_bench:		@ benchmark bootstrap behavior
-	str	lr, [ip, #0x14]	@ update current behavior
 	mov	r0, r4		@ get child behavior
 	mov	r1, r5		@ get child state
 	bl	create_1	@ create child actor
@@ -545,11 +550,26 @@ b_bench:		@ benchmark bootstrap behavior
 	.text
 	.align 5		@ align to cache-line
 b_null_srv:		@ nothing server behavior
-			@ message = (cust, count)
+			@ message = (cust, ...)
 	ldr	r0, [fp, #0x04]	@ get cust
-@	ldr	r1, [fp, #0x08]	@ get count
 	bl	send_0		@ 	send empty message to cust
 	b	complete	@ 	return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+b_countdown:		@ countdown server behavior
+			@ message = (cust, count)
+	ldr	r0, [fp, #0x04]	@ get cust
+	ldr	r2, [fp, #0x08]	@ get count
+	subs	r2, r2, #0x1	@ decrement count
+	bpl	1f		@ if count < 0
+	bl	send_0		@ 	send empty message to cust
+	b	complete	@ 	return to dispatch loop
+1:
+	ldr	r0, [fp]	@ get SELF
+	ldr	r1, [fp, #0x04]	@ get cust
+	bl	send_2		@ send (cust, count') to SELF
+	b	complete	@ return to dispatch loop
 
 	.text
 	.align 5		@ align to cache-line
@@ -557,11 +577,12 @@ b_fbomb:		@ fork-bomb behavior
 			@ message = (cust, count)
 	ldr	r0, [fp, #0x04]	@ get cust
 	ldr	r1, [fp, #0x08]	@ get count
-	bne	1f		@ if count == 0
+	subs	r2, r2, #0x1	@ decrement count
+	bpl	1f		@ if count < 0
 	bl	send_0		@ 	send empty message to cust
 	b	complete	@ 	return to dispatch loop
 1:
-	sub	r8, r1, #0x1	@ subtract 1 from count
+	mov	r8, r1		@ remember decremented count
 
 	bl	reserve		@ allocate left event block
 	mov	r6, r0		@ save for later reference
