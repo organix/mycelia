@@ -523,23 +523,33 @@ a_failed:		@ report tests failed, and exit
 a_bench:		@ benchmark bootstrap actor
 	mov	ip, pc		@ point ip to data fields (state)
 	ldmia	ip,{r4-r7,lr,pc}@ copy state and jump to behavior
-	.int	b_fbomb		@ 0x00: r4 = child behavior
-	.int	a_bench		@ 0x04: r5 = child message[0] (cust)
-	.int	0		@ 0x08: r6 = child message[1] (count)
-	.int	0		@ 0x10: r7 = --
-	.int	exit		@ 0x14: next behavior
-	.int	b_bench		@ 0x18: current behavior
+	.int	b_null_srv	@ 0x00: r4 = child behavior
+	.int	0		@ 0x04: r5 = child state
+	.int	a_bench		@ 0x08: r6 = child message[0] (cust)
+	.int	0		@ 0x0c: r7 = child message[1] (count)
+	.int	exit		@ 0x10: next behavior
+	.int	b_bench		@ 0x14: current behavior
 
 	.text
 	.align 5		@ align to cache-line
 b_bench:		@ benchmark bootstrap behavior
-	str	lr, [ip, #0x18]	@ update current behavior
+	str	lr, [ip, #0x14]	@ update current behavior
 	mov	r0, r4		@ get child behavior
-	bl	create_0	@ create child actor
-	mov	r1, r5		@ get child message[0] (cust)
-	mov	r2, r6		@ get child message[1] (count)
+	mov	r1, r5		@ get child state
+	bl	create_1	@ create child actor
+	mov	r1, r6		@ get child message[0] (cust)
+	mov	r2, r7		@ get child message[1] (count)
 	bl	send_2		@ send message to child
 	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+b_null_srv:		@ nothing server behavior
+			@ message = (cust, count)
+	ldr	r0, [fp, #0x04]	@ get cust
+@	ldr	r1, [fp, #0x08]	@ get count
+	bl	send_0		@ 	send empty message to cust
+	b	complete	@ 	return to dispatch loop
 
 	.text
 	.align 5		@ align to cache-line
@@ -548,7 +558,7 @@ b_fbomb:		@ fork-bomb behavior
 	ldr	r0, [fp, #0x04]	@ get cust
 	ldr	r1, [fp, #0x08]	@ get count
 	bne	1f		@ if count == 0
-	bl	send_2		@ 	send message to cust
+	bl	send_0		@ 	send empty message to cust
 	b	complete	@ 	return to dispatch loop
 1:
 	sub	r8, r1, #0x1	@ subtract 1 from count
