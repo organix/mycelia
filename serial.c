@@ -199,7 +199,7 @@ serial_out(u8 data)
     return (int)data;
 #endif /* USE_SERIAL_UART0 */
 #ifdef USE_SERIAL_UART1
-    UART1->IO = (u32)data);
+    UART1->IO = (u32)data;
     return (int)data;
 #endif /* USE_SERIAL_UART1 */
 }

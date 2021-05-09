@@ -519,6 +519,63 @@ a_failed:		@ report tests failed, and exit
 
 	.text
 	.align 5		@ align to cache-line
+	.global a_bench
+a_bench:		@ benchmark bootstrap actor
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip,{r4-r7,lr,pc}@ copy state and jump to behavior
+	.int	b_fbomb		@ 0x00: r4 = child behavior
+	.int	a_bench		@ 0x04: r5 = child message[0] (cust)
+	.int	0		@ 0x08: r6 = child message[1] (count)
+	.int	0		@ 0x10: r7 = --
+	.int	exit		@ 0x14: next behavior
+	.int	b_bench		@ 0x18: current behavior
+
+	.text
+	.align 5		@ align to cache-line
+b_bench:		@ benchmark bootstrap behavior
+	str	lr, [ip, #0x18]	@ update current behavior
+	mov	r0, r4		@ get child behavior
+	bl	create_0	@ create child actor
+	mov	r1, r5		@ get child message[0] (cust)
+	mov	r2, r6		@ get child message[1] (count)
+	bl	send_2		@ send message to child
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+b_fbomb:		@ fork-bomb behavior
+			@ message = (cust, count)
+	ldr	r0, [fp, #0x04]	@ get cust
+	ldr	r1, [fp, #0x08]	@ get count
+	bne	1f		@ if count == 0
+	bl	send_2		@ 	send message to cust
+	b	complete	@ 	return to dispatch loop
+1:
+	sub	r8, r1, #0x1	@ subtract 1 from count
+
+	bl	reserve		@ allocate left event block
+	mov	r6, r0		@ save for later reference
+	ldr	r0, =b_fbomb	@ get b_fbomb address
+	bl	create_0	@ create left child
+	str	r0, [r6]	@ target left child
+	str	r8, [r6, #0x08]	@ send decremented count
+
+	bl	reserve		@ allocate right event block
+	mov	r7, r0		@ save for later reference
+	ldr	r0, =b_fbomb	@ get b_fbomb address
+	bl	create_0	@ create right child
+	str	r0, [r7]	@ target right child
+	str	r8, [r7, #0x08]	@ send decremented count
+
+	ldr	r4, =a_fork	@ get a_fork address
+	ldr	r5, [fp]	@ get SELF
+	bl	reserve		@ allocate fork event block
+	stmia	r0, {r4-r7}	@ write new event
+	bl	enqueue		@ add event to queue
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
 	.global a_exit
 a_exit:			@ print message, and exit
 	add	r0, ip, #0x18	@ address of output text

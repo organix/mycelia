@@ -193,6 +193,18 @@ dump_event(const u32* p)
 }
 
 /*
+ * Display time (or elapsed time) value
+ */
+void
+report_time(u32 t)
+{
+    serial_puts("time ");
+    serial_dec32(t);
+    serial_puts("us");
+    serial_eol();
+}
+
+/*
  * Traditional single-character "cooked" output
  */
 int
@@ -359,6 +371,7 @@ k_start(u32 sp)
 {
     extern ACTOR a_poll;
     extern ACTOR a_test;
+    extern ACTOR a_bench;
     extern ACTOR a_exit;
 
     // device initialization
@@ -372,7 +385,7 @@ k_start(u32 sp)
     // display banner
     char* p;
     serial_puts(p="mycelia 0.0.3 ");
-    serial_puts("2021-05-08 09:04 ");
+    serial_puts("2021-05-08 17:01 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0
@@ -395,30 +408,41 @@ k_start(u32 sp)
         serial_eol();
         serial_puts("  3. Unit tests");
         serial_eol();
+        serial_puts("  4. Benchmarks");
+        serial_eol();
         serial_puts("  9. Exit");
         serial_eol();
 
         // execute selected option
         switch (_getchar()) {
-        case '1':
-            monitor();
-            break;
-        case '2':
-            mycelia(a_poll, 0);
-            break;
-        case '3':
-            timer_start();
-            mycelia(a_test, (u32)dump_event);
-            int dt = timer_stop();
-            serial_puts("time ");
-            serial_dec32(dt);
-            serial_puts("us");
-            serial_eol();
-            dump256(p);
-            break;
-        case '9':
-            mycelia(a_exit, 0);
-            break;
+            case '1': {
+                monitor();
+                break;
+            }
+            case '2': {
+                mycelia(a_poll, 0);
+                break;
+            }
+            case '3': {
+                timer_start();
+                mycelia(a_test, (u32)dump_event);
+                report_time(timer_stop());
+                dump256(p);
+                break;
+            }
+            case '4': {
+                timer_start();
+//                mycelia(a_bench, 0);
+                mycelia(a_bench, (u32)dump_event);
+                report_time(timer_stop());
+                dump256(p);
+                break;
+            }
+            case '9': {
+                mycelia(a_exit, 0);
+                dump256(p);
+                break;
+            }
         }
     }
 }
