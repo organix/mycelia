@@ -475,7 +475,7 @@ a_test:			@ test suite execution actor
 	mul	r1, r0, r0	@ 1 second
 	ldr	r0, =a_failed	@ fail after 1 second
 	bl	watchdog_set	@ set watchdog timer
-	bl	test_suite	@ run suite of unit-tests
+	bl	test_suite	@ run suite of unit-tests [FIXME: inline test_suite]
 	b	complete	@ return to dispatch loop
 	.int	0		@ 0x18: --
 	.int	0		@ 0x1c: --
@@ -529,10 +529,10 @@ a_exitq:		@ exit quietly from runtime
 a_bench:		@ benchmark bootstrap actor
 	mov	ip, pc		@ point ip to data fields (state)
 	ldmia	ip,{r4-r8,pc}	@ copy state and jump to behavior
-	.int	b_countdown	@ 0x00: r4 = child behavior
+	.int	b_fbomb		@ 0x00: r4 = child behavior
 	.int	0		@ 0x04: r5 = child state
 	.int	a_exitq		@ 0x08: r6 = child message[0] (cust)
-	.int	1000		@ 0x0c: r7 = child message[1] (count)
+	.int	1		@ 0x0c: r7 = child message[1] (count)
 	.int	0		@ 0x10: r8 = --
 	.int	b_bench		@ 0x14: behavior
 
@@ -577,9 +577,9 @@ b_fbomb:		@ fork-bomb behavior
 			@ message = (cust, count)
 	ldr	r0, [fp, #0x04]	@ get cust
 	ldr	r1, [fp, #0x08]	@ get count
-	subs	r2, r2, #0x1	@ decrement count
+	subs	r1, r1, #0x1	@ decrement count
 	bpl	1f		@ if count < 0
-	bl	send_0		@ 	send empty message to cust
+	bl	send_1		@ 	send decremented count to cust
 	b	complete	@ 	return to dispatch loop
 1:
 	mov	r8, r1		@ remember decremented count

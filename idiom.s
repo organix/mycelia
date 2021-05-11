@@ -84,6 +84,7 @@ a_fork:			@ initiate two concurrent events
 	b	complete	@ return to dispatch loop
 
 _fork_0:		@ create tag actor
+	@ r7=event, r8=tag, ip=join
 	stmdb	sp!, {lr}	@ preserve in-use registers
 	ldr	r0, =b_tag	@ get b_tag address
 	mov	r1, ip		@ customer is join
@@ -124,31 +125,31 @@ b_tag:			@ label one message with actor identity (r4=customer)
 	.align 5		@ align to cache-line
 	.global b_join
 b_join:			@ combine results of concurrent computation
-			@ (r4=customer, r5=event/answer_0, r6=event/answer_1)
+			@ (r4=customer, r5=tag_0/answer_0, r6=tag_1/answer_1)
 			@ message = (tag, answer)
 	ldr	r0, [fp, #0x04]	@ get tag
 	cmp	r0, r5
-	bne	1f		@ if tag == event_0
+	bne	1f		@ if tag == tag_0
 	ldr	r5, [fp, #0x08]	@	remember answer_0
 	ldr	r9, =_join_0	@	wait for answer_1
 	b	3f
 1:
 	cmp	r0, r6
-	bne	complete	@ if tag == event_1
+	bne	complete	@ if tag == tag_1
 	ldr	r6, [fp, #0x08]	@	remember answer_1
 	ldr	r9, =_join_1	@	wait for answer_0
 	b	3f
 	.align 5		@ align to cache-line
 _join_0:		@ wait for answer_1
 	ldr	r0, [fp, #0x04]	@ get tag
-	cmp	r0, r6		@ if tag == event_1
+	cmp	r0, r6		@ if tag == tag_1
 	ldreq	r6, [fp, #0x08]	@ 	get answer_1
 	beq	2f		@ else
 	b	complete	@ 	ignore message
 	.align 5		@ align to cache-line
 _join_1:		@ wait for answer_0
 	ldr	r0, [fp, #0x04]	@ get tag
-	cmp	r0, r5		@ if tag == event_0
+	cmp	r0, r5		@ if tag == tag_0
 	ldreq	r5, [fp, #0x08]	@	get answer_0
 	beq	2f		@ else
 	b	complete	@ 	ignore message

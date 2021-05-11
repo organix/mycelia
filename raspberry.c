@@ -385,7 +385,7 @@ k_start(u32 sp)
     // display banner
     char* p;
     serial_puts(p="mycelia 0.0.3 ");
-    serial_puts("2021-05-09 16:05 ");
+    serial_puts("2021-05-09 17:52 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0
@@ -432,8 +432,8 @@ k_start(u32 sp)
             }
             case '4': {
                 timer_start();
-                mycelia(a_bench, 0);  // no tracing
-//                mycelia(a_bench, (u32)dump_event);  // trace events
+//                mycelia(a_bench, 0);  // no tracing
+                mycelia(a_bench, (u32)dump_event);  // trace events
                 report_time(timer_stop());
                 break;
             }
