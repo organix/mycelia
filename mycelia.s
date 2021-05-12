@@ -532,7 +532,7 @@ a_bench:		@ benchmark bootstrap actor
 	.int	b_fbomb		@ 0x00: r4 = child behavior
 	.int	0		@ 0x04: r5 = child state
 	.int	a_exitq		@ 0x08: r6 = child message[0] (cust)
-	.int	1		@ 0x0c: r7 = child message[1] (count)
+	.int	7		@ 0x0c: r7 = child message[1] (count)
 	.int	0		@ 0x10: r8 = --
 	.int	b_bench		@ 0x14: behavior
 
@@ -575,15 +575,13 @@ b_countdown:		@ countdown server behavior
 	.align 5		@ align to cache-line
 b_fbomb:		@ fork-bomb behavior
 			@ message = (cust, count)
-	ldr	r0, [fp, #0x04]	@ get cust
 	ldr	r1, [fp, #0x08]	@ get count
-	subs	r1, r1, #0x1	@ decrement count
+	subs	r8, r1, #0x1	@ decrement count
 	bpl	1f		@ if count < 0
-	bl	send_1		@ 	send decremented count to cust
+	ldr	r0, [fp, #0x04]	@       get cust
+	bl	send_1		@ 	send original count to cust
 	b	complete	@ 	return to dispatch loop
 1:
-	mov	r8, r1		@ remember decremented count
-
 	bl	reserve		@ allocate left event block
 	mov	r6, r0		@ save for later reference
 	ldr	r0, =b_fbomb	@ get b_fbomb address
@@ -599,7 +597,7 @@ b_fbomb:		@ fork-bomb behavior
 	str	r8, [r7, #0x08]	@ send decremented count
 
 	ldr	r4, =a_fork	@ get a_fork address
-	ldr	r5, [fp]	@ get SELF
+	ldr	r5, [fp, #0x04]	@ get cust
 	bl	reserve		@ allocate fork event block
 	stmia	r0, {r4-r7}	@ write new event
 	bl	enqueue		@ add event to queue
