@@ -50,6 +50,8 @@ mycelia:		@ entry point for the actor kernel (r0=boot, r1=trace)
 	str	sp, [r0]	@ save exit stack pointer on entry
 	ldr	r0, =trace_to	@ location of trace procedure
 	str	r1, [r0]	@ set trace procedure
+	teq	r1, #0		@ if no trace procedure
+	ldreq	sl, =sponsor_1	@	use fast sponsor link
 	bl	reserve		@ allocate initial event block
 	str	ip, [r0]	@ set target to bootstrap actor
 	bl	enqueue		@ add event to queue
@@ -62,7 +64,7 @@ fail:			@ actor failure notification
 	stmdb	sp!, {r0-r3,lr}	@ preserve registers
 	ldr	r0, =fail_txt	@ load address of failure text
 	bl	serial_puts	@ write text to console
-	mov	r0, fp		@ get current message-event (FIXME: from sponsor?)
+	mov	r0, fp		@ get current message-event
 	bl	dump_event	@ dump actor event structure
 	ldmia	sp!, {r0-r3,pc}	@ restore registers and return
 	.section .rodata
@@ -74,7 +76,7 @@ fail_txt:
 trace_event:		@ invoke event tracing hook, if present (r0=event)
 	ldr	r3, =trace_to	@ location of trace procedure
 	ldr	r1, [r3]	@ get trace procedure
-	cmp	r1, #0		@ if disabled
+	teq	r1, #0		@ if disabled
 	bxeq	lr		@	return
 	stmdb	sp!, {lr}	@ preserve in-use registers
 	bx	r1		@ call trace procedure (r0=event)
@@ -89,7 +91,7 @@ trace_to:
 watchdog_check:		@ check for timeout
 	ldr	r2, =watchdog_a	@ watchdog actor address
 	ldr	r0, [r2]	@ get watchdog actor
-	cmp	r0, #0		@ if disabled
+	teq	r0, #0		@ if disabled
 	bxeq	lr		@	return
 	stmdb	sp!, {lr}	@ preserve in-use registers
 	bl	timer_usecs	@ get current timer value
@@ -142,6 +144,7 @@ exit:			@ exit the actor kernel
 	ldr	r0, =exit_lr	@ location of return address
 	ldr	lr, [r0]	@ get exit address saved on entry
 	bx	lr		@ "return" from the kernel
+
 	.data
 	.align 2		@ align to machine word
 exit_sp:
@@ -149,11 +152,29 @@ exit_sp:
 exit_lr:
 	.int 0			@ address to "return" to on exit
 
+	.data
+	.align 5		@ align to cache-line
+event_q:
+	.space 256*4		@ event queue (offset 0)
+	.int 0			@ queue head/tail (offset 1024)
+
+	.data
+	.align 2		@ align to machine word
+block_free:
+	.int 0			@ pointer to next free block, 0 if none
+block_end:
+	.int heap_start		@ pointer to end of block memory
+
+	.section .rodata
+	.align 5		@ align to cache-line
+block_zero:
+	.ascii "Who is licking my HONEYPOT?\0"
+
 @
 @ Sponsor calls are delegated through register sl (r10)
 @
 	.text
-	.align 2		@ align to machine word
+	.align 5		@ align to cache-line
 
 	.global dispatch
 dispatch:		@ dispatch next event
@@ -198,15 +219,15 @@ sponsor_0:
 	.align 2		@ align to machine word
 complete_0:		@ completion of event pointed to by fp
 	mov	r0, fp		@ get completed event
-	bl	release		@ free completed event
+	bl	release_0	@ free completed event
 	mov	fp, #0		@ clear frame pointer
 	str	fp, [sl, #0x1c]	@ clear current event
 
 dispatch_0:		@ dispatch next event
 	bl	watchdog_check	@ check for timeout, if enabled
-	bl	dequeue		@ try to get next event
+	bl	dequeue_0	@ try to get next event
 	cmp	r0, #0		@ check for null
-	beq	dispatch	@ if no event, try again...
+	beq	dispatch_0	@ if no event, try again...
 
 	mov	fp, r0		@ initialize frame pointer
 	bl	trace_event	@ trace event, if enabled
@@ -214,20 +235,6 @@ dispatch_0:		@ dispatch next event
 	ldr	ip, [fp]	@ get target actor address
 	bx	ip		@ jump to actor behavior
 
-	.section .rodata
-	.align 5		@ align to cache-line
-block_zero:
-	.ascii "Who is licking my HONEYPOT?\0"
-
-	.data
-	.align 2		@ align to machine word
-block_free:
-	.int 0			@ pointer to next free block, 0 if none
-block_end:
-	.int heap_start		@ pointer to end of block memory
-
-	.text
-	.align 2		@ align to machine word
 reserve_0:		@ reserve a block (32 bytes) of memory
 	ldr	r1, =block_free	@ address of free list pointer
 	ldr	r0, [r1]	@ address of first free block
@@ -244,11 +251,10 @@ reserve_0:		@ reserve a block (32 bytes) of memory
 	ldr	r0, [r1]	@	address of new memory block
 	add	r2, r0, #32	@	calculate next block address
 	str	r2, [r1]	@	update block end pointer
-	bl	release		@	"free" new memory block
+	bl	release_0	@	"free" new memory block
 	ldmia	sp!, {lr}	@	restore link register
-	b	reserve		@	try again
+	b	reserve_0	@	try again
 
-	.global release
 release_0:		@ release the memory block pointed to by r0
 			@ [FIXME] add sanity check(s), r0 must be in heap
 	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
@@ -260,12 +266,9 @@ release_0:		@ release the memory block pointed to by r0
 	stmia	r0, {r2-r9}	@ write 8 words (incl. next free block pointer)
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
 
-	.text
-	.align 2		@ align to machine word
-	.global enqueue
 enqueue_0:		@ enqueue event pointed to by r0
 			@ [FIXME] add sanity check(s), r0 must be in heap
-	ldr	r1, =eventq_0	@ get event queue pointer
+	ldr	r1, =event_q	@ get event queue pointer
 	ldr	r3, [r1, #1024]	@ event queue head/tail indicies
 	uxtb	r2, r3, ROR #8	@ get head index
 	uxtb	r3, r3, ROR #16	@ get tail index
@@ -277,7 +280,7 @@ enqueue_0:		@ enqueue event pointed to by r0
 	bx	lr		@ return
 
 dequeue_0:		@ dequeue next event from queue
-	ldr	r1, =eventq_0	@ get event queue pointer
+	ldr	r1, =event_q	@ get event queue pointer
 	ldr	r3, [r1, #1024]	@ event queue head/tail indicies
 	uxtb	r2, r3, ROR #8	@ get head index
 	uxtb	r3, r3, ROR #16	@ get tail index
@@ -288,11 +291,87 @@ dequeue_0:		@ dequeue next event from queue
 	strneb	r2, [r1, #1025]	@	update head index
 	bx	lr		@	return event pointer
 
+@
+@ The fast sponsor supports does not support tracing or watchdog features
+@
 	.data
 	.align 5		@ align to cache-line
-eventq_0:
-	.space 256*4		@ event queue (offset 0)
-	.int 0			@ queue head/tail (offset 1024)
+sponsor_1:
+	.int	dispatch_1	@ 0x00: dispatch the next event (ip=actor, fp=event)
+	.int	complete_1	@ 0x04: complete event dispatch (fp=event)
+	.int	reserve_1	@ 0x08: reserve memory block (32 bytes)
+	.int	release_1	@ 0x0c: release memory block (r0)
+	.int	enqueue_1	@ 0x10: enqueue event (r0)
+	.int	dequeue_1	@ 0x14: dequeue next event, or 0
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
+
+	.text
+	.align 2		@ align to machine word
+complete_1:		@ completion of event pointed to by fp
+	mov	r0, fp		@ get completed event
+	bl	release_1	@ free completed event
+	mov	fp, #0		@ clear frame pointer
+
+dispatch_1:		@ dispatch next event
+	bl	dequeue_1	@ try to get next event
+	teq	r0, #0		@ check for null
+	beq	dispatch_1	@ if no event, try again...
+
+	mov	fp, r0		@ initialize frame pointer
+	ldr	ip, [fp]	@ get target actor address
+	bx	ip		@ jump to actor behavior
+
+reserve_1:		@ reserve a block (32 bytes) of memory
+	ldr	r1, =block_free	@ address of free list pointer
+	ldr	r0, [r1]	@ address of first free block
+	mov	r3, #0		@ null pointer
+	teq	r0, r3
+	beq	1f		@ if not null
+	ldr	r2, [r0]	@	follow link to next free block
+	str	r2, [r1]	@	update free list pointer
+	str	r3, [r0]	@	set link to null
+	bx	lr		@	return
+1:				@ else
+	stmdb	sp!, {lr}	@	preserve link register
+	ldr	r1, =block_end	@	address of block end pointer
+	ldr	r0, [r1]	@	address of new memory block
+	add	r2, r0, #32	@	calculate next block address
+	str	r2, [r1]	@	update block end pointer
+	bl	release_1	@	"free" new memory block
+	ldmia	sp!, {lr}	@	restore link register
+	b	reserve_1	@	try again
+
+release_1:		@ release the memory block pointed to by r0
+	ldr	r1, =block_free	@ address of free list pointer
+	ldr	r2, [r1]	@ address of next free block
+	str	r2, [r0]	@ link block into free list
+	str	r0, [r1]	@ update free list pointer
+	bx	lr		@ return
+
+enqueue_1:		@ enqueue event pointed to by r0
+	ldr	r1, =event_q	@ get event queue pointer
+	ldr	r3, [r1, #1024]	@ event queue head/tail indicies
+	uxtb	r2, r3, ROR #8	@ get head index
+	uxtb	r3, r3, ROR #16	@ get tail index
+	str	r0, [r1,r3,LSL #2] @ store event pointer at tail
+	add	r3, r3, #1	@ advance tail
+	teq	r2, r3		@ if queue full
+	beq	panic		@	kernel panic!
+	strb	r3, [r1, #1026]	@ update tail index
+	bx	lr		@ return
+
+dequeue_1:		@ dequeue next event from queue
+	ldr	r1, =event_q	@ get event queue pointer
+	ldr	r3, [r1, #1024]	@ event queue head/tail indicies
+	uxtb	r2, r3, ROR #8	@ get head index
+	uxtb	r3, r3, ROR #16	@ get tail index
+	teq	r2, r3		@ if queue empty
+	moveq	r0, #0		@	return null
+	ldrne	r0, [r1,r2,LSL #2] @ else
+	addne	r2, r2, #1	@	advance head
+	strneb	r2, [r1, #1025]	@	update head index
+	bx	lr		@	return event pointer
 
 @
 @ Common actor examples and templates
@@ -588,7 +667,7 @@ a_bench:		@ benchmark bootstrap actor
 	.int	0		@ 0x04: r5 = child state
 	.int	a_exitq		@ 0x08: r6 = child message[0] (cust)
 	.int	1000000		@ 0x0c: r7 = child message[1] (count)
-	.int	0		@ 0x10: r8 = -- time 3826488us
+	.int	0		@ 0x10: r8 = -- time time 2491923us
 	.int	b_bench		@ 0x14: behavior
 
 	.text
