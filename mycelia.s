@@ -21,18 +21,6 @@
 @ If your tabs are set correctly, the lines above should be aligned.
 @
 
-	.set S_SELF, 0x00
-	.set S_GET,  0x01
-	.set S_SET,  0x02
-	.set S_EVAL, 0x03
-	.set S_APPL, 0x04
-	.set S_OPER, 0x05
-	.set S_EXEC, 0x06
-	.set S_PUSH, 0x07
-	.set S_POP,  0x08
-	.set S_PUT,  0x09
-	.set S_PULL, 0x0A
-
 @ Special register usage:
 @   sl (r10) the sponsor providing resources for this computation
 @   fp (r11) the event being processed, including the message and target actor
@@ -667,7 +655,7 @@ a_bench:		@ benchmark bootstrap actor
 	.int	0		@ 0x04: r5 = child state
 	.int	a_exitq		@ 0x08: r6 = child message[0] (cust)
 	.int	1000000		@ 0x0c: r7 = child message[1] (count)
-	.int	0		@ 0x10: r8 = -- time time 2491923us
+	.int	0		@ 0x10: r8 = -- time 2491923us
 	.int	b_bench		@ 0x14: behavior
 
 	.text
