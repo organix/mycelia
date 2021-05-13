@@ -1,0 +1,478 @@
+#
+# Meta-Humus
+#
+
+LET forward_beh(delegate) = \message.[ SEND message TO delegate ]
+LET broadcast_beh(value) = \list.[
+  CASE list OF
+  (first, rest) : [
+    SEND value TO first
+    SEND rest TO SELF
+  ]
+  NIL : []
+  last : [ SEND value TO last ]
+  END
+]
+
+LET tag_beh(cust) = \msg.[ SEND (SELF, msg) TO cust ]
+LET join_beh(cust, k_first, k_rest) = \msg.[
+  CASE msg OF
+  ($k_first, first) : [
+    BECOME \($k_rest, rest).[ SEND (first, rest) TO cust ]
+  ]
+  ($k_rest, rest) : [
+    BECOME \($k_first, first).[ SEND (first, rest) TO cust ]
+  ]
+  END
+]
+LET fork_beh(cust, head, tail) = \(h_req, t_req).[  # DEPRECATED! USE call_pair_beh
+  CREATE k_head WITH tag_beh(SELF)
+  CREATE k_tail WITH tag_beh(SELF)
+  SEND (k_head, h_req) TO head
+  SEND (k_tail, t_req) TO tail
+  BECOME join_beh(cust, k_head, k_tail)
+]
+LET pair_of(value) = (value, value)
+LET call_pair_beh(head, tail) = \(cust, req).[
+  SEND pair_of(req) TO NEW fork_beh(cust, head, tail)
+]
+LET fork_pair_beh(cust) = \(head, tail).[ SEND PR(head, tail) TO cust ]  # PR results
+
+LET serializer_beh(svc) = \(cust, req).[
+  CREATE tag WITH tag_beh(SELF)
+  BECOME serializer_busy_beh(svc, cust, tag, empty_Q)
+  SEND (tag, req) TO svc
+]
+LET serializer_busy_beh(svc, cust, tag, Q) = \msg.[
+  CASE msg OF
+  ($tag, res) : [
+    SEND res TO cust
+    IF $Q.pop() = ((cust', req'), Q') [
+      CREATE tag' WITH tag_beh(SELF)
+      BECOME serializer_busy_beh(svc, cust', tag', Q')
+      SEND (tag', req') TO svc
+    ] ELSE [
+      BECOME serializer_beh(svc)
+    ]
+  ]
+  (cust', req') : [
+    BECOME serializer_busy_beh(svc, cust, tag, Q.put(cust', req'))
+  ]
+  END
+]
+
+CREATE undefined WITH \(cust, _).[ SEND ? TO cust ]
+CREATE empty_env WITH \(cust, req).[
+  SEND ? TO cust
+  SEND #undefined, req TO warning
+]
+LET env_beh(ident, value, next) = \(cust, req).[
+  CASE req OF
+  (#lookup, $ident) : [ SEND value TO cust ]
+  _ : [ SEND (cust, req) TO next ]
+  END
+]
+LET mutable_env_beh(next) = \(cust, req).[
+  CASE req OF
+  (#bind, ident, value) : [
+    CREATE next' WITH env_beh(ident, value, next)
+    BECOME mutable_env_beh(next')
+    SEND SELF TO cust
+  ]
+  _ : [ SEND (cust, req) TO next ]
+  END
+]
+LET self_env_beh(self, next) = \(cust, req).[
+  CASE req OF
+  #self : [ SEND self TO cust ]
+  _ : [ SEND (cust, req) TO next ]
+  END
+]
+
+LET bound_env_beh(scope, ident, value, next) = \(cust, req).[
+  CASE req OF
+  (#lookup, $ident) : [ SEND value TO cust ]
+  (#bind, $ident, $value) : [ SEND scope TO cust ]  # re-bind same value
+  (#bind, $ident, value') : [ SEND ? TO cust ]
+  _ : [ SEND (cust, req) TO next ]  # forward...
+  END
+]
+LET unbound_env_beh(scope, ident, waiting, next) = \(cust, req).[
+  CASE req OF
+  (#lookup, $ident) : [  # wait for binding
+    BECOME unbound_env_beh(scope, ident, (cust, waiting), next)
+  ]
+  (#bind, $ident, value) : [
+    BECOME bound_env_beh(scope, ident, value, next)
+    SEND waiting TO NEW \(first, rest) [  # deliver value to waiting
+      SEND value TO first
+      SEND rest TO SELF
+    ]
+    SEND scope TO cust
+  ]
+  _ : [ SEND (cust, req) TO next ]  # forward...
+  END
+]
+
+LET const_expr_beh(value) = \(cust, #eval, _).[ SEND value TO cust ]
+LET ident_expr_beh(ident) = \(cust, #eval, env).[ SEND (cust, #lookup, ident) TO env ]
+LET closure_beh(ptrn, body, env) = \(cust, #apply, arg).[
+  SEND (k_env, #match, arg, NEW mutable_env_beh(env)) TO ptrn
+  CREATE k_env WITH \env'.[
+    CASE env' OF
+    ? : [ SEND ? TO cust ]
+    _ : [ SEND (cust, #eval, env') TO body ]
+    END
+  ]
+]
+LET abs_expr_beh(ptrn, body) = \(cust, #eval, env).[
+  SEND NEW closure_beh(ptrn, body, env) TO cust
+]
+LET app_expr_beh(abs_expr, arg_expr) = \(cust, #eval, env).[
+  CREATE fork WITH call_pair_beh(abs_expr, arg_expr)
+  SEND (k_app, #eval, env) TO fork
+  CREATE k_app WITH \(abs, arg).[
+    SEND (cust, #apply, arg) TO abs
+  ]
+]
+
+LET pair_expr_beh(head_expr, tail_expr) = \(cust, #eval, env).[
+  CREATE fork WITH call_pair_beh(head_expr, tail_expr)
+  SEND (cust, #eval, env) TO fork
+]
+
+LET case_expr_beh(value_expr, choices) = \(cust, #eval, env).[
+  SEND (k_value, #eval, env) TO value_expr
+  CREATE k_value WITH \value.[
+    SEND (cust, #match, value, env) TO choices
+  ]
+]
+LET case_choice_beh(ptrn, expr, next) = \(cust, #match, value, env).[
+  CREATE env' WITH mutable_env_beh(env)
+  SEND (k_match, #match, value, env') TO ptrn
+  CREATE k_match WITH \env'.[
+    CASE env' OF
+    ? : [ SEND (cust, #match, value, env) TO next ]
+    _ : [ SEND (cust, #eval, env') TO expr ]
+    END
+  ]
+]
+CREATE case_end WITH \(cust, #match, _).[ SEND ? TO cust ]
+
+LET if_expr_beh(eqtn, expr, else) = \(cust, #eval, env).[
+  CREATE env' WITH mutable_env_beh(env)
+  SEND (k_env, #unify, env') TO eqtn
+  CREATE k_env WITH \env'.[
+    CASE env' OF
+    ? : [ SEND (cust, #eval, env) TO else ]
+    _ : [ SEND (cust, #eval, env') TO expr ]
+    END
+  ]
+]
+LET let_expr_beh(eqtn, expr) = \(cust, #eval, env).[
+  BECOME if_expr_beh(eqtn, expr, undefined)
+  SEND (cust, #eval, env) TO SELF
+]
+LET block_expr_beh(vars, stmt) = \(cust, #eval, env).[
+  SEND NEW block_beh(vars, stmt, env) TO cust
+]
+
+CREATE now_expr WITH \(cust, #eval, env).[ SEND <timestamp> TO cust ]  # non-standard
+
+CREATE self_expr WITH \(cust, #eval, env).[ SEND (cust, #self) TO env ]
+
+LET new_expr_beh(b_expr) = \(cust, #eval, env).[
+  SEND k_create TO actor_factory  # allocate a new actor address
+  CREATE k_create WITH \actor.[
+    CASE actor OF
+    ? : [ SEND (#throw, #no-actor, ident) TO cust ]  # exception
+    _ : [
+      SEND (k_self, #eval, NEW self_env_beh(actor, env)) TO b_expr
+      CREATE k_self WITH \beh_fn.[
+        CASE beh_fn OF
+        ? : [ SEND ? TO cust ]  # bad behavior expression!
+        _ : [
+          SEND (cust, #new, actor, beh_fn) TO env  # capture side-effect in env
+        ]
+        END
+      ]
+    END
+  ]
+]
+
+LET eqtn_beh(left_ptrn, right_ptrn) = \(cust, #unify, env).[
+  SEND (cust, #eq, right_ptrn, env) TO left_ptrn
+]
+
+LET const_ptrn_beh(value) = \(cust, req).[
+  CASE req OF
+  (#match, $value, env) : [ SEND env TO cust ]
+  (#eq, right, env) : [ SEND (cust, #match, value, env) TO right ]
+  (#bind, left, env) : [ SEND (cust, #match, value, env) TO left ]
+  (#pair, pair, env) : [ SEND (cust, #match, value, env) TO pair ]
+  (#value, _, env) : [ SEND value TO cust ]
+  _ : [ SEND ? TO cust ]
+  END
+]
+LET value_ptrn_beh(expr) = \(cust, oper, arg, env).[
+  SEND (k_val, #eval, env) TO expr
+  CREATE k_val WITH \value.[
+    SEND (cust, oper, arg, env) TO SELF
+    BECOME const_ptrn_beh(value)
+  ]
+]
+LET ident_ptrn_beh(ident) = \(cust, req).[
+  CASE req OF
+  (#match, value, env) : [ SEND (cust, #bind, ident, value) TO env ]
+  (#eq, right, env) : [ SEND (cust, #bind, SELF, env) TO right ]
+  (#pair, pair, env) : [ SEND (cust, #bind, SELF, env) TO pair ]
+  _ : [ SEND ? TO cust ]
+  END
+]
+CREATE any_ptrn WITH \(cust, req).[
+  CASE req OF
+  (#match, _, env) : [ SEND env TO cust ]
+  (#eq, right, env) : [ SEND (cust, #bind, SELF, env) TO right ]
+  (#pair, pair, env) : [ SEND (cust, #bind, SELF, env) TO pair ]
+  _ : [ SEND ? TO cust ]
+  END
+]
+LET pair_ptrn_beh(head_ptrn, tail_ptrn) = \(cust, req).[
+  CASE req OF
+  (#match, (h, t), env) : [
+    SEND (k_env, #match, h, env) TO head_ptrn
+    CREATE k_env WITH pair_match_beh(cust, #match, t, tail_ptrn)
+  ]
+  (#eq, right, env) : [ SEND (cust, #pair, SELF, env) TO right ]
+  (#bind, left, env) : [
+    CREATE fork WITH call_pair_beh(head_ptrn, tail_ptrn)
+    SEND (k_pair, #value, NIL, env) TO fork
+    CREATE k_pair WITH pair_bind_beh(cust, left, env)
+  ]
+  (#pair, pair, env) : [ SEND (cust, #both, (head_ptrn, tail_ptrn), env) TO pair ]
+  (#both, (h, t), env) : [
+    SEND (k_env, #eq, h, env) TO head_ptrn
+    CREATE k_env WITH pair_match_beh(cust, #eq, t, tail_ptrn)
+  ]
+  (#value, _, env) : [
+    CREATE fork WITH call_pair_beh(head_ptrn, tail_ptrn)
+    SEND (k_pair, #value, NIL, env) TO fork
+    CREATE k_pair WITH pair_value_beh(cust)
+  ]
+  _ : [ SEND ? TO cust ]
+  END
+]
+LET pair_match_beh(cust, cmd, tail, ptrn) = \env.[
+  CASE env OF
+  ? : [ SEND ? TO cust ]
+  _ : [ SEND (cust, cmd, tail, env) TO ptrn ]
+  END
+]
+LET pair_bind_beh(cust, left, env) = \msg.[
+  CASE msg OF
+  (?, _) : [ SEND ? TO cust ]
+  (_, ?) : [ SEND ? TO cust ]
+  (h, t) : [ SEND (cust, #match, (h, t), env) TO left ]
+  _ : [ SEND ? TO cust ]
+  END
+]
+LET pair_value_beh(cust) = \msg.[
+  CASE msg OF
+  (?, _) : [ SEND ? TO cust ]
+  (_, ?) : [ SEND ? TO cust ]
+  (h, t) : [ SEND msg TO cust ]
+  _ : [ SEND ? TO cust ]
+  END
+]
+CREATE self_ptrn WITH \(cust, cmd, arg, env).[
+  SEND (k_self, #self) TO env
+  CREATE k_self WITH \self.[
+    SEND (cust, cmd, arg, env) TO SELF
+    BECOME const_ptrn_beh(self)
+  ]
+]
+
+LET empty_effects = (NIL, NIL, ?)
+CREATE empty_stmt WITH \(cust, #exec, env).[
+  SEND empty_effects TO cust  # no effects
+]
+
+LET merge_lists(left, right) = (
+  CASE right OF
+  (first, rest) : merge_lists((first, left), rest)
+  NIL : left
+  END
+)
+LET merge_effects(left, right) = (
+  CASE (left, right) OF
+  ((#throw, x), _) : (#throw, x)
+  (_, (#throw, x)) : (#throw, x)
+  ((a, e, b), (a', e', b')) : (
+    merge_lists(a, a'),
+    merge_lists(e, e'),
+    (CASE b OF ? : b' _ : b END)  # FIXME: check for multiple BECOME
+  )
+  END
+)
+LET stmt_pair_beh(head_stmt, tail_stmt) = \(cust, #exec, env).[
+  CREATE fork WITH call_pair_beh(head_stmt, tail_stmt)
+  SEND (k_pair, #exec, env) TO fork
+  CREATE k_pair WITH \(left, right).[
+    SEND merge_effects(left, right) TO cust
+  ]
+]
+
+LET throw_stmt_beh(expr) = \(cust, #exec, env).[
+  SEND (k_throw, #eval, env) TO expr
+  CREATE k_throw WITH \exception.[
+    SEND (#throw, exception) TO cust  # exception
+  ]
+]
+
+LET become_stmt_beh(expr) = \(cust, #exec, env).[
+  SEND (cust, #eval, env) TO expr
+  CREATE k_become WITH \beh_fn.[
+    CASE beh_fn OF
+    ? : [ SEND (#throw, #bad-become, expr, env) TO cust ]  # exception
+    _ : [ SEND (NIL, NIL, beh_fn) TO cust ]  # effects
+    END
+  ]
+]
+
+LET send_stmt_beh(m_expr, a_expr) = \(cust, #exec, env).[
+  CREATE fork WITH call_pair_beh(a_expr, m_expr)
+  SEND (k_send, #eval, env) TO fork
+  CREATE k_send WITH \(target, msg).[
+    LET event = $PR(target, msg)
+    CASE is_valid_event(event) OF
+    TRUE : [ SEND (NIL, (event, NIL), ?) TO cust ]  # effects
+    _ : [ SEND (#throw, #bad-send, event) TO cust ]  # exception
+    END
+  ]
+]
+
+LET create_stmt_beh(ident, expr) = \(cust, #exec, env).[
+  SEND k_create TO actor_factory  # allocate a new actor address
+  CREATE k_create WITH \actor.[
+    CASE actor OF
+    ? : [ SEND (#throw, #no-actor, ident) TO cust ]  # exception
+    _ : [
+      SEND (SELF, #eval, NEW self_env_beh(actor, env)) TO expr
+      BECOME \beh_fn.[
+        SEND (SELF, #bind, ident, actor) TO env
+        BECOME \env'.[  # same mutable or block env
+          CASE env' OF
+          ? : [ SEND (#throw, #rebound, ident) TO cust ]  # exception
+          _ : [ SEND (((actor, beh_fn), NIL), NIL, ?) TO cust ]  # effects
+          END
+        ]
+      ]
+    ]
+    END
+  ]
+]
+
+LET let_stmt_beh(eqtn) = \(cust, #exec, env).[
+  SEND (k_env, #unify, env) TO eqtn
+  CREATE k_env WITH \env'.[
+    CASE env' OF
+    ? : [ SEND (#throw, #conflict, eqtn) TO cust ]  # exception
+    _ : [ SEND empty_effects TO cust ]  # no effects, just env mutation
+    END
+  ]
+]
+
+LET expr_stmt_beh(expr) = \(cust, #exec, env).[
+  SEND (k_exec, #eval, env) TO expr
+  CREATE k_exec WITH \block.[
+    CASE is_exec_block(block) OF
+    TRUE : [ SEND (cust, #exec, env) TO block ]
+    _ : [ SEND empty_effects TO cust ]  # no effects, ignored
+    END
+  ]
+]
+
+LET block_env_beh(next, effects) = \(cust, req).[
+  CASE req OF
+  (#declare, vars) : [
+    CASE vars OF
+    (first, rest) : [
+      CREATE next' WITH unbound_env_beh(SELF, first, NIL, next)
+      BECOME block_env_beh(next', effects)
+      SEND (cust, #declare, rest) TO SELF
+    ]
+    NIL : [ SEND SELF TO cust ]
+    last : [
+      CREATE next' WITH unbound_env_beh(SELF, last, NIL, next)
+      BECOME block_env_beh(next', effects)
+      SEND SELF TO cust
+    ]
+    END
+  ]
+  (#new, actor, beh_fn) : [  # capture actor creation effect
+      LET effects' = $(((actor, beh_fn), NIL), NIL, ?)
+      BECOME block_env_beh(next, merge_effects(effects, effects')
+      SEND actor TO cust
+  ]
+  (#merge, effects') : [  # extract captured effects
+    SEND merge_effects(effects', effects) TO cust
+    BECOME block_env_beh(next, empty_effects)
+  ]
+  _ : [ SEND (cust, req) TO next ]
+  END
+]
+LET block_beh(vars, stmt, env) = \(cust, #exec, _).[
+  CREATE env' WITH block_env_beh(env, empty_effects)
+  SEND (k_env, #declare, vars) TO env'
+  CREATE k_env WITH \x_env.[
+    SEND (SELF, #exec, x_env) TO stmt
+    BECOME \effects.[
+      SEND (cust, #merge, effects) TO x_env
+    ]
+  ]
+]
+
+LET actor_beh(beh_fn) = \(sponsor, message).[
+  LET self = $SELF
+  SEND (k_exec, #apply, message) TO beh_fn
+  CREATE k_exec WITH \block.[
+    CASE is_exec_block(block) OF
+    TRUE : [
+      CREATE env WITH self_env_beh(self, empty_env)
+      SEND (self, #exec, env) TO block
+    ]
+    _ : [ SEND empty_effects TO self ]  # no effects, ignored
+    END
+  ]
+  BECOME \effects.[  # wait for execution effects
+    CASE effects OF
+    (#throw, _)     : [ BECOME actor_beh(beh_fn)  ]
+    (_, _, ?)       : [ BECOME actor_beh(beh_fn)  ]
+    (_, _, beh_fn') : [ BECOME actor_beh(beh_fn') ]
+    END
+    SEND (message, effects) TO sponsor
+  ]
+]
+
+LET lazy_init_beh(beh) = \msg.[
+  BECOME beh
+  SEND msg TO self
+]
+LET stem_cell_beh(cust) = \beh.[
+  BECOME beh
+  SEND SELF TO cust  # sync signal
+]
+
+LET verify_beh(cust) = \msg.[
+  CASE msg OF
+  $cust : [ SEND TRUE TO cust ]  # expectation met
+  _ : [ SEND FALSE TO cust ]  # unexpected message
+  END
+]
+LET expect_beh(cust, expect, next) = \actual.[
+  CASE actual OF
+  $cust : [ SEND FALSE TO cust ]  # expectation not met
+  $expect : [ BECOME forward_beh(next) ]  # expectation met
+  _ : [ SEND actual TO next ]  # delegate unexpected
+  END
+]
