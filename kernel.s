@@ -42,11 +42,12 @@ a_fail:			@ singleton failure actor
 	b	complete	@ return to dispatcher
 
 self_eval:		@ any self-evaluating actor
+			@ message = (cust, #S_EVAL, _)
 	ldr	r3, [fp, #0x08] @ get req from message
 	teq	r3, #S_EVAL	@ if req != "eval"
 	bne	a_fail		@	signal error and return to dispatcher
 	bl	reserve		@ allocate event block
-	mov	r1, [fp]	@ get SELF from message
+	ldr	r1, [fp]	@ get SELF from message
 	b	_a_answer	@ actor is self-evaluating
 
 @ CREATE Inert WITH \(cust, req).[
@@ -59,16 +60,7 @@ self_eval:		@ any self-evaluating actor
 	.align 5		@ align to cache-line
 	.global a_inert
 a_inert:		@ "#inert" singleton
-			@ message = (cust, #S_EVAL, _)
-	ldr	r3, [fp, #0x08] @ get req
-	teq	r3, #S_EVAL
-	bne	1f		@ if req == "eval"
-	bl	reserve		@	allocate event block
-	mov	r1, ip		@	get SELF
-	b	_a_answer	@	"#inert" is self-evaluating
-1:
-	bl	fail		@ else
-	b	complete	@	signal error and return to dispatcher
+	b	self_eval	@ self-evaluating
 
 @ LET Binding(symbol, value, next) = \(cust, req).[
 @ 	CASE req OF
@@ -93,7 +85,7 @@ b_binding:		@ symbol binding (template_3: r4=symbol, r5=value, r6=next)
 	bne	1f		@	if symbol == symbol'
 
 	ldr	r0, [fp, #0x08]	@		get cust
-	ldr	r1, r5		@		get value
+	mov	r1, r5		@		get value
 	bl	send_1		@		send message
 	b	complete	@		return to dispatcher
 1:
@@ -142,7 +134,7 @@ b_scope:		@ binding scope (template_3: r4=parent, r5=n/a, r6=n/a)
 
 	ldr	r4, [fp, #0x0c]	@	get symbol
 	ldr	r5, [fp, #0x10]	@	get value
-	ldr	r6, r0		@	get next
+	mov	r6, r0		@	get next
 	ldr	r7, =b_binding	@	binding behavior
 	stmia	ip, {r4-r7}	@	BECOME
 	b	complete	@	return to dispatcher
