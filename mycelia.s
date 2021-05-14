@@ -449,6 +449,18 @@ example_3:
 	.int	complete	@ 0x1c: address of actor behavior
 
 	.text
+	.align 5		@ align to cache-line
+example_4:
+	ldmib	ip,{r4-r9,pc}	@ copy state and jump to behavior
+	.int	0		@ 0x04: value for r4
+	.int	0		@ 0x08: value for r5
+	.int	0		@ 0x0c: value for r6
+	.int	0		@ 0x10: value for r7
+	.int	0		@ 0x14: value for r8
+	.int	0		@ 0x18: value for r9
+	.int	complete	@ 0x1c: address of actor behavior
+
+	.text
 	.align 2		@ align to machine word
 	.global create
 create:			@ create an actor from example_3 (r0=behavior)
@@ -509,6 +521,31 @@ create_3x:		@ create 3 parameter actor (r4-r6=state, r7=behavior)
 	ldmia	r1, {r2-r3}	@ read template (code only)
 	stmia	r0, {r2-r7}	@ write actor
 	ldmia	sp!, {pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global create_4x
+create_4x:		@ create an actor from example_4 (r0=behavior)
+	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
+	mov	r9, r0		@ move behavior pointer into place
+	bl	reserve		@ allocate actor block
+	ldr	r1, =example_4	@ load template address
+	ldmia	r1, {r2-r8}	@ read template (minus behavior)
+	stmia	r0, {r2-r9}	@ write actor
+	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
+	.global create_4_9
+create_4_9:		@ create an actor from example_4 (r4-r9=state, r0=behavior)
+	stmdb	sp!, {r0,lr}	@ preserve in-use registers
+	bl	reserve		@ allocate actor block
+	ldr	r3, =example_4	@ load template address
+	ldr	r3, [r3]	@ load compiled code
+	stmia	r0, {r3-r9}	@ write actor state
+	ldmia	sp!, {r1}	@ restore behavior
+	str	r1, [r0, #0x1c]	@ write actor behavior
+	ldmia	sp!, {pc}	@ return
 
 	.text
 	.align 2		@ align to machine word

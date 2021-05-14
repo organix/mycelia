@@ -33,6 +33,126 @@
 	.set S_PUT,  0x09
 	.set S_PULL, 0x0A
 
+@ CREATE Fail WITH \msg.[ THROW (#Undefined, SELF, msg) ]
+	.text
+	.align 5		@ align to cache-line
+	.global a_fail
+a_fail:			@ singleton failure actor
+	bl	fail		@ signal an error
+	b	complete	@ return to dispatcher
+
+self_eval:		@ any self-evaluating actor
+	ldr	r3, [fp, #0x08] @ get req from message
+	teq	r3, #S_EVAL	@ if req != "eval"
+	bne	a_fail		@	signal error and return to dispatcher
+	bl	reserve		@ allocate event block
+	mov	r1, [fp]	@ get SELF from message
+	b	_a_answer	@ actor is self-evaluating
+
+@ CREATE Inert WITH \(cust, req).[
+@ 	CASE req OF
+@ 	(#eval, _) : [ SEND SELF TO cust ]
+@ 	_ : [ THROW (#Not-Understood, SELF, req) ]
+@ 	END
+@ ]
+	.text
+	.align 5		@ align to cache-line
+	.global a_inert
+a_inert:		@ "#inert" singleton
+			@ message = (cust, #S_EVAL, _)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_EVAL
+	bne	1f		@ if req == "eval"
+	bl	reserve		@	allocate event block
+	mov	r1, ip		@	get SELF
+	b	_a_answer	@	"#inert" is self-evaluating
+1:
+	bl	fail		@ else
+	b	complete	@	signal error and return to dispatcher
+
+@ LET Binding(symbol, value, next) = \(cust, req).[
+@ 	CASE req OF
+@ 	(#lookup, $symbol) : [ SEND value TO cust ]
+@ 	(#bind, $symbol, value') : [
+@ 		BECOME Binding(symbol, value', next)
+@ 		SEND Inert TO cust
+@ 	]
+@ 	_ : [ SEND (cust, req) TO next ]
+@ 	END
+@ ]
+	.text
+	.align 5		@ align to cache-line
+	.global b_binding
+b_binding:		@ symbol binding (template_3: r4=symbol, r5=value, r6=next)
+			@ message = (cust, req, ...)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_GET
+	bne	1f		@ if req == "get"
+	ldr	r3, [fp, #0x0c] @ 	get symbol'
+	teq	r3, r4
+	bne	1f		@	if symbol == symbol'
+
+	ldr	r0, [fp, #0x08]	@		get cust
+	ldr	r1, r5		@		get value
+	bl	send_1		@		send message
+	b	complete	@		return to dispatcher
+1:
+	teq	r3, #S_SET
+	bne	2f		@ if req == "set"
+
+	ldr	r0, [fp, #0x08]	@	get cust
+	ldr	r1, =a_inert	@	message is "#inert"
+	bl	send_1		@	send message
+
+	ldr	r5, [fp, #0x10]	@	get value'
+	str	r5, [ip, #0x04]	@	set value
+	b	complete	@	return to dispatcher
+2:
+	bl	reserve		@ allocate event block
+	mov	r1, r4		@ target is parent
+	ldmia	fp, {r2-r9}	@ copy current event
+	stmia	r0, {r2-r9}	@ write new event
+	b	_a_send		@ set target, send, and return to dispatcher
+
+@ LET Scope(parent) = \(cust, req).[
+@ 	CASE req OF
+@ 	(#bind, symbol, value) : [
+@ 		CREATE next WITH Scope(parent)
+@ 		BECOME Binding(symbol, value, next)
+@ 		SEND Inert TO cust
+@ 	]
+@ 	_ : [ SEND (cust, req) TO parent ]
+@ 	END
+@ ]
+	.text
+	.align 5		@ align to cache-line
+	.global b_scope
+b_scope:		@ binding scope (template_3: r4=parent, r5=n/a, r6=n/a)
+			@ message = (cust, req, ...)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_SET
+	bne	1f		@ if req == "set"
+
+	ldr	r0, [fp, #0x08]	@	get cust
+	ldr	r1, =a_inert	@	message is "#inert"
+	bl	send_1		@	send message
+
+	ldr	r7, =b_scope	@	scope behavior
+	bl	create_3x	@	create next actor (r4=parent, ...)
+
+	ldr	r4, [fp, #0x0c]	@	get symbol
+	ldr	r5, [fp, #0x10]	@	get value
+	ldr	r6, r0		@	get next
+	ldr	r7, =b_binding	@	binding behavior
+	stmia	ip, {r4-r7}	@	BECOME
+	b	complete	@	return to dispatcher
+1:
+	bl	reserve		@ allocate event block
+	mov	r1, r4		@ target is parent
+	ldmia	fp, {r2-r9}	@ copy current event
+	stmia	r0, {r2-r9}	@ write new event
+	b	_a_send		@ set target, send, and return to dispatcher
+
 @ CREATE Nil WITH \(cust, req).[
 @ 	CASE req OF
 @ 	(#eval, _) : [ SEND SELF TO cust ]
@@ -42,14 +162,14 @@
 	.text
 	.align 5		@ align to cache-line
 	.global a_nil
-a_nil:			@ () singleton
+a_nil:			@ "()" singleton
 			@ message = (cust, #S_EVAL, _)
 	ldr	r3, [fp, #0x08] @ get req
 	teq	r3, #S_EVAL
 	bne	1f		@ if req == "eval"
 	bl	reserve		@	allocate event block
 	mov	r1, ip		@	get SELF
-	b	_a_answer	@	() is self-evaluating
+	b	_a_answer	@	"()" is self-evaluating
 1:
 	bl	fail		@ else
 	b	complete	@	signal error and return to dispatcher
@@ -71,7 +191,7 @@ b_symbol:		@ symbolic name (example_1: [0x08..0x1f]=name)
 	bl	reserve		@	allocate event block
 	ldr	r4, [fp, #0x0c] @	get env
 	ldr	r5, [fp, #0x04] @	get cust
-	ldr	r6, #S_GET
+	mov	r6, #S_GET
 	mov	r7, ip		@	get SELF
 	stmia	r0, {r4-r7}	@	write new event
 	b	_a_end		@	lookup name in environment
@@ -102,14 +222,14 @@ b_pair:			@ pair combination (template_2: r4=left, r5=right)
 	ldr	r0, =k_oper
 	bl	create		@	create k_oper actor
 	ldr	r6, [fp, #0x04] @	get cust
-	ldr	r7, #S_OPER
+	mov	r7, #S_OPER
 	mov	r8, r5		@	get right
 	ldr	r9, [fp, #0x0c]	@	get env
 	add	r1, r0, #0x08
 	stmia	r1, {r6-r9}	@	write actor state
 
 	mov	r5, r0		@	k_oper
-	ldr	r6, #S_EVAL
+	mov	r6, #S_EVAL
 	mov	r7, r9		@	env
 	bl	send_3x		@	send message to left (r4)
 	b	complete	@	return to dispatch loop
