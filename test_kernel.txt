@@ -1,0 +1,147 @@
+Unit Test (Kernel) Trace
+
+@ 000085c0 206f6857 6c207369 696b6369 6d20676e 4f482079 5059454e 003f544f       
+ \_ e3a00ffa e0010090 e3a00003 e0010190 e59f022c ebfffeca ebffffed eafffee0     
+@ 0000a280 000085e0 00008620 696b6369 6d20676e 4f482079 5059454e 003f544f       
+ \_ e51ff004 00008e00 6c207369 696b6369 6d20676e 4f482079 5059454e 003f544f     
+@ 00008d00 0000a260 00000003 00008c20 6d20676e 4f482079 5059454e 003f544f       
+ \_ e51ff004 00008cc0 004c494e 00000000 00000000 00000000 00000000 00000000     
+@ 00008c20 0000a260 00000001 00008d00 6d20676e 4f482079 5059454e 003f544f       
+ \_ e1a0c00f e89c8070 00008d00 00008ca0 00008b80 00008bc0 e1a00000 e1a00000     
+@ 0000a260 00008ca0 6c207369 696b6369 6d20676e 4f482079 5059454e 003f544f       
+ \_ e1a0c00f e89c8070 000085e0 00008620 00008ca0 00008e40 5059454e 003f544f     
+@ 000085e0 206f6857 6c207369 696b6369 6d20676e 4f482079 5059454e 003f544f       
+ \_ ebfffed0 e59f021c ebffffcf eafffedc 00000000 00000000 00000000 00000000     
+@ 00008600 206f6857 6c207369 696b6369 6d20676e 4f482079 5059454e 003f544f       
+ \_ e28c0018 eb000483 eb00049d eafffec9 00000000 00000000 73736150 002e6465     
+Passed.                                                                         
+time 91518us                                                                    
+
+@ 000085c0 -        -        -        -        -        -        -       
+ \_ e3a00ffa e0010090 e3a00003 e0010190 e59f022c ebfffeca ebffffed eafffee0     
+@ 0000a280 000085e0 00008620 -        -        -        -        -       
+ \_ e51ff004 00008e00 -        -        -        -        -     
+@ 00008d00 0000a260 00000003 00008c20 -        -        -        -       
+ \_ e51ff004 00008cc0 004c494e 00000000 00000000 00000000 00000000 00000000     
+@ 00008c20 0000a260 00000001 00008d00 -        -        -        -       
+ \_ e1a0c00f e89c8070 00008d00 00008ca0 00008b80 00008bc0 e1a00000 e1a00000     
+@ 00000001 00008ca0 -        -        -        -        -       
+
+
+heap_start = 00009d00
+block_zero = 206f6857 6c207369 696b6369 6d20676e 4f482079 5059454e 003f544f
+
+QUEUE: > E[0]
+A/E[#] 0x00000000 0x00000004 0x00000008 0x0000000c 0x00000010 0x00000014 0x00000018 0x0000001c
+  E[0] =a_test    -          -          -          -          -          -          -
+
+QUEUE: E[0] > E[2]
+A/E[#] 0x00000000 0x00000004 0x00000008 0x0000000c 0x00000010 0x00000014 0x00000018 0x0000001c
+* E[0] =a_test    -          -          -          -          -          -          -
+  A[1] example_1  =b_kernel_t -         -          -          -          -          -
+  E[2] A[1]       =a_test_ok =a_failed  -          -          -          -          -
+
+QUEUE: E[0] E[2] > E[4]
+A/E[#] 0x00000000 0x00000004 0x00000008 0x0000000c 0x00000010 0x00000014 0x00000018 0x0000001c
+  E[0] =a_test    -          -          -          -          -          -          -
+  A[1] example_1  =b_kernel_t -         -          -          -          -          -
+* E[2] A[1]       =a_test_ok =a_failed  -          -          -          -          -
+  A[3] template_3 ...        =a_test_ok =a_failed  =a_nil     =b_match_t -          -
+  E[4] =s_NIL     A[3]       #S_EVAL    =a_NIL_env -          -          -          -
+
+QUEUE: E[0] E[2] E[4] > E[5]
+A/E[#] 0x00000000 0x00000004 0x00000008 0x0000000c 0x00000010 0x00000014 0x00000018 0x0000001c
+  E[0] =a_test    -          -          -          -          -          -          -
+  A[1] example_1  =b_kernel_t -         -          -          -          -          -
+  E[2] A[1]       =a_test_ok =a_failed  -          -          -          -          -
+  A[3] template_3 ...        =a_test_ok =a_failed  =a_nil     =b_match_t -          -
+* E[4] =s_NIL     A[3]       #S_EVAL    =a_NIL_env -          -          -          -
+  E[5] =a_NIL_env A[3]       #S_GET     =s_NIL     -          -          -          -
+
+QUEUE: E[0] E[2] E[4] E[5] >
+A/E[#] 0x00000000 0x00000004 0x00000008 0x0000000c 0x00000010 0x00000014 0x00000018 0x0000001c
+  E[0] =a_test    -          -          -          -          -          -          -
+  A[1] example_1  =b_kernel_t -         -          -          -          -          -
+  E[2] A[1]       =a_test_ok =a_failed  -          -          -          -          -
+  A[3] template_3 ...        =a_test_ok =a_failed  =a_nil     =b_match_t -          -
+  E[4] =s_NIL     A[3]       #S_EVAL    =a_NIL_env -          -          -          -
+* E[5] =a_NIL_env A[3]       #S_GET     =s_NIL     -          -          -          -
+  E[0] A[3]       =a_nil     -          -          -          -          -          -
+
+
+...
+
+QUEUE: E[0] E[2] E[8] E[5] E[7] E[12] E[13] E[14] > E[15]
+A/E[#] 0x00000000 0x00000004 0x00000008 0x0000000c 0x00000010 0x00000014 0x00000018 0x0000001c
+  E[0] =a_test    -          -          -          -          -          -          -
+  A[1] example_1  =b_fork_t  -          -          -          -          -          -
+  E[2] A[1]       =a_test_ok =a_failed  -          -          -          -          -
+  A[3] example_3  ...        =a_test_ok =a_failed  #123       #456       <r8>       =b_match_t
+  A[4] template_1 ...        #123       =b_const_t -          -          -          -
+  E[5] A[4]       A[10]      -          -          -          -          -          -
+  A[6] template_1 ...        #456       =b_const_t -          -          -          -
+  E[7] A[6]       A[11]      -          -          -          -          -          -
+  E[8] =a_fork    A[3]       E[5]       E[7]       -          -          -          -
+  A[9] example_3  ...        A[3]       #123       #456       <r7>       <r8>       =complete
+ A[10] template_1 ...        A[9]       =b_tag     -          -          -          -
+ A[11] template_1 ...        A[9]       =b_tag     -          -          -          -
+ E[12] A[9]       A[10]      #123       -          -          -          -          -
+ E[13] A[9]       A[11]      #456       -          -          -          -          -
+*E[14] A[3]       #123       #456       -          -          -          -          -
+ E[15] =a_test_ok -          -          -          -          -          -          -
+
+QUEUE: E[0] E[2] E[8] E[5] E[7] E[12] E[13] E[14] E[15] > E[16]
+A/E[#] 0x00000000 0x00000004 0x00000008 0x0000000c 0x00000010 0x00000014 0x00000018 0x0000001c
+  E[0] =a_test    -          -          -          -          -          -          -
+  A[1] example_1  =b_fork_t  -          -          -          -          -          -
+  E[2] A[1]       =a_test_ok =a_failed  -          -          -          -          -
+  A[3] example_3  ...        =a_test_ok =a_failed  #123       #456       <r8>       =b_match_t
+  A[4] template_1 ...        #123       =b_const_t -          -          -          -
+  E[5] A[4]       A[10]      -          -          -          -          -          -
+  A[6] template_1 ...        #456       =b_const_t -          -          -          -
+  E[7] A[6]       A[11]      -          -          -          -          -          -
+  E[8] =a_fork    A[3]       E[5]       E[7]       -          -          -          -
+  A[9] example_3  ...        A[3]       #123       #456       <r7>       <r8>       =complete
+ A[10] template_1 ...        A[9]       =b_tag     -          -          -          -
+ A[11] template_1 ...        A[9]       =b_tag     -          -          -          -
+ E[12] A[9]       A[10]      #123       -          -          -          -          -
+ E[13] A[9]       A[11]      #456       -          -          -          -          -
+ E[14] A[3]       #123       #456       -          -          -          -          -
+*E[15] =a_test_ok -          -          -          -          -          -          -
+ E[16] =a_passed  -          -          -          -          -          -          -
+
+QUEUE: E[0] E[2] E[8] E[5] E[7] E[12] E[13] E[14] E[15] E[16] >
+A/E[#] 0x00000000 0x00000004 0x00000008 0x0000000c 0x00000010 0x00000014 0x00000018 0x0000001c
+  E[0] =a_test    -          -          -          -          -          -          -
+  A[1] example_1  =b_fork_t  -          -          -          -          -          -
+  E[2] A[1]       =a_test_ok =a_failed  -          -          -          -          -
+  A[3] example_3  ...        =a_test_ok =a_failed  #123       #456       <r8>       =b_match_t
+  A[4] template_1 ...        #123       =b_const_t -          -          -          -
+  E[5] A[4]       A[10]      -          -          -          -          -          -
+  A[6] template_1 ...        #456       =b_const_t -          -          -          -
+  E[7] A[6]       A[11]      -          -          -          -          -          -
+  E[8] =a_fork    A[3]       E[5]       E[7]       -          -          -          -
+  A[9] example_3  ...        A[3]       #123       #456       <r7>       <r8>       =complete
+ A[10] template_1 ...        A[9]       =b_tag     -          -          -          -
+ A[11] template_1 ...        A[9]       =b_tag     -          -          -          -
+ E[12] A[9]       A[10]      #123       -          -          -          -          -
+ E[13] A[9]       A[11]      #456       -          -          -          -          -
+ E[14] A[3]       #123       #456       -          -          -          -          -
+ E[15] =a_test_ok -          -          -          -          -          -          -
+*E[16] =a_passed  -          -          -          -          -          -          -
+<exit>
+
+
+PROTOTYPE BLOCKS
+    <block_zero>: W h o      i s   l    i c k i    n g   m    y   H O    N E Y P    O T ? \0
+                  206f6857   6c207369   696b6369   6d20676e   4f482079   5059454e   003f544f
+ A[##] example_1  <beh>      -          -          -          -          -          -
+       e51ff004   =complete  6c207369   696b6369   6d20676e   4f482079   5059454e   003f544f
+ A[##] template_1 ...        <r4>       <beh>      -          -          -          -
+       e1a0c00f   e89c8010   00000000   =complete  6d20676e   4f482079   5059454e   003f544f
+ A[##] template_2 ...        <r4>       <r5>       <beh>      -          -          -
+       e1a0c00f   e89c8030   00000000   00000000   =complete  4f482079   5059454e   003f544f
+ A[##] template_3 ...        <r4>       <r5>       <r6>       <beh>      -          -
+       e1a0c00f   e89c8070   00000000   00000000   00000000   =complete  5059454e   003f544f
+ A[##] example_3  ...        <r4>       <r5>       <r6>       <r7>       <r8>       <beh>
+       e1a0c00f   e89c81f0   00000000   00000000   00000000   00000000   00000000   =complete

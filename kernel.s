@@ -84,7 +84,7 @@ b_binding:		@ symbol binding (template_3: r4=symbol, r5=value, r6=next)
 	teq	r3, r4
 	bne	1f		@	if symbol == symbol'
 
-	ldr	r0, [fp, #0x08]	@		get cust
+	ldr	r0, [fp, #0x04]	@		get cust
 	mov	r1, r5		@		get value
 	bl	send_1		@		send message
 	b	complete	@		return to dispatcher
@@ -92,7 +92,7 @@ b_binding:		@ symbol binding (template_3: r4=symbol, r5=value, r6=next)
 	teq	r3, #S_SET
 	bne	2f		@ if req == "set"
 
-	ldr	r0, [fp, #0x08]	@	get cust
+	ldr	r0, [fp, #0x04]	@	get cust
 	ldr	r1, =a_inert	@	message is "#inert"
 	bl	send_1		@	send message
 
@@ -135,7 +135,7 @@ b_scope:		@ binding scope (template_3: r4=parent, r5=n/a, r6=n/a)
 	teq	r3, #S_SET
 	bne	1f		@ if req == "set"
 
-	ldr	r0, [fp, #0x08]	@	get cust
+	ldr	r0, [fp, #0x04]	@	get cust
 	ldr	r1, =a_inert	@	message is "#inert"
 	bl	send_1		@	send message
 
