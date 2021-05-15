@@ -615,9 +615,10 @@ send_3x:		@ send 3 parameter message (r4=target, r5-r7=message)
 test_suite:		@ suite of automated unit-tests
 	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
 
-	@ fork unit test
-	ldr	r0, =b_fork_t
-	bl	create_0	@ create fork unit test actor
+	@ unit test launcher
+@	ldr	r0, =b_fork_t
+	ldr	r0, =b_kernel_t
+	bl	create_0	@ create unit test actor
 	ldr	r1, =a_test_ok	@ ok customer
 	ldr	r2, =a_failed	@ fail customer
 	bl	send_2
@@ -632,12 +633,12 @@ test_suite:		@ suite of automated unit-tests
 a_test:			@ test suite execution actor
 	mov	r0, #1000	@ 1 millisecond
 	mul	r1, r0, r0	@ 1 second
+	mov	r0, #3		@ 3x
+	mul	r1, r0, r1	@ 3 seconds
 	ldr	r0, =a_failed	@ fail after 1 second
 	bl	watchdog_set	@ set watchdog timer
 	bl	test_suite	@ run suite of unit-tests [FIXME: inline test_suite]
 	b	complete	@ return to dispatch loop
-	.int	0		@ 0x18: --
-	.int	0		@ 0x1c: --
 
 	.text
 	.align 5		@ align to cache-line

@@ -28,7 +28,7 @@ LET Scope(parent) = \(cust, req).[
 		BECOME Binding(symbol, value, next)
 		SEND Inert TO cust
 	]
-	_ : [ SEND (cust, req) TO next ]
+	_ : [ SEND (cust, req) TO parent ]
 	END
 ]
 

@@ -191,6 +191,18 @@ b_symbol:		@ symbolic name (example_1: [0x08..0x1f]=name)
 	bl	fail		@ else
 	b	complete	@	signal error and return to dispatcher
 
+	.text
+	.align 5		@ align to cache-line
+s_NIL:
+	ldr	pc, [pc, #-4]	@ jump to actor behavior
+	.int	b_symbol	@ 0x04: address of actor behavior
+	.ascii	"NIL\0"		@ 0x08: state field 1
+	.int	0		@ 0x0c: state field 2
+	.int	0		@ 0x10: state field 3
+	.int	0		@ 0x14: state field 4
+	.int	0		@ 0x18: state field 5
+	.int	0		@ 0x1c: state field 6
+
 @ LET Pair(left, right) = \(cust, req).[
 @ 	CASE req OF
 @ 	(#eval, env) : [
@@ -235,3 +247,76 @@ k_oper:			@ operative continuation (example_3: r4=cust, r5=#S_OPER, r6=right, r7
 	ldr	r3, [fp, #0x04] @ get oper
 	stmia	r0, {r3-r7}	@ write new event
 	b	_a_end		@ delegate to operative
+
+@
+@ unit test actors and behaviors
+@
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_kernel_t0
+b_kernel_t0:		@ kernel unit test
+			@ message = (ok, fail)
+	ldr	r4, [fp, #0x04]	@ get ok customer
+	ldr	r5, [fp, #0x08]	@ get fail customer
+	ldr	r6, =a_inert	@ expected result value
+	ldr	r7, =b_match_t	@ result value matching behavior
+	bl	create_3x	@ create matching actor
+
+	ldr	r4, =a_inert	@ target (expression to evaluate)
+	mov	r5, r0		@ customer
+	mov	r6, #S_EVAL	@ "eval" request
+	ldr	r7, =a_fail	@ environment
+	bl	send_3x		@ send message
+
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_kernel_t1
+b_kernel_t1:		@ kernel unit test
+			@ message = (ok, fail)
+	ldr	r4, [fp, #0x04]	@ get ok customer
+	ldr	r5, [fp, #0x08]	@ get fail customer
+	ldr	r6, =a_nil	@ expected result value
+	ldr	r7, =b_match_t	@ result value matching behavior
+	bl	create_3x	@ create matching actor
+
+	ldr	r4, =a_nil	@ target (expression to evaluate)
+	mov	r5, r0		@ customer
+	mov	r6, #S_EVAL	@ "eval" request
+	ldr	r7, =a_fail	@ environment
+	bl	send_3x		@ send message
+
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_kernel_t
+b_kernel_t:		@ kernel unit test
+			@ message = (ok, fail)
+	ldr	r4, [fp, #0x04]	@ get ok customer
+	ldr	r5, [fp, #0x08]	@ get fail customer
+	ldr	r6, =s_NIL	@ expected result value
+	ldr	r7, =b_match_t	@ result value matching behavior
+	bl	create_3x	@ create matching actor
+
+	ldr	r4, =a_nil	@ target (expression to evaluate)
+	mov	r5, r0		@ customer
+	mov	r6, #S_EVAL	@ "eval" request
+	ldr	r7, =a_fail	@ environment
+	bl	send_3x		@ send message
+
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_match_t
+b_match_t:		@ result value matching (template_3: r4=ok, r5=fail, r6=expect)
+			@ message = (actual)
+	bl	reserve		@ allocate event block
+	ldr	r3, [fp, #0x04]	@ get actual result
+	teq	r3, r6		@ if (actual == expect)
+	moveq	r1, r4		@	ok
+	movne	r1, r5		@ else
+	b	_a_send		@	fail
