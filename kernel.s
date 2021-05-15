@@ -106,6 +106,16 @@ b_binding:		@ symbol binding (template_3: r4=symbol, r5=value, r6=next)
 	stmia	r0, {r2-r9}	@ write new event
 	b	_a_send		@ set target, send, and return to dispatcher
 
+	.text
+	.align 5		@ align to cache-line
+a_NIL_env:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip, {r4-r6,pc}	@ copy state and jump to behavior
+	.int	s_NIL		@ 0x08: r4=symbol
+	.int	a_nil		@ 0x0c: r5=value
+	.int	a_fail		@ 0x10: r6=next
+	.int	b_binding	@ 0x14: address of actor behavior
+
 @ LET Scope(parent) = \(cust, req).[
 @ 	CASE req OF
 @ 	(#bind, symbol, value) : [
@@ -297,14 +307,14 @@ b_kernel_t:		@ kernel unit test
 			@ message = (ok, fail)
 	ldr	r4, [fp, #0x04]	@ get ok customer
 	ldr	r5, [fp, #0x08]	@ get fail customer
-	ldr	r6, =s_NIL	@ expected result value
+	ldr	r6, =a_nil	@ expected result value
 	ldr	r7, =b_match_t	@ result value matching behavior
 	bl	create_3x	@ create matching actor
 
-	ldr	r4, =a_nil	@ target (expression to evaluate)
+	ldr	r4, =s_NIL	@ target (expression to evaluate)
 	mov	r5, r0		@ customer
 	mov	r6, #S_EVAL	@ "eval" request
-	ldr	r7, =a_fail	@ environment
+	ldr	r7, =a_NIL_env	@ environment
 	bl	send_3x		@ send message
 
 	b	complete	@ return to dispatch loop
