@@ -8,9 +8,9 @@
 extern void serial_hex8(u8 b);
 
 // asm utilities
-extern struct example_1 *create_0(ACTOR behavior);
-extern struct template_1 *create_1(ACTOR behavior, u32 r4);
-extern struct template_2 *create_2(ACTOR behavior, u32 r4, u32 r5);
+extern struct example_1 *create_0(ACTOR* behavior);
+extern struct template_1 *create_1(ACTOR* behavior, u32 r4);
+extern struct template_2 *create_2(ACTOR* behavior, u32 r4, u32 r5);
 
 // static actors
 extern ACTOR a_nil;
@@ -59,72 +59,72 @@ struct template_2 {
 };
 
 int
-boolean_q(ACTOR x)
+boolean_q(ACTOR* x)
 {
-    return (x == a_true) || (x == a_false);
+    return (x == &a_true) || (x == &a_false);
 }
 
 int
-eq_q(ACTOR x, ACTOR y)
+eq_q(ACTOR* x, ACTOR* y)
 {
     // [FIXME] handle more complex cases...
     return (x == y);
 }
 
 int
-equal_q(ACTOR x, ACTOR y)
+equal_q(ACTOR* x, ACTOR* y)
 {
     // [FIXME] handle more complex cases...
     return eq_q(x, y);
 }
 
 int
-symbol_q(ACTOR x)
+symbol_q(ACTOR* x)
 {
     struct example_1 *a = (struct example_1 *)x;
-    return (a->beh_04 == b_symbol);
+    return (a->beh_04 == &b_symbol);
 }
 
 int
-inert_q(ACTOR x)
+inert_q(ACTOR* x)
 {
-    return (x == a_inert);
+    return (x == &a_inert);
 }
 
 int
-pair_q(ACTOR x)
+pair_q(ACTOR* x)
 {
     struct template_2 *a = (struct template_2 *)x;
-    return (a->beh_10 == b_pair);
+    return (a->beh_10 == &b_pair);
 }
 
 int
-null_q(ACTOR x)
+null_q(ACTOR* x)
 {
-    return (x == a_nil);
+    return (x == &a_nil);
 }
 
 int
-environment_q(ACTOR x)
+environment_q(ACTOR* x)
 {
     return 0;  // [FIXME] NOT IMPLEMENTED!
 }
 
 int
-ignore_q(ACTOR x)
+ignore_q(ACTOR* x)
 {
-    return (x == a_inert);
+    return (x == &a_inert);
 }
 
 int
-number_q(ACTOR x)
+number_q(ACTOR* x)
 {
     struct template_1 *a = (struct template_1 *)x;
-    return (a->beh_0c == b_number);
+    return (a->beh_0c == &b_number);
 }
 
 int
-integer_q(ACTOR x)
+integer_q(ACTOR* x)
 {
     return number_q(x);  // [FIXME] currently only int32 is supported
 }
@@ -152,25 +152,25 @@ eq_24b(struct sym_24b* x, struct sym_24b* y)
 static struct example_1* sym_table[256];
 static struct example_1** next_sym = sym_table;
 
-ACTOR
+ACTOR*
 sym_search(struct sym_24b* name)  // search for interned symbol
 {
     struct example_1** sp = sym_table;
 
     while (sp < next_sym) {
         if (eq_24b(name, (struct sym_24b*)&((*sp)->data_08))) {
-            return (ACTOR)(*sp);
+            return (ACTOR*)(*sp);
         }
         ++sp;
     }
     return NULL;  // not found
 }
 
-ACTOR
+ACTOR*
 symbol(struct sym_24b* name)
 {
     // search for interned symbol
-    ACTOR x = sym_search(name);
+    ACTOR* x = sym_search(name);
     if (x != NULL) {
         return x;  // symbol found, return it
     }
@@ -178,7 +178,7 @@ symbol(struct sym_24b* name)
         return NULL;  // fail -- symbol table overflow!
     }
     // create a new symbol
-    struct example_1 *a = create_0(b_symbol);
+    struct example_1 *a = create_0(&b_symbol);
     if (a) {
         a->data_08 = name->data_08;
         a->data_0c = name->data_0c;
@@ -187,61 +187,61 @@ symbol(struct sym_24b* name)
         a->data_18 = name->data_18;
         a->data_1c = name->data_1c;
         *next_sym++ = a;  // intern symbol in table
-        return (ACTOR)a;  // return new symbol
+        return (ACTOR*)a;  // return new symbol
     }
     return NULL;  // fail
 }
 
-ACTOR
+ACTOR*
 number(int n)
 {
-    struct template_1 *a = create_1(b_number, (u32)n);
-    return (ACTOR)a;
+    struct template_1 *a = create_1(&b_number, (u32)n);
+    return (ACTOR*)a;
 }
 
-ACTOR
-cons(ACTOR car, ACTOR cdr)
+ACTOR*
+cons(ACTOR* car, ACTOR* cdr)
 {
-    struct template_2 *a = create_2(b_pair, (u32)car, (u32)cdr);
-    return (ACTOR)a;
+    struct template_2 *a = create_2(&b_pair, (u32)car, (u32)cdr);
+    return (ACTOR*)a;
 }
 
-ACTOR
-car(ACTOR cons)
+ACTOR*
+car(ACTOR* cons)
 {
-    struct template_2 *a = (struct template_2 *)cons;
-    if (a->beh_10 == b_pair) {
-        return (ACTOR)(a->r4_08);
+    if (pair_q(cons)) {
+        struct template_2 *a = (struct template_2 *)cons;
+        return (ACTOR*)(a->r4_08);
     }
     return NULL;  // fail
 }
 
-ACTOR
-cdr(ACTOR cons)
+ACTOR*
+cdr(ACTOR* cons)
 {
-    struct template_2 *a = (struct template_2 *)cons;
-    if (a->beh_10 == b_pair) {
+    if (pair_q(cons)) {
+        struct template_2 *a = (struct template_2 *)cons;
         return (ACTOR)(a->r5_0c);
     }
     return NULL;  // fail
 }
 
-ACTOR
-set_car(ACTOR cons, ACTOR car)
+ACTOR*
+set_car(ACTOR* cons, ACTOR* car)
 {
-    struct template_2 *a = (struct template_2 *)cons;
-    if (a->beh_10 == b_pair) {
+    if (pair_q(cons)) {
+        struct template_2 *a = (struct template_2 *)cons;
         a->r4_08 = (u32)car;
         return cons;
     }
     return NULL;  // fail
 }
 
-ACTOR
-set_cdr(ACTOR cons, ACTOR cdr)
+ACTOR*
+set_cdr(ACTOR* cons, ACTOR* cdr)
 {
-    struct template_2 *a = (struct template_2 *)cons;
-    if (a->beh_10 == b_pair) {
+    if (pair_q(cons)) {
+        struct template_2 *a = (struct template_2 *)cons;
         a->r5_0c = (u32)cdr;
         return cons;
     }
@@ -301,13 +301,13 @@ parse_opt_space()
     unread_char(c);
 }
 
-ACTOR
+ACTOR*
 parse_list()
 {
     int c;
-    ACTOR x = a_nil;
-    ACTOR y;
-    ACTOR z;
+    ACTOR* x = &a_nil;
+    ACTOR* y;
+    ACTOR* z;
 
     DEBUG(puts("list?\n"));
     c = read_char();
@@ -318,7 +318,7 @@ parse_list()
     while ((y = parse_sexpr()) != NULL) {
         x = cons(y, x);  // build list in reverse
     }
-    y = a_nil;
+    y = &a_nil;
     parse_opt_space();
     c = read_char();
     if ((c == '.') && (x != a_nil)) {
@@ -331,7 +331,7 @@ parse_list()
         unread_char(c);
         return NULL;  // failed
     }
-    while (x != a_nil) {  // reverse list in-place
+    while (x != &a_nil) {  // reverse list in-place
         z = cdr(x);
         y = set_cdr(x, y);
         x = z;
@@ -341,13 +341,13 @@ parse_list()
     return x;
 }
 
-ACTOR
+ACTOR*
 parse_number()
 {
     int s = 0;
     int n = 0;
     int c;
-    ACTOR x;
+    ACTOR* x;
 
     DEBUG(puts("number?\n"));
     c = read_char();
@@ -410,14 +410,14 @@ static char f_24b[] =
 static char ignore_24b[] =
 	"#ign" "ore\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
 
-ACTOR
+ACTOR*
 parse_symbol()
 {
     struct sym_24b sym = { 0, 0, 0, 0, 0, 0 };
     char *b = (char *)(&sym);
     int i = 0;
     int c;
-    ACTOR x;
+    ACTOR* x;
 
     DEBUG(puts("symbol?\n"));
     c = read_char();
@@ -445,10 +445,10 @@ parse_symbol()
     }
     b[i] = '\0';  // NUL termination
     if (b[0] == '#') {
-        if (eq_24b(&sym, (struct sym_24b*)inert_24b)) x = a_inert;
-        else if (eq_24b(&sym, (struct sym_24b*)t_24b)) x = a_true;
-        else if (eq_24b(&sym, (struct sym_24b*)f_24b)) x = a_false;
-        else if (eq_24b(&sym, (struct sym_24b*)ignore_24b)) x = a_no_bind;
+        if (eq_24b(&sym, (struct sym_24b*)inert_24b)) x = &a_inert;
+        else if (eq_24b(&sym, (struct sym_24b*)t_24b)) x = &a_true;
+        else if (eq_24b(&sym, (struct sym_24b*)f_24b)) x = &a_false;
+        else if (eq_24b(&sym, (struct sym_24b*)ignore_24b)) x = &a_no_bind;
         else return NULL;  // failed
     } else {
         x = symbol(&sym);
@@ -457,10 +457,10 @@ parse_symbol()
     return x;
 }
 
-ACTOR
+ACTOR*
 parse_atom()
 {
-    ACTOR x;
+    ACTOR* x;
 
     x = parse_number();
     if (x) return x;  // matched
@@ -468,10 +468,10 @@ parse_atom()
     return x;
 }
 
-ACTOR
+ACTOR*
 parse_sexpr()  /* parse and return s-expression */
 {
-    ACTOR x;
+    ACTOR* x;
 
     parse_opt_space();
     x = parse_list();
@@ -526,7 +526,7 @@ parse_sexpr()  /* parse and return s-expression */
 #endif
 
 static void
-print_number(ACTOR num)
+print_number(ACTOR* num)
 {
     char dec[12];
     char *p = dec + sizeof(dec);
@@ -549,18 +549,18 @@ print_number(ACTOR num)
 }
 
 static void
-print_symbol(ACTOR sym)
+print_symbol(ACTOR* sym)
 {
     struct example_1 *a = (struct example_1 *)sym;
     puts((char*)(&a->data_08));
 }
 
 static void
-print_list(ACTOR cons)
+print_list(ACTOR* cons)
 {
     struct template_2 *a = (struct template_2 *)cons;
-    ACTOR car = (ACTOR)(a->r4_08);
-    ACTOR cdr = (ACTOR)(a->r5_0c);
+    ACTOR* car = (ACTOR*)(a->r4_08);
+    ACTOR* cdr = (ACTOR*)(a->r5_0c);
     putchar('(');
     print_sexpr(car);
     puts(" . ");
@@ -569,17 +569,17 @@ print_list(ACTOR cons)
 }
 
 void
-print_sexpr(ACTOR a)  /* print external representation of s-expression */
+print_sexpr(ACTOR* a)  /* print external representation of s-expression */
 {
     if (null_q(a)) {
         puts("()");
-    } else if (a == a_true) {
+    } else if (a == &a_true) {
         puts("#t");
-    } else if (a == a_false) {
+    } else if (a == &a_false) {
         puts("#f");
     } else if (inert_q(a)) {
         puts("#inert");
-    } else if (a == a_no_bind) {
+    } else if (a == &a_no_bind) {
         puts("#ignore");
     } else if (number_q(a)) {
         print_number(a);
@@ -597,7 +597,7 @@ kernel_repl()
 {
     for (;;) {
         puts("> ");
-        ACTOR x = parse_sexpr();
+        ACTOR* x = parse_sexpr();
         if (x == NULL) break;
         puts("= ");
         print_sexpr(x);

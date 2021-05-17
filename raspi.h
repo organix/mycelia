@@ -23,15 +23,15 @@
 typedef unsigned char u8;
 typedef unsigned int u32;
 
-typedef void (*ACTOR)(void);
+typedef void (ACTOR)(void);
 
 /* sponsor selection */
-extern void set_sponsor(ACTOR sl);
+extern void set_sponsor(ACTOR* sl);
 extern void sponsor_0();  // "default" sponsor
 extern void sponsor_1();  // "fast" sponsor (no trace, watchdog, etc.)
 
 /* kernel entry-point */
-extern void mycelia(ACTOR sponsor, ACTOR start, u32 trace);
+extern void mycelia(ACTOR* sponsor, ACTOR* start, u32 trace);
 
 /* ARM assembly-language helper functions */
 extern void PUT_32(u32 addr, u32 data);

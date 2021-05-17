@@ -401,7 +401,7 @@ k_start(u32 sp)
     // display banner
     char* p;
     serial_puts(p="mycelia 0.0.5 ");
-    serial_puts("2021-05-17 11:11 ");
+    serial_puts("2021-05-17 12:00 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0
@@ -413,6 +413,13 @@ k_start(u32 sp)
 //    dump256(p);
 #endif
 
+    serial_puts("sponsor_0:");
+    serial_eol();
+    hexdump((u8*)sponsor_0, 32);
+    serial_puts("sponsor_1:");
+    serial_eol();
+    hexdump((u8*)sponsor_1, 32);
+
     for (;;) {
         // display menu
         serial_eol();
@@ -420,7 +427,7 @@ k_start(u32 sp)
         serial_eol();
         serial_puts("  1. Monitor");
         serial_eol();
-        serial_puts("  2. Mycelia echo");
+        serial_puts("  2. Console echo");
         serial_eol();
         serial_puts("  3. Unit tests");
         serial_eol();
@@ -438,30 +445,30 @@ k_start(u32 sp)
                 break;
             }
             case '2': {
-                mycelia(sponsor_1, a_poll, 0);
+                mycelia(&sponsor_1, &a_poll, 0);
                 break;
             }
             case '3': {
                 timer_start();
-                mycelia(sponsor_0, a_test, (u32)dump_event);
+                mycelia(&sponsor_0, &a_test, (u32)dump_event);
                 report_time(timer_stop());
                 dump256(p);
                 break;
             }
             case '4': {
                 timer_start();
-                mycelia(sponsor_1, a_bench, 0);  // no tracing
+                mycelia(&sponsor_1, &a_bench, 0);  // no tracing
 //                mycelia(sponsor_0, a_bench, (u32)dump_event);  // trace events
                 report_time(timer_stop());
                 break;
             }
             case '5': {
-                set_sponsor(sponsor_0);
+                set_sponsor(&sponsor_0);
                 kernel_repl();
                 break;
             }
             case '9': {
-                mycelia(sponsor_1, a_exit, 0);
+                mycelia(&sponsor_1, &a_exit, 0);
 //                dump256(p);
                 break;
             }
