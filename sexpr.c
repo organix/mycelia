@@ -3,6 +3,10 @@
  */
 #include "sexpr.h"
 
+#define DEBUG(x) x  /* debug logging */
+
+extern void serial_hex8(u8 b);
+
 // asm utilities
 extern struct example_1 *create_0(ACTOR behavior);
 extern struct template_1 *create_1(ACTOR behavior, u32 r4);
@@ -13,7 +17,7 @@ extern ACTOR a_nil;
 extern ACTOR a_true;
 extern ACTOR a_false;
 extern ACTOR a_inert;
-extern ACTOR a_no_match;
+extern ACTOR a_no_bind;
 extern ACTOR a_fail;
 
 // static behaviors
@@ -122,7 +126,7 @@ number_q(ACTOR x)
 int
 integer_q(ACTOR x)
 {
-    return number_q(a);  // [FIXME] currently only int32 is supported
+    return number_q(x);  // [FIXME] currently only int32 is supported
 }
 
 struct sym_24b {  // symbol data is offset 0x08 into a cache-line
@@ -244,22 +248,32 @@ set_cdr(ACTOR cons, ACTOR cdr)
     return NULL;  // fail
 }
 
+static char* line = NULL;
+
 static int
 read_char()
 {
-    static char* line = NULL;
-
     if (!line || !line[0]) {  // refill buffer
         line = editline();
         if (!line) return EOF;
     }
-    return *line++;
+    int c = *line++;
+    DEBUG(serial_hex8((u8)c));
+    DEBUG(putchar(' '));
+    DEBUG(putchar(c < ' ' ? '.' : c));
+    DEBUG(putchar('\n'));
+    return c;
 }
 
 static void
 unread_char(int c)
 {
     if (c > 0) {
+        DEBUG(putchar('<'));
+        DEBUG(serial_hex8((u8)c));
+        DEBUG(putchar(' '));
+        DEBUG(putchar(c < ' ' ? '.' : c));
+        DEBUG(putchar('\n'));
         *--line = c;
     }
 }
@@ -271,7 +285,7 @@ parse_opt_space()
 
     for (;;) {  // skip whitespace
         c = read_char();
-        if (c == EOF) break;
+        if (c == EOF) return;
         if (c == ';') {
             for (;;) {  // skip comment (to EOL)
                 c = read_char();
@@ -295,8 +309,12 @@ parse_list()
     ACTOR y;
     ACTOR z;
 
+    DEBUG(puts("list?\n"));
     c = read_char();
-    if (c != '(') return NULL;  // failed
+    if (c != '(') {
+        unread_char(c);
+        return NULL;  // failed
+    }
     while ((y = parse_sexpr()) != NULL) {
         x = cons(y, x);  // build list in reverse
     }
@@ -304,31 +322,34 @@ parse_list()
     parse_opt_space();
     c = read_char();
     if ((c == '.') && (x != a_nil)) {
-        if (x != a_nil) return NULL;  // failed
         parse_opt_space();
         y = parse_sexpr();
         if (y == NULL) return NULL;  // failed
         parse_opt_space();
     }
-    if (c != ')') return NULL;  // failed
+    if (c != ')') {
+        unread_char(c);
+        return NULL;  // failed
+    }
     while (x != a_nil) {  // reverse list in-place
         z = cdr(x);
         y = set_cdr(x, y);
         x = z;
     }
     x = y;
+    DEBUG(puts("<list>\n"));
     return x;
 }
 
 ACTOR
 parse_number()
 {
-    char b[24];
     int s = 0;
     int n = 0;
     int c;
     ACTOR x;
 
+    DEBUG(puts("number?\n"));
     c = read_char();
     if (c == '-') {  // optional sign
         s = 1;
@@ -336,7 +357,10 @@ parse_number()
     } else if (c == '+') {
         c = read_char();
     }
-    if ((c < '0') || (c > '9')) return NULL;  // failed
+    if ((c < '0') || (c > '9')) {
+        unread_char(c);
+        return NULL;  // failed
+    }
     n = (c - '0');
     for (;;) {
         c = read_char();
@@ -353,6 +377,7 @@ parse_number()
         n = -n;
     }
     x = number(n);
+    DEBUG(puts("<number>\n"));
     return x;
 }
 
@@ -376,20 +401,25 @@ is_ident_char(int c)
         ||  (c == '~'));
 }
 
-static char inert_24b[] = "#ine" "rt\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
-static char t_24b[] = "#t\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
-static char f_24b[] = "#f\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
-static char ignore_24b[] = "#ign" "ore\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+static char inert_24b[] =
+	"#ine" "rt\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+static char t_24b[] =
+	"#t\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+static char f_24b[] =
+	"#f\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+static char ignore_24b[] =
+	"#ign" "ore\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
 
 ACTOR
 parse_symbol()
 {
     struct sym_24b sym = { 0, 0, 0, 0, 0, 0 };
-    char *b = (char *)sym;
+    char *b = (char *)(&sym);
     int i = 0;
     int c;
     ACTOR x;
 
+    DEBUG(puts("symbol?\n"));
     c = read_char();
     if (c == '.') {  // check for for delimited '.'
         c = read_char();
@@ -400,7 +430,10 @@ parse_symbol()
         }
         b[i++] = '.';
     }
-    if (!is_ident_char(c)) return NULL;  // failed
+    if (!is_ident_char(c)) {
+        unread_char(c);
+        return NULL;  // failed
+    }
     for (;;) {
         b[i++] = c;
         if (i >= (sizeof(b) - 1)) return NULL;  // overflow
@@ -412,14 +445,15 @@ parse_symbol()
     }
     b[i] = '\0';  // NUL termination
     if (b[0] == '#') {
-        if (eq_24b(sym, (struct sym_24b*)inert_24b)) x = a_inert;
-        else if (eq_24b(sym, (struct sym_24b*)t_24b)) x = a_true;
-        else if (eq_24b(sym, (struct sym_24b*)f_24b)) x = a_false;
-        else if (eq_24b(sym, (struct sym_24b*)ignore_24b)) x = a_no_match;
-        else x = NULL;  // failed
+        if (eq_24b(&sym, (struct sym_24b*)inert_24b)) x = a_inert;
+        else if (eq_24b(&sym, (struct sym_24b*)t_24b)) x = a_true;
+        else if (eq_24b(&sym, (struct sym_24b*)f_24b)) x = a_false;
+        else if (eq_24b(&sym, (struct sym_24b*)ignore_24b)) x = a_no_bind;
+        else return NULL;  // failed
     } else {
-        x = symbol(b);
+        x = symbol(&sym);
     }
+    DEBUG(puts("<symbol>\n"));
     return x;
 }
 
@@ -518,7 +552,7 @@ static void
 print_symbol(ACTOR sym)
 {
     struct example_1 *a = (struct example_1 *)sym;
-    puts((char*) &a->data_08);
+    puts((char*)(&a->data_08));
 }
 
 static void
@@ -537,21 +571,21 @@ print_list(ACTOR cons)
 void
 print_sexpr(ACTOR a)  /* print external representation of s-expression */
 {
-    if null_q(a) {
+    if (null_q(a)) {
         puts("()");
     } else if (a == a_true) {
         puts("#t");
     } else if (a == a_false) {
         puts("#f");
-    } else if inert_q(a) {
+    } else if (inert_q(a)) {
         puts("#inert");
-    } else if (a == a_no_match) {
+    } else if (a == a_no_bind) {
         puts("#ignore");
-    } else if number_q(a) {
+    } else if (number_q(a)) {
         print_number(a);
-    } else if symbol_q(a) {
+    } else if (symbol_q(a)) {
         print_symbol(a);
-    } else if pair_q(a) {
+    } else if (pair_q(a)) {
         print_list(a);
     } else {
         puts("#<unknown>");
@@ -565,6 +599,7 @@ kernel_repl()
         puts("> ");
         ACTOR x = parse_sexpr();
         if (x == NULL) break;
+        puts("= ");
         print_sexpr(x);
         putchar('\n');
     }

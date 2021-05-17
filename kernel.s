@@ -62,12 +62,15 @@ self_eval:		@ any self-evaluating actor
 a_inert:		@ "#inert" singleton
 	b	self_eval	@ self-evaluating
 
+	.global a_no_bind
 a_no_bind:		@ "#ignore" singleton
 	b	self_eval	@ self-evaluating
 
+	.global a_true
 a_true:			@ "#t" singleton
 	b	self_eval	@ self-evaluating
 
+	.global a_false
 a_false:		@ "#f" singleton
 	b	self_eval	@ self-evaluating
 
@@ -84,7 +87,8 @@ a_false:		@ "#f" singleton
 	.text
 	.align 5		@ align to cache-line
 	.global b_binding
-b_binding:		@ symbol binding (template_3: r4=symbol, r5=value, r6=next)
+b_binding:		@ symbol binding
+			@ (template_3: r4=symbol, r5=value, r6=next)
 			@ message = (cust, req, ...)
 	ldr	r3, [fp, #0x08] @ get req
 	teq	r3, #S_GET
@@ -138,7 +142,8 @@ a_NIL_env:
 	.text
 	.align 5		@ align to cache-line
 	.global b_scope
-b_scope:		@ binding scope (template_3: r4=parent, r5=n/a, r6=n/a)
+b_scope:		@ binding scope
+			@ (template_3: r4=parent, r5=n/a, r6=n/a)
 			@ message = (cust, req, ...)
 	ldr	r3, [fp, #0x08] @ get req
 	teq	r3, #S_SET
@@ -194,7 +199,8 @@ a_nil:			@ "()" singleton
 	.text
 	.align 5		@ align to cache-line
 	.global b_symbol
-b_symbol:		@ symbolic name (example_1: [0x08..0x1f]=name)
+b_symbol:		@ symbolic name
+			@ (example_1: [0x08..0x1f]=name)
 			@ message = (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
 	teq	r3, #S_EVAL
@@ -237,7 +243,8 @@ s_NIL:
 	.text
 	.align 5		@ align to cache-line
 	.global b_pair
-b_pair:			@ pair combination (template_2: r4=left, r5=right)
+b_pair:			@ pair combination
+			@ (template_2: r4=left, r5=right)
 			@ message = (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
 	teq	r3, #S_EVAL
@@ -261,7 +268,8 @@ b_pair:			@ pair combination (template_2: r4=left, r5=right)
 	bl	fail		@ else
 	b	complete	@	signal error and return to dispatcher
 
-k_oper:			@ operative continuation (example_3: r4=cust, r5=#S_OPER, r6=right, r7=env)
+k_oper:			@ operative continuation
+			@ (example_3: r4=cust, r5=#S_OPER, r6=right, r7=env)
 			@ message = (oper)
 	bl	reserve		@ allocate event block
 	ldr	r3, [fp, #0x04] @ get oper
@@ -276,8 +284,9 @@ k_oper:			@ operative continuation (example_3: r4=cust, r5=#S_OPER, r6=right, r7
 @ ]
 	.text
 	.align 5		@ align to cache-line
-	.global b_symbol
-b_number:		@ integer constant (template_1: r4=int32)
+	.global b_number
+b_number:		@ integer constant
+			@ (template_1: r4=int32)
 			@ message = (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
 	teq	r3, #S_SELF
@@ -292,6 +301,7 @@ b_number:		@ integer constant (template_1: r4=int32)
 
 	.text
 	.align 5		@ align to cache-line
+	.global n_m1
 n_m1:
 	mov	ip, pc		@ point ip to data fields (state)
 	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
@@ -306,6 +316,7 @@ n_m1:
 
 	.text
 	.align 5		@ align to cache-line
+	.global n_0
 n_0:
 	mov	ip, pc		@ point ip to data fields (state)
 	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
@@ -318,6 +329,7 @@ n_0:
 
 	.text
 	.align 5		@ align to cache-line
+	.global n_1
 n_1:
 	mov	ip, pc		@ point ip to data fields (state)
 	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
@@ -328,6 +340,9 @@ n_1:
 	.int	0		@ 0x18: --
 	.int	0		@ 0x1c: --
 
+	.text
+	.align 5		@ align to cache-line
+	.global n_2
 n_2:
 	mov	ip, pc		@ point ip to data fields (state)
 	ldmia	ip, {r4,pc}	@ copy state and jump to behavior

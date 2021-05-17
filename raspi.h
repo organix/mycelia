@@ -23,7 +23,7 @@
 typedef unsigned char u8;
 typedef unsigned int u32;
 
-typedef void (ACTOR)(void);
+typedef void (*ACTOR)(void);
 
 /* Declare kernel entry-point */
 extern void mycelia(ACTOR start, u32 trace);

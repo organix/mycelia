@@ -223,7 +223,7 @@ puts(char* s)
 {
     int c;
 
-    while (c = *s++) {
+    while ((c = *s++) != '\0') {
         putchar(c);
     }
 }
@@ -400,8 +400,8 @@ k_start(u32 sp)
 
     // display banner
     char* p;
-    serial_puts(p="mycelia 0.0.3 ");
-    serial_puts("2021-05-16 21:57 ");
+    serial_puts(p="mycelia 0.0.5 ");
+    serial_puts("2021-05-16 23:11 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0
@@ -457,6 +457,7 @@ k_start(u32 sp)
             }
             case '5': {
                 kernel_repl();
+                break;
             }
             case '9': {
                 mycelia(a_exit, 0);
