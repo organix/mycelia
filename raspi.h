@@ -25,21 +25,26 @@ typedef unsigned int u32;
 
 typedef void (*ACTOR)(void);
 
-/* Declare kernel entry-point */
-extern void mycelia(ACTOR start, u32 trace);
+/* sponsor selection */
+extern void set_sponsor(ACTOR sl);
+extern void sponsor_0();  // "default" sponsor
+extern void sponsor_1();  // "fast" sponsor (no trace, watchdog, etc.)
 
-/* Declare ARM assembly-language helper functions */
+/* kernel entry-point */
+extern void mycelia(ACTOR sponsor, ACTOR start, u32 trace);
+
+/* ARM assembly-language helper functions */
 extern void PUT_32(u32 addr, u32 data);
 extern u32 GET_32(u32 addr);
 extern void NO_OP();
 extern void SPIN(u32 count);
 extern void BRANCH_TO(u32 addr);
 
-/* Macros to enhance efficiency */
+/* macros to enhance efficiency */
 #define PUT_32(addr, data)      (*((volatile u32*)(addr)) = (data))
 #define GET_32(addr)            (*((volatile u32*)(addr)))
 
-/* C procedures from raspberry.c */
+/* C helpers from raspberry.c */
 extern int putchar(int c);
 extern void puts(char* s);
 extern int getchar();

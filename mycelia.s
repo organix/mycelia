@@ -29,21 +29,36 @@
 	.text
 	.align 2		@ alignment 2^n (2^2 = 4 byte machine word)
 	.global mycelia
-mycelia:		@ entry point for the actor kernel (r0=boot, r1=trace)
-	ldr	sl, =sponsor_0	@ initialize sponsor link
-	mov	ip, r0		@ bootstrap actor address
-	ldr	r0, =exit_lr	@ location of return address
-	str	lr, [r0]	@ save exit address on entry
-	ldr	r0, =exit_sp	@ location of stack pointer
+mycelia:		@ entry point for the actor kernel
+			@ (r0=sponsor, r1=boot, r2=trace)
+	stmdb	sp!, {r4-ip,lr}	@ preserve registers
+	mov	sl, r0		@ initialize sponsor link
+	mov	ip, r1		@ bootstrap actor address
+
+	ldr	r0, =exit_sp	@ location of exit stack pointer
 	str	sp, [r0]	@ save exit stack pointer on entry
+
 	ldr	r0, =trace_to	@ location of trace procedure
-	str	r1, [r0]	@ set trace procedure
-	teq	r1, #0		@ if no trace procedure
-	ldreq	sl, =sponsor_1	@	use fast sponsor link
+	str	r2, [r0]	@ set trace procedure
+
 	bl	reserve		@ allocate initial event block
+	mov	fp, r0		@ remember event pointer
 	str	ip, [r0]	@ set target to bootstrap actor
 	bl	enqueue		@ add event to queue
+
+	mov	r0, fp		@ recall event pointer
+	mov	r1, #32		@ size = 32b
+	bl	hexdump		@ display initial event
+
 	b	dispatch	@ start dispatch loop
+
+	.text
+	.align 2		@ align to machine word
+	.global set_sponsor
+set_sponsor:		@ set sponsor from outside mycelia (bootstrap)
+			@ (r0=sponsor)
+	mov	sl, r0		@ sponsor is kept in register sl (r10)
+	bx	lr		@ return to caller
 
 	.text
 	.align 2		@ align to machine word
@@ -61,7 +76,8 @@ fail_txt:
 
 	.text
 	.align 2		@ align to machine word
-trace_event:		@ invoke event tracing hook, if present (r0=event)
+trace_event:		@ invoke event tracing hook, if present
+			@ (r0=event)
 	ldr	r3, =trace_to	@ location of trace procedure
 	ldr	r1, [r3]	@ get trace procedure
 	teq	r1, #0		@ if disabled
@@ -96,7 +112,8 @@ watchdog_check:		@ check for timeout
 	.text
 	.align 2		@ align to machine word
 	.global watchdog_set
-watchdog_set:		@ set watchdog timer (r0=customer, r1=timeout)
+watchdog_set:		@ set watchdog timer
+			@ (r0=customer, r1=timeout)
 	stmdb	sp!, {r4,lr}	@ preserve in-use registers
 	ldr	r2, =watchdog_a	@ watchdog actor address
 	str	r0, [r2]	@ set watchdog actor
@@ -127,18 +144,14 @@ watchdog_t:
 	.align 2		@ align to machine word
 	.global exit
 exit:			@ exit the actor kernel
-	ldr	r0, =exit_sp	@ location of stack pointer
+	ldr	r0, =exit_sp	@ location of exit stack pointer
 	ldr	sp, [r0]	@ get stack pointer saved on entry
-	ldr	r0, =exit_lr	@ location of return address
-	ldr	lr, [r0]	@ get exit address saved on entry
-	bx	lr		@ "return" from the kernel
+	ldmia	sp!, {r4-ip,pc}	@ restore registers and return
 
 	.data
 	.align 2		@ align to machine word
 exit_sp:
 	.int 0			@ stack pointer to restore on exit
-exit_lr:
-	.int 0			@ address to "return" to on exit
 
 	.data
 	.align 5		@ align to cache-line
@@ -155,7 +168,7 @@ block_end:
 
 	.section .rodata
 	.align 5		@ align to cache-line
-block_zero:
+block_clr:
 	.ascii "Who is licking my HONEYPOT?\0"
 
 @
@@ -193,6 +206,7 @@ dequeue:		@ dequeue next event from queue
 @
 	.data
 	.align 5		@ align to cache-line
+	.global sponsor_0
 sponsor_0:
 	.int	dispatch_0	@ 0x00: dispatch the next event (ip=actor, fp=event)
 	.int	complete_0	@ 0x04: complete event dispatch (fp=event)
@@ -249,7 +263,7 @@ release_0:		@ release the memory block pointed to by r0
 	ldr	r1, =block_free	@ address of free list pointer
 	ldr	r2, [r1]	@ address of next free block
 	str	r0, [r1]	@ update free list pointer
-	ldr	r1, =block_zero	@ address of block-erase pattern
+	ldr	r1, =block_clr	@ address of block-erase pattern
 	ldmia	r1, {r3-r9}	@ read 7 words (32 - 4 bytes)
 	stmia	r0, {r2-r9}	@ write 8 words (incl. next free block pointer)
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
@@ -284,6 +298,7 @@ dequeue_0:		@ dequeue next event from queue
 @
 	.data
 	.align 5		@ align to cache-line
+	.global sponsor_1
 sponsor_1:
 	.int	dispatch_1	@ 0x00: dispatch the next event (ip=actor, fp=event)
 	.int	complete_1	@ 0x04: complete event dispatch (fp=event)
@@ -371,16 +386,20 @@ example_0:
 	bl	reserve		@ allocate event block
 	ldr	r1, [ip, #0x1c] @ get answer
 	.global _a_answer
-_a_answer:		@ send answer to customer and return (r0=event, r1=answer)
+_a_answer:		@ send answer to customer and return
+			@ (r0=event, r1=answer)
 	str	r1, [r0, #0x04]	@ set answer
 	.global _a_reply
-_a_reply:		@ reply to customer and return from actor (r0=event)
+_a_reply:		@ reply to customer and return from actor
+			@ (r0=event)
 	ldr	r1, [fp, #0x04]	@ get customer
 	.global _a_send
-_a_send:		@ send a message and return from actor (r0=event, r1=target)
+_a_send:		@ send a message and return from actor
+			@ (r0=event, r1=target)
 	str	r1, [r0]	@ set target actor
 	.global _a_end
-_a_end:			@ queue message and return from actor (r0=event)
+_a_end:			@ queue message and return from actor
+			@ (r0=event)
 	bl	enqueue		@ add event to queue
 	b	complete	@ return to dispatch loop
 	.int	0x42424242	@ answer data
@@ -463,7 +482,8 @@ example_4:
 	.text
 	.align 2		@ align to machine word
 	.global create
-create:			@ create an actor from example_3 (r0=behavior)
+create:			@ create an actor from example_3
+			@ (r0=behavior)
 	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
 	mov	r9, r0		@ move behavior pointer into place
 	bl	reserve		@ allocate actor block
@@ -475,7 +495,8 @@ create:			@ create an actor from example_3 (r0=behavior)
 	.text
 	.align 2		@ align to machine word
 	.global create_0
-create_0:		@ create an actor from example_1 (r0=behavior)
+create_0:		@ create an actor from example_1
+			@ (r0=behavior)
 	stmdb	sp!, {r4,lr}	@ preserve in-use registers
 	mov	r4, r0		@ move behavior pointer into place
 	bl	reserve		@ allocate actor block
@@ -487,7 +508,8 @@ create_0:		@ create an actor from example_1 (r0=behavior)
 	.text
 	.align 2		@ align to machine word
 	.global create_1
-create_1:		@ create 1 parameter actor (r0=behavior, r1=r4)
+create_1:		@ create 1 parameter actor
+			@ (r0=behavior, r1=r4)
 	stmdb	sp!, {r4-r5,lr}	@ preserve in-use registers
 	mov	r4, r1		@ move state parameter into place
 	mov	r5, r0		@ move behavior pointer into place
@@ -500,7 +522,8 @@ create_1:		@ create 1 parameter actor (r0=behavior, r1=r4)
 	.text
 	.align 2		@ align to machine word
 	.global create_2
-create_2:		@ create 2 parameter actor (r0=behavior, r1=r4, r2=r5)
+create_2:		@ create 2 parameter actor
+			@ (r0=behavior, r1=r4, r2=r5)
 	stmdb	sp!, {r4-r6,lr}	@ preserve in-use registers
 	mov	r4, r1		@ move 1st state parameter into place
 	mov	r5, r2		@ move 2nd state parameter into place
@@ -514,7 +537,8 @@ create_2:		@ create 2 parameter actor (r0=behavior, r1=r4, r2=r5)
 	.text
 	.align 2		@ align to machine word
 	.global create_3x
-create_3x:		@ create 3 parameter actor (r4-r6=state, r7=behavior)
+create_3x:		@ create 3 parameter actor
+			@ (r4-r6=state, r7=behavior)
 	stmdb	sp!, {lr}	@ preserve in-use registers
 	bl	reserve		@ allocate actor block
 	ldr	r1, =template_3	@ load template address
@@ -525,7 +549,8 @@ create_3x:		@ create 3 parameter actor (r4-r6=state, r7=behavior)
 	.text
 	.align 2		@ align to machine word
 	.global create_4x
-create_4x:		@ create an actor from example_4 (r0=behavior)
+create_4x:		@ create an actor from example_4
+			@ (r0=behavior)
 	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
 	mov	r9, r0		@ move behavior pointer into place
 	bl	reserve		@ allocate actor block
@@ -537,7 +562,8 @@ create_4x:		@ create an actor from example_4 (r0=behavior)
 	.text
 	.align 2		@ align to machine word
 	.global create_4_9
-create_4_9:		@ create an actor from example_4 (r4-r9=state, r0=behavior)
+create_4_9:		@ create an actor from example_4
+			@ (r4-r9=state, r0=behavior)
 	stmdb	sp!, {r0,lr}	@ preserve in-use registers
 	bl	reserve		@ allocate actor block
 	ldr	r3, =example_4	@ load template address
@@ -550,7 +576,8 @@ create_4_9:		@ create an actor from example_4 (r4-r9=state, r0=behavior)
 	.text
 	.align 2		@ align to machine word
 	.global send
-send:			@ send 1 parameter message (r0=target, r1-r7=message)
+send:			@ send 1 parameter message
+			@ (r0=target, r1-r7=message)
 	stmdb	sp!, {r4-r8,lr}	@ preserve in-use registers
 	stmdb	sp!, {r0-r7}	@ preserve event data
 	bl	reserve		@ allocate event block
@@ -562,7 +589,8 @@ send:			@ send 1 parameter message (r0=target, r1-r7=message)
 	.text
 	.align 2		@ align to machine word
 	.global send_0
-send_0:			@ send 0 parameter message (r0=target)
+send_0:			@ send 0 parameter message
+			@ (r0=target)
 	stmdb	sp!, {lr}	@ preserve in-use registers
 	stmdb	sp!, {r0}	@ preserve event data
 	bl	reserve		@ allocate event block
@@ -574,7 +602,8 @@ send_0:			@ send 0 parameter message (r0=target)
 	.text
 	.align 2		@ align to machine word
 	.global send_1
-send_1:			@ send 1 parameter message (r0=target, r1=message)
+send_1:			@ send 1 parameter message
+			@ (r0=target, r1=message)
 	stmdb	sp!, {lr}	@ preserve in-use registers
 	stmdb	sp!, {r0-r1}	@ preserve event data
 	bl	reserve		@ allocate event block
@@ -586,7 +615,8 @@ send_1:			@ send 1 parameter message (r0=target, r1=message)
 	.text
 	.align 2		@ align to machine word
 	.global send_2
-send_2:			@ send 2 parameter message (r0=target, r1-r2=message)
+send_2:			@ send 2 parameter message
+			@ (r0=target, r1-r2=message)
 	stmdb	sp!, {lr}	@ preserve in-use registers
 	stmdb	sp!, {r0-r2}	@ preserve event data
 	bl	reserve		@ allocate event block
@@ -598,7 +628,8 @@ send_2:			@ send 2 parameter message (r0=target, r1-r2=message)
 	.text
 	.align 2		@ align to machine word
 	.global send_3x
-send_3x:		@ send 3 parameter message (r4=target, r5-r7=message)
+send_3x:		@ send 3 parameter message
+			@ (r4=target, r5-r7=message)
 	stmdb	sp!, {lr}	@ preserve in-use registers
 	bl	reserve		@ allocate event block
 	stmia	r0, {r4-r7}	@ write data to event
@@ -802,5 +833,6 @@ panic_txt:
 	.ascii "\nPANIC!\0"
 
 	.section .heap
-	.align 5		@ align to cache-line
+@	.align 8		@ align to 256-byte boundary
+	.align 12		@ align to 4kB boundary
 heap_start:
