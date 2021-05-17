@@ -27,7 +27,7 @@ extern ACTOR b_number;
 
 struct example_1 {
     u32         code_00;
-    ACTOR       beh_04;
+    ACTOR*      beh_04;
     u32         data_08;
     u32         data_0c;
     u32         data_10;
@@ -40,7 +40,7 @@ struct template_1 {
     u32         code_00;
     u32         code_04;
     u32         r4_08;
-    ACTOR       beh_0c;
+    ACTOR*      beh_0c;
     u32         _10;
     u32         _14;
     u32         _18;
@@ -52,7 +52,7 @@ struct template_2 {
     u32         code_04;
     u32         r4_08;
     u32         r5_0c;
-    ACTOR       beh_10;
+    ACTOR*      beh_10;
     u32         _14;
     u32         _18;
     u32         _1c;
@@ -221,7 +221,7 @@ cdr(ACTOR* cons)
 {
     if (pair_q(cons)) {
         struct template_2 *a = (struct template_2 *)cons;
-        return (ACTOR)(a->r5_0c);
+        return (ACTOR*)(a->r5_0c);
     }
     return NULL;  // fail
 }

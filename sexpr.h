@@ -28,8 +28,8 @@
 #define EOF (-1)
 #endif
 
-extern ACTOR    parse_sexpr();  /* parse and return s-expression */
-extern void     print_sexpr(ACTOR);  /* print external representation of s-expression */
+extern ACTOR*   parse_sexpr();  /* parse and return s-expression */
+extern void     print_sexpr(ACTOR*);  /* print external representation of s-expression */
 extern void		kernel_repl();
 
 #endif /* _SEXPR_H_ */
