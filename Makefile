@@ -25,6 +25,7 @@ KOBJS=	start.o \
 	console.o \
 	idiom.o \
 	kernel.o \
+	sexpr.o \
 	raspberry.o \
 	timer.o \
 	serial.o \

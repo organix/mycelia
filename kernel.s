@@ -50,7 +50,7 @@ self_eval:		@ any self-evaluating actor
 	ldr	r1, [fp]	@ get SELF from message
 	b	_a_answer	@ actor is self-evaluating
 
-@ CREATE Inert WITH \(cust, req).[
+@ LET Self_EVAL = \(cust, req).[
 @ 	CASE req OF
 @ 	(#eval, _) : [ SEND SELF TO cust ]
 @ 	_ : [ THROW (#Not-Understood, SELF, req) ]
@@ -60,6 +60,15 @@ self_eval:		@ any self-evaluating actor
 	.align 5		@ align to cache-line
 	.global a_inert
 a_inert:		@ "#inert" singleton
+	b	self_eval	@ self-evaluating
+
+a_no_bind:		@ "#ignore" singleton
+	b	self_eval	@ self-evaluating
+
+a_true:			@ "#t" singleton
+	b	self_eval	@ self-evaluating
+
+a_false:		@ "#f" singleton
 	b	self_eval	@ self-evaluating
 
 @ LET Binding(symbol, value, next) = \(cust, req).[
@@ -204,7 +213,8 @@ b_symbol:		@ symbolic name (example_1: [0x08..0x1f]=name)
 	.text
 	.align 5		@ align to cache-line
 s_NIL:
-	ldr	pc, [pc, #-4]	@ jump to actor behavior
+@	ldr	pc, [pc, #-4]	@ jump to actor behavior
+	ldr	pc, [ip, #4]	@ jump to actor behavior
 	.int	b_symbol	@ 0x04: address of actor behavior
 	.ascii	"NIL\0"		@ 0x08: state field 1
 	.int	0		@ 0x0c: state field 2
@@ -257,6 +267,76 @@ k_oper:			@ operative continuation (example_3: r4=cust, r5=#S_OPER, r6=right, r7
 	ldr	r3, [fp, #0x04] @ get oper
 	stmia	r0, {r3-r7}	@ write new event
 	b	_a_end		@ delegate to operative
+
+@ LET Number(int32) = \(cust, req).[
+@ 	CASE req OF
+@ 	(#eval, env) : [ SEND SELF TO cust ]
+@ 	_ : [ THROW (#Not-Understood, SELF, req) ]
+@ 	END
+@ ]
+	.text
+	.align 5		@ align to cache-line
+	.global b_symbol
+b_number:		@ integer constant (template_1: r4=int32)
+			@ message = (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_SELF
+	bne	1f		@ if req == "self"
+
+	ldr	r0, [fp, #0x04]	@	get cust
+	mov	r0, r4		@	get int32
+	bl	send_1		@	send message
+	b	complete	@	return to dispatcher
+1:
+	b	self_eval	@ self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+n_m1:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
+	.int	-1		@ 0x08: r4=int32
+	.int	b_number	@ 0x0c: address of actor behavior
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
+	.text
+	.align 5		@ align to cache-line
+
+	.text
+	.align 5		@ align to cache-line
+n_0:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
+	.int	0		@ 0x08: r4=int32
+	.int	b_number	@ 0x0c: address of actor behavior
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
+
+	.text
+	.align 5		@ align to cache-line
+n_1:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
+	.int	1		@ 0x08: r4=int32
+	.int	b_number	@ 0x0c: address of actor behavior
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
+
+n_2:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
+	.int	2		@ 0x08: r4=int32
+	.int	b_number	@ 0x0c: address of actor behavior
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: --
 
 @
 @ unit test actors and behaviors

@@ -39,4 +39,12 @@ extern void BRANCH_TO(u32 addr);
 #define PUT_32(addr, data)      (*((volatile u32*)(addr)) = (data))
 #define GET_32(addr)            (*((volatile u32*)(addr)))
 
+/* C procedures from raspberry.c */
+extern int putchar(int c);
+extern void puts(char* s);
+extern int getchar();
+extern void hexdump(const u8* p, int n);
+extern void dump256(void* p);
+extern char* editline();
+
 #endif /* _RASPI_H_ */

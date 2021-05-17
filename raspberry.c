@@ -19,16 +19,13 @@
 #include "timer.h"
 #include "serial.h"
 #include "xmodem.h"
+#include "sexpr.h"
 
 #define DUMP_ASCII 0  // show ascii translation of event data
 
 /* Exported procedures (force full register discipline) */
 extern void k_start(u32 sp);
 extern void monitor();
-extern int putchar(int c);
-extern int getchar();
-extern void hexdump(const u8* p, int n);
-extern void dump256(void* p);
 
 /* Private data structures */
 static char linebuf[256];  // line editing buffer
@@ -205,7 +202,7 @@ report_time(u32 t)
 }
 
 /*
- * Traditional single-character "cooked" output
+ * Traditional "cooked" single-character output
  */
 int
 putchar(int c)
@@ -216,6 +213,19 @@ putchar(int c)
         serial_write(c);
     }
     return c;
+}
+
+/*
+ * Traditional "cooked" string output
+ */
+void
+puts(char* s)
+{
+    int c;
+
+    while (c = *s++) {
+        putchar(c);
+    }
 }
 
 /*
@@ -263,8 +273,14 @@ editline()
                 linelen = 0;
                 continue;  // no echo
             }
+            putchar(c);
+            putchar(' ');  // erase previous character
         } else {
             linebuf[linelen++] = c;
+        }
+        if (c == '\r') {
+            putchar(c);
+            c = '\n';  // convert CR to LF
         }
         putchar(c);  // echo input
         if (c == '\n') {
@@ -385,7 +401,7 @@ k_start(u32 sp)
     // display banner
     char* p;
     serial_puts(p="mycelia 0.0.3 ");
-    serial_puts("2021-05-14 20:57 ");
+    serial_puts("2021-05-16 21:57 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0
@@ -409,6 +425,8 @@ k_start(u32 sp)
         serial_puts("  3. Unit tests");
         serial_eol();
         serial_puts("  4. Benchmark");
+        serial_eol();
+        serial_puts("  5. Kernel REPL");
         serial_eol();
         serial_puts("  9. Exit");
         serial_eol();
@@ -436,6 +454,9 @@ k_start(u32 sp)
 //                mycelia(a_bench, (u32)dump_event);  // trace events
                 report_time(timer_stop());
                 break;
+            }
+            case '5': {
+                kernel_repl();
             }
             case '9': {
                 mycelia(a_exit, 0);

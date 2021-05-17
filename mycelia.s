@@ -388,7 +388,7 @@ _a_end:			@ queue message and return from actor (r0=event)
 	.text
 	.align 5		@ align to cache-line
 example_1:
-	ldr	pc, [pc, #-4]	@ jump to actor behavior
+	ldr	pc, [ip, #4]	@ jump to actor behavior
 	.int	complete	@ 0x04: address of actor behavior
 	.int	0x11111111	@ 0x08: state field 1
 	.int	0x22222222	@ 0x0c: state field 2
