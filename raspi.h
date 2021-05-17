@@ -48,8 +48,12 @@ extern void BRANCH_TO(u32 addr);
 extern int putchar(int c);
 extern void puts(char* s);
 extern int getchar();
+extern void serial_hex32(u32 w);
+extern void serial_hex8(u8 b);
 extern void hexdump(const u8* p, int n);
 extern void dump256(void* p);
+extern void dump_block(const u32* p);
+extern void dump_event(const u32* p);
 extern char* editline();
 
 #endif /* _RASPI_H_ */

@@ -47,8 +47,8 @@ mycelia:		@ entry point for the actor kernel
 	bl	enqueue		@ add event to queue
 
 	mov	r0, fp		@ recall event pointer
-	mov	r1, #32		@ size = 32b
-	bl	hexdump		@ display initial event
+	bl	serial_hex32	@ display event pointer
+	bl	serial_eol	@ newline
 
 	b	dispatch	@ start dispatch loop
 

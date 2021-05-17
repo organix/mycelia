@@ -400,8 +400,8 @@ k_start(u32 sp)
 
     // display banner
     char* p;
-    serial_puts(p="mycelia 0.0.6 ");
-    serial_puts("2021-05-17 12:00 ");
+    serial_puts(p="mycelia 0.0.7 ");
+    serial_puts("2021-05-17 13:31 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0
@@ -454,7 +454,7 @@ k_start(u32 sp)
                 timer_start();
                 mycelia(&sponsor_0, &a_test, (u32)dump_event);
                 report_time(timer_stop());
-                dump256(p);
+//                dump256(p);
                 break;
             }
             case '4': {
