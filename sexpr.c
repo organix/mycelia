@@ -172,9 +172,11 @@ symbol(struct sym_24b* name)
     // search for interned symbol
     ACTOR* x = sym_search(name);
     if (x != NULL) {
+        DEBUG(puts("sym:found\n"));
         return x;  // symbol found, return it
     }
-    if (((void *)next_sym - (void *)sym_table) < sizeof(sym_table)) {
+    if (((void *)(*next_sym) - (void *)(sym_table)) < sizeof(sym_table)) {
+        DEBUG(puts("sym:overflow\n"));
         return NULL;  // fail -- symbol table overflow!
     }
     // create a new symbol
@@ -187,8 +189,10 @@ symbol(struct sym_24b* name)
         a->data_18 = name->data_18;
         a->data_1c = name->data_1c;
         *next_sym++ = a;  // intern symbol in table
+        DEBUG(puts("sym:created\n"));
         return (ACTOR*)a;  // return new symbol
     }
+    DEBUG(puts("sym:fail\n"));
     return NULL;  // fail
 }
 
@@ -321,11 +325,12 @@ parse_list()
     y = &a_nil;
     parse_opt_space();
     c = read_char();
-    if ((c == '.') && (x != a_nil)) {
-        parse_opt_space();
+    if ((c == '.') && (x != &a_nil)) {
+        DEBUG(puts("<tail>\n"));
         y = parse_sexpr();
         if (y == NULL) return NULL;  // failed
         parse_opt_space();
+        c = read_char();
     }
     if (c != ')') {
         unread_char(c);
@@ -421,22 +426,23 @@ parse_symbol()
 
     DEBUG(puts("symbol?\n"));
     c = read_char();
+    if (!is_ident_char(c)) {
+        unread_char(c);
+        return NULL;  // failed
+    }
     if (c == '.') {  // check for for delimited '.'
         c = read_char();
         if (!is_ident_char(c)) {
             unread_char(c);
             unread_char('.');
+            DEBUG(puts("<dot>\n"));
             return NULL;  // failed
         }
         b[i++] = '.';
     }
-    if (!is_ident_char(c)) {
-        unread_char(c);
-        return NULL;  // failed
-    }
     for (;;) {
         b[i++] = c;
-        if (i >= (sizeof(b) - 1)) return NULL;  // overflow
+        if (i >= (sizeof(sym) - 1)) return NULL;  // overflow
         c = read_char();
         if (!is_ident_char(c)) {
             unread_char(c);

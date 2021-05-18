@@ -153,12 +153,20 @@ dump_ascii(const u32* p)
         serial_write(' ');
         u8* q = (u8*)p++;
         for (int j = 0; j < 4; ++j) {
-            serial_write(' ');
             u8 c = *q++;
             if ((c >= ' ') && (c < 0x7F)) {
                 serial_write(c);
+                serial_write(' ');
+            } else if (c == '\0') {
+                serial_puts("\\0");
+            } else if (c == '\n') {
+                serial_puts("\\n");
+            } else if (c == '\r') {
+                serial_puts("\\r");
+            } else if (c == '\t') {
+                serial_puts("\\t");
             } else {
-                serial_write('.');
+                serial_puts(". ");
             }
         }
     }
@@ -171,14 +179,12 @@ dump_event(const u32* p)
     dump_block(p);
     serial_eol();
 #if DUMP_ASCII
-    serial_write('\\');
+    serial_write(' ');
     dump_ascii(p);
     serial_eol();
 #endif
     if (((*p) > 0x8000) && ((*p) < 0x10000000)) {
-        serial_write(' ');
-        serial_write('\\');
-        serial_write('_');
+        serial_puts(" \\_");
         dump_block((const u32*)(*p));
         serial_eol();
 #if DUMP_ASCII
@@ -401,7 +407,7 @@ k_start(u32 sp)
     // display banner
     char* p;
     serial_puts(p="mycelia 0.0.7 ");
-    serial_puts("2021-05-17 13:31 ");
+    serial_puts("2021-05-18 08:08 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0
