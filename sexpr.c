@@ -3,7 +3,7 @@
  */
 #include "sexpr.h"
 
-#define DEBUG(x) x  /* debug logging */
+#define DEBUG(x)   /* debug logging */
 
 extern void serial_hex8(u8 b);
 
@@ -564,14 +564,25 @@ print_symbol(ACTOR* sym)
 static void
 print_list(ACTOR* cons)
 {
-    struct template_2 *a = (struct template_2 *)cons;
-    ACTOR* car = (ACTOR*)(a->r4_08);
-    ACTOR* cdr = (ACTOR*)(a->r5_0c);
     putchar('(');
-    print_sexpr(car);
-    puts(" . ");
-    print_sexpr(cdr);
-    putchar(')');
+    for (;;) {
+        struct template_2 *a = (struct template_2 *)cons;
+        ACTOR* car = (ACTOR*)(a->r4_08);
+        ACTOR* cdr = (ACTOR*)(a->r5_0c);
+
+        print_sexpr(car);
+        if (null_q(cdr)) {
+            putchar(')');
+            break;
+        } else if (!pair_q(cdr)) {
+            puts(" . ");
+            print_sexpr(cdr);
+            putchar(')');
+            break;
+        }
+        putchar(' ');
+        cons = cdr;
+    }
 }
 
 void
