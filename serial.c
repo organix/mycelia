@@ -175,6 +175,16 @@ serial_in()
 }
 
 /*
+ * Consume input until !ready
+ */
+void
+serial_in_flush() {
+    while (serial_in_ready()) {
+        serial_in();
+    }
+}
+
+/*
  * Serial output ready != 0, wait == 0
  */
 int

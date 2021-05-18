@@ -23,6 +23,7 @@
 extern void     serial_init();              /* initialize serial UART */
 extern int      serial_in_ready();          /* input ready != 0, wait == 0 */
 extern int      serial_in();                /* raw input from serial port */
+extern void     serial_in_flush();          /* consume input until !ready */
 extern int      serial_out_ready();         /* output ready != 0, wait == 0 */
 extern int      serial_out(u8 data);        /* raw output to serial port */
 

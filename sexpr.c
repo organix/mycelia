@@ -254,6 +254,13 @@ set_cdr(ACTOR* cons, ACTOR* cdr)
 
 static char* line = NULL;
 
+static void
+flush_char()
+{
+    serial_in_flush();
+    line = NULL;
+}
+
 static int
 read_char()
 {
@@ -612,6 +619,7 @@ print_sexpr(ACTOR* a)  /* print external representation of s-expression */
 void
 kernel_repl()
 {
+    flush_char();
     for (;;) {
         puts("> ");
         ACTOR* x = parse_sexpr();

@@ -407,7 +407,7 @@ k_start(u32 sp)
     // display banner
     char* p;
     serial_puts(p="mycelia 0.0.7 ");
-    serial_puts("2021-05-18 08:18 ");
+    serial_puts("2021-05-18 08:54 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0
