@@ -406,8 +406,8 @@ k_start(u32 sp)
 
     // display banner
     char* p;
-    serial_puts(p="mycelia 0.0.7 ");
-    serial_puts("2021-05-18 08:54 ");
+    serial_puts(p="mycelia 0.1.0 ");
+    serial_puts("2021-05-18 16:20 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0
@@ -458,15 +458,15 @@ k_start(u32 sp)
             }
             case '3': {
                 timer_start();
-                mycelia(&sponsor_0, &a_test, (u32)dump_event);
+                mycelia(&sponsor_0, &a_test, (u32)&dump_event);
                 report_time(timer_stop());
 //                dump256(p);
                 break;
             }
             case '4': {
                 timer_start();
-                mycelia(&sponsor_1, &a_bench, 0);  // no tracing
-//                mycelia(sponsor_0, a_bench, (u32)dump_event);  // trace events
+                mycelia(&sponsor_1, &a_bench, 0);  // fast sponsor (no tracing)
+//                mycelia(&sponsor_0, &a_bench, 0);  // default sponsor, tracing off
                 report_time(timer_stop());
                 break;
             }

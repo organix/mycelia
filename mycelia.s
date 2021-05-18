@@ -536,6 +536,22 @@ create_2:		@ create 2 parameter actor
 
 	.text
 	.align 2		@ align to machine word
+	.global create_3
+create_3:		@ create 3 parameter actor
+			@ (r0=behavior, r1=r4, r2=r5, r3=r6)
+	stmdb	sp!, {r4-r7,lr}	@ preserve in-use registers
+	mov	r4, r1		@ move 1st state parameter into place
+	mov	r5, r2		@ move 2nd state parameter into place
+	mov	r6, r3		@ move 3rd state parameter into place
+	mov	r7, r0		@ move behavior pointer into place
+	bl	reserve		@ allocate actor block
+	ldr	r1, =template_3	@ load template address
+	ldmia	r1, {r2-r3}	@ read template (code only)
+	stmia	r0, {r2-r7}	@ write actor
+	ldmia	sp!, {r4-r7,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
 	.global create_3x
 create_3x:		@ create 3 parameter actor
 			@ (r4-r6=state, r7=behavior)
@@ -641,24 +657,6 @@ send_3x:		@ send 3 parameter message
 @
 
 	.text
-	.align 2		@ align to machine word
-@	.global test_suite
-test_suite:		@ suite of automated unit-tests
-	stmdb	sp!, {r4-r9,lr}	@ preserve in-use registers
-
-	@ unit test launcher
-@	ldr	r0, =b_fork_t
-	ldr	r0, =b_kernel_t
-	bl	create_0	@ create unit test actor
-	ldr	r1, =a_test_ok	@ ok customer
-	ldr	r2, =a_failed	@ fail customer
-	bl	send_2
-
-@	ldr	r0, =a_test_ok	@ get suite finished actor
-@	bl	send_0		@ send message to report completion
-	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
-
-	.text
 	.align 5		@ align to cache-line
 	.global a_test
 a_test:			@ test suite execution actor
@@ -668,7 +666,14 @@ a_test:			@ test suite execution actor
 	mul	r1, r0, r1	@ 3 seconds
 	ldr	r0, =a_failed	@ fail after 1 second
 	bl	watchdog_set	@ set watchdog timer
-	bl	test_suite	@ run suite of unit-tests [FIXME: inline test_suite]
+
+	@ unit test launcher
+@	ldr	r0, =b_fork_t
+	ldr	r0, =b_kernel_t
+	bl	create_0	@ create unit test actor
+	ldr	r1, =a_test_ok	@ ok customer
+	ldr	r2, =a_failed	@ fail customer
+	bl	send_2
 	b	complete	@ return to dispatch loop
 
 	.text

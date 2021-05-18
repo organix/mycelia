@@ -2,10 +2,9 @@
  * sexpr.c -- LISP/Scheme S-expressions (ala John McCarthy)
  */
 #include "sexpr.h"
+#include "serial.h"
 
 #define DEBUG(x)   /* debug logging */
-
-extern void serial_hex8(u8 b);
 
 // asm utilities
 extern struct example_1 *create_0(ACTOR* behavior);
@@ -21,6 +20,8 @@ extern ACTOR a_no_bind;
 extern ACTOR a_fail;
 
 // static behaviors
+extern ACTOR b_binding;
+extern ACTOR b_scope;
 extern ACTOR b_symbol;
 extern ACTOR b_pair;
 extern ACTOR b_number;
@@ -56,6 +57,28 @@ struct template_2 {
     u32         _14;
     u32         _18;
     u32         _1c;
+};
+
+struct template_3 {
+    u32         code_00;
+    u32         code_04;
+    u32         r4_08;
+    u32         r5_0c;
+    u32         r6_10;
+    ACTOR*      beh_14;
+    u32         _18;
+    u32         _1c;
+};
+
+struct example_3 {
+    u32         code_00;
+    u32         code_04;
+    u32         r4_08;
+    u32         r5_0c;
+    u32         r6_10;
+    u32         r7_14;
+    u32         r8_18;
+    ACTOR*      beh_1c;
 };
 
 int
@@ -107,7 +130,8 @@ null_q(ACTOR* x)
 int
 environment_q(ACTOR* x)
 {
-    return 0;  // [FIXME] NOT IMPLEMENTED!
+    struct template_3 *a = (struct template_3 *)x;
+    return (a->beh_14 == &b_scope) || (a->beh_14 == &b_binding);
 }
 
 int
