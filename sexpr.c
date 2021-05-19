@@ -21,6 +21,7 @@ extern ACTOR a_false;
 extern ACTOR a_inert;
 extern ACTOR a_no_bind;
 extern ACTOR a_kernel_err;
+extern ACTOR ap_list;
 extern ACTOR a_exit;
 
 // static behaviors
@@ -676,6 +677,7 @@ ground_env()
 {
     static ACTOR* env = NULL;
     char exit_24b[] = "exit" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char list_24b[] = "list" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     ACTOR* a;
     ACTOR* x;
 
@@ -686,6 +688,13 @@ ground_env()
     a = symbol((struct sym_24b*)exit_24b);
     if (!a) return NULL;  // FAIL!
     x = (ACTOR *)create_3(&b_binding, (u32)a, (u32)&a_exit, (u32)env);
+    if (!x) return NULL;  // FAIL!
+    env = x;
+
+    /* bind "list" */
+    a = symbol((struct sym_24b*)list_24b);
+    if (!a) return NULL;  // FAIL!
+    x = (ACTOR *)create_3(&b_binding, (u32)a, (u32)&ap_list, (u32)env);
     if (!x) return NULL;  // FAIL!
     env = x;
 

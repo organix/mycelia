@@ -180,7 +180,7 @@ to the desired behavior,
 and jumping through that pointer to handle an event.
 ~~~
         +--------+--------+--------+--------+
-  0x00  |       ldr     pc, [ip, #4]        |
+  0x00  |       ldr     pc, [ip, #0x04]     |
         +-----------------------------------+
   0x04  | address of actor behavior         |
         +-----------------------------------+
@@ -321,7 +321,7 @@ The actor state can still be read/written,
 as needed, through the ip register.
 ~~~
         +--------+--------+--------+--------+
-  0x00  |       ldr     pc, [ip, #1c]       |
+  0x00  |       ldr     pc, [ip, #0x1c]     |
         +-----------------------------------+
   0x04  | actor state                       |
         +        .        .        .        +

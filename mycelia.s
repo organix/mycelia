@@ -484,7 +484,7 @@ example_4:
 	.text
 	.align 5		@ align to cache-line
 example_5:
-	ldr	pc, [ip, #1c]	@ jump to actor behavior
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	0x11111111	@ 0x04: state field 1
 	.int	0x22222222	@ 0x08: state field 2
 	.int	0x33333333	@ 0x0c: state field 3

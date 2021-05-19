@@ -405,7 +405,7 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia 0.1.5 ");
+    serial_puts("mycelia 0.1.6 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
     serial_eol();

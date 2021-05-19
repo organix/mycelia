@@ -25,8 +25,8 @@
 	.set S_GET,  0x01
 	.set S_SET,  0x02
 	.set S_EVAL, 0x03
-	.set S_APPL, 0x04
-	.set S_OPER, 0x05
+	.set S_APPL, 0x04	@ "combine"
+	.set S_OPER, 0x05	@ "unwrap"
 	.set S_EXEC, 0x06
 	.set S_PUSH, 0x07
 	.set S_POP,  0x08
@@ -40,7 +40,20 @@
 a_fail:			@ singleton failure actor
 	bl	fail		@ signal an error
 	b	complete	@ return to dispatcher
-
+@
+@ FIXME!
+@	This failure handler allows multiple failures to be reported,
+@	but does not ensure that customers, if any, receive a reply.
+@	We should implement a top-level error-handler, initially a_exit,
+@	that can be called (or sent a message) to signal an error.
+@	During sexpr evaluation, it can be a one-shot customer
+@	that will either return normally or signal exactly one error
+@	and ignore all subsequent responses. This way, if fork/join
+@	is still running, it will safely run to completion without
+@	confusing a customer that has already received an error signal.
+@	We need to think carefully about when a new error handler
+@	can be safely installed or removed during asynchronous computation.
+@
 self_eval:		@ any self-evaluating actor
 			@ message = (cust, #S_EVAL, _)
 	ldr	r3, [fp, #0x08] @ get req from message
@@ -252,7 +265,7 @@ b_pair:			@ pair combination
 	ldr	r0, =k_oper
 	bl	create		@	create k_oper actor
 	ldr	r6, [fp, #0x04] @	get cust
-	mov	r7, #S_OPER
+	mov	r7, #S_APPL
 	mov	r8, r5		@	get right
 	ldr	r9, [fp, #0x0c]	@	get env
 	add	r1, r0, #0x08
@@ -268,7 +281,7 @@ b_pair:			@ pair combination
 	b	complete	@	signal error and return to dispatcher
 
 k_oper:			@ operative continuation
-			@ (example_3: r4=cust, r5=#S_OPER, r6=right, r7=env)
+			@ (example_3: r4=cust, r5=#S_APPL, r6=right, r7=env)
 			@ message = (oper)
 	bl	reserve		@ allocate event block
 	ldr	r3, [fp, #0x04] @ get oper
@@ -310,8 +323,6 @@ n_m1:
 	.int	0		@ 0x14: --
 	.int	0		@ 0x18: --
 	.int	0		@ 0x1c: --
-	.text
-	.align 5		@ align to cache-line
 
 	.text
 	.align 5		@ align to cache-line
@@ -351,6 +362,48 @@ n_2:
 	.int	0		@ 0x14: --
 	.int	0		@ 0x18: --
 	.int	0		@ 0x1c: --
+
+@
+@ built-in operatives and applicatives
+@
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_list
+op_list:		@ operative "$list"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	bl	reserve		@	allocate event block
+	ldr	r1, [fp, #0x0c]	@	get operands
+	b	_a_answer	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_list
+ap_list:		@ applicative "list"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_OPER)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	bl	reserve		@	allocate event block
+	ldr	r1, [fp, #0x0c]	@	get operands
+@@@ FIXME!!! === we're supposed to EVALuate the operands to produce arguments ===
+	b	_a_answer	@	send to customer and return
+1:
+	teq	r3, #S_OPER
+	bne	2f		@ if req == "unwrap"
+	bl	reserve		@	allocate event block
+	ldr	r1, =op_list	@	get operative
+	b	_a_answer	@	send to customer and return
+2:
+	b	self_eval	@ else we are self-evaluating
 
 @ void
 @ kernel_repl()
