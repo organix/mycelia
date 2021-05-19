@@ -18,7 +18,8 @@ extern ACTOR a_true;
 extern ACTOR a_false;
 extern ACTOR a_inert;
 extern ACTOR a_no_bind;
-extern ACTOR a_fail;
+extern ACTOR a_kernel_err;
+extern ACTOR a_exit;
 
 // static behaviors
 extern ACTOR b_binding;
@@ -620,7 +621,9 @@ print_list(ACTOR* cons)
 void
 print_sexpr(ACTOR* a)  /* print external representation of s-expression */
 {
-    if (null_q(a)) {
+    if (!a) {
+        puts("#<NULL>");
+    } else if (null_q(a)) {
         puts("()");
     } else if (a == &a_true) {
         puts("#t");
@@ -644,15 +647,41 @@ print_sexpr(ACTOR* a)  /* print external representation of s-expression */
     }
 }
 
+ACTOR*
+ground_env()
+{
+    static ACTOR* env = NULL;
+    char exit_24b[] = "exit" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    ACTOR* a;
+    ACTOR* x;
+
+    if (env) return env;  // lazy-initialized singleton
+    env = &a_kernel_err;  // signal an error on lookup failure
+
+    /* bind "exit" */
+    a = symbol((struct sym_24b*)exit_24b);
+    if (!a) return NULL;  // FAIL!
+    x = (ACTOR *)create_3(&b_binding, (u32)a, (u32)&a_exit, (u32)env);
+    if (!x) return NULL;  // FAIL!
+    env = x;
+
+    /* mutable local scope */
+    x = (ACTOR *)create_3(&b_scope, (u32)env, (u32)0, (u32)0);
+    if (!x) return NULL;  // FAIL!
+    env = x;
+
+    return env;
+}
+
 void
 kernel_repl()
 {
     flush_char();
     for (;;) {
+        putchar('\n');
         puts("> ");
         ACTOR* x = parse_sexpr();
         if (x == NULL) break;
-        puts("= ");
         print_sexpr(x);
         putchar('\n');
     }

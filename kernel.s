@@ -114,7 +114,7 @@ b_binding:		@ symbol binding
 	b	complete	@	return to dispatcher
 2:
 	bl	reserve		@ allocate event block
-	mov	r1, r4		@ target is parent
+	mov	r1, r6		@ target is next
 	ldmia	fp, {r2-r9}	@ copy current event
 	stmia	r0, {r2-r9}	@ write new event
 	b	_a_send		@ set target, send, and return to dispatcher
@@ -169,17 +169,6 @@ b_scope:		@ binding scope
 	stmia	r0, {r2-r9}	@ write new event
 	b	_a_send		@ set target, send, and return to dispatcher
 
-	.text
-	.align 5		@ align to cache-line
-a_ground_env:
-	mov	ip, pc		@ point ip to data fields (state)
-	ldmia	ip, {r4-r6,pc}	@ copy state and jump to behavior
-@	.int	a_fail		@ 0x08: r4=parent env
-	.int	a_exit		@ 0x08: r4=parent env
-	.int	0		@ 0x0c: r5=n/a
-	.int	0		@ 0x10: r6=n/a
-	.int	b_scope		@ 0x14: address of actor behavior
-
 @ CREATE Nil WITH \(cust, req).[
 @ 	CASE req OF
 @ 	(#eval, _) : [ SEND SELF TO cust ]
@@ -230,7 +219,6 @@ b_symbol:		@ symbolic name
 	.text
 	.align 5		@ align to cache-line
 s_NIL:
-@	ldr	pc, [pc, #-4]	@ jump to actor behavior
 	ldr	pc, [ip, #4]	@ jump to actor behavior
 	.int	b_symbol	@ 0x04: address of actor behavior
 	.ascii	"NIL\0"		@ 0x08: state field 1
@@ -386,7 +374,7 @@ a_kernel_repl:		@ kernel read-eval-print loop
 	bl	flush_char	@ flush pending/buffered input
 	ldr	r0, =a_kernel_read @ target actor
 	ldr	r1, =a_kernel_eval @ ok customer
-	ldr	r2, =a_exit	@ fail customer
+	ldr	r2, =a_kernel_err @ fail customer
 	bl	send_2		@ send message
 	b	complete	@ return to dispatch loop
 
@@ -395,8 +383,7 @@ a_kernel_repl:		@ kernel read-eval-print loop
 	.global a_kernel_read
 a_kernel_read:		@ kernel read actor
 			@ message = (ok, fail)
-@	ldr	r4, [fp, #0x04]	@ get ok customer
-@	ldr	r5, [fp, #0x08]	@ get fail customer
+	bl	serial_eol	@ write end-of-line
 	ldr	r0, =prompt_txt	@ load address of prompt
 	bl	serial_puts	@ write text to console
 	bl	parse_sexpr	@ parse s-expression from input
@@ -413,10 +400,11 @@ prompt_txt:
 	.global a_kernel_eval
 a_kernel_eval:		@ kernel eval actor
 			@ message = (expr)
+	bl	ground_env	@ get ground environment
 	ldr	r4, [fp, #0x04]	@ get expr to eval
 	ldr	r5, =a_kernel_print @ customer
 	mov	r6, #S_EVAL	@ "eval" request
-	ldr	r7, =a_ground_env @ environment
+	mov	r7, r0		@ environment
 	bl	send_3x		@ send message [FIXME: set watchdog timer...]
 	b	complete	@ return to dispatch loop
 
@@ -425,18 +413,26 @@ a_kernel_eval:		@ kernel eval actor
 	.global a_kernel_print
 a_kernel_print:		@ kernel print actor
 			@ message = (value)
-	ldr	r0, =prefix_txt	@ load address of prefix
-	bl	serial_puts	@ write text to console
 	ldr	r0, [fp, #0x04]	@ get value from message
 	bl	print_sexpr	@ print s-expression
 	bl	serial_eol	@ write end-of-line
 	ldr	r0, =a_kernel_read @ target actor
 	ldr	r1, =a_kernel_eval @ ok customer
-	ldr	r2, =a_exit	@ fail customer
+	ldr	r2, =a_kernel_err @ fail customer
 	bl	send_2		@ send message
 	b	complete	@ return to dispatch loop
-prefix_txt:
-	.ascii	"= \0"
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_kernel_err
+a_kernel_err:		@ kernel error handler
+			@ message = ()
+	ldr	r0, =error_txt	@ load address of text
+	bl	serial_puts	@ write text to console
+	bl	serial_eol	@ write end-of-line
+	b	a_kernel_repl	@ re-enter REPL
+error_txt:
+	.ascii	"#<ERROR>\0"
 
 @
 @ unit test actors and behaviors
