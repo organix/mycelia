@@ -353,6 +353,80 @@ n_2:
 	.int	0		@ 0x18: --
 	.int	0		@ 0x1c: --
 
+@ void
+@ kernel_repl()
+@ {
+@     flush_char();
+@     for (;;) {
+@         puts("> ");
+@         ACTOR* x = parse_sexpr();
+@         if (x == NULL) break;
+@         puts("= ");
+@         print_sexpr(x);
+@         putchar('\n');
+@     }
+@ }
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_kernel_repl
+a_kernel_repl:		@ kernel read-eval-print loop
+			@ message = ()
+	bl	flush_char	@ flush pending/buffered input
+	ldr	r0, =a_kernel_read @ target actor
+	ldr	r1, =a_kernel_eval @ ok customer
+	ldr	r2, =a_exit	@ fail customer
+	bl	send_2		@ send message
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_kernel_read
+a_kernel_read:		@ kernel read actor
+			@ message = (ok, fail)
+@	ldr	r4, [fp, #0x04]	@ get ok customer
+@	ldr	r5, [fp, #0x08]	@ get fail customer
+	ldr	r0, =prompt_txt	@ load address of prompt
+	bl	serial_puts	@ write text to console
+	bl	parse_sexpr	@ parse s-expression from input
+	movs	r1, r0		@ if expr == NULL
+	ldreq	r0, [fp, #0x08]	@	send to fail
+	ldrne	r0, [fp, #0x04]	@ else
+	bl	send_1		@	send expr to ok
+	b	complete	@ return to dispatch loop
+prompt_txt:
+	.ascii	"> \0"
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_kernel_eval
+a_kernel_eval:		@ kernel eval actor
+			@ message = (expr)
+	ldr	r4, [fp, #0x04]	@ get expr to eval
+	mov	r5, =a_kernel_print @ customer
+	mov	r6, #S_EVAL	@ "eval" request
+	ldr	r7, =a_NIL_env	@ environment [FIXME: should be ground env]
+	bl	send_3x		@ send message [FIXME: set watchdog timer...]
+	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_kernel_print
+a_kernel_print:		@ kernel print actor
+			@ message = (value)
+	ldr	r0, =prefix_txt	@ load address of prefix
+	bl	serial_puts	@ write text to console
+	ldr	r0, [fp, #0x04]	@ get value from message
+	bl	print_sexpr	@ print s-expression
+	bl	serial_eol	@ write end-of-line
+	ldr	r0, =a_kernel_read @ target actor
+	ldr	r1, =a_kernel_eval @ ok customer
+	ldr	r2, =a_exit	@ fail customer
+	bl	send_2		@ send message
+	b	complete	@ return to dispatch loop
+prefix_txt:
+	.ascii	"= \0"
+
 @
 @ unit test actors and behaviors
 @

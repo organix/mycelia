@@ -279,7 +279,7 @@ set_cdr(ACTOR* cons, ACTOR* cdr)
 
 static char* line = NULL;
 
-static void
+void
 flush_char()
 {
     serial_in_flush();

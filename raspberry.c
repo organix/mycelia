@@ -393,6 +393,7 @@ k_start(u32 sp)
     extern ACTOR a_poll;
     extern ACTOR a_test;
     extern ACTOR a_bench;
+    extern ACTOR a_kernel_repl;
     extern ACTOR a_exit;
 
     // device initialization
@@ -404,7 +405,7 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia 0.1.2 ");
+    serial_puts("mycelia 0.1.3 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
     serial_eol();
@@ -451,8 +452,12 @@ k_start(u32 sp)
                 break;
             }
             case '5': {
+#if 0
                 set_sponsor(&sponsor_0);
                 kernel_repl();
+#else
+                mycelia(&sponsor_0, &a_kernel_repl, 0);
+#endif
                 break;
             }
             case '9': {
