@@ -10,6 +10,7 @@
 extern struct example_1 *create_0(ACTOR* behavior);
 extern struct template_1 *create_1(ACTOR* behavior, u32 r4);
 extern struct template_2 *create_2(ACTOR* behavior, u32 r4, u32 r5);
+extern struct template_3 *create_3(ACTOR* behavior, u32 r4, u32 r5, u32 r6);
 
 // static actors
 extern ACTOR a_nil;
@@ -636,7 +637,10 @@ print_sexpr(ACTOR* a)  /* print external representation of s-expression */
     } else if (pair_q(a)) {
         print_list(a);
     } else {
-        puts("#<unknown>");
+        putchar('#');
+        putchar('<');
+        serial_hex32((u32)a);
+        putchar('>');
     }
 }
 

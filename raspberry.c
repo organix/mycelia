@@ -368,8 +368,7 @@ monitor()
                 serial_rep('.', 3);
                 serial_eol();
                 hexdump((u8*)UPLOAD_ADDR + (len - 128), 128);  // and last block
-                serial_puts("0x");
-                serial_hex32(len);
+                serial_dec32(len);
                 serial_puts(" BYTES RECEIVED.");  // and length
                 serial_eol();
                 serial_puts("^W=boot-uploaded-image");
@@ -405,28 +404,10 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    char* p;
-    serial_puts(p="mycelia 0.1.0 ");
-    serial_puts("2021-05-18 16:20 ");
+    serial_puts("mycelia 0.1.2 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
-#if 0
-    serial_puts(" p=0x");
-    serial_hex32(p);
     serial_eol();
-#else
-    serial_eol();
-//    dump256(p);
-#endif
-
-#if 0
-    serial_puts("sponsor_0:");
-    serial_eol();
-    hexdump((u8*)(&sponsor_0), 32);
-    serial_puts("sponsor_1:");
-    serial_eol();
-    hexdump((u8*)(&sponsor_1), 32);
-#endif
 
     for (;;) {
         // display menu
@@ -460,7 +441,6 @@ k_start(u32 sp)
                 timer_start();
                 mycelia(&sponsor_0, &a_test, (u32)&dump_event);
                 report_time(timer_stop());
-//                dump256(p);
                 break;
             }
             case '4': {
@@ -477,7 +457,6 @@ k_start(u32 sp)
             }
             case '9': {
                 mycelia(&sponsor_1, &a_exit, 0);
-//                dump256(p);
                 break;
             }
         }
