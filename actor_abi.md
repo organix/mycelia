@@ -180,7 +180,7 @@ to the desired behavior,
 and jumping through that pointer to handle an event.
 ~~~
         +--------+--------+--------+--------+
-  0x00  |       ldr     pc, [pc, #-4]       |
+  0x00  |       ldr     pc, [ip, #4]        |
         +-----------------------------------+
   0x04  | address of actor behavior         |
         +-----------------------------------+
@@ -202,14 +202,12 @@ by jumping to the beginning of the actor block.
 The first instruction in the actor block
 simply reloads the program counter
 with the address of the current behavior.
-Note that the value of pc is offset +8
-from the currently executing instruction,
-thus [pc, #-4] loads the new pc
+Note that the value of ip is
+the address of the actor block itself
+thus [ip, #4] loads the new pc
 from offset 0x04 in the actor block.
 The actor behavior will have access to
-the actor state
-through the ip register,
-which points to the beginning of the actor block.
+the actor state (if any) through the ip register.
 
 ### Example 2
 
@@ -288,3 +286,59 @@ The actor behavior may use the pre-loaded state in registers,
 but must write back to the actor block
 (through ip, which is offset +0x08)
 to update the persistent actor state.
+
+### Example 4
+
+Pre-loading actor state (and jumping to the behavior)
+can be accomplished with a single instruction.
+~~~
+        +--------+--------+--------+--------+
+  0x00  |       ldmib   ip, {r4-r9,pc}      |
+        +-----------------------------------+
+  0x04  | value for r4                      |
+        +-----------------------------------+
+  0x08  | value for r5                      |
+        +-----------------------------------+
+  0x0c  | value for r6                      |
+        +-----------------------------------+
+  0x10  | value for r7                      |
+        +-----------------------------------+
+  0x14  | value for r8                      |
+        +-----------------------------------+
+  0x18  | value for r9                      |
+        +-----------------------------------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+~~~
+The actor's persistent state can be updated
+through the ip register.
+
+### Example 5
+
+If we don't want to pre-load registers,
+we can simply jump directly to the behavior.
+The actor state can still be read/written,
+as needed, through the ip register.
+~~~
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [ip, #1c]       |
+        +-----------------------------------+
+  0x04  | actor state                       |
+        +        .        .        .        +
+  0x08  |                                   |
+        +        .        .        .        +
+  0x0c  |                                   |
+        +        .        .        .        +
+  0x10  |                                   |
+        +        .        .        .        +
+  0x14  |                                   |
+        +        .        .        .        +
+  0x18  |                                   |
+        +-----------------------------------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+~~~
+Note that this strategy locates the _behavior_
+consistently at the end of the block,
+which can be used to characterize
+the "type" of the actor.

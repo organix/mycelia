@@ -482,6 +482,18 @@ example_4:
 	.int	complete	@ 0x1c: address of actor behavior
 
 	.text
+	.align 5		@ align to cache-line
+example_5:
+	ldr	pc, [ip, #1c]	@ jump to actor behavior
+	.int	0x11111111	@ 0x04: state field 1
+	.int	0x22222222	@ 0x08: state field 2
+	.int	0x33333333	@ 0x0c: state field 3
+	.int	0x44444444	@ 0x10: state field 4
+	.int	0x55555555	@ 0x14: state field 5
+	.int	0x66666666	@ 0x18: state field 6
+	.int	complete	@ 0x1c: address of actor behavior
+
+	.text
 	.align 2		@ align to machine word
 	.global create
 create:			@ create an actor from example_3
@@ -503,7 +515,7 @@ create_0:		@ create an actor from example_1
 	mov	r4, r0		@ move behavior pointer into place
 	bl	reserve		@ allocate actor block
 	ldr	r1, =example_1	@ load template address
-	ldmia	r1, {r3}	@ read template (minus behavior)
+	ldmia	r1, {r3}	@ read template (code only)
 	stmia	r0, {r3-r4}	@ write actor
 	ldmia	sp!, {r4,pc}	@ restore in-use registers and return
 
@@ -566,6 +578,20 @@ create_3x:		@ create 3 parameter actor
 
 	.text
 	.align 2		@ align to machine word
+	.global create_4
+create_4:		@ create 3 parameter actor from example_4
+			@ (r0=behavior, r1=r4, r2=r5, r3=r6)
+	stmdb	sp!, {r0-r9,lr}	@ preserve in-use registers
+	bl	reserve		@ allocate actor block
+	ldr	r1, =example_4	@ load template address
+	ldmia	r1, {r2-r8}	@ read template (minus behavior)
+	ldmia	sp!, {r9}	@ restore behavior
+	ldmia	sp!, {r3-r5}	@ restore 3 state parameters
+	stmia	r0, {r2-r9}	@ write actor
+	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers and return
+
+	.text
+	.align 2		@ align to machine word
 	.global create_4x
 create_4x:		@ create an actor from example_4
 			@ (r0=behavior)
@@ -581,12 +607,26 @@ create_4x:		@ create an actor from example_4
 	.align 2		@ align to machine word
 	.global create_4_9
 create_4_9:		@ create an actor from example_4
-			@ (r4-r9=state, r0=behavior)
+			@ (r0=behavior, r4-r9=state)
 	stmdb	sp!, {r0,lr}	@ preserve in-use registers
 	bl	reserve		@ allocate actor block
 	ldr	r3, =example_4	@ load template address
 	ldr	r3, [r3]	@ load compiled code
 	stmia	r0, {r3-r9}	@ write actor state
+	ldmia	sp!, {r1}	@ restore behavior
+	str	r1, [r0, #0x1c]	@ write actor behavior
+	ldmia	sp!, {pc}	@ return
+
+	.text
+	.align 2		@ align to machine word
+	.global create_0
+create_5:		@ create an actor from example_5
+			@ (r0=behavior)
+	stmdb	sp!, {r0,lr}	@ preserve in-use registers
+	bl	reserve		@ allocate actor block
+	ldr	r1, =example_5	@ load template address
+	ldr	r1, [r1]	@ read compiled code
+	ldr	r1, [r0]	@ write compiled code
 	ldmia	sp!, {r1}	@ restore behavior
 	str	r1, [r0, #0x1c]	@ write actor behavior
 	ldmia	sp!, {pc}	@ return

@@ -11,6 +11,8 @@ extern struct example_1 *create_0(ACTOR* behavior);
 extern struct template_1 *create_1(ACTOR* behavior, u32 r4);
 extern struct template_2 *create_2(ACTOR* behavior, u32 r4, u32 r5);
 extern struct template_3 *create_3(ACTOR* behavior, u32 r4, u32 r5, u32 r6);
+extern struct example_4 *create_4(ACTOR* behavior, u32 r4, u32 r5, u32 r6);
+extern struct example_5 *create_5(ACTOR* behavior);
 
 // static actors
 extern ACTOR a_nil;
@@ -80,6 +82,28 @@ struct example_3 {
     u32         r6_10;
     u32         r7_14;
     u32         r8_18;
+    ACTOR*      beh_1c;
+};
+
+struct example_4 {
+    u32         code_00;
+    u32         r4_04;
+    u32         r5_08;
+    u32         r6_0c;
+    u32         r7_10;
+    u32         r8_14;
+    u32         r9_18;
+    ACTOR*      beh_1c;
+};
+
+struct example_5 {
+    u32         code_00;
+    u32         data_04;
+    u32         data_08;
+    u32         data_0c;
+    u32         data_10;
+    u32         data_14;
+    u32         data_18;
     ACTOR*      beh_1c;
 };
 
