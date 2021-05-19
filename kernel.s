@@ -169,6 +169,17 @@ b_scope:		@ binding scope
 	stmia	r0, {r2-r9}	@ write new event
 	b	_a_send		@ set target, send, and return to dispatcher
 
+	.text
+	.align 5		@ align to cache-line
+a_ground_env:
+	mov	ip, pc		@ point ip to data fields (state)
+	ldmia	ip, {r4-r6,pc}	@ copy state and jump to behavior
+@	.int	a_fail		@ 0x08: r4=parent env
+	.int	a_exit		@ 0x08: r4=parent env
+	.int	0		@ 0x0c: r5=n/a
+	.int	0		@ 0x10: r6=n/a
+	.int	b_scope		@ 0x14: address of actor behavior
+
 @ CREATE Nil WITH \(cust, req).[
 @ 	CASE req OF
 @ 	(#eval, _) : [ SEND SELF TO cust ]
@@ -403,9 +414,9 @@ prompt_txt:
 a_kernel_eval:		@ kernel eval actor
 			@ message = (expr)
 	ldr	r4, [fp, #0x04]	@ get expr to eval
-	mov	r5, =a_kernel_print @ customer
+	ldr	r5, =a_kernel_print @ customer
 	mov	r6, #S_EVAL	@ "eval" request
-	ldr	r7, =a_NIL_env	@ environment [FIXME: should be ground env]
+	ldr	r7, =a_ground_env @ environment
 	bl	send_3x		@ send message [FIXME: set watchdog timer...]
 	b	complete	@ return to dispatch loop
 

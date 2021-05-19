@@ -65,14 +65,16 @@ set_sponsor:		@ set sponsor from outside mycelia (bootstrap)
 	.global fail
 fail:			@ actor failure notification
 	stmdb	sp!, {r0-r3,lr}	@ preserve registers
+	bl	serial_eol	@ newline
 	ldr	r0, =fail_txt	@ load address of failure text
 	bl	serial_puts	@ write text to console
+	bl	serial_eol	@ newline
 	mov	r0, fp		@ get current message-event
 	bl	dump_event	@ dump actor event structure
 	ldmia	sp!, {r0-r3,pc}	@ restore registers and return
 	.section .rodata
 fail_txt:
-	.ascii "\nFAIL!\n\0"
+	.ascii "FAIL!\0"
 
 	.text
 	.align 2		@ align to machine word
@@ -829,13 +831,14 @@ a_exit:			@ print message, and exit
 	.global panic
 panic:			@ kernel panic!
 	stmdb	sp!, {r0-r3,lr}	@ preserve registers
+	bl	serial_eol	@ write end-of-line
 	ldr	r0, =panic_txt	@ load address of panic text
 	bl	serial_puts	@ write text to console
 	ldmia	sp!, {r0-r3,lr}	@ restore registers
 	b	halt
 	.section .rodata
 panic_txt:
-	.ascii "\nPANIC!\0"
+	.ascii "PANIC!\0"
 
 	.section .heap
 @	.align 8		@ align to 256-byte boundary
