@@ -29,6 +29,7 @@ typedef void (ACTOR)(void);
 extern void set_sponsor(ACTOR* sl);
 extern void sponsor_0();  // "default" sponsor
 extern void sponsor_1();  // "fast" sponsor (no trace, watchdog, etc.)
+extern void sponsor_2();  // "debug" sponsor (don't release events)
 
 /* kernel entry-point */
 extern void mycelia(ACTOR* sponsor, ACTOR* start, u32 trace);

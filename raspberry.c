@@ -21,7 +21,7 @@
 #include "xmodem.h"
 #include "sexpr.h"
 
-#define DUMP_ASCII 1  // show ascii translation of event data
+#define DUMP_ASCII 0  // show ascii translation of event data
 
 /* Exported procedures (force full register discipline) */
 extern void k_start(u32 sp);
@@ -405,7 +405,7 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia 0.1.7 ");
+    serial_puts("mycelia 0.1.8 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
     serial_eol();
@@ -452,13 +452,9 @@ k_start(u32 sp)
                 break;
             }
             case '5': {
-#if 0
-                set_sponsor(&sponsor_0);
-                kernel_repl();
-#else
-//                mycelia(&sponsor_0, &a_kernel_repl, 0);
-                mycelia(&sponsor_0, &a_kernel_repl, (u32)&dump_event);
-#endif
+                mycelia(&sponsor_0, &a_kernel_repl, 0);
+//                mycelia(&sponsor_0, &a_kernel_repl, (u32)&dump_event);
+//                mycelia(&sponsor_2, &a_kernel_repl, (u32)&dump_event);
                 break;
             }
             case '9': {

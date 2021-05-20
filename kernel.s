@@ -458,7 +458,7 @@ a_map_eval:		@ sequential list evaluator
 	bl	create_5	@	create k_cust
 	str	r8, [r0, #0x04] @	store cust
 	str	r5, [r0, #0x08] @	store tail
-	ldr	r7, [r0, #0x0c] @	store env
+	str	r7, [r0, #0x0c] @	store env
 
 @	mov	r4, r4		@	target (already in r4)
 	mov	r5, r0		@	k_cust

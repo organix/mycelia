@@ -233,7 +233,7 @@ complete_0:		@ completion of event pointed to by fp
 	bl	release_0	@ free completed event
 	mov	fp, #0		@ clear frame pointer
 	str	fp, [sl, #0x1c]	@ clear current event
-
+	@ WARNING! complete falls through to dispatch...
 dispatch_0:		@ dispatch next event
 	bl	watchdog_check	@ check for timeout, if enabled
 	bl	dequeue_0	@ try to get next event
@@ -324,7 +324,7 @@ complete_1:		@ completion of event pointed to by fp
 	mov	r0, fp		@ get completed event
 	bl	release_1	@ free completed event
 	mov	fp, #0		@ clear frame pointer
-
+	@ WARNING! complete falls through to dispatch...
 dispatch_1:		@ dispatch next event
 	bl	dequeue_1	@ try to get next event
 	teq	r0, #0		@ check for null
@@ -384,6 +384,42 @@ dequeue_1:		@ dequeue next event from queue
 	addne	r2, r2, #1	@	advance head
 	strneb	r2, [r1, #1025]	@	update head index
 	bx	lr		@	return event pointer
+
+@
+@ The debug sponsor doesn't release event memory, otherwise acts like default
+@
+	.data
+	.align 5		@ align to cache-line
+	.global sponsor_2
+sponsor_2:
+	.int	dispatch_2	@ 0x00: dispatch the next event (ip=actor, fp=event)
+	.int	complete_2	@ 0x04: complete event dispatch (fp=event)
+	.int	reserve_0	@ 0x08: reserve memory block (32 bytes)
+	.int	release_0	@ 0x0c: release memory block (r0)
+	.int	enqueue_0	@ 0x10: enqueue event (r0)
+	.int	dequeue_0	@ 0x14: dequeue next event, or 0
+	.int	0		@ 0x18: --
+	.int	0		@ 0x1c: current event
+
+	.text
+	.align 2		@ align to machine word
+complete_2:		@ completion of event pointed to by fp
+@	mov	r0, fp		@ get completed event
+@	bl	release_0	@ free completed event <-- DON'T RELEASE EVENT!
+	mov	fp, #0		@ clear frame pointer
+	str	fp, [sl, #0x1c]	@ clear current event
+	@ WARNING! complete falls through to dispatch...
+dispatch_2:		@ dispatch next event
+	bl	watchdog_check	@ check for timeout, if enabled
+	bl	dequeue_0	@ try to get next event
+	cmp	r0, #0		@ check for null
+	beq	dispatch_2	@ if no event, try again...
+
+	mov	fp, r0		@ initialize frame pointer
+	bl	trace_event	@ trace event, if enabled
+	str	fp, [sl, #0x1c]	@ update current event
+	ldr	ip, [fp]	@ get target actor address
+	bx	ip		@ jump to actor behavior
 
 @
 @ Common actor examples and templates
