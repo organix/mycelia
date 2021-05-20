@@ -382,6 +382,18 @@ op_list:		@ operative "$list"
 1:
 	b	self_eval	@ else we are self-evaluating
 
+k_list:			@ operative call continuation
+			@ (example_5: 0x04=cust, 0x08=env, 0x0c=)
+			@ message = (args)
+	ldr	r4, =op_list	@ target
+	ldr	r5, [ip, #0x04]	@ cust
+	mov	r6, #S_APPL	@ "combine"
+	ldr	r7, [fp, #0x04]	@ args
+	ldr	r8, [ip, #0x08]	@ env
+	bl	reserve		@ allocate event block
+	stmia	r0, {r4-r8}	@ write data to event
+	b	_a_end		@ send and return
+
 	.text
 	.align 5		@ align to cache-line
 	.global ap_list
@@ -392,18 +404,98 @@ ap_list:		@ applicative "list"
 	ldr	r3, [fp, #0x08] @ get req
 	teq	r3, #S_APPL
 	bne	1f		@ if req == "combine"
-	bl	reserve		@	allocate event block
-	ldr	r1, [fp, #0x0c]	@	get operands
-@@@ FIXME!!! === we're supposed to EVALuate the operands to produce arguments ===
-	b	_a_answer	@	send to customer and return
+
+	ldr	r5, [fp, #0x04]	@	get cust
+	ldr	r7, [fp, #0x10] @	get env
+
+	ldr	r0, =k_list	@	k_cust behavior
+	bl	create_5	@	create k_cust
+	str	r5, [r0, #0x04] @	store cust
+	str	r7, [r0, #0x08] @	store env
+
+	ldr	r4, =a_map_eval	@	target
+	mov	r5, r0		@	cust = k_cust
+	ldr	r6, [fp, #0x0c]	@	list = opnds
+	ldr	r7, [fp, #0x10] @	env
+	bl	send_3x		@	send message
+
+	b	complete	@	return
 1:
-	teq	r3, #S_OPER
-	bne	2f		@ if req == "unwrap"
+	teq	r3, #S_OPER	@ else if req != "unwrap" self-evaluate
+	bne	self_eval	@ else
 	bl	reserve		@	allocate event block
 	ldr	r1, =op_list	@	get operative
 	b	_a_answer	@	send to customer and return
-2:
-	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_list
+a_map_eval:		@ sequential list evaluator
+			@ message = (cust, list, env)
+	ldr	r0, [fp, #0x04]	@ get cust
+	ldr	r1, [fp, #0x08]	@ get list
+	ldr	r2, =a_nil	@ get ()
+	teq	r1, r2
+	bne	1f		@ if list == ()
+	bl	send_1		@	send () to cust
+	b	complete	@	return
+1:				@ else
+	ldr	r7, [fp, #0x0c] @	save env
+	mov	r8, r0		@	save cust
+	mov	r9, r1		@	save list
+
+	mov	r0, r9		@	get list
+	bl	car
+	movs	r4, r0		@	target = car(list)
+	beq	a_kernel_err	@	if (target == NULL) signal error
+
+	mov	r0, r9		@	get list
+	bl	cdr
+	movs	r5, r0		@	tail = cdr(list)
+	beq	a_kernel_err	@	if (tail == NULL) signal error
+
+	ldr	r0, =k_map_eval_1 @	k_cust behavior
+	bl	create_5	@	create k_cust
+	str	r8, [r0, #0x04] @	store cust
+	str	r5, [r0, #0x08] @	store tail
+	ldr	r7, [r0, #0x0c] @	store env
+
+@	mov	r4, r4		@	target (already in r4)
+	mov	r5, r0		@	k_cust
+	mov	r6, #S_EVAL	@	"eval"
+@	mov	r7, r7		@	env (already in r7)
+	bl	send_3x		@	send message
+
+	b	complete	@ return to dispatch loop
+
+k_map_eval_1:		@ eval arg continuation
+			@ (example_5: 0x04=cust, 0x08=tail, 0x0c=env)
+			@ message = (arg)
+	ldr	r4, =a_map_eval	@ target
+	mov	r5, ip		@ k_cust = SELF
+	ldr	r6, [ip, #0x08]	@ list
+	ldr	r7, [ip, #0x0c] @ env
+	bl	send_3x		@ send message
+
+	ldr	r0, [fp, #0x04]	@ get arg
+	str	r0, [ip, #0x08]	@ store arg
+	ldr	r0, =k_map_eval_2 @ become...
+	str	r0, [ip, #0x1c]	@ ...k_map_eval_2
+
+	b	complete	@ return to dispatch loop
+
+k_map_eval_2:		@ eval args continuation
+			@ (example_5: 0x04=cust, 0x08=arg, 0x0c=)
+			@ message = (args)
+	ldr	r0, [ip, #0x08]	@ get arg
+	ldr	r1, [fp, #0x04]	@ get args
+	bl	cons
+@ FIXME: when Pair is converted to example_5, we can "become" the Pair...
+	mov	r1, r0		@ move message
+	ldr	r0, [ip, #0x04]	@ get cust
+	bl	send_1		@ cons(arg, args) to cust
+
+	b	complete	@ return to dispatch loop
 
 @ void
 @ kernel_repl()

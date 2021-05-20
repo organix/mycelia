@@ -171,7 +171,14 @@ block_end:
 	.section .rodata
 	.align 5		@ align to cache-line
 block_clr:
-	.ascii "Who is licking my HONEYPOT?\0"
+@	.ascii "Who is licking my HONEYPOT?\0"
+	.int	0x99999999	@ 0x04
+	.int	0xAAAAAAAA	@ 0x08
+	.int	0xBBBBBBBB	@ 0x0c
+	.int	0xCCCCCCCC	@ 0x10
+	.int	0xDDDDDDDD	@ 0x14
+	.int	0xEEEEEEEE	@ 0x18
+	.int	0xFFFFFFFF	@ 0x1c
 
 @
 @ Sponsor calls are delegated through register sl (r10)
@@ -619,14 +626,14 @@ create_4_9:		@ create an actor from example_4
 
 	.text
 	.align 2		@ align to machine word
-	.global create_0
+	.global create_5
 create_5:		@ create an actor from example_5
 			@ (r0=behavior)
 	stmdb	sp!, {r0,lr}	@ preserve in-use registers
 	bl	reserve		@ allocate actor block
 	ldr	r1, =example_5	@ load template address
 	ldr	r1, [r1]	@ read compiled code
-	ldr	r1, [r0]	@ write compiled code
+	str	r1, [r0]	@ write compiled code
 	ldmia	sp!, {r1}	@ restore behavior
 	str	r1, [r0, #0x1c]	@ write actor behavior
 	ldmia	sp!, {pc}	@ return
