@@ -144,8 +144,8 @@ inert_q(ACTOR* x)
 int
 pair_q(ACTOR* x)
 {
-    struct template_2 *a = (struct template_2 *)x;
-    return (a->beh_10 == &b_pair);
+    struct example_5 *a = (struct example_5 *)x;
+    return (a->beh_1c == &b_pair);
 }
 
 int
@@ -255,50 +255,52 @@ number(int n)
 }
 
 ACTOR*
-cons(ACTOR* car, ACTOR* cdr)
+cons(ACTOR* a, ACTOR* d)
 {
-    struct template_2 *a = create_2(&b_pair, (u32)car, (u32)cdr);
-    return (ACTOR*)a;
+    struct example_5 *x = create_5(&b_pair);
+    x->data_04 = (u32)a;
+    x->data_08 = (u32)d;
+    return (ACTOR*)x;
 }
 
 ACTOR*
-car(ACTOR* cons)
+car(ACTOR* x)
 {
-    if (pair_q(cons)) {
-        struct template_2 *a = (struct template_2 *)cons;
-        return (ACTOR*)(a->r4_08);
+    if (pair_q(x)) {
+        struct example_5 *a = (struct example_5 *)x;
+        return (ACTOR*)(a->data_04);
     }
     return NULL;  // fail
 }
 
 ACTOR*
-cdr(ACTOR* cons)
+cdr(ACTOR* x)
 {
-    if (pair_q(cons)) {
-        struct template_2 *a = (struct template_2 *)cons;
-        return (ACTOR*)(a->r5_0c);
+    if (pair_q(x)) {
+        struct example_5 *a = (struct example_5 *)x;
+        return (ACTOR*)(a->data_08);
     }
     return NULL;  // fail
 }
 
 ACTOR*
-set_car(ACTOR* cons, ACTOR* car)
+set_car(ACTOR* x, ACTOR* a)
 {
-    if (pair_q(cons)) {
-        struct template_2 *a = (struct template_2 *)cons;
-        a->r4_08 = (u32)car;
-        return cons;
+    if (pair_q(x)) {
+        struct example_5 *z = (struct example_5 *)x;
+        z->data_04 = (u32)a;
+        return x;
     }
     return NULL;  // fail
 }
 
 ACTOR*
-set_cdr(ACTOR* cons, ACTOR* cdr)
+set_cdr(ACTOR* x, ACTOR* d)
 {
-    if (pair_q(cons)) {
-        struct template_2 *a = (struct template_2 *)cons;
-        a->r5_0c = (u32)cdr;
-        return cons;
+    if (pair_q(x)) {
+        struct example_5 *z = (struct example_5 *)x;
+        z->data_08 = (u32)d;
+        return x;
     }
     return NULL;  // fail
 }
@@ -620,26 +622,26 @@ print_symbol(ACTOR* sym)
 }
 
 static void
-print_list(ACTOR* cons)
+print_list(ACTOR* x)
 {
     putchar('(');
     for (;;) {
-        struct template_2 *a = (struct template_2 *)cons;
-        ACTOR* car = (ACTOR*)(a->r4_08);
-        ACTOR* cdr = (ACTOR*)(a->r5_0c);
+        struct example_5 *z = (struct example_5 *)x;
+        ACTOR* a = (ACTOR*)(z->data_04);
+        ACTOR* d = (ACTOR*)(z->data_08);
 
-        print_sexpr(car);
-        if (null_q(cdr)) {
+        print_sexpr(a);
+        if (null_q(d)) {
             putchar(')');
             break;
-        } else if (!pair_q(cdr)) {
+        } else if (!pair_q(d)) {
             puts(" . ");
-            print_sexpr(cdr);
+            print_sexpr(d);
             putchar(')');
             break;
         }
         putchar(' ');
-        cons = cdr;
+        x = d;
     }
 }
 

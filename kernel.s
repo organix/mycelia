@@ -256,35 +256,36 @@ s_NIL:
 	.align 5		@ align to cache-line
 	.global b_pair
 b_pair:			@ pair combination
-			@ (template_2: r4=left, r5=right)
+			@ (example_5: 0x04=left, 0x08=right, 0x0c=)
 			@ message = (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
 	teq	r3, #S_EVAL
 	bne	1f		@ if req == "eval"
 
-	ldr	r0, =k_oper
-	bl	create		@	create k_oper actor
+	ldr	r0, =k_comb
+	bl	create		@	create k_comb actor
 	ldr	r6, [fp, #0x04] @	get cust
 	mov	r7, #S_APPL
-	mov	r8, r5		@	get right
+	ldr	r8, [ip, #0x08]	@	get right
 	ldr	r9, [fp, #0x0c]	@	get env
 	add	r1, r0, #0x08
 	stmia	r1, {r6-r9}	@	write actor state
 
-	mov	r5, r0		@	k_oper
+	ldr	r4, [ip, #0x04]	@	get left
+	mov	r5, r0		@	k_comb
 	mov	r6, #S_EVAL
 	mov	r7, r9		@	env
-	bl	send_3x		@	send message to left (r4)
+	bl	send_3x		@	send message to left
 	b	complete	@	return to dispatch loop
 1:
 	bl	fail		@ else
 	b	complete	@	signal error and return to dispatcher
 
-k_oper:			@ operative continuation
+k_comb:			@ combiner continuation
 			@ (example_3: r4=cust, r5=#S_APPL, r6=right, r7=env)
-			@ message = (oper)
+			@ message = (combiner)
 	bl	reserve		@ allocate event block
-	ldr	r3, [fp, #0x04] @ get oper
+	ldr	r3, [fp, #0x04] @ get combiner
 	stmia	r0, {r3-r7}	@ write new event
 	b	_a_end		@ delegate to operative
 
