@@ -285,13 +285,12 @@ b_pair:			@ pair combination
 	bne	1f		@ if req == "eval"
 
 	ldr	r0, =k_comb
-	bl	create		@	create k_comb actor
+	bl	create_5	@	create k_comb actor
 	ldr	r6, [fp, #0x04] @	get cust
 	mov	r7, #S_APPL
 	ldr	r8, [ip, #0x08]	@	get right
 	ldr	r9, [fp, #0x0c]	@	get env
-	add	r1, r0, #0x08
-	stmia	r1, {r6-r9}	@	write actor state
+	stmib	r0, {r6-r9}	@	write actor state
 
 	ldr	r4, [ip, #0x04]	@	get left
 	mov	r5, r0		@	k_comb
@@ -304,12 +303,10 @@ b_pair:			@ pair combination
 	b	complete	@	signal error and return to dispatcher
 
 k_comb:			@ combiner continuation
-			@ (example_3: r4=cust, r5=#S_APPL, r6=right, r7=env)
+			@ (example_5: 0x04=cust, 0x08=#S_APPL, 0x0c=right, 0x10=env)
 			@ message = (combiner)
-	bl	reserve		@ allocate event block
-	ldr	r3, [fp, #0x04] @ get combiner
-	stmia	r0, {r3-r7}	@ write new event
-	b	_a_end		@ delegate to operative
+	mov	r0, ip		@ continuation actor becomes an event...
+	b	_a_reply	@ delegate to combiner
 
 @ LET Number(int32) = \(cust, req).[
 @ 	CASE req OF
@@ -510,15 +507,19 @@ k_map_eval_1:		@ eval arg continuation
 k_map_eval_2:		@ eval args continuation
 			@ (example_5: 0x04=cust, 0x08=arg, 0x0c=)
 			@ message = (args)
-	ldr	r0, [ip, #0x08]	@ get arg
-	ldr	r1, [fp, #0x04]	@ get args
-	bl	cons
-@ FIXME: when Pair is converted to example_5, we can "become" the Pair...
-	mov	r1, r0		@ move message
-	ldr	r0, [ip, #0x04]	@ get cust
-	bl	send_1		@ cons(arg, args) to cust
+	bl	reserve		@ allocate event block
+	ldr	r1, [ip, #0x04]	@ get cust
 
-	b	complete	@ return to dispatch loop
+	ldr	r2, [ip, #0x08]	@ get arg
+	ldr	r3, [fp, #0x04]	@ get args
+
+	str	r2, [ip, #0x04]	@ store left
+	str	r3, [ip, #0x08]	@ store right
+	ldr	r3, =b_pair	@ become...
+	str	r3, [ip, #0x1c]	@ ...b_pair
+
+	str	ip, [r0, #0x04]	@ message is SELF
+	b	_a_send		@ send to customer and return
 
 @ void
 @ kernel_repl()
