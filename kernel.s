@@ -402,22 +402,25 @@ op_list:		@ operative "$list"
 1:
 	b	self_eval	@ else we are self-evaluating
 
+	.text
+	.align 5		@ align to cache-line
 k_list:			@ operative call continuation
-			@ (example_5: 0x04=cust, 0x08=env, 0x0c=)
+			@ (example_5: 0x04=cust, 0x08=oper, 0x0c=env)
 			@ message = (args)
-	ldr	r4, =op_list	@ target
+	ldr	r4, [ip, #0x08]	@ target = oper
 	ldr	r5, [ip, #0x04]	@ cust
 	mov	r6, #S_APPL	@ "combine"
 	ldr	r7, [fp, #0x04]	@ args
-	ldr	r8, [ip, #0x08]	@ env
+	ldr	r8, [ip, #0x0c]	@ env
 	bl	reserve		@ allocate event block
 	stmia	r0, {r4-r8}	@ write data to event
 	b	_a_end		@ send and return
 
 	.text
 	.align 5		@ align to cache-line
-	.global ap_list
-ap_list:		@ applicative "list"
+	.global b_appl
+b_appl:			@ applicative wrapper behavior
+			@ (example_5: 0x04=oper, 0x08=, 0x0c=)
 			@ message = (cust, #S_APPL, opnds, env)
 			@         | (cust, #S_OPER)
 			@         | (cust, #S_EVAL, env)
@@ -426,26 +429,40 @@ ap_list:		@ applicative "list"
 	bne	1f		@ if req == "combine"
 
 	ldr	r5, [fp, #0x04]	@	get cust
+	ldr	r6, [ip, #0x04]	@	get operative
 	ldr	r7, [fp, #0x10] @	get env
 
 	ldr	r0, =k_list	@	k_cust behavior
 	bl	create_5	@	create k_cust
-	str	r5, [r0, #0x04] @	store cust
-	str	r7, [r0, #0x08] @	store env
-
-	ldr	r4, =a_map_eval	@	target
+	stmib	r0, {r5-r7}	@	store cust, oper, env
 	mov	r5, r0		@	cust = k_cust
+
+	bl	reserve		@	allocate event block
+	ldr	r4, =a_map_eval	@	target
+@	mov	r5, r5		@	cust (already in r5)
 	ldr	r6, [fp, #0x0c]	@	list = opnds
 	ldr	r7, [fp, #0x10] @	env
-	bl	send_3x		@	send message
-
-	b	complete	@	return
+	stmia	r0, {r4-r7}	@	write data to event
+	b	_a_end		@	send and return
 1:
 	teq	r3, #S_OPER	@ else if req != "unwrap" self-evaluate
 	bne	self_eval	@ else
 	bl	reserve		@	allocate event block
-	ldr	r1, =op_list	@	get operative
+	ldr	r1, [ip, #0x04]	@	get operative  [FIXME: "unwrap" may get oper directly...]
 	b	_a_answer	@	send to customer and return
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_list
+ap_list:
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_list		@ 0x04: oper = op_list
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
 
 	.text
 	.align 5		@ align to cache-line
@@ -480,22 +497,22 @@ a_map_eval:		@ sequential list evaluator
 	str	r5, [r0, #0x08] @	store tail
 	str	r7, [r0, #0x0c] @	store env
 
-@	mov	r4, r4		@	target (already in r4)
-	mov	r5, r0		@	k_cust
+	mov	r5, r0		@	cust = k_cust
+	bl	reserve		@	allocate event block
 	mov	r6, #S_EVAL	@	"eval"
-@	mov	r7, r7		@	env (already in r7)
-	bl	send_3x		@	send message
-
-	b	complete	@ return to dispatch loop
+	stmia	r0, {r4-r7}	@	write data to event
+	b	_a_end		@	send and return
 
 k_map_eval_1:		@ eval arg continuation
 			@ (example_5: 0x04=cust, 0x08=tail, 0x0c=env)
 			@ message = (arg)
+	bl	reserve		@ allocate event block
 	ldr	r4, =a_map_eval	@ target
 	mov	r5, ip		@ k_cust = SELF
 	ldr	r6, [ip, #0x08]	@ list
 	ldr	r7, [ip, #0x0c] @ env
-	bl	send_3x		@ send message
+	stmia	r0, {r4-r7}	@ write data to event
+	bl	enqueue		@ send message
 
 	ldr	r0, [fp, #0x04]	@ get arg
 	str	r0, [ip, #0x08]	@ store arg
