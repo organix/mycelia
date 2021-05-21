@@ -235,7 +235,7 @@ a_nil:			@ "()" singleton
 	.align 5		@ align to cache-line
 	.global b_symbol
 b_symbol:		@ symbolic name
-			@ (example_1: [0x08..0x1f]=name)
+			@ (example_5: [0x04..0x1b]=name)
 			@ message = (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
 	teq	r3, #S_EVAL
@@ -254,14 +254,14 @@ b_symbol:		@ symbolic name
 	.text
 	.align 5		@ align to cache-line
 s_NIL:
-	ldr	pc, [ip, #4]	@ jump to actor behavior
-	.int	b_symbol	@ 0x04: address of actor behavior
-	.ascii	"NIL\0"		@ 0x08: state field 1
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.ascii	"NIL\0"		@ 0x04: state field 1
+	.int	0		@ 0x08: state field 6
 	.int	0		@ 0x0c: state field 2
 	.int	0		@ 0x10: state field 3
 	.int	0		@ 0x14: state field 4
 	.int	0		@ 0x18: state field 5
-	.int	0		@ 0x1c: state field 6
+	.int	b_symbol	@ 0x1c: address of actor behavior
 
 @ LET Pair(left, right) = \(cust, req).[
 @ 	CASE req OF
@@ -321,16 +321,16 @@ k_comb:			@ combiner continuation
 	.align 5		@ align to cache-line
 	.global b_number
 b_number:		@ integer constant
-			@ (template_1: r4=int32)
-			@ message = (cust, #S_EVAL, env)
+			@ (example_5: 0x04=int32, 0x08=, 0x0c=)
+			@ message = (cust, #S_SELF)
+			@         | (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
 	teq	r3, #S_SELF
 	bne	1f		@ if req == "self"
 
-	ldr	r0, [fp, #0x04]	@	get cust
-	mov	r0, r4		@	get int32
-	bl	send_1		@	send message
-	b	complete	@	return to dispatcher
+	bl	reserve		@	allocate event block
+	ldr	r1, [ip, #0x04]	@	get int32
+	b	_a_answer	@	reply and return
 1:
 	b	self_eval	@ self-evaluating
 
@@ -338,53 +338,53 @@ b_number:		@ integer constant
 	.align 5		@ align to cache-line
 	.global n_m1
 n_m1:
-	mov	ip, pc		@ point ip to data fields (state)
-	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
-	.int	-1		@ 0x08: r4=int32
-	.int	b_number	@ 0x0c: address of actor behavior
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	-1		@ 0x04: int32
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
 	.int	0		@ 0x18: --
-	.int	0		@ 0x1c: --
+	.int	b_number	@ 0x1c: address of actor behavior
 
 	.text
 	.align 5		@ align to cache-line
 	.global n_0
 n_0:
-	mov	ip, pc		@ point ip to data fields (state)
-	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
-	.int	0		@ 0x08: r4=int32
-	.int	b_number	@ 0x0c: address of actor behavior
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	0		@ 0x04: int32
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
 	.int	0		@ 0x18: --
-	.int	0		@ 0x1c: --
+	.int	b_number	@ 0x1c: address of actor behavior
 
 	.text
 	.align 5		@ align to cache-line
 	.global n_1
 n_1:
-	mov	ip, pc		@ point ip to data fields (state)
-	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
-	.int	1		@ 0x08: r4=int32
-	.int	b_number	@ 0x0c: address of actor behavior
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	1		@ 0x04: int32
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
 	.int	0		@ 0x18: --
-	.int	0		@ 0x1c: --
+	.int	b_number	@ 0x1c: address of actor behavior
 
 	.text
 	.align 5		@ align to cache-line
 	.global n_2
 n_2:
-	mov	ip, pc		@ point ip to data fields (state)
-	ldmia	ip, {r4,pc}	@ copy state and jump to behavior
-	.int	2		@ 0x08: r4=int32
-	.int	b_number	@ 0x0c: address of actor behavior
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	2		@ 0x04: int32
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
 	.int	0		@ 0x18: --
-	.int	0		@ 0x1c: --
+	.int	b_number	@ 0x1c: address of actor behavior
 
 @
 @ built-in operatives and applicatives

@@ -6,14 +6,6 @@
 
 #define DEBUG(x)   /* debug logging */
 
-// asm utilities
-extern struct example_1 *create_0(ACTOR* behavior);
-extern struct template_1 *create_1(ACTOR* behavior, u32 r4);
-extern struct template_2 *create_2(ACTOR* behavior, u32 r4, u32 r5);
-extern struct template_3 *create_3(ACTOR* behavior, u32 r4, u32 r5, u32 r6);
-extern struct example_4 *create_4(ACTOR* behavior, u32 r4, u32 r5, u32 r6);
-extern struct example_5 *create_5(ACTOR* behavior);
-
 // static actors
 extern ACTOR a_nil;
 extern ACTOR a_true;
@@ -21,8 +13,10 @@ extern ACTOR a_false;
 extern ACTOR a_inert;
 extern ACTOR a_no_bind;
 extern ACTOR a_kernel_err;
-extern ACTOR ap_list;
 extern ACTOR a_exit;
+
+// static applicatives
+extern ACTOR ap_list;
 
 // static behaviors
 extern ACTOR b_binding;
@@ -31,60 +25,9 @@ extern ACTOR b_symbol;
 extern ACTOR b_pair;
 extern ACTOR b_number;
 
-struct example_1 {
-    u32         code_00;
-    ACTOR*      beh_04;
-    u32         data_08;
-    u32         data_0c;
-    u32         data_10;
-    u32         data_14;
-    u32         data_18;
-    u32         data_1c;
-};
-
-struct template_1 {
-    u32         code_00;
-    u32         code_04;
-    u32         r4_08;
-    ACTOR*      beh_0c;
-    u32         _10;
-    u32         _14;
-    u32         _18;
-    u32         _1c;
-};
-
-struct template_2 {
-    u32         code_00;
-    u32         code_04;
-    u32         r4_08;
-    u32         r5_0c;
-    ACTOR*      beh_10;
-    u32         _14;
-    u32         _18;
-    u32         _1c;
-};
-
-struct template_3 {
-    u32         code_00;
-    u32         code_04;
-    u32         r4_08;
-    u32         r5_0c;
-    u32         r6_10;
-    ACTOR*      beh_14;
-    u32         _18;
-    u32         _1c;
-};
-
-struct example_3 {
-    u32         code_00;
-    u32         code_04;
-    u32         r4_08;
-    u32         r5_0c;
-    u32         r6_10;
-    u32         r7_14;
-    u32         r8_18;
-    ACTOR*      beh_1c;
-};
+// asm utilities
+extern struct example_4 *create_4(ACTOR* behavior, u32 r4, u32 r5, u32 r6);
+extern struct example_5 *create_5(ACTOR* behavior);
 
 struct example_4 {
     u32         code_00;
@@ -131,8 +74,8 @@ equal_q(ACTOR* x, ACTOR* y)
 int
 symbol_q(ACTOR* x)
 {
-    struct example_1 *a = (struct example_1 *)x;
-    return (a->beh_04 == &b_symbol);
+    struct example_5 *a = (struct example_5 *)x;
+    return (a->beh_1c == &b_symbol);
 }
 
 int
@@ -170,8 +113,8 @@ ignore_q(ACTOR* x)
 int
 number_q(ACTOR* x)
 {
-    struct template_1 *a = (struct template_1 *)x;
-    return (a->beh_0c == &b_number);
+    struct example_5 *a = (struct example_5 *)x;
+    return (a->beh_1c == &b_number);
 }
 
 int
@@ -180,36 +123,36 @@ integer_q(ACTOR* x)
     return number_q(x);  // [FIXME] currently only int32 is supported
 }
 
-struct sym_24b {  // symbol data is offset 0x08 into a cache-line
+struct sym_24b {  // symbol data is offset 0x04 into a cache-line
+    u32         data_04;
     u32         data_08;
     u32         data_0c;
     u32         data_10;
     u32         data_14;
     u32         data_18;
-    u32         data_1c;
 };
 
 static int
 eq_24b(struct sym_24b* x, struct sym_24b* y)
 {
-    return (x->data_08 == y->data_08)
+    return (x->data_04 == y->data_04)
+        && (x->data_08 == y->data_08)
         && (x->data_0c == y->data_0c)
         && (x->data_10 == y->data_10)
         && (x->data_14 == y->data_14)
-        && (x->data_18 == y->data_18)
-        && (x->data_1c == y->data_1c);
+        && (x->data_18 == y->data_18);
 }
 
-static struct example_1* sym_table[256];
-static struct example_1** next_sym = sym_table;
+static struct example_5* sym_table[256];
+static struct example_5** next_sym = sym_table;
 
 ACTOR*
 sym_search(struct sym_24b* name)  // search for interned symbol
 {
-    struct example_1** sp = sym_table;
+    struct example_5** sp = sym_table;
 
     while (sp < next_sym) {
-        if (eq_24b(name, (struct sym_24b*)&((*sp)->data_08))) {
+        if (eq_24b(name, (struct sym_24b*)&((*sp)->data_04))) {
             return (ACTOR*)(*sp);
         }
         ++sp;
@@ -231,14 +174,14 @@ symbol(struct sym_24b* name)
         return NULL;  // fail -- symbol table overflow!
     }
     // create a new symbol
-    struct example_1 *a = create_0(&b_symbol);
+    struct example_5 *a = create_5(&b_symbol);
     if (a) {
+        a->data_04 = name->data_04;
         a->data_08 = name->data_08;
         a->data_0c = name->data_0c;
         a->data_10 = name->data_10;
         a->data_14 = name->data_14;
         a->data_18 = name->data_18;
-        a->data_1c = name->data_1c;
         *next_sym++ = a;  // intern symbol in table
         DEBUG(puts("sym:created\n"));
         return (ACTOR*)a;  // return new symbol
@@ -250,8 +193,10 @@ symbol(struct sym_24b* name)
 ACTOR*
 number(int n)
 {
-    struct template_1 *a = create_1(&b_number, (u32)n);
-    return (ACTOR*)a;
+    // FIXME: consider a memo-table for small integers
+    struct example_5 *x = create_5(&b_number);
+    x->data_04 = (u32)n;
+    return (ACTOR*)x;
 }
 
 ACTOR*
@@ -592,22 +537,22 @@ parse_sexpr()  /* parse and return s-expression */
 #endif
 
 static void
-print_number(ACTOR* num)
+print_number(ACTOR* n)
 {
     char dec[12];
     char *p = dec + sizeof(dec);
-    int n;
+    int i;
     int s;
 
-    struct template_1 *a = (struct template_1 *)num;
-    n = (int)(a->r4_08);
-    s = (n < 0);
-    if (s) n = -n;  // make positive
+    struct example_5 *a = (struct example_5 *)n;
+    i = (int)(a->data_04);
+    s = (i < 0);
+    if (s) i = -i;  // make positive
     *--p = '\0';
     do {
-        *--p = (char)((n % 10) + '0');
-        n /= 10;
-    } while (n && (p > dec));
+        *--p = (char)((i % 10) + '0');
+        i /= 10;
+    } while (i && (p > dec));
     if (s) {
         putchar('-');
     }
@@ -615,10 +560,10 @@ print_number(ACTOR* num)
 }
 
 static void
-print_symbol(ACTOR* sym)
+print_symbol(ACTOR* s)
 {
-    struct example_1 *a = (struct example_1 *)sym;
-    puts((char*)(&a->data_08));
+    struct example_5 *a = (struct example_5 *)s;
+    puts((char*)(&a->data_04));
 }
 
 static void
