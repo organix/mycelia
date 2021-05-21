@@ -923,7 +923,13 @@ panic:			@ kernel panic!
 panic_txt:
 	.ascii "PANIC!\0"
 
+	.section .bss
+	.align 5		@ align to cache-line
+	.global bss_start
+bss_start:
+
 	.section .heap
 @	.align 8		@ align to 256-byte boundary
 	.align 12		@ align to 4kB boundary
+	.global heap_start
 heap_start:

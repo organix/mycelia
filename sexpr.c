@@ -619,17 +619,20 @@ print_sexpr(ACTOR* a)  /* print external representation of s-expression */
     }
 }
 
+//static u8 the_margin[128];
+static ACTOR* kernel_env = NULL;
+
 ACTOR*
 ground_env()
 {
-    static ACTOR* env = NULL;
     char exit_24b[] = "exit" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char list_24b[] = "list" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     ACTOR* a;
     struct example_5 *x;
 
-    if (env) return env;  // lazy-initialized singleton
-    env = &a_kernel_err;  // signal an error on lookup failure
+    if (kernel_env) return kernel_env;  // lazy-initialized singleton
+
+    ACTOR *env = &a_kernel_err;  // signal an error on lookup failure
 
     /* bind "exit" */
     a = symbol((struct sym_24b*)exit_24b);
@@ -657,7 +660,8 @@ ground_env()
     x->data_0c = (u32)env;  // set parent
     env = (ACTOR *)x;
 
-    return env;
+    kernel_env = env;
+    return kernel_env;
 }
 
 void

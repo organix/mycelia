@@ -27,6 +27,9 @@
 extern void k_start(u32 sp);
 extern void monitor();
 
+extern u8 bss_start[];
+extern u8 heap_start[];
+
 /* Private data structures */
 static char linebuf[256];  // line editing buffer
 static int linepos = 0;  // read position
@@ -384,6 +387,15 @@ monitor()
     serial_puts("OK ");
 }
 
+static void
+clear_bss()
+{
+    u32* p = (u32*)bss_start;
+    while (p < (u32*)heap_start) {
+        *p++ = 0;
+    }
+}
+
 /*
  * Entry point for C code
  */
@@ -405,10 +417,18 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia 0.1.10 ");
+    serial_puts("mycelia 0.1.11 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
+#if 1
+    serial_puts(" bss=0x");
+    serial_hex32((u32)bss_start);
+    serial_puts(" heap=0x");
+    serial_hex32((u32)heap_start);
+#endif
     serial_eol();
+
+    clear_bss();
 
     for (;;) {
         // display menu
@@ -453,7 +473,6 @@ k_start(u32 sp)
             }
             case '5': {
                 mycelia(&sponsor_0, &a_kernel_repl, 0);
-//                mycelia(&sponsor_0, &a_kernel_repl, (u32)&dump_event);
 //                mycelia(&sponsor_2, &a_kernel_repl, (u32)&dump_event);
                 break;
             }
