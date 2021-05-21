@@ -101,9 +101,12 @@ a_false:		@ "#f" singleton
 	.align 5		@ align to cache-line
 	.global b_binding
 b_binding:		@ symbol binding
-			@ (template_3: r4=symbol, r5=value, r6=next)
-			@ message = (cust, req, ...)
+			@ (example_5: 0x04=symbol, 0x08=value, 0x0c=next)
+			@ message = (cust, #S_GET, symbol')
+			@         | (cust, #S_SET, symbol', value')
+	ldmib	ip, {r4-r6}	@ r4=symbol, r5=value, r6=next
 	ldr	r3, [fp, #0x08] @ get req
+
 	teq	r3, #S_GET
 	bne	1f		@ if req == "get"
 	ldr	r3, [fp, #0x0c] @ 	get symbol'
@@ -116,7 +119,7 @@ b_binding:		@ symbol binding
 	b	complete	@		return to dispatcher
 1:
 	teq	r3, #S_SET
-	bne	2f		@ if req == "set"
+	bne	2f		@ else if req == "set"
 
 	ldr	r0, [fp, #0x04]	@	get cust
 	ldr	r1, =a_inert	@	message is "#inert"
@@ -126,6 +129,12 @@ b_binding:		@ symbol binding
 	str	r5, [ip, #0x04]	@	set value
 	b	complete	@	return to dispatcher
 2:
+	teq	r3, #S_EVAL
+	bne	3f		@ else if req == "eval"
+	bl	reserve		@	allocate event block
+	mov	r1, ip		@	get SELF
+	b	_a_answer	@	was are self-evaluating
+3:
 	bl	reserve		@ allocate event block
 	mov	r1, r6		@ target is next
 	ldmia	fp, {r2-r9}	@ copy current event
@@ -135,12 +144,14 @@ b_binding:		@ symbol binding
 	.text
 	.align 5		@ align to cache-line
 a_NIL_env:
-	mov	ip, pc		@ point ip to data fields (state)
-	ldmia	ip, {r4-r6,pc}	@ copy state and jump to behavior
-	.int	s_NIL		@ 0x08: r4=symbol
-	.int	a_nil		@ 0x0c: r5=value
-	.int	a_fail		@ 0x10: r6=next
-	.int	b_binding	@ 0x14: address of actor behavior
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	s_NIL		@ 0x04: symbol (r4)
+	.int	a_nil		@ 0x08: value (r5)
+	.int	a_fail		@ 0x0c: next (r6)
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_binding	@ 0x1c: address of actor behavior
 
 @ LET Scope(parent) = \(cust, req).[
 @ 	CASE req OF
@@ -156,9 +167,11 @@ a_NIL_env:
 	.align 5		@ align to cache-line
 	.global b_scope
 b_scope:		@ binding scope
-			@ (template_3: r4=parent, r5=n/a, r6=n/a)
-			@ message = (cust, req, ...)
+			@ (example_5: 0x04=, 0x08=, 0x0c=parent)
+			@ message = (cust, #S_SET, symbol, value)
+	ldr	r4, [ip, #0x0c] @ get parent
 	ldr	r3, [fp, #0x08] @ get req
+
 	teq	r3, #S_SET
 	bne	1f		@ if req == "set"
 
@@ -166,16 +179,25 @@ b_scope:		@ binding scope
 	ldr	r1, =a_inert	@	message is "#inert"
 	bl	send_1		@	send message
 
-	ldr	r7, =b_scope	@	scope behavior
-	bl	create_3x	@	create next actor (r4=parent, ...)
+	ldr	r0, =b_scope	@	scope behavior
+	bl	create_5	@	create next actor
+	str	r4, [r0, #0x0c] @	set parent
 
-	ldr	r4, [fp, #0x0c]	@	get symbol
-	ldr	r5, [fp, #0x10]	@	get value
-	mov	r6, r0		@	get next
-	ldr	r7, =b_binding	@	binding behavior
-	stmia	ip, {r4-r7}	@	BECOME
+	ldr	r5, [fp, #0x0c]	@	get symbol
+	ldr	r6, [fp, #0x10]	@	get value
+	mov	r7, r0		@	get next
+	stmib	ip, {r5-r7}	@
+	ldr	r0, =b_binding	@	binding behavior
+	ldr	r0, [ip, #0x1c]	@	BECOME
+
 	b	complete	@	return to dispatcher
 1:
+	teq	r3, #S_EVAL
+	bne	2f		@ else if req == "eval"
+	bl	reserve		@	allocate event block
+	mov	r1, ip		@	get SELF
+	b	_a_answer	@	was are self-evaluating
+2:
 	bl	reserve		@ allocate event block
 	mov	r1, r4		@ target is parent
 	ldmia	fp, {r2-r9}	@ copy current event

@@ -157,8 +157,8 @@ null_q(ACTOR* x)
 int
 environment_q(ACTOR* x)
 {
-    struct template_3 *a = (struct template_3 *)x;
-    return (a->beh_14 == &b_scope) || (a->beh_14 == &b_binding);
+    struct example_5 *a = (struct example_5 *)x;
+    return (a->beh_1c == &b_scope) || (a->beh_1c == &b_binding);
 }
 
 int
@@ -681,7 +681,7 @@ ground_env()
     char exit_24b[] = "exit" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char list_24b[] = "list" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     ACTOR* a;
-    ACTOR* x;
+    struct example_5 *x;
 
     if (env) return env;  // lazy-initialized singleton
     env = &a_kernel_err;  // signal an error on lookup failure
@@ -689,21 +689,28 @@ ground_env()
     /* bind "exit" */
     a = symbol((struct sym_24b*)exit_24b);
     if (!a) return NULL;  // FAIL!
-    x = (ACTOR *)create_3(&b_binding, (u32)a, (u32)&a_exit, (u32)env);
+    x = create_5(&b_binding);
     if (!x) return NULL;  // FAIL!
-    env = x;
+    x->data_04 = (u32)a;  // set symbol
+    x->data_08 = (u32)&a_exit;  // set value
+    x->data_0c = (u32)env;  // set next
+    env = (ACTOR *)x;
 
     /* bind "list" */
     a = symbol((struct sym_24b*)list_24b);
     if (!a) return NULL;  // FAIL!
-    x = (ACTOR *)create_3(&b_binding, (u32)a, (u32)&ap_list, (u32)env);
+    x = create_5(&b_binding);
     if (!x) return NULL;  // FAIL!
-    env = x;
+    x->data_04 = (u32)a;  // set symbol
+    x->data_08 = (u32)&ap_list;  // set value
+    x->data_0c = (u32)env;  // set next
+    env = (ACTOR *)x;
 
     /* mutable local scope */
-    x = (ACTOR *)create_3(&b_scope, (u32)env, (u32)0, (u32)0);
+    x = create_5(&b_scope);
     if (!x) return NULL;  // FAIL!
-    env = x;
+    x->data_0c = (u32)env;  // set parent
+    env = (ACTOR *)x;
 
     return env;
 }
@@ -717,6 +724,7 @@ kernel_repl()
         puts("> ");
         ACTOR* x = parse_sexpr();
         if (x == NULL) break;
+        // FIXME: this is just a read-print loop (no eval)
         print_sexpr(x);
         putchar('\n');
     }
