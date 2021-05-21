@@ -351,37 +351,60 @@ parse_list()
     return x;
 }
 
+static int
+from_digit(int c, int r) {
+    if ((c >= '0') && (c <= '9')) return (c - '0');
+    if ((r == 16) && (c >= 'a') && (c <= 'f')) return (c - 'a') + 10;
+    if ((r == 16) && (c >= 'A') && (c <= 'F')) return (c - 'A') + 10;
+    return -1;  // fail
+}
+
 ACTOR*
 parse_number()
 {
+    int r = 10;
     int s = 0;
     int n = 0;
     int c;
+    int d;
     ACTOR* x;
 
     DEBUG(puts("number?\n"));
     c = read_char();
+    if (c == '#') {
+        c = read_char();
+        if (c == 'x') {
+            r = 16;
+        } else {
+            unread_char(c);
+            unread_char('#');
+            return NULL;  // failed
+        }
+        c = read_char();
+    }
     if (c == '-') {  // optional sign
         s = 1;
         c = read_char();
     } else if (c == '+') {
         c = read_char();
     }
-    if ((c < '0') || (c > '9')) {
+    d = from_digit(c, r);
+    if (d < 0) {
         unread_char(c);
         return NULL;  // failed
     }
-    n = (c - '0');
+    n = d;
     for (;;) {
         c = read_char();
         while (c == '_') {  // allow '_' separators
             c = read_char();
         }
-        if ((c < '0') || (c > '9')) {
+        d = from_digit(c, r);
+        if (d < 0) {
             unread_char(c);
             break;
         }
-        n = (10 * n) + (c - '0');
+        n = (r * n) + d;
     }
     if (s) {
         n = -n;
@@ -593,8 +616,12 @@ print_list(ACTOR* x)
 void
 print_sexpr(ACTOR* a)  /* print external representation of s-expression */
 {
-    if (!a) {
+    if (!a) {  // null pointer
         puts("#<NULL>");
+    } else if ((u32)a & 0x3) {  // misaligned address
+        putchar('#');
+        serial_hex32((u32)a);
+        putchar('?');
     } else if (null_q(a)) {
         puts("()");
     } else if (a == &a_true) {
@@ -605,13 +632,17 @@ print_sexpr(ACTOR* a)  /* print external representation of s-expression */
         puts("#inert");
     } else if (a == &a_no_bind) {
         puts("#ignore");
+    } else if ((u32)a & 0x1f) {  // misaligned address
+        putchar('#');
+        serial_hex32((u32)a);
+        putchar('?');
     } else if (number_q(a)) {
         print_number(a);
     } else if (symbol_q(a)) {
         print_symbol(a);
     } else if (pair_q(a)) {
         print_list(a);
-    } else {
+    } else {  // unrecognized value
         putchar('#');
         putchar('<');
         serial_hex32((u32)a);

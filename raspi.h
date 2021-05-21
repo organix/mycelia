@@ -25,6 +25,9 @@ typedef unsigned int u32;
 
 typedef void (ACTOR)(void);
 
+/* public data structures */
+extern const char hex[];  // hexadecimal characters
+
 /* sponsor selection */
 extern void set_sponsor(ACTOR* sl);
 extern void sponsor_0();  // "default" sponsor

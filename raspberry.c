@@ -34,7 +34,9 @@ extern u8 heap_start[];
 static char linebuf[256];  // line editing buffer
 static int linepos = 0;  // read position
 static int linelen = 0;  // write position
-static const char* hex = "0123456789abcdef";  // hexadecimal map
+
+/* Public data structures */
+const char hex[] = "0123456789abcdef";  // hexadecimal characters
 
 /*
  * Print u32 in hexadecimal to serial port
@@ -417,7 +419,7 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia 0.1.11 ");
+    serial_puts("mycelia 0.1.12 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 1
