@@ -17,6 +17,7 @@ extern ACTOR a_exit;
 
 // static applicatives
 extern ACTOR ap_list;
+extern ACTOR ap_hexdump;
 
 // static behaviors
 extern ACTOR b_binding;
@@ -657,6 +658,7 @@ ACTOR*
 ground_env()
 {
     char exit_24b[] = "exit" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char hexdump_24b[] = "hexd" "ump\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char list_24b[] = "list" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     ACTOR* a;
     struct example_5 *x;
@@ -672,6 +674,16 @@ ground_env()
     if (!x) return NULL;  // FAIL!
     x->data_04 = (u32)a;  // set symbol
     x->data_08 = (u32)&a_exit;  // set value
+    x->data_0c = (u32)env;  // set next
+    env = (ACTOR *)x;
+
+    /* bind "hexdump" */
+    a = symbol((struct sym_24b*)hexdump_24b);
+    if (!a) return NULL;  // FAIL!
+    x = create_5(&b_binding);
+    if (!x) return NULL;  // FAIL!
+    x->data_04 = (u32)a;  // set symbol
+    x->data_08 = (u32)&ap_hexdump;  // set value
     x->data_0c = (u32)env;  // set next
     env = (ACTOR *)x;
 

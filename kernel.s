@@ -454,9 +454,9 @@ b_appl:			@ applicative wrapper behavior
 	.text
 	.align 5		@ align to cache-line
 	.global ap_list
-ap_list:
+ap_list:		@ applicative "list"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	op_list		@ 0x04: oper = op_list
+	.int	op_list		@ 0x04: operative
 	.int	0		@ 0x08: -
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
@@ -537,6 +537,54 @@ k_map_eval_2:		@ eval args continuation
 
 	str	ip, [r0, #0x04]	@ message is SELF
 	b	_a_send		@ send to customer and return
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_hexdump
+op_hexdump:		@ operative "$hexdump"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r9, [fp, #0x0c] @	get opnds
+
+	mov	r0, r9		@	opnds
+	bl	car
+	movs	r4, r0		@	address = car(list)
+	beq	a_kernel_err	@	if (address == NULL) signal error
+
+	mov	r0, r9		@	opnds
+	bl	cdr
+	movs	r5, r0		@	d = cdr(list)
+	beq	a_kernel_err	@	if (d == NULL) signal error
+	bl	car
+	movs	r5, r0		@	length = car(d)
+	beq	a_kernel_err	@	if (length == NULL) signal error
+
+@ FIXME: check (number? address length) == #t
+	ldr	r0, [r4, #0x04]	@	get numeric value of address
+	ldr	r1, [r5, #0x04]	@	get numeric value of length
+	bl	hexdump		@	call helper procedure
+
+	bl	reserve		@	allocate event block
+	ldr	r1, =a_inert	@	#inert
+	b	_a_answer	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_hexdump
+ap_hexdump:		@ applicative "hexdump"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_hexdump	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
 
 @ void
 @ kernel_repl()
