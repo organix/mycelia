@@ -630,14 +630,14 @@ match_2_args:		@ match arg signature (op pred_1? pred_2?)
 
 	.text
 	.align 5		@ align to cache-line
-	.global op_list
+	.global op_boolean_p
 op_boolean_p:	@ operative "$boolean?"
 			@ message = (cust, #S_APPL, opnds, env)
 			@         | (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
 	teq	r3, #S_APPL
 	bne	1f		@ if req == "combine"
-	ldr	r0, =boolean_p
+	ldr	r0, =boolean_p	@	get predicate
 	ldr	r1, [fp, #0x0c]	@	get operands
 	blx	apply_pred	@	apply predicate to operand list
 	teq	r0, #0		@	if NULL
@@ -655,6 +655,40 @@ op_boolean_p:	@ operative "$boolean?"
 ap_boolean_p:		@ applicative "boolean?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_boolean_p	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_eq_p
+op_eq_p:	@ operative "$eq?"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, =eq_p	@	get relation
+	ldr	r1, [fp, #0x0c]	@	get operands
+	blx	apply_rltn	@	apply relation to operand list
+	teq	r0, #0		@	if NULL
+	beq	a_kernel_err	@		signal error
+	mov	r4, r0		@	save result
+	bl	reserve		@	allocate event block
+	mov	r1, r4		@	restore result
+	b	_a_answer	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_eq_p
+ap_eq_p:		@ applicative "eq?"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_eq_p		@ 0x04: operative
 	.int	0		@ 0x08: -
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --

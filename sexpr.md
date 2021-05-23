@@ -38,6 +38,15 @@ The _`boolean?`_ applicative returns `#t`
 if _objects_ all have _boolean_ type, 
 otherwise `#f`.
 
+### eq?
+
+`(eq? . `_objects_`)`
+
+The _`eq?`_ applicative returns `#t` 
+unless some two of its arguments are 
+different objects
+otherwise `#f`.
+
 ### hexdump
 
 `(hexdump `_address_` `_count_`)`

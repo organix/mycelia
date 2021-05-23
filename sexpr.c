@@ -19,6 +19,7 @@ extern ACTOR a_exit;
 // static applicatives
 extern ACTOR ap_list;
 extern ACTOR ap_boolean_p;
+extern ACTOR ap_eq_p;
 extern ACTOR ap_hexdump;
 extern ACTOR ap_load_words;
 extern ACTOR ap_store_words;
@@ -330,7 +331,7 @@ store_words(u32* addr, ACTOR* list)
 typedef int (PRED)(ACTOR* x);
 
 ACTOR*
-apply_pred(PRED *p, ACTOR* list)
+apply_pred(PRED *p, ACTOR* list)  // apply unary predicate to a list
 {
     while (!null_p(list)) {
         if (!pair_p(list)) {
@@ -339,6 +340,29 @@ apply_pred(PRED *p, ACTOR* list)
         if (!p(car(list))) {
             return &a_false;
         }
+        list = cdr(list);
+    }
+    return &a_true;
+}
+
+typedef int (RLTN)(ACTOR* x, ACTOR* y);
+
+ACTOR*
+apply_rltn(RLTN *r, ACTOR* list)  // apply binary relation to a list
+{
+    if (null_p(list)) return &a_true;  // 0-arg base case
+    if (!pair_p(list)) return NULL;  // fail: improper arg list
+    ACTOR* witness = car(list);
+    list = cdr(list);
+    while (!null_p(list)) {
+        if (!pair_p(list)) {
+            return NULL;  // fail: improper arg list
+        }
+        ACTOR* element = car(list);
+        if (!r(witness, element)) {
+            return &a_false;
+        }
+        witness = element;
         list = cdr(list);
     }
     return &a_true;
@@ -767,6 +791,7 @@ ground_env()
     char hexdump_24b[] = "hexd" "ump\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char load_words_24b[] = "load" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char store_words_24b[] = "stor" "e-wo" "rds\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char eqp_24b[] = "eq?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char booleanp_24b[] = "bool" "ean?" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char list_24b[] = "list" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     ACTOR* a;
@@ -793,6 +818,11 @@ ground_env()
 
     /* bind "store-words" */
     a = extend_env(env, (struct sym_24b*)store_words_24b, (u32)&ap_store_words);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "eq?" */
+    a = extend_env(env, (struct sym_24b*)eqp_24b, (u32)&ap_eq_p);
     if (!a) return NULL;  // FAIL!
     env = a;
 
