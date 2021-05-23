@@ -19,6 +19,10 @@ extern ACTOR a_exit;
 // static applicatives
 extern ACTOR ap_list;
 extern ACTOR ap_boolean_p;
+extern ACTOR ap_symbol_p;
+extern ACTOR ap_inert_p;
+extern ACTOR ap_pair_p;
+extern ACTOR ap_null_p;
 extern ACTOR ap_eq_p;
 extern ACTOR ap_hexdump;
 extern ACTOR ap_load_words;
@@ -57,6 +61,13 @@ struct example_5 {
     u32         data_18;
     ACTOR*      beh_1c;
 };
+
+int
+object_p(ACTOR* x)
+{
+    // [FIXME] make this more robust...
+    return (((u32)x & 0x1f) == 0x0);  // 32-byte alignment
+}
 
 int
 boolean_p(ACTOR* x)
@@ -792,7 +803,11 @@ ground_env()
     char load_words_24b[] = "load" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char store_words_24b[] = "stor" "e-wo" "rds\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char eqp_24b[] = "eq?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char symbolp_24b[] = "symb" "ol?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char inertp_24b[] = "iner" "t?\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char booleanp_24b[] = "bool" "ean?" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char nullp_24b[] = "null" "?\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char pairp_24b[] = "pair" "?\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char list_24b[] = "list" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     ACTOR* a;
     struct example_5 *x;
@@ -826,8 +841,28 @@ ground_env()
     if (!a) return NULL;  // FAIL!
     env = a;
 
+    /* bind "symbol?" */
+    a = extend_env(env, (struct sym_24b*)symbolp_24b, (u32)&ap_symbol_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "inert?" */
+    a = extend_env(env, (struct sym_24b*)inertp_24b, (u32)&ap_inert_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
     /* bind "boolean?" */
     a = extend_env(env, (struct sym_24b*)booleanp_24b, (u32)&ap_boolean_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "null?" */
+    a = extend_env(env, (struct sym_24b*)nullp_24b, (u32)&ap_null_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "pair?" */
+    a = extend_env(env, (struct sym_24b*)pairp_24b, (u32)&ap_pair_p);
     if (!a) return NULL;  // FAIL!
     env = a;
 

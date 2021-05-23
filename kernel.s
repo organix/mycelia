@@ -96,6 +96,77 @@ a_true:			@ "#t" singleton
 a_false:		@ "#f" singleton
 	b	self_eval	@ self-evaluating
 
+@ LET Number(int32) = \(cust, req).[
+@ 	CASE req OF
+@ 	(#eval, env) : [ SEND SELF TO cust ]
+@ 	_ : [ THROW (#Not-Understood, SELF, req) ]
+@ 	END
+@ ]
+	.global b_number
+b_number:		@ integer constant
+			@ (example_5: 0x04=int32, 0x08=, 0x0c=)
+			@ message = (cust, #S_SELF)
+			@         | (cust, #S_EVAL, env)
+@	ldr	r3, [fp, #0x08] @ get req
+@
+@ although numbers are self-evaluating,
+@ we need a distinct behavior
+@ to serve as a "type" tag
+@
+	b	self_eval	@ self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global n_m1
+n_m1:
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	-1		@ 0x04: int32
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_number	@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global n_0
+n_0:
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	0		@ 0x04: int32
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_number	@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global n_1
+n_1:
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	1		@ 0x04: int32
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_number	@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global n_2
+n_2:
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	2		@ 0x04: int32
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_number	@ 0x1c: address of actor behavior
+
 @ LET Binding(symbol, value, next) = \(cust, req).[
 @ 	CASE req OF
 @ 	(#lookup, $symbol) : [ SEND value TO cust ]
@@ -331,79 +402,6 @@ k_comb:			@ combiner continuation
 			@ message = (combiner)
 	mov	r0, ip		@ continuation actor becomes an event...
 	b	_a_reply	@ delegate to combiner
-
-@ LET Number(int32) = \(cust, req).[
-@ 	CASE req OF
-@ 	(#eval, env) : [ SEND SELF TO cust ]
-@ 	_ : [ THROW (#Not-Understood, SELF, req) ]
-@ 	END
-@ ]
-	.text
-	.align 5		@ align to cache-line
-	.global b_number
-b_number:		@ integer constant
-			@ (example_5: 0x04=int32, 0x08=, 0x0c=)
-			@ message = (cust, #S_SELF)
-			@         | (cust, #S_EVAL, env)
-@	ldr	r3, [fp, #0x08] @ get req
-@
-@ although numbers are self-evaluating,
-@ we need a distinct behavior
-@ to serve as a "type" tag
-@
-	b	self_eval	@ self-evaluating
-
-	.text
-	.align 5		@ align to cache-line
-	.global n_m1
-n_m1:
-	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	-1		@ 0x04: int32
-	.int	0		@ 0x08: -
-	.int	0		@ 0x0c: --
-	.int	0		@ 0x10: --
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	b_number	@ 0x1c: address of actor behavior
-
-	.text
-	.align 5		@ align to cache-line
-	.global n_0
-n_0:
-	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	0		@ 0x04: int32
-	.int	0		@ 0x08: -
-	.int	0		@ 0x0c: --
-	.int	0		@ 0x10: --
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	b_number	@ 0x1c: address of actor behavior
-
-	.text
-	.align 5		@ align to cache-line
-	.global n_1
-n_1:
-	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	1		@ 0x04: int32
-	.int	0		@ 0x08: -
-	.int	0		@ 0x0c: --
-	.int	0		@ 0x10: --
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	b_number	@ 0x1c: address of actor behavior
-
-	.text
-	.align 5		@ align to cache-line
-	.global n_2
-n_2:
-	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	2		@ 0x04: int32
-	.int	0		@ 0x08: -
-	.int	0		@ 0x0c: --
-	.int	0		@ 0x10: --
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	b_number	@ 0x1c: address of actor behavior
 
 @
 @ built-in operatives and applicatives
@@ -677,6 +675,142 @@ op_boolean_p:	@ operative "$boolean?"
 ap_boolean_p:		@ applicative "boolean?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_boolean_p	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_symbol_p
+op_symbol_p:	@ operative "$symbol?"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, =symbol_p	@	get predicate
+	ldr	r1, [fp, #0x0c]	@	get operands
+	blx	apply_pred	@	apply predicate to operand list
+	teq	r0, #0		@	if NULL
+	beq	a_kernel_err	@		signal error
+	mov	r4, r0		@	save result
+	bl	reserve		@	allocate event block
+	mov	r1, r4		@	restore result
+	b	_a_answer	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_symbol_p
+ap_symbol_p:		@ applicative "symbol?"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_symbol_p	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_inert_p
+op_inert_p:	@ operative "$inert?"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, =inert_p	@	get predicate
+	ldr	r1, [fp, #0x0c]	@	get operands
+	blx	apply_pred	@	apply predicate to operand list
+	teq	r0, #0		@	if NULL
+	beq	a_kernel_err	@		signal error
+	mov	r4, r0		@	save result
+	bl	reserve		@	allocate event block
+	mov	r1, r4		@	restore result
+	b	_a_answer	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_inert_p
+ap_inert_p:		@ applicative "inert?"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_inert_p	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_pair_p
+op_pair_p:	@ operative "$pair?"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, =pair_p	@	get predicate
+	ldr	r1, [fp, #0x0c]	@	get operands
+	blx	apply_pred	@	apply predicate to operand list
+	teq	r0, #0		@	if NULL
+	beq	a_kernel_err	@		signal error
+	mov	r4, r0		@	save result
+	bl	reserve		@	allocate event block
+	mov	r1, r4		@	restore result
+	b	_a_answer	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_pair_p
+ap_pair_p:		@ applicative "pair?"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_pair_p	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_null_p
+op_null_p:	@ operative "$null?"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, =null_p	@	get predicate
+	ldr	r1, [fp, #0x0c]	@	get operands
+	blx	apply_pred	@	apply predicate to operand list
+	teq	r0, #0		@	if NULL
+	beq	a_kernel_err	@		signal error
+	mov	r4, r0		@	save result
+	bl	reserve		@	allocate event block
+	mov	r1, r4		@	restore result
+	b	_a_answer	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_null_p
+ap_null_p:		@ applicative "null?"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_null_p	@ 0x04: operative
 	.int	0		@ 0x08: -
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --

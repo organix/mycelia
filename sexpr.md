@@ -38,6 +38,38 @@ The _`boolean?`_ applicative returns `#t`
 if _objects_ all have _boolean_ type, 
 otherwise `#f`.
 
+### symbol?
+
+`(symbol? . `_objects_`)`
+
+The _`symbol?`_ applicative returns `#t` 
+if _objects_ all have _symbol_ type, 
+otherwise `#f`.
+
+### inert?
+
+`(inert? . `_objects_`)`
+
+The _`inert?`_ applicative returns `#t` 
+if _objects_ are all `#inert`, 
+otherwise `#f`.
+
+### pair?
+
+`(pair? . `_objects_`)`
+
+The _`pair?`_ applicative returns `#t` 
+if _objects_ all have _pair_ type, 
+otherwise `#f`.
+
+### null?
+
+`(null? . `_objects_`)`
+
+The _`null?`_ applicative returns `#t` 
+if _objects_ are all `()`, 
+otherwise `#f`.
+
 ### eq?
 
 `(eq? . `_objects_`)`
