@@ -18,6 +18,7 @@ extern ACTOR a_exit;
 
 // static applicatives
 extern ACTOR ap_list;
+extern ACTOR ap_boolean_p;
 extern ACTOR ap_hexdump;
 extern ACTOR ap_load_words;
 extern ACTOR ap_store_words;
@@ -105,6 +106,7 @@ null_p(ACTOR* x)
 int
 list_p(ACTOR* x)
 {
+    // FIXME: "list?" is supposed to fail on an improper list (dotted tail)
     // FIXME: Kernel defines "finite-list?" and "countable-list?"
     return null_p(x) || pair_p(x);
 }
@@ -323,6 +325,23 @@ store_words(u32* addr, ACTOR* list)
         *addr++ = get_u32((ACTOR*)(x->data_04));
         list = (ACTOR*)(x->data_08);
     }
+}
+
+typedef int (PRED)(ACTOR* x);
+
+ACTOR*
+apply_pred(PRED *p, ACTOR* list)
+{
+    while (!null_p(list)) {
+        if (!pair_p(list)) {
+            return NULL;  // fail!
+        }
+        if (!p(car(list))) {
+            return &a_false;
+        }
+        list = cdr(list);
+    }
+    return &a_true;
 }
 
 static char* line = NULL;
@@ -728,6 +747,19 @@ print_sexpr(ACTOR* a)  /* print external representation of s-expression */
 //static u8 the_margin[128];
 static ACTOR* kernel_env = NULL;
 
+static ACTOR*
+extend_env(ACTOR* env, struct sym_24b* sym, u32 value)
+{
+    ACTOR* a = symbol((struct sym_24b*)sym);
+    if (!a) return NULL;  // FAIL!
+    struct example_5 *x = create_5(&b_binding);
+    if (!x) return NULL;  // FAIL!
+    x->data_04 = (u32)a;  // set symbol
+    x->data_08 = (u32)value;  // set value
+    x->data_0c = (u32)env;  // set next
+    return (ACTOR *)x;
+}
+
 ACTOR*
 ground_env()
 {
@@ -735,6 +767,7 @@ ground_env()
     char hexdump_24b[] = "hexd" "ump\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char load_words_24b[] = "load" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char store_words_24b[] = "stor" "e-wo" "rds\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char booleanp_24b[] = "bool" "ean?" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char list_24b[] = "list" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     ACTOR* a;
     struct example_5 *x;
@@ -744,54 +777,34 @@ ground_env()
     ACTOR *env = &a_kernel_err;  // signal an error on lookup failure
 
     /* bind "exit" */
-    a = symbol((struct sym_24b*)exit_24b);
+    a = extend_env(env, (struct sym_24b*)exit_24b, (u32)&a_exit);
     if (!a) return NULL;  // FAIL!
-    x = create_5(&b_binding);
-    if (!x) return NULL;  // FAIL!
-    x->data_04 = (u32)a;  // set symbol
-    x->data_08 = (u32)&a_exit;  // set value
-    x->data_0c = (u32)env;  // set next
-    env = (ACTOR *)x;
+    env = a;
 
     /* bind "hexdump" */
-    a = symbol((struct sym_24b*)hexdump_24b);
+    a = extend_env(env, (struct sym_24b*)hexdump_24b, (u32)&ap_hexdump);
     if (!a) return NULL;  // FAIL!
-    x = create_5(&b_binding);
-    if (!x) return NULL;  // FAIL!
-    x->data_04 = (u32)a;  // set symbol
-    x->data_08 = (u32)&ap_hexdump;  // set value
-    x->data_0c = (u32)env;  // set next
-    env = (ACTOR *)x;
+    env = a;
 
     /* bind "load-words" */
-    a = symbol((struct sym_24b*)load_words_24b);
+    a = extend_env(env, (struct sym_24b*)load_words_24b, (u32)&ap_load_words);
     if (!a) return NULL;  // FAIL!
-    x = create_5(&b_binding);
-    if (!x) return NULL;  // FAIL!
-    x->data_04 = (u32)a;  // set symbol
-    x->data_08 = (u32)&ap_load_words;  // set value
-    x->data_0c = (u32)env;  // set next
-    env = (ACTOR *)x;
+    env = a;
 
     /* bind "store-words" */
-    a = symbol((struct sym_24b*)store_words_24b);
+    a = extend_env(env, (struct sym_24b*)store_words_24b, (u32)&ap_store_words);
     if (!a) return NULL;  // FAIL!
-    x = create_5(&b_binding);
-    if (!x) return NULL;  // FAIL!
-    x->data_04 = (u32)a;  // set symbol
-    x->data_08 = (u32)&ap_store_words;  // set value
-    x->data_0c = (u32)env;  // set next
-    env = (ACTOR *)x;
+    env = a;
+
+    /* bind "boolean?" */
+    a = extend_env(env, (struct sym_24b*)booleanp_24b, (u32)&ap_boolean_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
 
     /* bind "list" */
-    a = symbol((struct sym_24b*)list_24b);
+    a = extend_env(env, (struct sym_24b*)list_24b, (u32)&ap_list);
     if (!a) return NULL;  // FAIL!
-    x = create_5(&b_binding);
-    if (!x) return NULL;  // FAIL!
-    x->data_04 = (u32)a;  // set symbol
-    x->data_08 = (u32)&ap_list;  // set value
-    x->data_0c = (u32)env;  // set next
-    env = (ACTOR *)x;
+    env = a;
 
     /* mutable local scope */
     x = create_5(&b_scope);

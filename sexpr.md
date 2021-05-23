@@ -30,6 +30,14 @@ regardless of whether that tree is or is not a list.
 The behavior of the applicative is therefore determined 
 by the way the Kernel evaluator algorithm evaluates arguments.
 
+### boolean?
+
+`(boolean? . `_objects_`)`
+
+The _`boolean?`_ applicative returns `#t` 
+if _objects_ all have _boolean_ type, 
+otherwise `#f`.
+
 ### hexdump
 
 `(hexdump `_address_` `_count_`)`

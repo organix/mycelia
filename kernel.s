@@ -22,8 +22,8 @@
 @
 
 	.set S_SELF, 0x00
-	.set S_GET,  0x01
-	.set S_SET,  0x02
+	.set S_GET,  0x01	@ "lookup"
+	.set S_SET,  0x02	@ "bind"
 	.set S_EVAL, 0x03
 	.set S_APPL, 0x04	@ "combine"
 	.set S_OPER, 0x05	@ "unwrap"
@@ -564,9 +564,9 @@ match_1_arg:		@ match arg signature (op pred?)
 	movs	r5, r0
 	beq	1f		@ if car(args) != NULL
 
-	blx	r1
-	teq	r0, #0
-	beq	1f		@ and pred(car(args))
+@	blx	r1
+@	teq	r0, #0
+@	beq	1f		@ and pred(car(args))
 
 	mov	r0, r4
 	bl	cdr
@@ -630,6 +630,40 @@ match_2_args:		@ match arg signature (op pred_1? pred_2?)
 
 	.text
 	.align 5		@ align to cache-line
+	.global op_list
+op_boolean_p:	@ operative "$boolean?"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, =boolean_p
+	ldr	r1, [fp, #0x0c]	@	get operands
+	blx	apply_pred	@	apply predicate to operand list
+	teq	r0, #0		@	if NULL
+	beq	a_kernel_err	@		signal error
+	mov	r4, r0		@	save result
+	bl	reserve		@	allocate event block
+	mov	r1, r4		@	restore result
+	b	_a_answer	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_boolean_p
+ap_boolean_p:		@ applicative "boolean?"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_boolean_p	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
 	.global op_hexdump
 op_hexdump:		@ operative "$hexdump"
 			@ message = (cust, #S_APPL, opnds, env)
@@ -673,8 +707,8 @@ op_load_words:		@ operative "$load-words"
 	teq	r3, #S_APPL
 	bne	1f		@ if req == "combine"
 	ldr	r0, [fp, #0x0c] @	get opnds
-@	ldr	r1, =number_p	@	predicate 1
-@	ldr	r2, =number_p	@	predicate 2
+	ldr	r1, =number_p	@	predicate 1
+	ldr	r2, =number_p	@	predicate 2
 	bl	match_2_args
 	ldr	r0, [r0, #0x04]	@	get numeric value of address
 	ldr	r1, [r1, #0x04]	@	get numeric value of count
@@ -709,8 +743,8 @@ op_store_words:		@ operative "$store-words"
 	teq	r3, #S_APPL
 	bne	1f		@ if req == "combine"
 	ldr	r0, [fp, #0x0c] @	get opnds
-@	ldr	r1, =number_p	@	predicate 1
-@	ldr	r2, =list_p	@	predicate 2
+	ldr	r1, =number_p	@	predicate 1
+	ldr	r2, =list_p	@	predicate 2
 	bl	match_2_args
 	ldr	r0, [r0, #0x04]	@	get numeric value of address
 	bl	store_words	@	store from list (in r1)
