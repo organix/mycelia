@@ -39,6 +39,16 @@ static int linelen = 0;  // write position
 const char hex[] = "0123456789abcdef";  // hexadecimal characters
 
 /*
+ * Print u8 in hexadecimal to serial port
+ */
+void
+serial_hex8(u8 b)
+{
+    serial_write(hex[0xF & (b >> 4)]);
+    serial_write(hex[0xF & b]);
+}
+
+/*
  * Print u32 in hexadecimal to serial port
  */
 void
@@ -52,16 +62,6 @@ serial_hex32(u32 w)
     serial_write(hex[0xF & (w >> 8)]);
     serial_write(hex[0xF & (w >> 4)]);
     serial_write(hex[0xF & w]);
-}
-
-/*
- * Print u8 in hexadecimal to serial port
- */
-void
-serial_hex8(u8 b)
-{
-    serial_write(hex[0xF & (b >> 4)]);
-    serial_write(hex[0xF & b]);
 }
 
 /*
@@ -134,10 +134,6 @@ dump256(void* p)
     hexdump((u8*)p, 256);
 }
 
-/*
-@ 12345678 12345678 12345678 12345678 12345678 12345678 12345678 12345678
- \_ 12345678 12345678 12345678 12345678 12345678 12345678 12345678 12345678
-*/
 void
 dump_block(const u32* p)
 {
@@ -177,6 +173,10 @@ dump_ascii(const u32* p)
     }
 }
 #endif
+/*
+@ 12345678 12345678 12345678 12345678 12345678 12345678 12345678 12345678
+ \_ 12345678 12345678 12345678 12345678 12345678 12345678 12345678 12345678
+*/
 void
 dump_event(const u32* p)
 {
@@ -419,7 +419,7 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia 0.1.15 ");
+    serial_puts("mycelia 0.1.16 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 1

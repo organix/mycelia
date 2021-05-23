@@ -162,7 +162,8 @@ event_q:
 	.int 0			@ queue head/tail (offset 1024)
 
 	.data
-	.align 2		@ align to machine word
+@	.align 2		@ align to machine word
+	.align 5		@ align to cache-line
 block_free:
 	.int 0			@ pointer to next free block, 0 if none
 block_end:
@@ -247,6 +248,7 @@ dispatch_0:		@ dispatch next event
 	bx	ip		@ jump to actor behavior
 
 reserve_0:		@ reserve a block (32 bytes) of memory
+	stmdb	sp!, {lr}	@ preserve link register
 	ldr	r1, =block_free	@ address of free list pointer
 	ldr	r0, [r1]	@ address of first free block
 	mov	r3, #0		@ null pointer
@@ -255,9 +257,8 @@ reserve_0:		@ reserve a block (32 bytes) of memory
 	ldr	r2, [r0]	@	follow link to next free block
 	str	r2, [r1]	@	update free list pointer
 	str	r3, [r0]	@	set link to null
-	bx	lr		@	return
+	ldmia	sp!, {pc}	@	return
 1:				@ else
-	stmdb	sp!, {lr}	@	preserve link register
 	ldr	r1, =block_end	@	address of block end pointer
 	ldr	r0, [r1]	@	address of new memory block
 	add	r2, r0, #32	@	calculate next block address
@@ -896,6 +897,52 @@ b_fbomb:		@ fork-bomb behavior
 	stmia	r0, {r4-r7}	@ write new event
 	bl	enqueue		@ add event to queue
 	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global dump_regs
+dump_regs:		@ print register contents for debugging (only uses lr and pc)
+	stmdb	sp!, {r0-r8,lr}	@ preserve registers
+	mov	r8, lr		@ copy lr (return pc) into r8
+	ldmia	sp, {r4-r7}	@ copy r0-r3 into r4-r7
+
+	ldr	r0, =_reg_labels
+	bl	serial_puts	@ print label "pc="
+	mov	r0, r8
+	bl	serial_hex32	@ print register value
+
+	ldr	r0, =_reg_labels
+	add	r0, r0, #5
+	bl	serial_puts	@ print label "r0="
+	mov	r0, r4
+	bl	serial_hex32	@ print register value
+
+	ldr	r0, =_reg_labels
+	add	r0, r0, #10
+	bl	serial_puts	@ print label "r1="
+	mov	r0, r5
+	bl	serial_hex32	@ print register value
+
+	ldr	r0, =_reg_labels
+	add	r0, r0, #15
+	bl	serial_puts	@ print label "r2="
+	mov	r0, r6
+	bl	serial_hex32	@ print register value
+
+	ldr	r0, =_reg_labels
+	add	r0, r0, #20
+	bl	serial_puts	@ print label "r3="
+	mov	r0, r7
+	bl	serial_hex32	@ print register value
+
+	bl	serial_eol	@ print end-of-line
+	ldmia	sp!, {r0-r8,pc}	@ restore registers and return
+_reg_labels:		@ print register contents for debugging (only uses lr and pc)
+	.ascii	" pc=\0"
+	.ascii	" r0=\0"
+	.ascii	" r1=\0"
+	.ascii	" r2=\0"
+	.ascii	" r3=\0"
 
 	.text
 	.align 5		@ align to cache-line

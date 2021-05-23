@@ -4,7 +4,8 @@
 #include "sexpr.h"
 #include "serial.h"
 
-#define DEBUG(x)   /* debug logging */
+#define DEBUG(x) x /* debug logging */
+#define TRACE(x)   /* trace logging */
 
 // static actors
 extern ACTOR a_nil;
@@ -18,6 +19,8 @@ extern ACTOR a_exit;
 // static applicatives
 extern ACTOR ap_list;
 extern ACTOR ap_hexdump;
+extern ACTOR ap_load_words;
+extern ACTOR ap_store_words;
 
 // static behaviors
 extern ACTOR b_binding;
@@ -53,75 +56,75 @@ struct example_5 {
 };
 
 int
-boolean_q(ACTOR* x)
+boolean_p(ACTOR* x)
 {
     return (x == &a_true) || (x == &a_false);
 }
 
 int
-eq_q(ACTOR* x, ACTOR* y)
+eq_p(ACTOR* x, ACTOR* y)
 {
     // [FIXME] handle more complex cases...
     return (x == y);
 }
 
 int
-equal_q(ACTOR* x, ACTOR* y)
+equal_p(ACTOR* x, ACTOR* y)
 {
     // [FIXME] handle more complex cases...
-    return eq_q(x, y);
+    return eq_p(x, y);
 }
 
 int
-symbol_q(ACTOR* x)
+symbol_p(ACTOR* x)
 {
     struct example_5 *a = (struct example_5 *)x;
     return (a->beh_1c == &b_symbol);
 }
 
 int
-inert_q(ACTOR* x)
+inert_p(ACTOR* x)
 {
     return (x == &a_inert);
 }
 
 int
-pair_q(ACTOR* x)
+pair_p(ACTOR* x)
 {
     struct example_5 *a = (struct example_5 *)x;
     return (a->beh_1c == &b_pair);
 }
 
 int
-null_q(ACTOR* x)
+null_p(ACTOR* x)
 {
     return (x == &a_nil);
 }
 
 int
-environment_q(ACTOR* x)
+environment_p(ACTOR* x)
 {
     struct example_5 *a = (struct example_5 *)x;
     return (a->beh_1c == &b_scope) || (a->beh_1c == &b_binding);
 }
 
 int
-ignore_q(ACTOR* x)
+ignore_p(ACTOR* x)
 {
     return (x == &a_inert);
 }
 
 int
-number_q(ACTOR* x)
+number_p(ACTOR* x)
 {
     struct example_5 *a = (struct example_5 *)x;
     return (a->beh_1c == &b_number);
 }
 
 int
-integer_q(ACTOR* x)
+integer_p(ACTOR* x)
 {
-    return number_q(x);  // [FIXME] currently only int32 is supported
+    return number_p(x);  // [FIXME] currently only int32 is supported
 }
 
 struct sym_24b {  // symbol data is offset 0x04 into a cache-line
@@ -167,11 +170,11 @@ symbol(struct sym_24b* name)
     // search for interned symbol
     ACTOR* x = sym_search(name);
     if (x != NULL) {
-        DEBUG(puts("sym:found\n"));
+        TRACE(puts("sym:found\n"));
         return x;  // symbol found, return it
     }
     if (((void *)(*next_sym) - (void *)(sym_table)) < sizeof(sym_table)) {
-        DEBUG(puts("sym:overflow\n"));
+        TRACE(puts("sym:overflow\n"));
         return NULL;  // fail -- symbol table overflow!
     }
     // create a new symbol
@@ -184,10 +187,10 @@ symbol(struct sym_24b* name)
         a->data_14 = name->data_14;
         a->data_18 = name->data_18;
         *next_sym++ = a;  // intern symbol in table
-        DEBUG(puts("sym:created\n"));
+        TRACE(puts("sym:created\n"));
         return (ACTOR*)a;  // return new symbol
     }
-    DEBUG(puts("sym:fail\n"));
+    TRACE(puts("sym:fail\n"));
     return NULL;  // fail
 }
 
@@ -195,24 +198,38 @@ ACTOR*
 number(int n)
 {
     // FIXME: consider a memo-table for small integers
+    DEBUG(puts("number(0x"));
+    DEBUG(serial_hex32((u32)n));
+    DEBUG(puts(")="));
     struct example_5 *x = create_5(&b_number);
     x->data_04 = (u32)n;
+    DEBUG(puts("0x"));
+    DEBUG(serial_hex32((u32)x));
+    DEBUG(putchar('\n'));
     return (ACTOR*)x;
 }
 
 ACTOR*
 cons(ACTOR* a, ACTOR* d)
 {
+    DEBUG(puts("cons(0x"));
+    DEBUG(serial_hex32((u32)a));
+    DEBUG(puts(",0x"));
+    DEBUG(serial_hex32((u32)d));
+    DEBUG(puts(")="));
     struct example_5 *x = create_5(&b_pair);
     x->data_04 = (u32)a;
     x->data_08 = (u32)d;
+    DEBUG(puts("0x"));
+    DEBUG(serial_hex32((u32)x));
+    DEBUG(putchar('\n'));
     return (ACTOR*)x;
 }
 
 ACTOR*
 car(ACTOR* x)
 {
-    if (pair_q(x)) {
+    if (pair_p(x)) {
         struct example_5 *a = (struct example_5 *)x;
         return (ACTOR*)(a->data_04);
     }
@@ -222,7 +239,7 @@ car(ACTOR* x)
 ACTOR*
 cdr(ACTOR* x)
 {
-    if (pair_q(x)) {
+    if (pair_p(x)) {
         struct example_5 *a = (struct example_5 *)x;
         return (ACTOR*)(a->data_08);
     }
@@ -232,7 +249,7 @@ cdr(ACTOR* x)
 ACTOR*
 set_car(ACTOR* x, ACTOR* a)
 {
-    if (pair_q(x)) {
+    if (pair_p(x)) {
         struct example_5 *z = (struct example_5 *)x;
         z->data_04 = (u32)a;
         return x;
@@ -243,12 +260,57 @@ set_car(ACTOR* x, ACTOR* a)
 ACTOR*
 set_cdr(ACTOR* x, ACTOR* d)
 {
-    if (pair_q(x)) {
+    if (pair_p(x)) {
         struct example_5 *z = (struct example_5 *)x;
         z->data_08 = (u32)d;
         return x;
     }
     return NULL;  // fail
+}
+
+u32
+get_u32(ACTOR* num)
+{
+    struct example_5 *a = (struct example_5 *)num;
+    return a->data_04;
+}
+
+ACTOR*
+load_words(u32* addr, u32 count)
+{
+    ACTOR* list = &a_nil;
+
+    DEBUG(puts("addr=0x"));
+    DEBUG(serial_hex32((u32)addr));
+    DEBUG(putchar('\n'));
+    DEBUG(puts("list=0x"));
+    DEBUG(serial_hex32((u32)list));
+    DEBUG(putchar('\n'));
+    while (count > 0) {
+        DEBUG(puts("count="));
+        DEBUG(serial_dec32(count));
+        DEBUG(putchar('\n'));
+        int n = (int)(addr[--count]);
+        DEBUG(puts("n=0x"));
+        DEBUG(serial_hex32(n));
+        DEBUG(putchar('\n'));
+        list = cons(number(n), list);
+        DEBUG(puts("list=0x"));
+        DEBUG(serial_hex32((u32)list));
+        DEBUG(putchar('\n'));
+    }
+    return list;
+}
+
+void
+store_words(u32* addr, ACTOR* list)
+{
+    while (!null_p(list)) {
+        if (!pair_p(list)) return;  // abort
+        struct example_5 *x = (struct example_5 *)list;
+        *addr++ = get_u32((ACTOR*)(x->data_04));
+        list = (ACTOR*)(x->data_08);
+    }
 }
 
 static char* line = NULL;
@@ -268,10 +330,10 @@ read_char()
         if (!line) return EOF;
     }
     int c = *line++;
-    DEBUG(serial_hex8((u8)c));
-    DEBUG(putchar(' '));
-    DEBUG(putchar(c < ' ' ? '.' : c));
-    DEBUG(putchar('\n'));
+    TRACE(serial_hex8((u8)c));
+    TRACE(putchar(' '));
+    TRACE(putchar(c < ' ' ? '.' : c));
+    TRACE(putchar('\n'));
     return c;
 }
 
@@ -279,11 +341,11 @@ static void
 unread_char(int c)
 {
     if (c > 0) {
-        DEBUG(putchar('<'));
-        DEBUG(serial_hex8((u8)c));
-        DEBUG(putchar(' '));
-        DEBUG(putchar(c < ' ' ? '.' : c));
-        DEBUG(putchar('\n'));
+        TRACE(putchar('<'));
+        TRACE(serial_hex8((u8)c));
+        TRACE(putchar(' '));
+        TRACE(putchar(c < ' ' ? '.' : c));
+        TRACE(putchar('\n'));
         *--line = c;
     }
 }
@@ -319,7 +381,7 @@ parse_list()
     ACTOR* y;
     ACTOR* z;
 
-    DEBUG(puts("list?\n"));
+    TRACE(puts("list?\n"));
     c = read_char();
     if (c != '(') {
         unread_char(c);
@@ -332,7 +394,7 @@ parse_list()
     parse_opt_space();
     c = read_char();
     if ((c == '.') && (x != &a_nil)) {
-        DEBUG(puts("<tail>\n"));
+        TRACE(puts("<tail>\n"));
         y = parse_sexpr();
         if (y == NULL) return NULL;  // failed
         parse_opt_space();
@@ -348,7 +410,7 @@ parse_list()
         x = z;
     }
     x = y;
-    DEBUG(puts("<list>\n"));
+    TRACE(puts("<list>\n"));
     return x;
 }
 
@@ -370,7 +432,7 @@ parse_number()
     int d;
     ACTOR* x;
 
-    DEBUG(puts("number?\n"));
+    TRACE(puts("number?\n"));
     c = read_char();
     if (c == '#') {
         c = read_char();
@@ -411,7 +473,7 @@ parse_number()
         n = -n;
     }
     x = number(n);
-    DEBUG(puts("<number>\n"));
+    TRACE(puts("<number>\n"));
     return x;
 }
 
@@ -453,7 +515,7 @@ parse_symbol()
     int c;
     ACTOR* x;
 
-    DEBUG(puts("symbol?\n"));
+    TRACE(puts("symbol?\n"));
     c = read_char();
     if (!is_ident_char(c)) {
         unread_char(c);
@@ -464,7 +526,7 @@ parse_symbol()
         if (!is_ident_char(c)) {
             unread_char(c);
             unread_char('.');
-            DEBUG(puts("<dot>\n"));
+            TRACE(puts("<dot>\n"));
             return NULL;  // failed
         }
         b[i++] = '.';
@@ -488,7 +550,7 @@ parse_symbol()
     } else {
         x = symbol(&sym);
     }
-    DEBUG(puts("<symbol>\n"));
+    TRACE(puts("<symbol>\n"));
     return x;
 }
 
@@ -600,10 +662,10 @@ print_list(ACTOR* x)
         ACTOR* d = (ACTOR*)(z->data_08);
 
         print_sexpr(a);
-        if (null_q(d)) {
+        if (null_p(d)) {
             putchar(')');
             break;
-        } else if (!pair_q(d)) {
+        } else if (!pair_p(d)) {
             puts(" . ");
             print_sexpr(d);
             putchar(')');
@@ -623,13 +685,13 @@ print_sexpr(ACTOR* a)  /* print external representation of s-expression */
         putchar('#');
         serial_hex32((u32)a);
         putchar('?');
-    } else if (null_q(a)) {
+    } else if (null_p(a)) {
         puts("()");
     } else if (a == &a_true) {
         puts("#t");
     } else if (a == &a_false) {
         puts("#f");
-    } else if (inert_q(a)) {
+    } else if (inert_p(a)) {
         puts("#inert");
     } else if (a == &a_no_bind) {
         puts("#ignore");
@@ -637,11 +699,11 @@ print_sexpr(ACTOR* a)  /* print external representation of s-expression */
         putchar('#');
         serial_hex32((u32)a);
         putchar('?');
-    } else if (number_q(a)) {
+    } else if (number_p(a)) {
         print_number(a);
-    } else if (symbol_q(a)) {
+    } else if (symbol_p(a)) {
         print_symbol(a);
-    } else if (pair_q(a)) {
+    } else if (pair_p(a)) {
         print_list(a);
     } else {  // unrecognized value
         putchar('#');
@@ -659,6 +721,7 @@ ground_env()
 {
     char exit_24b[] = "exit" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char hexdump_24b[] = "hexd" "ump\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char load_words_24b[] = "load" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char list_24b[] = "list" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     ACTOR* a;
     struct example_5 *x;
@@ -684,6 +747,16 @@ ground_env()
     if (!x) return NULL;  // FAIL!
     x->data_04 = (u32)a;  // set symbol
     x->data_08 = (u32)&ap_hexdump;  // set value
+    x->data_0c = (u32)env;  // set next
+    env = (ACTOR *)x;
+
+    /* bind "load-words" */
+    a = symbol((struct sym_24b*)load_words_24b);
+    if (!a) return NULL;  // FAIL!
+    x = create_5(&b_binding);
+    if (!x) return NULL;  // FAIL!
+    x->data_04 = (u32)a;  // set symbol
+    x->data_08 = (u32)&ap_load_words;  // set value
     x->data_0c = (u32)env;  // set next
     env = (ACTOR *)x;
 

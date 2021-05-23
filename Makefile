@@ -17,7 +17,7 @@
 #
 
 AS=	as
-CC=	gcc -g -Wall -O2 -nostdlib -nostartfiles -ffreestanding
+CC=	gcc -g -Wall -O2 -nostdlib -nostartfiles -ffreestanding -ffixed-sl -ffixed-fp -ffixed-ip
 LD=	ld
 
 KOBJS=	start.o \

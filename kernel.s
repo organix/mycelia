@@ -539,6 +539,96 @@ k_map_eval_2:		@ eval args continuation
 	b	_a_send		@ send to customer and return
 
 	.text
+match_0_args:		@ match arg signature (op)
+			@ or signal an error
+			@ (r0=args)
+	stmdb	sp!, {r4,lr}	@ preserve in-use registers
+
+	ldr	r4, =a_nil
+	teq	r0, r4
+	bne	1f		@ if cdr(args) == ()
+
+	ldmia	sp!, {r4,pc}	@	restore in-use registers and return
+1:				@ else
+	ldmia	sp!, {r4,lr}	@	restore in-use registers
+	b	a_kernel_err	@	and signal error
+
+	.text
+match_1_arg:		@ match arg signature (op pred?)
+			@ or signal an error
+			@ (r0=args, r1=pred?)
+	stmdb	sp!, {r4-r5,lr} @ preserve in-use registers
+	mov	r4, r0		@ args
+
+	bl	car
+	movs	r5, r0
+	beq	1f		@ if car(args) != NULL
+
+	blx	r1
+	teq	r0, #0
+	beq	1f		@ and pred(car(args))
+
+	mov	r0, r4
+	bl	cdr
+	teq	r0, #0
+	beq	1f		@ and cdr(args) != NULL
+
+	ldr	r4, =a_nil
+	teq	r0, r4
+	bne	1f		@ and cdr(args) == ()
+
+	mov	r0, r5		@	r0 = first arg
+	ldmia	sp!, {r4-r5,pc}	@	restore in-use registers and return
+1:				@ else
+	ldmia	sp!, {r4-r5,lr}	@	restore in-use registers
+	b	a_kernel_err	@	and signal error
+
+	.text
+match_2_args:		@ match arg signature (op pred_1? pred_2?)
+			@ or signal an error
+			@ (r0=args, r1=pred_1?, r2=pred_2?)
+	stmdb	sp!, {r4-r6,lr}	@ preserve in-use registers
+	mov	r4, r0		@ args
+
+	bl	car
+	movs	r5, r0
+	beq	1f		@ if car(args) != NULL
+
+@	blx	r1
+@	teq	r0, #0
+@	beq	1f		@ and pred_1(car(args))
+
+	mov	r0, r4
+	bl	cdr
+	teq	r0, #0
+	beq	1f		@ and cdr(args) != NULL
+
+	mov	r4, r0
+	bl	car
+	movs	r6, r0
+	beq	1f		@ if car(cdr(args)) != NULL
+
+@	blx	r2
+@	teq	r0, #0
+@	beq	1f		@ and pred_2(car(cdr(args)))
+
+	mov	r0, r4
+	bl	cdr
+	teq	r0, #0
+	beq	1f		@ and cdr(cdr(args)) != NULL
+
+	ldr	r4, =a_nil
+	teq	r0, r4
+	bne	1f		@ and cdr(cdr(args)) == ()
+
+	mov	r0, r5		@	r0 = first arg
+	mov	r1, r6		@	r1 = second arg
+	ldmia	sp!, {r4-r6,pc}	@	restore in-use registers and return
+1:				@ else
+	ldmia	sp!, {r4-r6,lr}	@	restore in-use registers
+	b	a_kernel_err	@	and signal error
+
+	.text
 	.align 5		@ align to cache-line
 	.global op_hexdump
 op_hexdump:		@ operative "$hexdump"
@@ -556,15 +646,15 @@ op_hexdump:		@ operative "$hexdump"
 
 	mov	r0, r9		@	opnds
 	bl	cdr
-	movs	r5, r0		@	d = cdr(list)
-	beq	a_kernel_err	@	if (d == NULL) signal error
+	movs	r5, r0		@	cdr(list)
+	beq	a_kernel_err	@	if (cdr(list) == NULL) signal error
 	bl	car
-	movs	r5, r0		@	length = car(d)
-	beq	a_kernel_err	@	if (length == NULL) signal error
+	movs	r5, r0		@	count = car(cdr(list))
+	beq	a_kernel_err	@	if (count == NULL) signal error
 
-@ FIXME: check (number? address length) == #t
+@ FIXME: check (number? address count) == #t
 	ldr	r0, [r4, #0x04]	@	get numeric value of address
-	ldr	r1, [r5, #0x04]	@	get numeric value of length
+	ldr	r1, [r5, #0x04]	@	get numeric value of count
 	bl	hexdump		@	call helper procedure
 
 	bl	reserve		@	allocate event block
@@ -579,6 +669,51 @@ op_hexdump:		@ operative "$hexdump"
 ap_hexdump:		@ applicative "hexdump"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_hexdump	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_load_words
+op_load_words:		@ operative "$load-words"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =number_p	@	predicate 1
+	ldr	r2, =number_p	@	predicate 2
+@ <debug>
+	bl	dump_regs	@ DEBUG! --- print pc and r0-r3
+@ </debug>
+	bl	match_2_args
+	ldr	r0, [r0, #0x04]	@	get numeric value of address
+	ldr	r1, [r1, #0x04]	@	get numeric value of count
+@ <debug>
+	bl	dump_regs	@ DEBUG! --- print pc and r0-r3
+@ </debug>
+	bl	load_words	@	load into list
+	mov	r4, r0		@	save result
+	bl	reserve		@	allocate event block
+	str	r4, [r0, #0x04]	@	get result
+@ <debug>
+	bl	dump_regs	@ DEBUG! --- print pc and r0-r3
+@ </debug>
+	b	_a_reply	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_load_words
+ap_load_words:		@ applicative "load-words"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_load_words	@ 0x04: operative
 	.int	0		@ 0x08: -
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
