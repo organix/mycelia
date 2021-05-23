@@ -688,22 +688,13 @@ op_load_words:		@ operative "$load-words"
 	ldr	r0, [fp, #0x0c] @	get opnds
 	ldr	r1, =number_p	@	predicate 1
 	ldr	r2, =number_p	@	predicate 2
-@ <debug>
-	bl	dump_regs	@ DEBUG! --- print pc and r0-r3
-@ </debug>
 	bl	match_2_args
 	ldr	r0, [r0, #0x04]	@	get numeric value of address
 	ldr	r1, [r1, #0x04]	@	get numeric value of count
-@ <debug>
-	bl	dump_regs	@ DEBUG! --- print pc and r0-r3
-@ </debug>
 	bl	load_words	@	load into list
 	mov	r4, r0		@	save result
 	bl	reserve		@	allocate event block
 	str	r4, [r0, #0x04]	@	get result
-@ <debug>
-	bl	dump_regs	@ DEBUG! --- print pc and r0-r3
-@ </debug>
 	b	_a_reply	@	send to customer and return
 1:
 	b	self_eval	@ else we are self-evaluating
@@ -714,6 +705,40 @@ op_load_words:		@ operative "$load-words"
 ap_load_words:		@ applicative "load-words"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_load_words	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_store_words
+op_store_words:		@ operative "$store-words"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, [fp, #0x0c] @	get opnds
+@	ldr	r1, =number_p	@	predicate 1
+@	ldr	r2, =list_p	@	predicate 2  -- FIXME: list_p does not exist (yet...)
+	bl	match_2_args
+	ldr	r0, [r0, #0x04]	@	get numeric value of address
+	bl	store_words	@	store from list (in r1)
+	bl	reserve		@	allocate event block
+	ldr	r1, =a_inert	@	result is #inert
+	b	_a_answer	@	send result to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_store_words
+ap_store_words:		@ applicative "store-words"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_store_words	@ 0x04: operative
 	.int	0		@ 0x08: -
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --

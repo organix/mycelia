@@ -4,7 +4,7 @@
 #include "sexpr.h"
 #include "serial.h"
 
-#define DEBUG(x) x /* debug logging */
+#define DEBUG(x)   /* debug logging */
 #define TRACE(x)   /* trace logging */
 
 // static actors
@@ -280,24 +280,9 @@ load_words(u32* addr, u32 count)
 {
     ACTOR* list = &a_nil;
 
-    DEBUG(puts("addr=0x"));
-    DEBUG(serial_hex32((u32)addr));
-    DEBUG(putchar('\n'));
-    DEBUG(puts("list=0x"));
-    DEBUG(serial_hex32((u32)list));
-    DEBUG(putchar('\n'));
     while (count > 0) {
-        DEBUG(puts("count="));
-        DEBUG(serial_dec32(count));
-        DEBUG(putchar('\n'));
         int n = (int)(addr[--count]);
-        DEBUG(puts("n=0x"));
-        DEBUG(serial_hex32(n));
-        DEBUG(putchar('\n'));
         list = cons(number(n), list);
-        DEBUG(puts("list=0x"));
-        DEBUG(serial_hex32((u32)list));
-        DEBUG(putchar('\n'));
     }
     return list;
 }
@@ -722,6 +707,7 @@ ground_env()
     char exit_24b[] = "exit" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char hexdump_24b[] = "hexd" "ump\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char load_words_24b[] = "load" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char store_words_24b[] = "stor" "e-wo" "rds\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char list_24b[] = "list" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     ACTOR* a;
     struct example_5 *x;
@@ -757,6 +743,16 @@ ground_env()
     if (!x) return NULL;  // FAIL!
     x->data_04 = (u32)a;  // set symbol
     x->data_08 = (u32)&ap_load_words;  // set value
+    x->data_0c = (u32)env;  // set next
+    env = (ACTOR *)x;
+
+    /* bind "store-words" */
+    a = symbol((struct sym_24b*)store_words_24b);
+    if (!a) return NULL;  // FAIL!
+    x = create_5(&b_binding);
+    if (!x) return NULL;  // FAIL!
+    x->data_04 = (u32)a;  // set symbol
+    x->data_08 = (u32)&ap_store_words;  // set value
     x->data_0c = (u32)env;  // set next
     env = (ACTOR *)x;
 
