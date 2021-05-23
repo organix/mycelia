@@ -637,29 +637,16 @@ op_hexdump:		@ operative "$hexdump"
 	ldr	r3, [fp, #0x08] @ get req
 	teq	r3, #S_APPL
 	bne	1f		@ if req == "combine"
-	ldr	r9, [fp, #0x0c] @	get opnds
-
-	mov	r0, r9		@	opnds
-	bl	car
-	movs	r4, r0		@	address = car(list)
-	beq	a_kernel_err	@	if (address == NULL) signal error
-
-	mov	r0, r9		@	opnds
-	bl	cdr
-	movs	r5, r0		@	cdr(list)
-	beq	a_kernel_err	@	if (cdr(list) == NULL) signal error
-	bl	car
-	movs	r5, r0		@	count = car(cdr(list))
-	beq	a_kernel_err	@	if (count == NULL) signal error
-
-@ FIXME: check (number? address count) == #t
-	ldr	r0, [r4, #0x04]	@	get numeric value of address
-	ldr	r1, [r5, #0x04]	@	get numeric value of count
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =number_p	@	predicate 1
+	ldr	r2, =number_p	@	predicate 2
+	bl	match_2_args
+	ldr	r0, [r0, #0x04]	@	get numeric value of address
+	ldr	r1, [r1, #0x04]	@	get numeric value of count
 	bl	hexdump		@	call helper procedure
-
 	bl	reserve		@	allocate event block
-	ldr	r1, =a_inert	@	#inert
-	b	_a_answer	@	send to customer and return
+	ldr	r1, =a_inert	@	result is #inert
+	b	_a_answer	@	send result to customer and return
 1:
 	b	self_eval	@ else we are self-evaluating
 
@@ -686,8 +673,8 @@ op_load_words:		@ operative "$load-words"
 	teq	r3, #S_APPL
 	bne	1f		@ if req == "combine"
 	ldr	r0, [fp, #0x0c] @	get opnds
-	ldr	r1, =number_p	@	predicate 1
-	ldr	r2, =number_p	@	predicate 2
+@	ldr	r1, =number_p	@	predicate 1
+@	ldr	r2, =number_p	@	predicate 2
 	bl	match_2_args
 	ldr	r0, [r0, #0x04]	@	get numeric value of address
 	ldr	r1, [r1, #0x04]	@	get numeric value of count
@@ -723,7 +710,7 @@ op_store_words:		@ operative "$store-words"
 	bne	1f		@ if req == "combine"
 	ldr	r0, [fp, #0x0c] @	get opnds
 @	ldr	r1, =number_p	@	predicate 1
-@	ldr	r2, =list_p	@	predicate 2  -- FIXME: list_p does not exist (yet...)
+@	ldr	r2, =list_p	@	predicate 2
 	bl	match_2_args
 	ldr	r0, [r0, #0x04]	@	get numeric value of address
 	bl	store_words	@	store from list (in r1)

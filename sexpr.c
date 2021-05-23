@@ -28,6 +28,7 @@ extern ACTOR b_scope;
 extern ACTOR b_symbol;
 extern ACTOR b_pair;
 extern ACTOR b_number;
+extern ACTOR b_appl;
 
 // asm utilities
 extern struct example_4 *create_4(ACTOR* behavior, u32 r4, u32 r5, u32 r6);
@@ -102,6 +103,13 @@ null_p(ACTOR* x)
 }
 
 int
+list_p(ACTOR* x)
+{
+    // FIXME: Kernel defines "finite-list?" and "countable-list?"
+    return null_p(x) || pair_p(x);
+}
+
+int
 environment_p(ACTOR* x)
 {
     struct example_5 *a = (struct example_5 *)x;
@@ -125,6 +133,25 @@ int
 integer_p(ACTOR* x)
 {
     return number_p(x);  // [FIXME] currently only int32 is supported
+}
+
+int
+applicative_p(ACTOR* x)
+{
+    struct example_5 *a = (struct example_5 *)x;
+    return (a->beh_1c == &b_appl);  // FIXME: fails on "exit" (hard-coded)
+}
+
+int
+operative_p(ACTOR* x)
+{
+    return 0;  // FIXME: how do we check for operatives? some are hard-coded...
+}
+
+int
+combiner_p(ACTOR* x)
+{
+    return applicative_p(x) || operative_p(x);
 }
 
 struct sym_24b {  // symbol data is offset 0x04 into a cache-line
