@@ -44,7 +44,7 @@ otherwise `#f`.
 
 The _`eq?`_ applicative returns `#t` 
 unless some two of its arguments are 
-different objects
+different objects,
 otherwise `#f`.
 
 ### hexdump

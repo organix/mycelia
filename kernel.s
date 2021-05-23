@@ -21,7 +21,7 @@
 @ If your tabs are set correctly, the lines above should be aligned.
 @
 
-	.set S_SELF, 0x00
+	.set S_SELF, 0x00	@ "visit"
 	.set S_GET,  0x01	@ "lookup"
 	.set S_SET,  0x02	@ "bind"
 	.set S_EVAL, 0x03
@@ -55,9 +55,18 @@ a_fail:			@ singleton failure actor
 @	can be safely installed or removed during asynchronous computation.
 @
 self_eval:		@ any self-evaluating actor
-			@ message = (cust, #S_EVAL, _)
+			@ message = (cust, #S_SELF)
+			@         | (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req from message
-	teq	r3, #S_EVAL	@ if req != "eval"
+
+	teq	r3, #S_SELF
+	bne	1f		@ if req == "visit"
+	bl	reserve		@	allocate event block
+	ldmib	ip, {r2-r8}	@	copy actor state
+	stmib	r0, {r2-r8}	@	write into event
+	b	_a_reply	@	reply and return
+1:
+	teq	r3, #S_EVAL	@ else if req != "eval"
 	bne	a_fail		@	signal error and return to dispatcher
 	bl	reserve		@ allocate event block
 	ldr	r1, [fp]	@ get SELF from message
@@ -214,16 +223,16 @@ b_scope:		@ binding scope
 	.align 5		@ align to cache-line
 	.global a_nil
 a_nil:			@ "()" singleton
-			@ message = (cust, #S_EVAL, _)
-	ldr	r3, [fp, #0x08] @ get req
-	teq	r3, #S_EVAL
-	bne	1f		@ if req == "eval"
-	bl	reserve		@	allocate event block
-	mov	r1, ip		@	get SELF
-	b	_a_answer	@	"()" is self-evaluating
-1:
-	bl	fail		@ else
-	b	complete	@	signal error and return to dispatcher
+			@ message = (cust, #S_SELF)
+			@         | (cust, #S_EVAL, env)
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	a_nil		@ 0x04: self reference
+	.int	a_nil		@ 0x08: self reference
+	.int	a_nil		@ 0x0c: self reference
+	.int	a_nil		@ 0x10: self reference
+	.int	a_nil		@ 0x14: self reference
+	.int	a_nil		@ 0x18: self reference
+	.int	self_eval	@ 0x1c: address of actor behavior
 
 @ LET Symbol(name) = \(cust, req).[
 @ 	CASE req OF
@@ -238,8 +247,16 @@ b_symbol:		@ symbolic name
 			@ (example_5: [0x04..0x1b]=name)
 			@ message = (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
+
+	teq	r3, #S_SELF
+	bne	1f		@ if req == "visit"
+	bl	reserve		@	allocate event block
+	ldmib	ip, {r2-r8}	@	copy actor state
+	stmib	r0, {r2-r8}	@	write into event
+	b	_a_reply	@	reply and return
+1:
 	teq	r3, #S_EVAL
-	bne	1f		@ if req == "eval"
+	bne	2f		@ else if req == "eval"
 	bl	reserve		@	allocate event block
 	ldr	r4, [fp, #0x0c] @	get env
 	ldr	r5, [fp, #0x04] @	get cust
@@ -247,7 +264,7 @@ b_symbol:		@ symbolic name
 	mov	r7, ip		@	get SELF
 	stmia	r0, {r4-r7}	@	write new event
 	b	_a_end		@	lookup name in environment
-1:
+2:
 	bl	fail		@ else
 	b	complete	@	signal error and return to dispatcher
 
@@ -281,9 +298,16 @@ b_pair:			@ pair combination
 			@ (example_5: 0x04=left, 0x08=right, 0x0c=)
 			@ message = (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
-	teq	r3, #S_EVAL
-	bne	1f		@ if req == "eval"
 
+	teq	r3, #S_SELF
+	bne	1f		@ if req == "visit"
+	bl	reserve		@	allocate event block
+	ldmib	ip, {r2-r8}	@	copy actor state
+	stmib	r0, {r2-r8}	@	write into event
+	b	_a_reply	@	reply and return
+1:
+	teq	r3, #S_EVAL
+	bne	2f		@ else if req == "eval"
 	ldr	r0, =k_comb
 	bl	create_5	@	create k_comb actor
 	ldr	r6, [fp, #0x04] @	get cust
@@ -298,7 +322,7 @@ b_pair:			@ pair combination
 	mov	r7, r9		@	env
 	bl	send_3x		@	send message to left
 	b	complete	@	return to dispatch loop
-1:
+2:
 	bl	fail		@ else
 	b	complete	@	signal error and return to dispatcher
 
@@ -321,14 +345,12 @@ b_number:		@ integer constant
 			@ (example_5: 0x04=int32, 0x08=, 0x0c=)
 			@ message = (cust, #S_SELF)
 			@         | (cust, #S_EVAL, env)
-	ldr	r3, [fp, #0x08] @ get req
-	teq	r3, #S_SELF
-	bne	1f		@ if req == "self"
-
-	bl	reserve		@	allocate event block
-	ldr	r1, [ip, #0x04]	@	get int32
-	b	_a_answer	@	reply and return
-1:
+@	ldr	r3, [fp, #0x08] @ get req
+@
+@ although numbers are self-evaluating,
+@ we need a distinct behavior
+@ to serve as a "type" tag
+@
 	b	self_eval	@ self-evaluating
 
 	.text
