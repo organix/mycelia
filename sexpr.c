@@ -16,7 +16,7 @@ extern ACTOR a_no_bind;
 extern ACTOR a_kernel_err;
 extern ACTOR a_exit;
 
-// static applicatives
+// static combiners
 extern ACTOR ap_list;
 extern ACTOR ap_boolean_p;
 extern ACTOR ap_symbol_p;
@@ -24,6 +24,7 @@ extern ACTOR ap_inert_p;
 extern ACTOR ap_pair_p;
 extern ACTOR ap_null_p;
 extern ACTOR ap_eq_p;
+extern ACTOR op_define;
 extern ACTOR ap_hexdump;
 extern ACTOR ap_load_words;
 extern ACTOR ap_store_words;
@@ -408,8 +409,15 @@ match_param_tree(ACTOR* def, ACTOR* arg, ACTOR* env)
     return NULL;  // FAIL!
 }
 
+/*
+ * FIXME:
+ *  `mutate_environment` can be more sophisticated than this implementation.
+ *  It should check for errors such as duplicate bindings before mutation.
+ *  It should modify existing bindings in-place, rather than prepending a new
+ *  binding.
+ */
 u32
-mutate_environment(u32 env, u32 ext)  // mutate env to include ext
+mutate_environment(u32 ext, u32 env)  // mutate env to include ext
 {
     u32 x, y, z;
     struct example_5 *p;
@@ -428,8 +436,8 @@ mutate_environment(u32 env, u32 ext)  // mutate env to include ext
             *q = *r;  // copy original head
             p->data_0c = (u32)q;  // patch tail pointer
             p = (struct example_5 *)ext;
-            *r = *p;
-            release(p);  // copy extended head
+            *r = *p;  // copy extended head
+            release(p);  // free extended head
             return env;
         }
         x = y;
@@ -860,6 +868,7 @@ ground_env()
     char hexdump_24b[] = "hexd" "ump\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char load_words_24b[] = "load" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char store_words_24b[] = "stor" "e-wo" "rds\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char odefinem_24b[] = "$def" "ine!" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char eqp_24b[] = "eq?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char symbolp_24b[] = "symb" "ol?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char inertp_24b[] = "iner" "t?\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
@@ -891,6 +900,11 @@ ground_env()
 
     /* bind "store-words" */
     a = extend_env(env, (struct sym_24b*)store_words_24b, (u32)&ap_store_words);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "$define!" */
+    a = extend_env(env, (struct sym_24b*)odefinem_24b, (u32)&op_define);
     if (!a) return NULL;  // FAIL!
     env = a;
 

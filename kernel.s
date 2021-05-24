@@ -854,6 +854,60 @@ ap_eq_p:		@ applicative "eq?"
 
 	.text
 	.align 5		@ align to cache-line
+	.global op_define
+op_define:		@ operative "$define!"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =object_p	@	predicate 1
+	ldr	r2, =object_p	@	predicate 2
+	bl	match_2_args
+	mov	r6, r0		@	definiend
+	mov	r4, r1		@	expression
+
+	ldr	r0, =k_bind
+	bl	create_5	@	create k_bind actor
+	ldr	r5, [fp, #0x04] @	get cust
+@	mov	r6, r6		@	get definiend (already in r6)
+	ldr	r7, [fp, #0x10]	@	get env
+	stmib	r0, {r5-r7}	@	write actor state
+
+@	mov	r4, r4		@	target = expression (already in r4)
+	mov	r5, r0		@	cust = k_bind
+	mov	r6, #S_EVAL
+@	ldr	r7, [fp, #0x0c]	@	get env (already in r7)
+	bl	reserve		@	allocate event block
+	stmia	r0, {r4-r7}	@	write message
+	b	_a_end		@	send message and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+k_bind:			@ binding continuation
+			@ (example_5: 0x04=cust, 0x08=definiend, 0x0c=env)
+			@ message = (arg)
+	ldr	r0, [ip, #0x08]	@ get def
+	ldr	r1, [fp, #0x04]	@ get arg
+	ldr	r2, [ip, #0x0c]	@ get env
+	bl	match_param_tree
+	teq	r0, #0		@ if NULL
+	beq	a_kernel_err	@	signal error
+
+	ldr	r1, [ip, #0x0c]	@ get env
+	bl	mutate_environment
+	teq	r0, #0		@ if NULL
+	beq	a_kernel_err	@	signal error
+
+	ldr	r1, [ip, #0x04]	@ get cust
+	mov	r0, ip		@ continuation actor becomes an event...
+	ldr	r2, =a_inert	@ message is #inert
+	str	r2, [ip, #0x04]
+	b	_a_send		@ send message and return
+
+	.text
+	.align 5		@ align to cache-line
 	.global op_hexdump
 op_hexdump:		@ operative "$hexdump"
 			@ message = (cust, #S_APPL, opnds, env)

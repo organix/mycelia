@@ -79,6 +79,17 @@ unless some two of its arguments are
 different objects,
 otherwise `#f`.
 
+### $define!
+
+`($define! `⟨definiend⟩` `⟨expression⟩`)`
+
+The _`$define!`_ operative evaluates ⟨expression⟩ in the dynamic environment 
+(that is, the environment in which the _`($define! ...)`_ combination is evaluated), 
+and matches ⟨definiend⟩ to the result in the dynamic environment, 
+binding each symbol in ⟨definiend⟩ in the dynamic environment 
+to the corresponding part of the result. 
+The result returned by _`$define!`_ is `#inert`.
+
 ### hexdump
 
 `(hexdump `_address_` `_count_`)`
