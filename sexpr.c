@@ -37,6 +37,8 @@ extern ACTOR b_number;
 extern ACTOR b_appl;
 
 // asm utilities
+extern void* reserve();  // allocate 32-byte block
+extern void release(void* block);  // free reserved block
 extern struct example_4 *create_4(ACTOR* behavior, u32 r4, u32 r5, u32 r6);
 extern struct example_5 *create_5(ACTOR* behavior);
 
@@ -377,6 +379,62 @@ apply_rltn(RLTN *r, ACTOR* list)  // apply binary relation to a list
         list = cdr(list);
     }
     return &a_true;
+}
+
+ACTOR*  // returns the augmented environment, or NULL on failure
+match_param_tree(ACTOR* def, ACTOR* arg, ACTOR* env)
+{
+    if (ignore_p(def)) return env;
+    if (null_p(def)) {
+        if (!null_p(arg)) return NULL;  // FAIL!
+        return env;
+    }
+    if (symbol_p(def)) {
+        struct example_5 *x = create_5(&b_binding);
+        if (!x) return NULL;  // FAIL!
+        x->data_04 = (u32)def;  // set symbol
+        x->data_08 = (u32)arg;  // set value
+        x->data_0c = (u32)env;  // set next
+        return (ACTOR *)x;
+    }
+    if (pair_p(def)) {
+        if (!pair_p(arg)) return NULL;  // FAIL!
+        env = match_param_tree(car(def), car(arg), env);
+        if (env) {
+            env = match_param_tree(cdr(def), cdr(arg), env);
+        }
+        return env;
+    }
+    return NULL;  // FAIL!
+}
+
+u32
+mutate_environment(u32 env, u32 ext)  // mutate env to include ext
+{
+    u32 x, y, z;
+    struct example_5 *p;
+    struct example_5 *q;
+    struct example_5 *r;
+
+    if (env == ext) return env;  // same environment, no mutation required
+    x = ext;
+    z = (u32)(&a_kernel_err);
+    while (x != z) {
+        p = (struct example_5 *)x;
+        y = p->data_0c;
+        if (y == env) {
+            q = reserve();  // allocate block
+            r = (struct example_5 *)env;
+            *q = *r;  // copy original head
+            p->data_0c = (u32)q;  // patch tail pointer
+            p = (struct example_5 *)ext;
+            *r = *p;
+            release(p);  // copy extended head
+            return env;
+        }
+        x = y;
+    }
+    return 0;  // FAIL!
 }
 
 static char* line = NULL;

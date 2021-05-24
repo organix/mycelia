@@ -419,15 +419,15 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia 0.1.18 ");
+    serial_puts("mycelia 0.1.19 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
-#if 1
+#if 0
     serial_puts(" bss=0x");
     serial_hex32((u32)bss_start);
+#endif
     serial_puts(" heap=0x");
     serial_hex32((u32)heap_start);
-#endif
     serial_eol();
 
     clear_bss();
