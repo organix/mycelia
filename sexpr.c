@@ -25,6 +25,7 @@ extern ACTOR ap_pair_p;
 extern ACTOR ap_null_p;
 extern ACTOR ap_eq_p;
 extern ACTOR op_define;
+extern ACTOR op_vau;
 extern ACTOR ap_hexdump;
 extern ACTOR ap_load_words;
 extern ACTOR ap_store_words;
@@ -868,6 +869,7 @@ ground_env()
     char hexdump_24b[] = "hexd" "ump\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char load_words_24b[] = "load" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char store_words_24b[] = "stor" "e-wo" "rds\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char ovau_24b[] = "$vau" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char odefinem_24b[] = "$def" "ine!" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char eqp_24b[] = "eq?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char symbolp_24b[] = "symb" "ol?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
@@ -900,6 +902,11 @@ ground_env()
 
     /* bind "store-words" */
     a = extend_env(env, (struct sym_24b*)store_words_24b, (u32)&ap_store_words);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "$vau" */
+    a = extend_env(env, (struct sym_24b*)ovau_24b, (u32)&op_vau);
     if (!a) return NULL;  // FAIL!
     env = a;
 

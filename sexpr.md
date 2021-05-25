@@ -114,7 +114,7 @@ here called respectively the _operand tree_ and the _dynamic environment_,
   or ignored if ⟨eformal⟩ is `#ignore`.
   4. The expressions in ⟨objects⟩ are evaluated sequentially,
   from left to right, in the _local environment_.
-  The final expression is a _tail context_.
+  The final expression is evaluated in a _tail context_.
   If ⟨objects⟩ is `()`, the result is `#inert`.
 
 ### hexdump

@@ -559,6 +559,231 @@ k_map_eval_2:		@ eval args continuation
 	b	_a_send		@ send to customer and return
 
 	.text
+	.align 5		@ align to cache-line
+	.global op_vau
+op_vau:			@ operative "$vau"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	2f		@ if req == "combine"
+	ldr	r9, [fp, #0x0c] @	get opnds
+
+	mov	r0, r9
+	bl	car		@	formals
+	movs	r4, r0		@	if NULL
+	beq	a_kernel_err	@		signal error
+
+	mov	r0, r9
+	bl	cdr		@	next opnd
+	movs	r9, r0		@	if NULL
+	beq	a_kernel_err	@		signal error
+
+@	mov	r0, r9
+	bl	car		@	eformal
+	movs	r5, r0		@	if NULL
+	beq	a_kernel_err	@		signal error
+
+	ldr	r1, =a_no_bind
+	teq	r0, r1
+	beq	1f		@	if (eformal != #ignore)
+	bl	symbol_p
+	teq	r0, #0		@	&& !symbol_p(eformal)
+	beq	a_kernel_err	@		signal error
+1:
+	mov	r0, r9
+	bl	cdr		@	body
+	movs	r6, r0		@	if NULL
+	beq	a_kernel_err	@		signal error
+
+	ldr	r7, [fp, #0x10] @	get env
+
+	ldr	r0, =b_oper
+	bl	create_5	@	create b_oper actor
+	stmib	r0, {r4-r7}	@	store formals, eformal, body, env
+	mov	r8, r0
+
+	bl	reserve		@	allocate event block
+	str	r8, [r0, #0x04]	@	reply with operative
+	b	_a_reply	@	send reply and return
+2:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_oper
+b_oper:			@ compound operative behavior
+			@ (example_5: 0x04=formals, 0x08=eformal, 0x0c=body, 0x10=senv)
+			@ message = (cust, #S_APPL, opnds, denv)
+			@         | (cust, #S_OPER)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	2f		@ if req == "combine"
+			@ (example_5: 0x04=, 0x08=, 0x0c=parent)
+	ldr	r0, =b_scope	@	empty env behavior
+	bl	create_5	@	create "local" env
+	ldr	r1, [ip, #0x10]	@	get senv
+	str	r1, [r0, #0x0c]	@	set parent
+
+	mov	r4, r0		@	save local env
+	ldr	r5, [ip, #0x04]	@	save formals
+	ldr	r6, [fp, #0x0c]	@	save opnds
+
+	ldr	r0, [ip, #0x08]	@	get eformal
+	ldr	r1, =a_no_bind
+	teq	r0, r1
+	beq	1f		@	if (eformal != #ignore)
+
+@	mov	r0, r0		@	get eformal (already in r0)
+	mov	r1, r5		@	get formals
+	bl	cons		@	cons(eformal, formals)
+	movs	r5, r0		@	update formals
+	beq	a_kernel_err	@	if NULL signal error
+
+	ldr	r0, [fp, #0x10] @	get denv
+	mov	r1, r6		@	get opnds
+	bl	cons		@	cons(eformal, opnds)
+	movs	r6, r0		@	update opnds
+	beq	a_kernel_err	@	if NULL signal error
+1:
+	mov	r0, r5		@	def = formals
+	mov	r1, r6		@	arg = opnds
+	mov	r2, r4		@	env = local env
+	bl	match_param_tree
+	teq	r0, #0		@ if NULL
+	beq	a_kernel_err	@	signal error
+
+@	mov	r0, r0		@	get ext env (already in r0)
+	mov	r1, r4		@	get local env
+	bl	mutate_environment
+	teq	r0, #0		@ if NULL
+	beq	a_kernel_err	@	signal error
+
+	ldr	r5, [fp, #0x04]	@	get cust
+	ldr	r6, =a_inert	@	result = #inert
+	mov	r7, r0		@	env = local env
+	ldr	r0, =v_sequence	@	k_seq behavior
+	bl	create_5	@	create k_seq
+	stmib	r0, {r5-r7}	@	store cust, result, env
+	mov	r5, r0		@	cust = k_seq
+
+	bl	reserve		@	allocate event block
+	ldr	r4, [ip, #0x0c]	@	target = body
+@	mov	r5, r5		@	cust (already in r5)
+	mov	r6, #S_SELF	@	"visit"
+	stmia	r0, {r4-r6}	@	write data to event
+	b	_a_end		@	send and return
+2:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global v_sequence
+v_sequence:		@ sequential evaluation visitor
+			@ (example_5: 0x04=cust, 0x08=result, 0x0c=env, 0x10=next)
+			@ message = (0x04..0x18=state, 0x1c=behavior)
+	ldr	r0, [fp, #0x1c]	@ get behavior (type signature)
+
+	ldr	r1, =self_eval
+	teq	r0, r1
+	bne	1f		@ if null_p(message)
+			@ (example_5: 0x04=a_nil, 0x08=a_nil)
+	ldr	r4, [ip, #0x04]	@	target = cust
+	ldr	r5, [ip, #0x08]	@	answer = result
+	mov	r0, ip		@	re-use k_seq as final message
+	stmia	r0, {r4-r5}	@	write data to event
+	b	_a_end		@	send and return
+1:
+	ldr	r1, =b_pair
+	teq	r0, r1
+	bne	2f		@ else if pair_p(message)
+			@ (example_5: 0x04=left, 0x08=right)
+	ldr	r0, [fp, #0x08]	@	cdr(message)
+	str	r0, [ip, #0x10]	@	store next
+	ldr	r0, =k_seq_eval	@	new behavior
+	str	r0, [ip, #0x1c]	@	BECOME
+
+	bl	reserve		@	allocate event block
+	ldr	r4, [fp, #0x04]	@	target = car(message)
+	mov	r5, ip		@	cust = SELF
+	mov	r6, #S_EVAL	@	"eval"
+	ldr	r7, [ip, #0x0c]	@	env
+	stmia	r0, {r4-r7}	@	write data to event
+	b	_a_end		@	send and return
+2:
+	b	a_kernel_err	@ else signal error
+
+k_seq_eval:		@ sequential evaluation continuation
+			@ (example_5: 0x04=cust, 0x08=result, 0x0c=env, 0x10=next)
+			@ message = (result')
+	ldr	r0, [fp, #0x04]	@ get result'
+	str	r0, [ip, #0x08]	@ update result
+	ldr	r0, =v_sequence	@ new behavior
+	str	r0, [ip, #0x1c]	@ BECOME
+
+	bl	reserve		@ allocate event block
+	ldr	r4, [ip, #0x10]	@ target = next
+	mov	r5, ip		@ cust = SELF
+	mov	r6, #S_SELF	@ "visit"
+	stmia	r0, {r4-r6}	@ write data to event
+	b	_a_end		@ send and return
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_define
+op_define:		@ operative "$define!"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =object_p	@	predicate 1
+	ldr	r2, =object_p	@	predicate 2
+	bl	match_2_args
+	mov	r6, r0		@	definiend
+	mov	r4, r1		@	expression
+
+	ldr	r0, =k_bind
+	bl	create_5	@	create k_bind actor
+	ldr	r5, [fp, #0x04] @	get cust
+@	mov	r6, r6		@	get definiend (already in r6)
+	ldr	r7, [fp, #0x10]	@	get env
+	stmib	r0, {r5-r7}	@	write actor state
+
+@	mov	r4, r4		@	target = expression (already in r4)
+	mov	r5, r0		@	cust = k_bind
+	mov	r6, #S_EVAL
+@	ldr	r7, [fp, #0x0c]	@	get env (already in r7)
+	bl	reserve		@	allocate event block
+	stmia	r0, {r4-r7}	@	write message
+	b	_a_end		@	send message and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+k_bind:			@ binding continuation
+			@ (example_5: 0x04=cust, 0x08=definiend, 0x0c=env)
+			@ message = (arg)
+	ldr	r0, [ip, #0x08]	@ get def
+	ldr	r1, [fp, #0x04]	@ get arg
+	ldr	r2, [ip, #0x0c]	@ get env
+	bl	match_param_tree
+	teq	r0, #0		@ if NULL
+	beq	a_kernel_err	@	signal error
+
+	ldr	r1, [ip, #0x0c]	@ get env
+	bl	mutate_environment
+	teq	r0, #0		@ if NULL
+	beq	a_kernel_err	@	signal error
+
+	ldr	r1, [ip, #0x04]	@ get cust
+	mov	r0, ip		@ continuation actor becomes an event...
+	ldr	r2, =a_inert	@ message is #inert
+	str	r2, [ip, #0x04]
+	b	_a_send		@ send message and return
+
+	.text
 match_0_args:		@ match arg signature (op)
 			@ or signal an error
 			@ (r0=args)
@@ -851,60 +1076,6 @@ ap_eq_p:		@ applicative "eq?"
 	.int	0		@ 0x14: --
 	.int	0		@ 0x18: --
 	.int	b_appl		@ 0x1c: address of actor behavior
-
-	.text
-	.align 5		@ align to cache-line
-	.global op_define
-op_define:		@ operative "$define!"
-			@ message = (cust, #S_APPL, opnds, env)
-			@         | (cust, #S_EVAL, env)
-	ldr	r3, [fp, #0x08] @ get req
-	teq	r3, #S_APPL
-	bne	1f		@ if req == "combine"
-	ldr	r0, [fp, #0x0c] @	get opnds
-	ldr	r1, =object_p	@	predicate 1
-	ldr	r2, =object_p	@	predicate 2
-	bl	match_2_args
-	mov	r6, r0		@	definiend
-	mov	r4, r1		@	expression
-
-	ldr	r0, =k_bind
-	bl	create_5	@	create k_bind actor
-	ldr	r5, [fp, #0x04] @	get cust
-@	mov	r6, r6		@	get definiend (already in r6)
-	ldr	r7, [fp, #0x10]	@	get env
-	stmib	r0, {r5-r7}	@	write actor state
-
-@	mov	r4, r4		@	target = expression (already in r4)
-	mov	r5, r0		@	cust = k_bind
-	mov	r6, #S_EVAL
-@	ldr	r7, [fp, #0x0c]	@	get env (already in r7)
-	bl	reserve		@	allocate event block
-	stmia	r0, {r4-r7}	@	write message
-	b	_a_end		@	send message and return
-1:
-	b	self_eval	@ else we are self-evaluating
-
-k_bind:			@ binding continuation
-			@ (example_5: 0x04=cust, 0x08=definiend, 0x0c=env)
-			@ message = (arg)
-	ldr	r0, [ip, #0x08]	@ get def
-	ldr	r1, [fp, #0x04]	@ get arg
-	ldr	r2, [ip, #0x0c]	@ get env
-	bl	match_param_tree
-	teq	r0, #0		@ if NULL
-	beq	a_kernel_err	@	signal error
-
-	ldr	r1, [ip, #0x0c]	@ get env
-	bl	mutate_environment
-	teq	r0, #0		@ if NULL
-	beq	a_kernel_err	@	signal error
-
-	ldr	r1, [ip, #0x04]	@ get cust
-	mov	r0, ip		@ continuation actor becomes an event...
-	ldr	r2, =a_inert	@ message is #inert
-	str	r2, [ip, #0x04]
-	b	_a_send		@ send message and return
 
 	.text
 	.align 5		@ align to cache-line
