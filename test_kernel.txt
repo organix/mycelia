@@ -17,159 +17,114 @@ Unit Test (Kernel) Trace
 Passed.                                                                         
 time 91518us                                                                    
 
-> (list exit)
-@ a_*_eval 0000c1e0 -------- -------- -------- -------- -------- --------
- \_ eb0002f1 e59b4004 e59f5160 e3a06003 e1a07000 ebfffd63 eafffc31 e1a00000
-@ 0000c1e0 a*_print #S_EVAL  g*nd_env -------- -------- -------- --------
- \_ e1a0c00f e89c8030 s_list   a_nil    b_pair   -------- -------- --------
-@ s_list   0000c260 #S_EVAL  g*nd_env -------- -------- -------- --------
- \_ e59cf004 b_symbol "list"   00000000 00000000 00000000 00000000 00000000
-@ g*nd_env 0000c260 #S_GET   s_list   -------- -------- -------- --------
- \_ e1a0c00f e89c8070 0000c0e0 00000000 00000000 b_scope  -------- --------
-@ 0000c0e0 0000c260 #S_GET   s_list   -------- -------- -------- --------
- \_ e1a0c00f e89c8070 s_list   ap_list  0000c0a0 b_bind*g -------- --------
-@ 0000c260 ap_list  -------- -------- -------- -------- -------- --------
- \_ e1a0c00f e89c81f0 a*_print #S_APPL  a_nil    g*nd_env 00000000 k_oper  
-@ ap_list  a*_print #S_APPL  a_nil    g*nd_env -------- -------- --------
- \_ e59b3008 e3330004 1a00000b e59b5004 e59b7010 e59f02b0 ebfffd9e e5805004
-@ a_map_e* 0000c320 a_nil    g*nd_env -------- -------- -------- --------
- \_ e59b0004 e59b1008 e59f2264 e1310002 1a000001 ebfffd9d eafffc79 e59b700c
-@ s_exit   0000c360 #S_EVAL  -------- -------- -------- -------- --------
- \_ e59cf004 b_symbol "exit"   00000000 00000000 00000000 00000000 00000000
-@ bbbbbbbb 0000c360 #S_GET   s_exit   -------- -------- -------- --------
-
-@ a_*_repl -------- -------- -------- -------- -------- -------- --------
- \_ eb000186 e59f01b8 e59f11b8 e59f21b8 ebfffd65 eafffc3a e1a00000 e1a00000
-@ a_*_read a_*_eval a_k*_err -------- -------- -------- -------- --------
- \_ eb000656 e59f01a4 eb000639 eb000280 e1b01000 059b0008 159b0004 ebfffd53
-> (list)
-@ a_*_eval 0000c0c0 -------- -------- -------- -------- -------- --------
- \_ eb00033b e59b4004 e59f5164 e3a06003 e1a07000 ebfffd53 eafffc21 e1a00000
-@ 0000c0c0 a*_print #S_EVAL  0000c160 -------- -------- -------- --------
- \_ e59cf01c 0000c0a0 a_nil    -------- -------- -------- -------- b_pair  
-@ 0000c0a0 0000c1a0 #S_EVAL  0000c160 -------- -------- -------- --------
- \_ e59cf01c 7473696c 00000000 00000000 00000000 00000000 00000000 b_symbol
-@ 0000c160 0000c1a0 #S_GET   0000c0a0 -------- -------- -------- --------
- \_ e59cf01c -------- -------- 0000c140 -------- -------- -------- b_scope 
-@ 0000c140 0000c1a0 #S_GET   0000c0a0 -------- -------- -------- --------
- \_ e59cf01c 0000c0a0 ap_list  0000c120 -------- -------- -------- b_bind*g
-@ 0000c1a0 ap_list  -------- -------- -------- -------- -------- --------
- \_ e59cf01c -------- -------- -------- -------- -------- -------- k_comb  
-FAIL!
-@ 0000c1a0 ap_list  -------- -------- -------- -------- -------- --------
- \_ e59cf01c -------- -------- -------- -------- -------- -------- k_comb  
-
-> (list 0)
-@ 000090c0 0000c2a0 -------- -------- -------- -------- -------- --------
- \_ eb00033b e59b4004 e59f5164 e3a06003 e1a07000 ebfffd53 eafffc21 e1a00000
-@ 0000c2a0 000090e0 #S_EVAL  0000c100 -------- -------- -------- --------
- \_ e59cf01c 0000c040 0000c2e0 -------- -------- -------- -------- b_pair  
-@ 0000c040 0000c340 #S_EVAL  0000c100 -------- -------- -------- --------
- \_ e59cf01c "list"   00000000 00000000 00000000 00000000 00000000 b_symbol
-@ 0000c100 0000c340 #S_GET   0000c040 -------- -------- -------- --------
- \_ e59cf01c -------- -------- 0000c0e0 -------- -------- -------- b_scope 
-@ 0000c0e0 0000c340 #S_GET   0000c040 -------- -------- -------- --------
- \_ e59cf01c 0000c040 ap_list  0000c0c0 -------- -------- -------- b_bind*g
-@ 0000c340 ap_list  -------- -------- -------- -------- -------- --------
- \_ e59cf01c 000090e0 #S_APPL  0000c2e0 0000c100 -------- -------- k_comb  
-@ ap_list  000090e0 #S_APPL  0000c2e0 0000c100 -------- -------- k_comb  
- \_ e59b3008 e3330004 1a00000b e59b5004 e59b7010 e59f02b0 ebfffd8e e5805004
-@ 00008fa0 0000c3e0 0000c2e0 0000c100 -------- -------- -------- --------
- \_ e59b0004 e59b1008 e59f2264 e1310002 1a000001 ebfffd8d eafffc69 e59b700c
-@ 0000c2c0 0000c420 #S_EVAL  0000c100 -------- -------- -------- --------
- \_ e59cf01c 00000000 -------- -------- -------- -------- -------- b_number
-@ 0000c420 0000c2c0 -------- -------- -------- -------- -------- --------
- \_ e59cf01c 0000c3e0 a_nil    0000c100 -------- -------- -------- m*_eval1
-@ 00008fa0 0000c420 a_nil    0000c100 -------- -------- -------- --------
- \_ e59b0004 e59b1008 e59f2264 e1310002 1a000001 ebfffd8d eafffc69 e59b700c
-@ 0000c420 a_nil    -------- -------- -------- -------- -------- --------
- \_ e59cf01c 0000c3e0 0000c2c0 0000c100 -------- -------- -------- m*_eval2
-@ 0000c2c0 0000c420 -------- -------- -------- -------- -------- --------
- \_ e59cf01c 00000000 -------- -------- -------- -------- -------- b_number
-FAIL!
-@ 0000c2c0 0000c420 -------- -------- -------- -------- -------- --------
- \_ e59cf01c 00000000 -------- -------- -------- -------- -------- b_number
-
-> (list 0)
-...
- \_ e59cf01c 00000000 aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee b_number
-@ 0000c420 0000c2c0 aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee ffffffff
- \_ e59cf01c 0000c3e0 a_nil    0000c100 -------- -------- -------- m*_eval1
-@ 00008fa0 0000c420 a_nil    0000c100 -------- -------- -------- --------
- \_ e59b0004 e59b1008 e59f2264 e1310002 1a000001 ebfffd8d eafffc69 e59b700c
-@ 0000c420 a_nil    -------- -------- -------- -------- -------- --------
- \_ e59cf01c 0000c3e0 0000c2c0 0000c100 -------- -------- -------- m*_eval2
-@ 0000c420 -------- -------- -------- -------- -------- -------- --------
- \_ e59cf01c 0000c2c0 a_nil    0000c100 -------- -------- -------- b_pair  
-FAIL!
-@ 0000c420 -------- -------- -------- -------- -------- -------- --------
- \_ e59cf01c 0000c2c0 a_nil    0000c100 -------- -------- -------- b_pair  
-
 -------- --------
-00009060 a_*_repl
-00009080 a_*_read
-000090c0 a_*_eval
-000090e0 a*_print
-00009100 a_k*_err
+00009840 a_*_repl
+00009860 a_*_read
+000098a0 a_*_eval
+000098c0 a*_print
+000098e0 a_k*_err
 
-00008c20 a_fail  
-00008c40 a_inert 
-00008c44 a_*_bind
-00008c48 a_true  
-00008c4c a_false 
-00008d80 a_nil   
+00008cc0 a_fail  
+00008cc8 self_ev*
+00008d00 a_inert 
+00008d04 *no_bind
+00008d08 a_true  
+00008d0c a_false 
 
-00008c60 b_bind*g
-00008d00 b_scope 
-00008da0 b_symbol
-00008e00 b_pair  
-00008e48 k_comb  
-00008e60 b_number
+00008d10 b_number
+00008da0 b_bind*g
+00008e40 b_scope 
+00008ec0 a_nil   
+00008ee0 b_symbol
+00008f60 b_pair  
+00008fc0 k_comb  
+00009020 b_appl  
+00009220 b_oper  
+ 
+-------- op_list 
+-------- k_list  
+-------- ap_list 
+-------- m*_eval 
+-------- m*_eval1
+-------- m*_eval2
+e59cf01c example5
 
-00008f00 op_list 
-00008f1c k_list  
-00008f40 ap_list 
-00008fa0 m*_eval 
-0000900c m*_eval1
-00009034 m*_eval2
+> ($define! $car ($vau (x . #ignore) #ignore x))
+> ($car 1 2 3)
+@ a_*_eval 0000e1e0 -------- -------- -------- -------- -------- --------
+ \_ eb00046b e59b4004 e59f519c e3a06003 e1a07000 ebfffb5b eafffa29 e1a00000
+@ 0000e1e0 a*_print S_EVAL   grnd_env -------- -------- -------- --------
+ \_ example5 "$car"   0000e220 -------- -------- -------- -------- b_pair  
+@ "$car"   0000e300 S_EVAL   grnd_env -------- -------- -------- --------
+ \_ example5 72616324 00000000 00000000 00000000 00000000 00000000 b_symbol
+@ grnd_env 0000e300 S_GET    "$car"   -------- -------- -------- --------
+ \_ example5 "$car"   $car     0000e1c0 -------- -------- -------- b_bind*g
+@ 0000e300 $car     -------- -------- -------- -------- -------- --------
+ \_ example5 a*_print S_APPL   0000e220 grnd_env -------- -------- k_comb  
+@ $car     a*_print S_APPL   0000e220 grnd_env -------- -------- k_comb  
+ \_ example5 0000dca0 *no_bind 0000dd00 grnd_env -------- -------- b_oper  
+             formals  eformal  body     senv
+#<ERROR>
+@ a_*_read a_*_eval a_k*_err -------- -------- -------- -------- --------
+ \_ eb0007fb e59f01dc eb0007de eb0003b0 e1b01000 059b0008 159b0004 ebfffb5b
 
-> (list 0)
-@ 000090c0 0000c060 aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee ffffffff
- \_ eb00033b e59b4004 e59f5164 e3a06003 e1a07000 ebfffd53 eafffc21 e1a00000
-@ 0000c060 a*_print 00000003 0000c140 cccccccc dddddddd eeeeeeee ffffffff
- \_ e59cf01c 0000c040 0000c0a0 bbbbbbbb cccccccc dddddddd eeeeeeee 00008e00
-@ 0000c040 0000c180 00000003 0000c140 cccccccc dddddddd eeeeeeee ffffffff
- \_ e59cf01c 7473696c 00000000 00000000 00000000 00000000 00000000 00008da0
-@ 0000c140 0000c180 00000001 0000c040 cccccccc dddddddd eeeeeeee ffffffff
- \_ e59cf01c 99999999 aaaaaaaa 0000c120 cccccccc dddddddd eeeeeeee 00008d00
-@ 0000c120 0000c180 00000001 0000c040 cccccccc dddddddd eeeeeeee ffffffff
- \_ e59cf01c 0000c040 ap_list  0000c100 cccccccc dddddddd eeeeeeee 00008c60
-@ 0000c180 ap_list  aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee ffffffff
- \_ e59cf01c a*_print 00000004 0000c0a0 0000c140 dddddddd eeeeeeee 00008e48
-@ ap_list  a*_print 00000004 0000c0a0 0000c140 dddddddd eeeeeeee 00008e48
- \_ e59b3008 e3330004 1a00000b e59b5004 e59b7010 e59f02b0 ebfffd8e e5805004
-@ m*_eval  0000c220 0000c0a0 0000c140 cccccccc dddddddd eeeeeeee ffffffff
- \_ e59b0004 e59b1008 e59f2264 e1310002 1a000001 ebfffd8d eafffc69 e59b700c
-@ 0000c080 0000c260 00000003 0000c140 cccccccc dddddddd eeeeeeee ffffffff
- \_ e59cf01c 00000000 aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee 00008e60
-@ 0000c260 0000c080 -------- -------- -------- -------- -------- --------
- \_ e59cf01c 0000c220 00008d80 0000c140 -------- -------- -------- m*_eval1
-@ m*_eval  0000c260 00008d80 0000c140 -------- -------- -------- --------
- \_ e59b0004 e59b1008 e59f2264 e1310002 1a000001 ebfffd8d eafffc69 e59b700c
-@ 0000c260 00008d80 -------- -------- -------- -------- -------- --------
- \_ e59cf01c 0000c220 0000c080 0000c140 -------- -------- -------- m*_eval2
-@ 0000c220 99999999 -------- -------- -------- -------- -------- --------
- \_ e59cf01c a*_print 0000c140 -------- -------- -------- -------- k_list  
-@ op_list  a*_print 00000004 99999999 0000c140 -------- -------- --------
- \_ e59b3008 e3330004 1a000002 ebfffc95 e59b100c eafffd13 eaffff42 e59f42e4
-@ a*_print 99999999 -------- -------- -------- -------- -------- --------
- \_ e59b0004 eb0002ae eb00063c e59f0130 e59f1130 e59f2130 ebfffd43 eafffc18
-#99999999?
-@ 00009080 000090c0 00009100 -------- -------- -------- -------- --------
- \_ eb000656 e59f01a4 eb000639 eb000280 e1b01000 059b0008 159b0004 ebfffd53
+0000dca0: example5 "x"      *no_bind -------- -------- -------- -------- b_pair   (x . #ignore)
+0000dd00: example5 "x"      a_nil    -------- -------- -------- -------- b_pair   (x)
+0000d080: example5 78000000 00000000 00000000 00000000 00000000 00000000 b_symbol "x"     
+0000e200: example5 00000001 -------- -------- -------- -------- -------- b_number #1
+0000e220: example5 0000e200 0000e260 -------- -------- -------- -------- b_pair   (1 2 3)
+0000e240: example5 00000002 -------- -------- -------- -------- -------- b_number #2
+0000e260: example5 0000e240 0000e2a0 -------- -------- -------- -------- b_pair   (2 3)
+0000e280: example5 00000003 -------- -------- -------- -------- -------- b_number #3
+0000e2a0: example5 0000e280 a_nil    -------- -------- -------- -------- b_pair   (3)
 
+0000dca0  1c f0 9c e5 80 d0 00 00  04 8d 00 00 bb bb bb bb  |................|
+0000dcb0  cc cc cc cc dd dd dd dd  ee ee ee ee 60 8f 00 00  |............`...|
+0000dcc0  1c f0 9c e5 a0 dc 00 00  e0 dc 00 00 bb bb bb bb  |................|
+0000dcd0  cc cc cc cc dd dd dd dd  ee ee ee ee 60 8f 00 00  |............`...|
+0000dce0  1c f0 9c e5 04 8d 00 00  00 dd 00 00 bb bb bb bb  |................|
+0000dcf0  cc cc cc cc dd dd dd dd  ee ee ee ee 60 8f 00 00  |............`...|
+0000dd00  1c f0 9c e5 80 d0 00 00  c0 8e 00 00 bb bb bb bb  |................|
+0000dd10  cc cc cc cc dd dd dd dd  ee ee ee ee 60 8f 00 00  |............`...|
+0000dd20  1c f0 9c e5 80 dc 00 00  c0 8e 00 00 bb bb bb bb  |................|
+0000dd30  cc cc cc cc dd dd dd dd  ee ee ee ee 60 8f 00 00  |............`...|
+0000dd40  a0 98 00 00 20 dc 00 00  aa aa aa aa bb bb bb bb  |.... ...........|
+0000dd50  cc cc cc cc dd dd dd dd  ee ee ee ee ff ff ff ff  |................|
+0000dd60  20 dc 00 00 c0 98 00 00  03 00 00 00 40 d5 00 00  | ...........@...|
+0000dd70  cc cc cc cc dd dd dd dd  ee ee ee ee ff ff ff ff  |................|
+0000dd80  80 93 00 00 c0 98 00 00  04 00 00 00 60 dc 00 00  |............`...|
+0000dd90  40 d5 00 00 dd dd dd dd  ee ee ee ee c0 8f 00 00  |@...............|
+
+0000e200  1c f0 9c e5 01 00 00 00  aa aa aa aa bb bb bb bb  |................|
+0000e210  cc cc cc cc dd dd dd dd  ee ee ee ee 10 8d 00 00  |................|
+0000e220  1c f0 9c e5 00 e2 00 00  60 e2 00 00 bb bb bb bb  |........`.......|
+0000e230  cc cc cc cc dd dd dd dd  ee ee ee ee 60 8f 00 00  |............`...|
+0000e240  1c f0 9c e5 02 00 00 00  aa aa aa aa bb bb bb bb  |................|
+0000e250  cc cc cc cc dd dd dd dd  ee ee ee ee 10 8d 00 00  |................|
+0000e260  1c f0 9c e5 40 e2 00 00  a0 e2 00 00 bb bb bb bb  |....@...........|
+0000e270  cc cc cc cc dd dd dd dd  ee ee ee ee 60 8f 00 00  |............`...|
+0000e280  1c f0 9c e5 03 00 00 00  aa aa aa aa bb bb bb bb  |................|
+0000e290  cc cc cc cc dd dd dd dd  ee ee ee ee 10 8d 00 00  |................|
+0000e2a0  1c f0 9c e5 80 e2 00 00  c0 8e 00 00 bb bb bb bb  |................|
+0000e2b0  cc cc cc cc dd dd dd dd  ee ee ee ee 60 8f 00 00  |............`...|
+
+0000d540 grnd_env
+0000e220 dyn_env 
+
+heap_start = 0000d000
 --------
-heap_start = 0000c000
+S_SELF  00000000  "visit"
+S_GET   00000001  "lookup"
+S_SET   00000002  "bind"
+S_EVAL  00000003
+S_APPL  00000004  "combine"
+S_OPER  00000005  "unwrap"
+S_EXEC  00000006
+S_PUSH  00000007
+S_POP   00000008
+S_PUT   00000009
+S_PULL  0000000A
+
 block_zero = 206f6857 6c207369 696b6369 6d20676e 4f482079 5059454e 003f544f
 
 QUEUE: > E[0]

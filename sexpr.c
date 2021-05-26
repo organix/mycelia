@@ -107,6 +107,12 @@ inert_p(ACTOR* x)
 }
 
 int
+ignore_p(ACTOR* x)
+{
+    return (x == &a_no_bind);
+}
+
+int
 pair_p(ACTOR* x)
 {
     struct example_5 *a = (struct example_5 *)x;
@@ -132,12 +138,6 @@ environment_p(ACTOR* x)
 {
     struct example_5 *a = (struct example_5 *)x;
     return (a->beh_1c == &b_scope) || (a->beh_1c == &b_binding);
-}
-
-int
-ignore_p(ACTOR* x)
-{
-    return (x == &a_inert);
 }
 
 int

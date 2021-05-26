@@ -18,18 +18,6 @@ This implementation is designed for machines with 32-bit words.
 
 The _`exit`_ applicative terminates the Kernel runtime system.
 
-### list
-
-`(list . `_objects_`)`
-
-The _`list`_ applicative returns _objects_.
-
-The underlying operative of _`list`_
-returns its undifferentiated operand tree,
-regardless of whether that tree is or is not a list.
-The behavior of the applicative is therefore determined
-by the way the Kernel evaluator algorithm evaluates arguments.
-
 ### boolean?
 
 `(boolean? . `_objects_`)`
@@ -79,6 +67,18 @@ unless some two of its arguments are
 different objects,
 otherwise `#f`.
 
+### list
+
+`(list . `_objects_`)`
+
+The _`list`_ applicative returns _objects_.
+
+The underlying operative of _`list`_
+returns its undifferentiated operand tree,
+regardless of whether that tree is or is not a list.
+The behavior of the applicative is therefore determined
+by the way the Kernel evaluator algorithm evaluates arguments.
+
 ### $define!
 
 `($define! `⟨definiend⟩` `⟨expression⟩`)`
@@ -102,9 +102,8 @@ The environment in which the _`$vau`_ expression was evaluated
 is remembered as the compound operative’s _static environment_.
 When the compound operative is later called with an object and an environment,
 here called respectively the _operand tree_ and the _dynamic environment_,
-  1. A new, initially empty environment is created,
+  1. A new, initially empty _local environment_ is created,
   with the _static environment_ as its parent.
-  This will be called the _local environment_.
   2. The formal parameter tree ⟨formals⟩ is matched
   in the _local environment_ to the _operand tree_,
   binding the symbols of ⟨formals⟩
