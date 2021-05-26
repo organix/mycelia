@@ -13,6 +13,7 @@ extern ACTOR a_true;
 extern ACTOR a_false;
 extern ACTOR a_inert;
 extern ACTOR a_no_bind;
+extern ACTOR a_empty_env;
 extern ACTOR a_kernel_err;
 extern ACTOR a_exit;
 
@@ -26,6 +27,10 @@ extern ACTOR ap_null_p;
 extern ACTOR ap_eq_p;
 extern ACTOR op_define;
 extern ACTOR op_vau;
+extern ACTOR ap_wrap;
+extern ACTOR ap_unwrap;
+extern ACTOR op_sequence;
+extern ACTOR op_lambda;
 extern ACTOR ap_hexdump;
 extern ACTOR ap_load_words;
 extern ACTOR ap_store_words;
@@ -37,6 +42,7 @@ extern ACTOR b_symbol;
 extern ACTOR b_pair;
 extern ACTOR b_number;
 extern ACTOR b_appl;
+extern ACTOR b_oper;
 
 // asm utilities
 extern void* reserve();  // allocate 32-byte block
@@ -70,7 +76,8 @@ int
 object_p(ACTOR* x)
 {
     // [FIXME] make this more robust...
-    return (((u32)x & 0x1f) == 0x0);  // 32-byte alignment
+//    return (((u32)x & 0x1f) == 0x0);  // 32-byte alignment
+    return (((u32)x & 0x3) == 0x0);  // 32-bit alignment
 }
 
 int
@@ -163,7 +170,7 @@ applicative_p(ACTOR* x)
 int
 operative_p(ACTOR* x)
 {
-    return 0;  // FIXME: how do we check for operatives? some are hard-coded...
+    return object_p(x);  // FIXME: how do we check for operatives? some are hard-coded...
 }
 
 int
@@ -869,7 +876,11 @@ ground_env()
     char hexdump_24b[] = "hexd" "ump\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char load_words_24b[] = "load" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char store_words_24b[] = "stor" "e-wo" "rds\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char wrap_24b[] = "wrap" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char unwrap_24b[] = "unwr" "ap\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char osequence_24b[] = "$seq" "uenc" "e\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char ovau_24b[] = "$vau" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char olambda_24b[] = "$lam" "bda\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char odefinem_24b[] = "$def" "ine!" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char eqp_24b[] = "eq?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char symbolp_24b[] = "symb" "ol?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
@@ -883,7 +894,7 @@ ground_env()
 
     if (kernel_env) return kernel_env;  // lazy-initialized singleton
 
-    ACTOR *env = &a_kernel_err;  // signal an error on lookup failure
+    ACTOR *env = &a_empty_env;  // signal an error on lookup failure
 
     /* bind "exit" */
     a = extend_env(env, (struct sym_24b*)exit_24b, (u32)&a_exit);
@@ -905,8 +916,28 @@ ground_env()
     if (!a) return NULL;  // FAIL!
     env = a;
 
+    /* bind "wrap" */
+    a = extend_env(env, (struct sym_24b*)wrap_24b, (u32)&ap_wrap);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "unwrap" */
+    a = extend_env(env, (struct sym_24b*)unwrap_24b, (u32)&ap_unwrap);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "$sequence" */
+    a = extend_env(env, (struct sym_24b*)osequence_24b, (u32)&op_sequence);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
     /* bind "$vau" */
     a = extend_env(env, (struct sym_24b*)ovau_24b, (u32)&op_vau);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "$lambda" */
+    a = extend_env(env, (struct sym_24b*)olambda_24b, (u32)&op_lambda);
     if (!a) return NULL;  // FAIL!
     env = a;
 

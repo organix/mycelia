@@ -84,7 +84,7 @@ by the way the Kernel evaluator algorithm evaluates arguments.
 `($define! `⟨definiend⟩` `⟨expression⟩`)`
 
 The _`$define!`_ operative evaluates ⟨expression⟩ in the dynamic environment
-(that is, the environment in which the `($define! `...`)` combination is evaluated),
+(that is, the environment in which the <tt>(<i>$define!</i> </tt>...<tt>)</tt> combination is evaluated),
 and matches ⟨definiend⟩ to the result in the dynamic environment,
 binding each symbol in ⟨definiend⟩ in the dynamic environment
 to the corresponding part of the result.
@@ -115,6 +115,43 @@ here called respectively the _operand tree_ and the _dynamic environment_,
   from left to right, in the _local environment_.
   The final expression is evaluated in a _tail context_.
   If ⟨objects⟩ is `()`, the result is `#inert`.
+
+### wrap
+
+`(wrap `_combiner_`)`
+
+The _`wrap`_ applicative returns an applicative whose underlying combiner is _combiner_.
+
+### unwrap
+
+`(unwrap `_applicative_`)`
+
+The _`unwrap`_ applicative returns the underlying combiner of _applicative_.
+If _applicative_ is not an applicative, an error is signaled.
+
+### $sequence
+
+`($sequence . `⟨objects⟩`)`
+
+The _`$sequence`_ operative evaluates the elements of the list ⟨objects⟩
+in the dynamic environment, one at a time from left to right.
+If ⟨objects⟩ is a nonempty finite list,
+its last element is evaluated as a tail context.
+If ⟨objects⟩ is `()`, the result is `#inert`.
+
+### $lambda
+
+`($lambda `⟨formals⟩` . `⟨objects⟩`)`
+
+⟨formals⟩ should be a formal parameter tree as described for operative _`$define!`_.
+The expression
+<pre>
+(<i>$lambda</i> ⟨formals⟩ . ⟨objects⟩)
+</pre>
+is equivalent to
+<pre>
+(<i>wrap</i> (<i>$vau</i> ⟨formals⟩ #ignore . ⟨objects⟩))
+</pre>
 
 ### hexdump
 

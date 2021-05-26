@@ -560,6 +560,45 @@ k_map_eval_2:		@ eval args continuation
 
 	.text
 	.align 5		@ align to cache-line
+	.global op_wrap
+op_wrap:	@ operative "$wrap"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =combiner_p	@	predicate
+	bl	match_1_arg
+	mov	r4, r0		@	save combiner
+
+	ldr	r0, =b_appl	@	applicative behavior
+	bl	create_5	@	create applicative
+	str	r4, [r0, #0x04]	@	set combiner
+	mov	r4, r0		@	save applicative
+
+	bl	reserve		@	allocate event block
+	str	r4, [r0, #0x04]	@	reply with applicative
+	b	_a_reply	@	send reply and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_wrap
+ap_wrap:		@ applicative "wrap"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_wrap	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
 	.global op_vau
 op_vau:			@ operative "$vau"
 			@ message = (cust, #S_APPL, opnds, env)
@@ -599,7 +638,7 @@ op_vau:			@ operative "$vau"
 	ldr	r7, [fp, #0x10] @	get env
 
 	ldr	r0, =b_oper
-	bl	create_5	@	create b_oper actor
+	bl	create_5	@	create operative
 	stmib	r0, {r4-r7}	@	store formals, eformal, body, env
 	mov	r8, r0
 
@@ -731,6 +770,40 @@ k_seq_eval:		@ sequential evaluation continuation
 
 	.text
 	.align 5		@ align to cache-line
+	.global op_unwrap
+op_unwrap:	@ operative "$unwrap"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =applicative_p @	predicate
+	bl	match_1_arg
+			@ (example_5: 0x04=oper, 0x08=, 0x0c=)
+	ldr	r4, [r0, #0x04]	@	get combiner
+
+	bl	reserve		@	allocate event block
+	mov	r1, r4		@	result = combiner
+	b	_a_answer	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_unwrap
+ap_unwrap:		@ applicative "unwrap"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_unwrap	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
 	.global op_define
 op_define:		@ operative "$define!"
 			@ message = (cust, #S_APPL, opnds, env)
@@ -782,6 +855,74 @@ k_bind:			@ binding continuation
 	ldr	r2, =a_inert	@ message is #inert
 	str	r2, [ip, #0x04]
 	b	_a_send		@ send message and return
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_sequence
+op_sequence:	@ operative "$sequence"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+
+	ldr	r5, [fp, #0x04]	@	get cust
+	ldr	r6, =a_inert	@	result = #inert
+	ldr	r7, [fp, #0x10]	@	get env
+	ldr	r0, =v_sequence	@	k_seq behavior
+	bl	create_5	@	create k_seq
+	stmib	r0, {r5-r7}	@	store cust, result, env
+	mov	r5, r0		@	cust = k_seq
+
+	bl	reserve		@	allocate event block
+	ldr	r4, [fp, #0x0c]	@	target = opnds
+@	mov	r5, r5		@	cust (already in r5)
+	mov	r6, #S_SELF	@	"visit"
+	stmia	r0, {r4-r6}	@	write data to event
+	b	_a_end		@	send and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_lambda
+op_lambda:		@ operative "$lambda"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r9, [fp, #0x0c] @	get opnds
+
+	mov	r0, r9
+	bl	car		@	formals
+	movs	r4, r0		@	if NULL
+	beq	a_kernel_err	@		signal error
+
+	ldr	r5, =a_no_bind	@	eformal (always #ignore)
+
+	mov	r0, r9
+	bl	cdr		@	body
+	movs	r6, r0		@	if NULL
+	beq	a_kernel_err	@		signal error
+
+	ldr	r7, [fp, #0x10] @	get env
+
+	ldr	r0, =b_oper
+	bl	create_5	@	create operative
+	stmib	r0, {r4-r7}	@	store formals, eformal, body, env
+	mov	r8, r0
+
+	ldr	r0, =b_appl	@	applicative behavior
+	bl	create_5	@	applicative
+	str	r8, [r0, #0x04]	@	combiner = operative
+	mov	r9, r0
+
+	bl	reserve		@	allocate event block
+	str	r9, [r0, #0x04]	@	reply with applicative
+	b	_a_reply	@	send reply and return
+1:
+	b	self_eval	@ else we are self-evaluating
 
 	.text
 match_0_args:		@ match arg signature (op)
@@ -1251,6 +1392,29 @@ a_kernel_print:		@ kernel print actor
 	ldr	r2, =a_kernel_err @ fail customer
 	bl	send_2		@ send message
 	b	complete	@ return to dispatch loop
+
+	.text
+	.align 5		@ align to cache-line
+	.global a_empty_env
+a_empty_env:		@ empty environment
+			@ message = (cust, #S_GET, symbol')
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_GET
+	bne	a_kernel_err	@ if req == "get"
+
+	ldr	r0, =undefined_txt @	load address of text
+	bl	serial_puts	@	write text to console
+
+	ldr	r0, [fp, #0x0c] @ 	get symbol'
+	add	r0, r0, #0x04	@	get symbol name
+	bl	serial_puts	@	write name to console
+
+	mov	r0, #0x3e	@	'>' character
+	bl	serial_write	@	write character to console
+	bl	serial_eol	@	write end-of-line
+	b	a_kernel_repl	@	re-enter REPL
+undefined_txt:
+	.ascii	"#<UNDEFINED \0"
 
 	.text
 	.align 5		@ align to cache-line
