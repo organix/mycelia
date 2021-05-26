@@ -1530,6 +1530,7 @@ ap_sponsor_enqueue:	@ applicative "sponsor-enqueue"
 a_kernel_repl:		@ kernel read-eval-print loop
 			@ message = ()
 	bl	flush_char	@ flush pending/buffered input
+	bl	ground_env	@ pre-cache ground environment
 	ldr	r0, =a_kernel_read @ target actor
 	ldr	r1, =a_kernel_eval @ ok customer
 	ldr	r2, =a_kernel_err @ fail customer

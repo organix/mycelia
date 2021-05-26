@@ -458,14 +458,7 @@ mutate_environment(u32 ext, u32 env)  // mutate env to include ext
     return 0;  // FAIL!
 }
 
-static char* line =
-#if 0
-"($define! car ($lambda ((x . #ignore)) x))\n"
-"($define! cdr ($lambda ((#ignore . x)) x))\n"
-//"($define! get-current-environment (wrap ($vau () e e)))\n"
-"($define! get-current-env (wrap ($vau () e e)))\n"
-#endif
-"\n";
+static char* line = NULL;
 
 void
 flush_char()
@@ -1029,7 +1022,20 @@ ground_env()
     x->data_0c = (u32)env;  // set parent
     env = (ACTOR *)x;
 
+    /* establish ground environment */
     kernel_env = env;
+    TRACE(puts("ground_env=0x"));
+    TRACE(serial_hex32((u32)env));
+    TRACE(putchar('\n'););
+
+    /* provide additional definitions in source form */
+    line =
+"($define! car ($lambda ((x . #ignore)) x))\n"
+"($define! cdr ($lambda ((#ignore . x)) x))\n"
+//"($define! get-current-environment (wrap ($vau () e e)))\n"
+"($define! get-current-env (wrap ($vau () e e)))\n"
+"\n";
+
     return kernel_env;
 }
 
