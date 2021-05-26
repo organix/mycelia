@@ -589,7 +589,7 @@ op_wrap:	@ operative "$wrap"
 	.global ap_wrap
 ap_wrap:		@ applicative "wrap"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	op_wrap	@ 0x04: operative
+	.int	op_wrap		@ 0x04: operative
 	.int	0		@ 0x08: -
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
@@ -1220,8 +1220,47 @@ ap_eq_p:		@ applicative "eq?"
 
 	.text
 	.align 5		@ align to cache-line
-	.global op_hexdump
-op_hexdump:		@ operative "$hexdump"
+	.global op_address_of
+op_address_of:	@ operative "$address-of"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =object_p	@	predicate
+	bl	match_1_arg
+	mov	r4, r0		@	save object
+
+	ldr	r0, =b_number	@	number behavior
+	bl	create_5	@	create number
+	str	r4, [r0, #0x04]	@	set value
+	mov	r4, r0		@	save number
+
+	bl	reserve		@	allocate event block
+	str	r4, [r0, #0x04]	@	reply with number
+	b	_a_reply	@	send reply and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_address_of
+ap_address_of:		@ applicative "address-of"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_address_of	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_dump_bytes
+op_dump_bytes:		@ operative "$dump-bytes"
 			@ message = (cust, #S_APPL, opnds, env)
 			@         | (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
@@ -1242,10 +1281,45 @@ op_hexdump:		@ operative "$hexdump"
 
 	.text
 	.align 5		@ align to cache-line
-	.global ap_hexdump
-ap_hexdump:		@ applicative "hexdump"
+	.global ap_dump_bytes
+ap_dump_bytes:		@ applicative "dump-bytes"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	op_hexdump	@ 0x04: operative
+	.int	op_dump_bytes	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_dump_words
+op_dump_words:		@ operative "$dump-words"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =number_p	@	predicate 1
+	ldr	r2, =number_p	@	predicate 2
+	bl	match_2_args
+	ldr	r0, [r0, #0x04]	@	get numeric value of address
+	ldr	r1, [r1, #0x04]	@	get numeric value of count
+	bl	dump_words	@	call helper procedure
+	bl	reserve		@	allocate event block
+	ldr	r1, =a_inert	@	result is #inert
+	b	_a_answer	@	send result to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_dump_words
+ap_dump_words:		@ applicative "dump-words"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_dump_words	@ 0x04: operative
 	.int	0		@ 0x08: -
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
@@ -1316,6 +1390,119 @@ op_store_words:		@ operative "$store-words"
 ap_store_words:		@ applicative "store-words"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_store_words	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_sponsor_reserve
+op_sponsor_reserve:	@ operative "$sponsor-reserve"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+
+	ldr	r0, [fp, #0x0c] @	get opnds
+	bl	match_0_args
+
+	bl	reserve		@	allocate 32-byte block
+	mov	r4, r0		@	save block address
+
+	ldr	r0, =b_number	@	number behavior
+	bl	create_5	@	create number
+	str	r4, [r0, #0x04]	@	set block address
+	mov	r4, r0		@	save number
+
+	bl	reserve		@	allocate event block
+	str	r4, [r0, #0x04]	@	reply with number
+	b	_a_reply	@	send reply and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_sponsor_reserve
+ap_sponsor_reserve:	@ applicative "sponsor-reserve"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_sponsor_reserve @ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_sponsor_release
+op_sponsor_release:	@ operative "$sponsor-release"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =number_p	@	predicate
+	bl	match_1_arg
+	ldr	r0, [r0, #0x04]	@	get numeric value of address
+
+	bl	release		@	deallocate memory block
+
+	bl	reserve		@	allocate event block
+	ldr	r1, =a_inert	@	answer is #inert
+	b	_a_answer	@	send answer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_sponsor_release
+ap_sponsor_release:	@ applicative "sponsor-release"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_sponsor_release @ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_sponsor_enqueue
+op_sponsor_enqueue:	@ operative "$sponsor-enqueue"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =number_p	@	predicate
+	bl	match_1_arg
+	ldr	r0, [r0, #0x04]	@	get numeric value of address
+
+	bl	enqueue		@	add event to queue
+
+	bl	reserve		@	allocate event block
+	ldr	r1, =a_inert	@	answer is #inert
+	b	_a_answer	@	send answer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_sponsor_enqueue
+ap_sponsor_enqueue:	@ applicative "sponsor-enqueue"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_sponsor_enqueue @ 0x04: operative
 	.int	0		@ 0x08: -
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --

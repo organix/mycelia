@@ -153,16 +153,16 @@ is equivalent to
 (<i>wrap</i> (<i>$vau</i> ⟨formals⟩ #ignore . ⟨objects⟩))
 </pre>
 
-### hexdump
+### dump-bytes
 
-`(hexdump `_address_` `_count_`)`
+`(dump-bytes `_address_` `_count_`)`
 
-The _`hexdump`_ applicative prints a data dump to the console,
+The _`dump-bytes`_ applicative prints a byte dump to the console,
 starting at _address_ and continuing for _count_ bytes.
 
 #### Example:
 ```
-> (hexdump #xc000 64)
+> (dump-bytes #xc000 64)
 0000c000  1c f0 9c e5 6c 69 73 74  00 00 00 00 00 00 00 00  |....list........|
 0000c010  00 00 00 00 00 00 00 00  00 00 00 00 a0 8d 00 00  |................|
 0000c020  1c f0 9c e5 65 78 69 74  00 00 00 00 00 00 00 00  |....exit........|
@@ -186,6 +186,24 @@ representing the data bytes to be stored in system memory
 starting at _address_.
 The result returned by _`store-bytes`_ is `#inert`.
 
+### dump-words
+
+`(dump-words `_address_` `_count_`)`
+
+The _`dump-words`_ applicative prints a 32-bit word dump to the console,
+starting at _address_ and continuing for _count_ words.
+The _address_ must be aligned on a 4-byte boundary.
+
+#### Example:
+```
+> (dump-words #xd000 32)
+0000_
+_d000: e59cf01c 706d7564 7479622d 00007365 00000000 00000000 00000000 00008ee0
+_d020: e59cf01c 74697865 00000000 00000000 00000000 00000000 00000000 00008ee0
+_d040: e59cf01c 0000d000 0000d080 bbbbbbbb cccccccc dddddddd eeeeeeee 00008f60
+_d060: e59cf01c 0000d000 aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee 00008d10
+```
+
 ### load-words
 
 `(load-words `_address_` `_count_`)`
@@ -202,4 +220,36 @@ The _address_ must be aligned on a 4-byte boundary.
 The _`store-words`_ applicative takes a _list_ of exact integers
 representing the 32-bit words to be stored in system memory
 starting at _address_.
+The _address_ must be aligned on a 4-byte boundary.
 The result returned by _`store-words`_ is `#inert`.
+
+### address-of
+
+`(address-of `_object_`)`
+
+The _`address-of`_ applicative returns an exact integer
+representing the address of _object_.
+
+### sponsor-reserve
+
+`(sponsor-reserve)`
+
+The _`sponsor-reserve`_ applicative returns an exact integer
+representing the address of a newly-allocated 32-byte block of memory.
+
+### sponsor-release
+
+`(sponsor-release `_address_`)`
+
+The _`sponsor-release`_ applicative deallocates
+the previously-reserved block of memory at _address_.
+The result is `#inert`.
+
+### sponsor-enqueue
+
+`(sponsor-enqueue `_address_`)`
+
+The _`sponsor-enqueue`_ applicative adds
+the previously-reserved block of memory at _address_
+to the actor runtime message-event queue.
+The result is `#inert`.

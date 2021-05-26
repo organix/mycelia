@@ -31,9 +31,14 @@ extern ACTOR ap_wrap;
 extern ACTOR ap_unwrap;
 extern ACTOR op_sequence;
 extern ACTOR op_lambda;
-extern ACTOR ap_hexdump;
+extern ACTOR ap_dump_bytes;
+extern ACTOR ap_dump_words;
 extern ACTOR ap_load_words;
 extern ACTOR ap_store_words;
+extern ACTOR ap_address_of;
+extern ACTOR ap_sponsor_reserve;
+extern ACTOR ap_sponsor_release;
+extern ACTOR ap_sponsor_enqueue;
 
 // static behaviors
 extern ACTOR b_binding;
@@ -453,7 +458,14 @@ mutate_environment(u32 ext, u32 env)  // mutate env to include ext
     return 0;  // FAIL!
 }
 
-static char* line = NULL;
+static char* line =
+#if 0
+"($define! car ($lambda ((x . #ignore)) x))\n"
+"($define! cdr ($lambda ((#ignore . x)) x))\n"
+//"($define! get-current-environment (wrap ($vau () e e)))\n"
+"($define! get-current-env (wrap ($vau () e e)))\n"
+#endif
+"\n";
 
 void
 flush_char()
@@ -673,7 +685,7 @@ parse_symbol()
     }
     for (;;) {
         b[i++] = c;
-        if (i >= (sizeof(sym) - 1)) return NULL;  // overflow
+        if (i >= sizeof(sym)) return NULL;  // overflow
         c = read_char();
         if (!is_ident_char(c)) {
             unread_char(c);
@@ -873,9 +885,14 @@ ACTOR*
 ground_env()
 {
     char exit_24b[] = "exit" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
-    char hexdump_24b[] = "hexd" "ump\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char sponsor_reserve_24b[] = "spon" "sor-" "rese" "rve\0" "\0\0\0\0" "\0\0\0\0";
+    char sponsor_release_24b[] = "spon" "sor-" "rele" "ase\0" "\0\0\0\0" "\0\0\0\0";
+    char sponsor_enqueue_24b[] = "spon" "sor-" "enqu" "eue\0" "\0\0\0\0" "\0\0\0\0";
+    char dump_bytes_24b[] = "dump" "-byt" "es\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char dump_words_24b[] = "dump" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char load_words_24b[] = "load" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char store_words_24b[] = "stor" "e-wo" "rds\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char address_of_24b[] = "addr" "ess-" "of\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char wrap_24b[] = "wrap" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char unwrap_24b[] = "unwr" "ap\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char osequence_24b[] = "$seq" "uenc" "e\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
@@ -901,8 +918,28 @@ ground_env()
     if (!a) return NULL;  // FAIL!
     env = a;
 
-    /* bind "hexdump" */
-    a = extend_env(env, (struct sym_24b*)hexdump_24b, (u32)&ap_hexdump);
+    /* bind "sponsor-reserve" */
+    a = extend_env(env, (struct sym_24b*)sponsor_reserve_24b, (u32)&ap_sponsor_reserve);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "sponsor-release" */
+    a = extend_env(env, (struct sym_24b*)sponsor_release_24b, (u32)&ap_sponsor_release);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "sponsor-enqueue" */
+    a = extend_env(env, (struct sym_24b*)sponsor_enqueue_24b, (u32)&ap_sponsor_enqueue);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "dump-bytes" */
+    a = extend_env(env, (struct sym_24b*)dump_bytes_24b, (u32)&ap_dump_bytes);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "dump-words" */
+    a = extend_env(env, (struct sym_24b*)dump_words_24b, (u32)&ap_dump_words);
     if (!a) return NULL;  // FAIL!
     env = a;
 
@@ -913,6 +950,11 @@ ground_env()
 
     /* bind "store-words" */
     a = extend_env(env, (struct sym_24b*)store_words_24b, (u32)&ap_store_words);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "address-of" */
+    a = extend_env(env, (struct sym_24b*)address_of_24b, (u32)&ap_address_of);
     if (!a) return NULL;  // FAIL!
     env = a;
 

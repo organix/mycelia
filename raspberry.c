@@ -82,7 +82,7 @@ serial_dec32(u32 w)
 }
 
 /*
- * Pretty-printed memory dump
+ * Pretty-printed byte dump
  */
 void
 hexdump(const u8* p, int n)
@@ -122,6 +122,40 @@ hexdump(const u8* p, int n)
         serial_eol();
         p += 16;
         n -= 16;
+    }
+}
+
+/*
+ * Pretty-printed word dump
+ */
+void
+dump_words(const u32* p, int n)
+{
+    u32 w = (u32)p;
+    int i;
+
+    w &= ~0x3;  // round down to nearest 32-bit boundary
+    serial_hex8((u8)(w >> 24)); // msb
+    serial_hex8((u8)(w >> 16));
+    serial_write('_');
+    serial_eol();
+    while (n > 0) {
+        serial_write('_');
+        serial_hex8((u8)(w >> 8));
+        serial_hex8((u8)(w >> 0)); // lsb
+        serial_write(':');
+        p = (u32*)w;
+        for (i = 0; i < 8; ++i) {
+            if (i < n) {
+                serial_write(' ');
+                serial_hex32(p[i]);
+            } else {
+                serial_rep(' ', 9);
+            }
+        }
+        serial_eol();
+        w += 32;
+        n -= 8;
     }
 }
 
@@ -419,7 +453,7 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia 0.1.21 ");
+    serial_puts("mycelia 0.1.22 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0
