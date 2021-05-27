@@ -21,10 +21,13 @@ extern ACTOR a_exit;
 extern ACTOR ap_list;
 extern ACTOR ap_boolean_p;
 extern ACTOR ap_symbol_p;
+extern ACTOR ap_env_p;
+extern ACTOR ap_ignore_p;
 extern ACTOR ap_inert_p;
 extern ACTOR ap_pair_p;
 extern ACTOR ap_null_p;
 extern ACTOR ap_eq_p;
+extern ACTOR ap_cons;
 extern ACTOR op_if;
 extern ACTOR op_define;
 extern ACTOR op_vau;
@@ -893,8 +896,11 @@ ground_env()
     char ovau_24b[] = "$vau" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char olambda_24b[] = "$lam" "bda\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char odefinem_24b[] = "$def" "ine!" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char cons_24b[] = "cons" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char oif_24b[] = "$if\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char eqp_24b[] = "eq?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char environmentp_24b[] = "envi" "ronm" "ent?" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char ignorep_24b[] = "igno" "re?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char symbolp_24b[] = "symb" "ol?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char inertp_24b[] = "iner" "t?\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char booleanp_24b[] = "bool" "ean?" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
@@ -983,6 +989,11 @@ ground_env()
     if (!a) return NULL;  // FAIL!
     env = a;
 
+    /* bind "cons" */
+    a = extend_env(env, (struct sym_24b*)cons_24b, (u32)&ap_cons);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
     /* bind "$if" */
     a = extend_env(env, (struct sym_24b*)oif_24b, (u32)&op_if);
     if (!a) return NULL;  // FAIL!
@@ -995,6 +1006,16 @@ ground_env()
 
     /* bind "symbol?" */
     a = extend_env(env, (struct sym_24b*)symbolp_24b, (u32)&ap_symbol_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "environment?" */
+    a = extend_env(env, (struct sym_24b*)environmentp_24b, (u32)&ap_env_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "ignore?" */
+    a = extend_env(env, (struct sym_24b*)ignorep_24b, (u32)&ap_ignore_p);
     if (!a) return NULL;  // FAIL!
     env = a;
 

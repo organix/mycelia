@@ -10,7 +10,8 @@ However, we believe it is a useful subset
 which illustrates our own novel actor-based approach to the implementation.
 This implementation is designed for machines with 32-bit words.
 
-## Bootstrap Combiners
+
+## Core Features
 
 ### exit
 
@@ -58,6 +59,22 @@ The _`null?`_ applicative returns `#t`
 if _objects_ are all `()`,
 otherwise `#f`.
 
+### environment?
+
+`(environment? . `_objects_`)`
+
+The _`environment?`_ applicative returns `#t`
+if _objects_ all have _environment_ type,
+otherwise `#f`.
+
+### ignore?
+
+`(ignore? . `_objects_`)`
+
+The _`ignore?`_ applicative returns `#t`
+if _objects_ are all `#ignore`,
+otherwise `#f`.
+
 ### eq?
 
 `(eq? . `_objects_`)`
@@ -66,6 +83,25 @@ The _`eq?`_ applicative returns `#t`
 unless some two of its arguments are
 different objects,
 otherwise `#f`.
+
+### $if
+
+`($if `⟨test⟩` `⟨consequent⟩` `⟨alternative⟩`)`
+
+The _`$if`_ operative first evaluates ⟨test⟩ in the dynamic environment.
+If the result is not of type boolean, an error is signaled.
+If the result is `#t`, ⟨consequent⟩ is then evaluated
+in the dynamic environment as a _tail context_.
+Otherwise, ⟨alternative⟩ is evaluated
+in the dynamic environment as a _tail context_.
+
+### cons
+
+`(cons `_object1_` `_object2_`)`
+
+A new pair object is constructed and returned,
+whose car and cdr referents are respectively _object1_ and _object2_.
+The objects returned by two different calls to _`cons`_ are not _`eq?`_.
 
 ### list
 
@@ -152,6 +188,24 @@ is equivalent to
 <pre>
 (<i>wrap</i> (<i>$vau</i> ⟨formals⟩ #ignore . ⟨objects⟩))
 </pre>
+
+
+## Library Features
+
+### car
+
+`(car `_pair_`)`
+
+### cdr
+
+`(cdr `_pair_`)`
+
+### get-current-env
+
+`(get-current-env)`
+
+
+## Machine Tools
 
 ### dump-bytes
 

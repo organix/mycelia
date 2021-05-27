@@ -851,6 +851,46 @@ op_lambda:		@ operative "$lambda"
 
 	.text
 	.align 5		@ align to cache-line
+	.global op_cons
+op_cons:		@ operative "$cons"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =object_p	@	predicate 1
+	ldr	r2, =object_p	@	predicate 2
+	bl	match_2_args
+	mov	r4, r0		@	save car
+	mov	r5, r1		@	save cdr
+
+	ldr	r0, =b_pair	@	pair behavior
+	bl	create_5	@	create pair
+	stmib	r0, {r4-r5}	@	store car, cdr
+	mov	r9, r0
+
+	bl	reserve		@	allocate event block
+	str	r9, [r0, #0x04]	@	reply with pair
+	b	_a_reply	@	send reply and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_cons
+ap_cons:		@ applicative "cons"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_cons		@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
 	.global op_if
 op_if:			@ operative "$if"
 			@ message = (cust, #S_APPL, opnds, env)
@@ -937,207 +977,3 @@ k_if:			@ conditional continuation
 	bl	reserve		@	allocate event block
 	stmia	r0, {r4-r7}	@	write message
 	b	_a_end		@	send message and return
-
-	.text
-	.align 5		@ align to cache-line
-	.global op_boolean_p
-op_boolean_p:	@ operative "$boolean?"
-			@ message = (cust, #S_APPL, opnds, env)
-			@         | (cust, #S_EVAL, env)
-	ldr	r3, [fp, #0x08] @ get req
-	teq	r3, #S_APPL
-	bne	1f		@ if req == "combine"
-	ldr	r0, =boolean_p	@	get predicate
-	ldr	r1, [fp, #0x0c]	@	get operands
-	blx	apply_pred	@	apply predicate to operand list
-	teq	r0, #0		@	if NULL
-	beq	a_kernel_err	@		signal error
-	mov	r4, r0		@	save result
-	bl	reserve		@	allocate event block
-	mov	r1, r4		@	restore result
-	b	_a_answer	@	send to customer and return
-1:
-	b	self_eval	@ else we are self-evaluating
-
-	.text
-	.align 5		@ align to cache-line
-	.global ap_boolean_p
-ap_boolean_p:		@ applicative "boolean?"
-	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	op_boolean_p	@ 0x04: operative
-	.int	0		@ 0x08: -
-	.int	0		@ 0x0c: --
-	.int	0		@ 0x10: --
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	b_appl		@ 0x1c: address of actor behavior
-
-	.text
-	.align 5		@ align to cache-line
-	.global op_symbol_p
-op_symbol_p:	@ operative "$symbol?"
-			@ message = (cust, #S_APPL, opnds, env)
-			@         | (cust, #S_EVAL, env)
-	ldr	r3, [fp, #0x08] @ get req
-	teq	r3, #S_APPL
-	bne	1f		@ if req == "combine"
-	ldr	r0, =symbol_p	@	get predicate
-	ldr	r1, [fp, #0x0c]	@	get operands
-	blx	apply_pred	@	apply predicate to operand list
-	teq	r0, #0		@	if NULL
-	beq	a_kernel_err	@		signal error
-	mov	r4, r0		@	save result
-	bl	reserve		@	allocate event block
-	mov	r1, r4		@	restore result
-	b	_a_answer	@	send to customer and return
-1:
-	b	self_eval	@ else we are self-evaluating
-
-	.text
-	.align 5		@ align to cache-line
-	.global ap_symbol_p
-ap_symbol_p:		@ applicative "symbol?"
-	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	op_symbol_p	@ 0x04: operative
-	.int	0		@ 0x08: -
-	.int	0		@ 0x0c: --
-	.int	0		@ 0x10: --
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	b_appl		@ 0x1c: address of actor behavior
-
-	.text
-	.align 5		@ align to cache-line
-	.global op_inert_p
-op_inert_p:	@ operative "$inert?"
-			@ message = (cust, #S_APPL, opnds, env)
-			@         | (cust, #S_EVAL, env)
-	ldr	r3, [fp, #0x08] @ get req
-	teq	r3, #S_APPL
-	bne	1f		@ if req == "combine"
-	ldr	r0, =inert_p	@	get predicate
-	ldr	r1, [fp, #0x0c]	@	get operands
-	blx	apply_pred	@	apply predicate to operand list
-	teq	r0, #0		@	if NULL
-	beq	a_kernel_err	@		signal error
-	mov	r4, r0		@	save result
-	bl	reserve		@	allocate event block
-	mov	r1, r4		@	restore result
-	b	_a_answer	@	send to customer and return
-1:
-	b	self_eval	@ else we are self-evaluating
-
-	.text
-	.align 5		@ align to cache-line
-	.global ap_inert_p
-ap_inert_p:		@ applicative "inert?"
-	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	op_inert_p	@ 0x04: operative
-	.int	0		@ 0x08: -
-	.int	0		@ 0x0c: --
-	.int	0		@ 0x10: --
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	b_appl		@ 0x1c: address of actor behavior
-
-	.text
-	.align 5		@ align to cache-line
-	.global op_pair_p
-op_pair_p:	@ operative "$pair?"
-			@ message = (cust, #S_APPL, opnds, env)
-			@         | (cust, #S_EVAL, env)
-	ldr	r3, [fp, #0x08] @ get req
-	teq	r3, #S_APPL
-	bne	1f		@ if req == "combine"
-	ldr	r0, =pair_p	@	get predicate
-	ldr	r1, [fp, #0x0c]	@	get operands
-	blx	apply_pred	@	apply predicate to operand list
-	teq	r0, #0		@	if NULL
-	beq	a_kernel_err	@		signal error
-	mov	r4, r0		@	save result
-	bl	reserve		@	allocate event block
-	mov	r1, r4		@	restore result
-	b	_a_answer	@	send to customer and return
-1:
-	b	self_eval	@ else we are self-evaluating
-
-	.text
-	.align 5		@ align to cache-line
-	.global ap_pair_p
-ap_pair_p:		@ applicative "pair?"
-	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	op_pair_p	@ 0x04: operative
-	.int	0		@ 0x08: -
-	.int	0		@ 0x0c: --
-	.int	0		@ 0x10: --
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	b_appl		@ 0x1c: address of actor behavior
-
-	.text
-	.align 5		@ align to cache-line
-	.global op_null_p
-op_null_p:	@ operative "$null?"
-			@ message = (cust, #S_APPL, opnds, env)
-			@         | (cust, #S_EVAL, env)
-	ldr	r3, [fp, #0x08] @ get req
-	teq	r3, #S_APPL
-	bne	1f		@ if req == "combine"
-	ldr	r0, =null_p	@	get predicate
-	ldr	r1, [fp, #0x0c]	@	get operands
-	blx	apply_pred	@	apply predicate to operand list
-	teq	r0, #0		@	if NULL
-	beq	a_kernel_err	@		signal error
-	mov	r4, r0		@	save result
-	bl	reserve		@	allocate event block
-	mov	r1, r4		@	restore result
-	b	_a_answer	@	send to customer and return
-1:
-	b	self_eval	@ else we are self-evaluating
-
-	.text
-	.align 5		@ align to cache-line
-	.global ap_null_p
-ap_null_p:		@ applicative "null?"
-	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	op_null_p	@ 0x04: operative
-	.int	0		@ 0x08: -
-	.int	0		@ 0x0c: --
-	.int	0		@ 0x10: --
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	b_appl		@ 0x1c: address of actor behavior
-
-	.text
-	.align 5		@ align to cache-line
-	.global op_eq_p
-op_eq_p:	@ operative "$eq?"
-			@ message = (cust, #S_APPL, opnds, env)
-			@         | (cust, #S_EVAL, env)
-	ldr	r3, [fp, #0x08] @ get req
-	teq	r3, #S_APPL
-	bne	1f		@ if req == "combine"
-	ldr	r0, =eq_p	@	get relation
-	ldr	r1, [fp, #0x0c]	@	get operands
-	blx	apply_rltn	@	apply relation to operand list
-	teq	r0, #0		@	if NULL
-	beq	a_kernel_err	@		signal error
-	mov	r4, r0		@	save result
-	bl	reserve		@	allocate event block
-	mov	r1, r4		@	restore result
-	b	_a_answer	@	send to customer and return
-1:
-	b	self_eval	@ else we are self-evaluating
-
-	.text
-	.align 5		@ align to cache-line
-	.global ap_eq_p
-ap_eq_p:		@ applicative "eq?"
-	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	op_eq_p		@ 0x04: operative
-	.int	0		@ 0x08: -
-	.int	0		@ 0x0c: --
-	.int	0		@ 0x10: --
-	.int	0		@ 0x14: --
-	.int	0		@ 0x18: --
-	.int	b_appl		@ 0x1c: address of actor behavior
