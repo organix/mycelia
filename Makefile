@@ -22,13 +22,14 @@ LD=	ld
 
 KOBJS=	start.o \
 	mycelia.o \
-	console.o \
 	idiom.o \
-	kernel.o \
+	console.o \
+	shutt.o \
+	tools.o \
 	sexpr.o \
-	raspberry.o \
 	timer.o \
 	serial.o \
+	raspberry.o \
 	xmodem.o
 
 all: kernel.img

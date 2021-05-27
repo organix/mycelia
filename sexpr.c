@@ -25,6 +25,7 @@ extern ACTOR ap_inert_p;
 extern ACTOR ap_pair_p;
 extern ACTOR ap_null_p;
 extern ACTOR ap_eq_p;
+extern ACTOR op_if;
 extern ACTOR op_define;
 extern ACTOR op_vau;
 extern ACTOR ap_wrap;
@@ -892,6 +893,7 @@ ground_env()
     char ovau_24b[] = "$vau" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char olambda_24b[] = "$lam" "bda\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char odefinem_24b[] = "$def" "ine!" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char oif_24b[] = "$if\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char eqp_24b[] = "eq?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char symbolp_24b[] = "symb" "ol?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char inertp_24b[] = "iner" "t?\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
@@ -981,6 +983,11 @@ ground_env()
     if (!a) return NULL;  // FAIL!
     env = a;
 
+    /* bind "$if" */
+    a = extend_env(env, (struct sym_24b*)oif_24b, (u32)&op_if);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
     /* bind "eq?" */
     a = extend_env(env, (struct sym_24b*)eqp_24b, (u32)&ap_eq_p);
     if (!a) return NULL;  // FAIL!
@@ -1030,11 +1037,20 @@ ground_env()
 
     /* provide additional definitions in source form */
     line =
-"($define! car ($lambda ((x . #ignore)) x))\n"
-"($define! cdr ($lambda ((#ignore . x)) x))\n"
+//"($define! car ($lambda ((x . #ignore)) x))\n"
+//"($define! cdr ($lambda ((#ignore . x)) x))\n"
 //"($define! get-current-environment (wrap ($vau () e e)))\n"
-"($define! get-current-env (wrap ($vau () e e)))\n"
-"\n";
+//get-current-environment
+//12345678901234567890123 <-- 23 character maximum symbol length
+//make-kernel-standard-environment
+//make-standard-env
+//"($define! get-current-env (wrap ($vau () e e)))\n"
+"($define! (car cdr get-current-env)"
+" (list"
+"  ($lambda ((x . #ignore)) x)"
+"  ($lambda ((#ignore . x)) x)"
+"  (wrap ($vau () e e))"
+" ))\n";
 
     return kernel_env;
 }

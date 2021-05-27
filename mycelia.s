@@ -72,6 +72,7 @@ fail:			@ actor failure notification
 	mov	r0, fp		@ get current message-event
 	bl	dump_event	@ dump actor event structure
 	ldmia	sp!, {r0-r3,pc}	@ restore registers and return
+
 	.section .rodata
 fail_txt:
 	.ascii "FAIL!\0"
@@ -937,6 +938,8 @@ dump_regs:		@ print register contents for debugging (only uses lr and pc)
 
 	bl	serial_eol	@ print end-of-line
 	ldmia	sp!, {r0-r8,pc}	@ restore registers and return
+
+	.section .rodata
 _reg_labels:		@ print register contents for debugging (only uses lr and pc)
 	.ascii	" pc=\0"
 	.ascii	" r0=\0"
@@ -966,6 +969,7 @@ panic:			@ kernel panic!
 	bl	serial_puts	@ write text to console
 	ldmia	sp!, {r0-r3,lr}	@ restore registers
 	b	halt
+
 	.section .rodata
 panic_txt:
 	.ascii "PANIC!\0"
