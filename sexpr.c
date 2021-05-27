@@ -25,7 +25,12 @@ extern ACTOR ap_ignore_p;
 extern ACTOR ap_inert_p;
 extern ACTOR ap_pair_p;
 extern ACTOR ap_null_p;
+extern ACTOR ap_number_p;
+extern ACTOR ap_oper_p;
+extern ACTOR ap_appl_p;
+extern ACTOR ap_combiner_p;
 extern ACTOR ap_eq_p;
+extern ACTOR ap_equal_p;
 
 extern ACTOR ap_cons;
 extern ACTOR ap_list;
@@ -39,11 +44,13 @@ extern ACTOR op_lambda;
 extern ACTOR ap_eval;
 extern ACTOR ap_make_env;
 
+extern ACTOR ap_dump_env;
 extern ACTOR ap_dump_bytes;
 extern ACTOR ap_dump_words;
 extern ACTOR ap_load_words;
 extern ACTOR ap_store_words;
 extern ACTOR ap_address_of;
+extern ACTOR ap_content_of;
 extern ACTOR ap_sponsor_reserve;
 extern ACTOR ap_sponsor_release;
 extern ACTOR ap_sponsor_enqueue;
@@ -102,15 +109,34 @@ boolean_p(ACTOR* x)
 int
 eq_p(ACTOR* x, ACTOR* y)
 {
-    // [FIXME] handle more complex cases...
-    return (x == y);
+    struct example_5 *a = (struct example_5 *)x;
+    struct example_5 *b = (struct example_5 *)y;
+
+    if (x == y) return 1;  // same object (identical)
+    if (a->beh_1c != b->beh_1c) return 0;  // different type/behavior
+    ACTOR* beh = a->beh_1c;
+    if (beh == &b_number) {
+        return a->data_04 == b->data_04;  // same state
+    }
+    if (beh == &b_appl) {
+        return eq_p((ACTOR*)(a->data_04), (ACTOR*)(b->data_04)); // combiner
+    }
+    return 0;
 }
 
 int
 equal_p(ACTOR* x, ACTOR* y)
 {
-    // [FIXME] handle more complex cases...
-    return eq_p(x, y);
+    struct example_5 *a = (struct example_5 *)x;
+    struct example_5 *b = (struct example_5 *)y;
+
+    if (eq_p(x, y)) return 1;
+    ACTOR* beh = a->beh_1c;
+    if (beh == &b_pair) {
+        return equal_p((ACTOR*)(a->data_04), (ACTOR*)(b->data_04))  // car
+            && equal_p((ACTOR*)(a->data_08), (ACTOR*)(b->data_08)); // cdr
+    }
+    return 0;
 }
 
 int
@@ -858,11 +884,44 @@ print_sexpr(ACTOR* a)  /* print external representation of s-expression */
         print_symbol(a);
     } else if (pair_p(a)) {
         print_list(a);
+    } else if (environment_p(a)) {
+        puts("#env@");
+        serial_hex32((u32)a);
+    } else if (applicative_p(a)) {
+        struct example_5 *x = (struct example_5 *)a;
+        puts("#wrap@");
+        serial_hex32((u32)a);
+        putchar('[');
+        serial_hex32(x->data_04);
+        putchar(']');
     } else {  // unrecognized value
         putchar('#');
         putchar('<');
         serial_hex32((u32)a);
         putchar('>');
+    }
+}
+
+void
+dump_env(ACTOR* x)
+{
+    for (;;) {
+        struct example_5 *a = (struct example_5 *)x;
+        serial_hex32((u32)a);
+        puts(": ");
+        if (a->beh_1c == &b_scope) {
+            puts("--scope--\n");
+        } else if (a->beh_1c == &b_binding) {
+            print_sexpr((ACTOR*)(a->data_04));
+            puts(" = ");
+            print_sexpr((ACTOR*)(a->data_08));
+            putchar('\n');
+        } else {
+            print_sexpr(x);
+            putchar('\n');
+            break;  // terminate loop
+        }
+        x = (ACTOR*)(a->data_0c);
     }
 }
 
@@ -889,10 +948,12 @@ ground_env()
     char sponsor_reserve_24b[] = "spon" "sor-" "rese" "rve\0" "\0\0\0\0" "\0\0\0\0";
     char sponsor_release_24b[] = "spon" "sor-" "rele" "ase\0" "\0\0\0\0" "\0\0\0\0";
     char sponsor_enqueue_24b[] = "spon" "sor-" "enqu" "eue\0" "\0\0\0\0" "\0\0\0\0";
+    char dump_env_24b[] = "dump" "-env" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char dump_bytes_24b[] = "dump" "-byt" "es\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char dump_words_24b[] = "dump" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char load_words_24b[] = "load" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char store_words_24b[] = "stor" "e-wo" "rds\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char content_of_24b[] = "cont" "ent-" "of\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char address_of_24b[] = "addr" "ess-" "of\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char make_env_24b[] = "make" "-env" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char eval_24b[] = "eval" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
@@ -904,8 +965,13 @@ ground_env()
     char odefinem_24b[] = "$def" "ine!" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char cons_24b[] = "cons" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char oif_24b[] = "$if\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char equalp_24b[] = "equa" "l?\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char eqp_24b[] = "eq?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char environmentp_24b[] = "envi" "ronm" "ent?" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char combinerp_24b[] = "comb" "iner" "?\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char applicativep_24b[] = "appl" "icat" "ive?" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char operativep_24b[] = "oper" "ativ" "e?\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char numberp_24b[] = "numb" "er?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char ignorep_24b[] = "igno" "re?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char symbolp_24b[] = "symb" "ol?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char inertp_24b[] = "iner" "t?\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
@@ -940,6 +1006,11 @@ ground_env()
     if (!a) return NULL;  // FAIL!
     env = a;
 
+    /* bind "dump-env" */
+    a = extend_env(env, (struct sym_24b*)dump_env_24b, (u32)&ap_dump_env);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
     /* bind "dump-bytes" */
     a = extend_env(env, (struct sym_24b*)dump_bytes_24b, (u32)&ap_dump_bytes);
     if (!a) return NULL;  // FAIL!
@@ -957,6 +1028,11 @@ ground_env()
 
     /* bind "store-words" */
     a = extend_env(env, (struct sym_24b*)store_words_24b, (u32)&ap_store_words);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "content-of" */
+    a = extend_env(env, (struct sym_24b*)content_of_24b, (u32)&ap_content_of);
     if (!a) return NULL;  // FAIL!
     env = a;
 
@@ -1015,6 +1091,11 @@ ground_env()
     if (!a) return NULL;  // FAIL!
     env = a;
 
+    /* bind "equal?" */
+    a = extend_env(env, (struct sym_24b*)equalp_24b, (u32)&ap_equal_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
     /* bind "eq?" */
     a = extend_env(env, (struct sym_24b*)eqp_24b, (u32)&ap_eq_p);
     if (!a) return NULL;  // FAIL!
@@ -1027,6 +1108,26 @@ ground_env()
 
     /* bind "environment?" */
     a = extend_env(env, (struct sym_24b*)environmentp_24b, (u32)&ap_env_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "combiner?" */
+    a = extend_env(env, (struct sym_24b*)combinerp_24b, (u32)&ap_combiner_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "applicative?" */
+    a = extend_env(env, (struct sym_24b*)applicativep_24b, (u32)&ap_appl_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "operative?" */
+    a = extend_env(env, (struct sym_24b*)operativep_24b, (u32)&ap_oper_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "number?" */
+    a = extend_env(env, (struct sym_24b*)numberp_24b, (u32)&ap_number_p);
     if (!a) return NULL;  // FAIL!
     env = a;
 

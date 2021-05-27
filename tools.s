@@ -167,6 +167,41 @@ ap_address_of:		@ applicative "address-of"
 
 	.text
 	.align 5		@ align to cache-line
+	.global op_content_of
+op_content_of:		@ operative "$content-of"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =number_p	@	predicate
+	bl	match_1_arg
+	ldr	r0, [r0, #0x04]	@	get numeric value of address
+	mov	r4, r0		@	save address
+
+	bl	reserve		@	allocate event block
+	str	r4, [r0, #0x04]	@	reply with address
+	b	_a_reply	@	send reply and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_content_of
+ap_content_of:		@ applicative "content-of"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_content_of	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
 	.global op_dump_bytes
 op_dump_bytes:		@ operative "$dump-bytes"
 			@ message = (cust, #S_APPL, opnds, env)
@@ -307,6 +342,41 @@ ap_store_words:		@ applicative "store-words"
 
 	.text
 	.align 5		@ align to cache-line
+	.global op_dump_env
+op_dump_env:		@ operative "$dump-env"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =environment_p @	predicate
+	bl	match_1_arg
+
+	bl	dump_env	@	dump environment (*for debugging only*)
+
+	bl	reserve		@	allocate event block
+	ldr	r1, =a_inert	@	answer is #inert
+	b	_a_answer	@	send answer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_dump_env
+ap_dump_env:		@ applicative "dump-env"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_dump_env	@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
 	.global op_sponsor_reserve
 op_sponsor_reserve:	@ operative "$sponsor-reserve"
 			@ message = (cust, #S_APPL, opnds, env)
@@ -380,7 +450,6 @@ ap_sponsor_release:	@ applicative "sponsor-release"
 	.int	0		@ 0x14: --
 	.int	0		@ 0x18: --
 	.int	b_appl		@ 0x1c: address of actor behavior
-
 
 	.text
 	.align 5		@ align to cache-line

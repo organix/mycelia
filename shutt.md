@@ -59,12 +59,36 @@ The _`null?`_ applicative returns `#t`
 if _objects_ are all `()`,
 otherwise `#f`.
 
-### environment?
+### number?
 
-`(environment? . `_objects_`)`
+`(number? . `_objects_`)`
 
-The _`environment?`_ applicative returns `#t`
-if _objects_ all have _environment_ type,
+The _`number?`_ applicative returns `#t`
+if _objects_ all have _number_ type,
+otherwise `#f`.
+
+### operative?
+
+`(operative? . `_objects_`)`
+
+The _`operative?`_ applicative returns `#t`
+if _objects_ all have _operative_ type,
+otherwise `#f`.
+
+### applicative?
+
+`(applicative? . `_objects_`)`
+
+The _`applicative?`_ applicative returns `#t`
+if _objects_ all have _applicative_ type,
+otherwise `#f`.
+
+### combiner?
+
+`(combiner? . `_objects_`)`
+
+The _`combiner?`_ applicative returns `#t`
+if _objects_ all either _operative_ or _applicative_ type,
 otherwise `#f`.
 
 ### ignore?
@@ -75,14 +99,36 @@ The _`ignore?`_ applicative returns `#t`
 if _objects_ are all `#ignore`,
 otherwise `#f`.
 
+### environment?
+
+`(environment? . `_objects_`)`
+
+The _`environment?`_ applicative returns `#t`
+if _objects_ all have _environment_ type,
+otherwise `#f`.
+
 ### eq?
 
 `(eq? . `_objects_`)`
 
 The _`eq?`_ applicative returns `#t`
-unless some two of its arguments are
-different objects,
+unless some two of its arguments
+are different objects,
 otherwise `#f`.
+For any particular two objects,
+the result returned by _`eq?`_ is always the same.
+
+### equal?
+
+`(equal? . `_objects_`)`
+
+The _`equal?`_ applicative returns `#t`
+unless some two of its arguments
+have different values,
+otherwise `#f`.
+For any particular two objects,
+the result returned by _`eq?`_ may change
+if one of them is mutated.
 
 ### $if
 
@@ -256,6 +302,8 @@ representing the data bytes to be stored in system memory
 starting at _address_.
 The result returned by _`store-bytes`_ is `#inert`.
 
+**WARNING!** This is a dangerous operation. Be careful!
+
 ### dump-words
 
 `(dump-words `_address_` `_count_`)`
@@ -293,12 +341,41 @@ starting at _address_.
 The _address_ must be aligned on a 4-byte boundary.
 The result returned by _`store-words`_ is `#inert`.
 
+**WARNING!** This is a dangerous operation. Be careful!
+
 ### address-of
 
 `(address-of `_object_`)`
 
 The _`address-of`_ applicative returns an exact integer
 representing the address of _object_.
+
+### content-of
+
+`(content-of `_address_`)`
+
+The _`content-of`_ applicative returns the object at _address_.
+
+**WARNING!** This is a dangerous operation. Be careful!
+
+### dump-env
+
+`(dump-env `_environment_`)`
+
+The _`dump-words`_ applicative prints an environment dump to the console.
+
+#### Example:
+```
+> (dump-env (get-current-env))
+0000e8a0: get-current-env = #wrap@0000edc0[0000ee00]
+0000ee60: cdr = #wrap@0000ed60[0000ed80]
+0000ee40: car = #wrap@0000ed00[0000ed20]
+0000eea0: --scope--
+0000e880: list = #wrap@00008fa0[00008f00]
+0000e840: pair? = #wrap@000098e0[000098c0]
+0000e800: null? = #wrap@00009920[00009900]
+...
+```
 
 ### sponsor-reserve
 
@@ -315,6 +392,8 @@ The _`sponsor-release`_ applicative deallocates
 the previously-reserved block of memory at _address_.
 The result is `#inert`.
 
+**WARNING!** This is a dangerous operation. Be careful!
+
 ### sponsor-enqueue
 
 `(sponsor-enqueue `_address_`)`
@@ -323,3 +402,5 @@ The _`sponsor-enqueue`_ applicative adds
 the previously-reserved block of memory at _address_
 to the actor runtime message-event queue.
 The result is `#inert`.
+
+**WARNING!** This is a dangerous operation. Be careful!

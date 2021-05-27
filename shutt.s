@@ -108,13 +108,15 @@ b_number:		@ integer constant
 			@ (example_5: 0x04=int32, 0x08=, 0x0c=)
 			@ message = (cust, #S_SELF)
 			@         | (cust, #S_EVAL, env)
-@	ldr	r3, [fp, #0x08] @ get req
-@
 @ although numbers are self-evaluating,
 @ we need a distinct behavior
 @ to serve as a "type" tag
-@
 	b	self_eval	@ self-evaluating
+
+@ fill out the cache-line with unique values to help eq_p() function
+	.int	0x01234567	@ 0x14
+	.int	0x89ABCDEF	@ 0x18
+	.int	0xda15ef2e	@ 0x1c
 
 @ LET Binding(symbol, value, next) = \(cust, req).[
 @ 	CASE req OF
