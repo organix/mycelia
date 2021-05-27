@@ -26,6 +26,7 @@ KOBJS=	start.o \
 	console.o \
 	shutt.o \
 	pred.o \
+	number.o \
 	tools.o \
 	sexpr.o \
 	timer.o \

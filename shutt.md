@@ -59,14 +59,6 @@ The _`null?`_ applicative returns `#t`
 if _objects_ are all `()`,
 otherwise `#f`.
 
-### number?
-
-`(number? . `_objects_`)`
-
-The _`number?`_ applicative returns `#t`
-if _objects_ all have _number_ type,
-otherwise `#f`.
-
 ### operative?
 
 `(operative? . `_objects_`)`
@@ -252,6 +244,91 @@ with initially no local bindings,
 and an optional parent environment.
 
 
+## Numeric Features
+
+The current implementation supports integers only,
+using 32-bit signed 2's-complement representation.
+
+### number?
+
+`(number? . `_objects_`)`
+
+The _`number?`_ applicative returns `#t`
+if _objects_ all have _number_ type,
+otherwise `#f`.
+
+### =?
+
+`(=? . `_numbers_`)`
+
+Applicative _`=?`_ is a predicate that returns `#t` iff
+all its arguments are numerically equal to each other.
+
+### <?, <=?, >=?, >?
+
+`(<? . `_numbers_`)`
+`(<=? . `_numbers_`)`
+`(>=? . `_numbers_`)`
+`(>? . `_numbers_`)`
+
+Each of these applicatives is a predicate that returns `#t` iff
+the numerical values of every two consecutive elements
+obey the order indicated by the name of the applicative.
+
+### +
+
+`(+ . `_numbers_`)`
+
+Applicative _`+`_ returns the sum of the elements of _numbers_.
+If _numbers_ is empty, the sum of its elements is `0`.
+
+### -
+
+`(- `_number_` . `_numbers_`)`
+
+Applicative _`-`_ returns the sum of _number_ with
+the negation of the sum of _numbers_.
+
+### *
+
+`(* . `_numbers_`)`
+
+Applicative _`*`_ returns the product of the elements of _numbers_.
+If _numbers_ is empty, the product of its elements is `1`.
+
+## Bit-Vector Features
+
+In this implementation, _numbers_ can be treated as 32-bit binary vectors.
+
+### bit-not
+
+`(bit-not `_number_`)`
+
+### bit-and
+
+`(bit-and . `_numbers_`)`
+
+### bit-or
+
+`(bit-or . `_numbers_`)`
+
+### bit-xor
+
+`(bit-xor . `_numbers_`)`
+
+### bit-lsl
+
+`(bit-lsl `_number_` `_amount_`)`
+
+### bit-lsr
+
+`(bit-lsr `_number_` `_amount_`)`
+
+### bit-asr
+
+`(bit-asr `_number_` `_amount_`)`
+
+
 ## Library Features
 
 ### car
@@ -302,7 +379,7 @@ representing the data bytes to be stored in system memory
 starting at _address_.
 The result returned by _`store-bytes`_ is `#inert`.
 
-**WARNING!** This is a dangerous operation. Be careful!
+**_WARNING!_** This is a dangerous operation. Be careful!
 
 ### dump-words
 
@@ -341,7 +418,7 @@ starting at _address_.
 The _address_ must be aligned on a 4-byte boundary.
 The result returned by _`store-words`_ is `#inert`.
 
-**WARNING!** This is a dangerous operation. Be careful!
+**_WARNING!_** This is a dangerous operation. Be careful!
 
 ### address-of
 
@@ -356,7 +433,7 @@ representing the address of _object_.
 
 The _`content-of`_ applicative returns the object at _address_.
 
-**WARNING!** This is a dangerous operation. Be careful!
+**_WARNING!_** This is a dangerous operation. Be careful!
 
 ### dump-env
 
@@ -392,7 +469,7 @@ The _`sponsor-release`_ applicative deallocates
 the previously-reserved block of memory at _address_.
 The result is `#inert`.
 
-**WARNING!** This is a dangerous operation. Be careful!
+**_WARNING!_** This is a dangerous operation. Be careful!
 
 ### sponsor-enqueue
 
@@ -403,4 +480,4 @@ the previously-reserved block of memory at _address_
 to the actor runtime message-event queue.
 The result is `#inert`.
 
-**WARNING!** This is a dangerous operation. Be careful!
+**_WARNING!_** This is a dangerous operation. Be careful!

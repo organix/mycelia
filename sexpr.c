@@ -29,8 +29,16 @@ extern ACTOR ap_number_p;
 extern ACTOR ap_oper_p;
 extern ACTOR ap_appl_p;
 extern ACTOR ap_combiner_p;
+
 extern ACTOR ap_eq_p;
 extern ACTOR ap_equal_p;
+extern ACTOR ap_num_eq_p;
+extern ACTOR ap_num_lt_p;
+extern ACTOR ap_num_le_p;
+extern ACTOR ap_num_ge_p;
+extern ACTOR ap_num_gt_p;
+extern ACTOR ap_num_plus;
+extern ACTOR ap_num_times;
 
 extern ACTOR ap_cons;
 extern ACTOR ap_list;
@@ -392,7 +400,7 @@ store_words(u32* addr, ACTOR* list)
 typedef int (PRED)(ACTOR* x);
 
 ACTOR*
-apply_pred(PRED *p, ACTOR* list)  // apply unary predicate to a list
+apply_pred(PRED* p, ACTOR* list)  // apply unary predicate to a list
 {
     while (!null_p(list)) {
         if (!pair_p(list)) {
@@ -409,7 +417,7 @@ apply_pred(PRED *p, ACTOR* list)  // apply unary predicate to a list
 typedef int (RLTN)(ACTOR* x, ACTOR* y);
 
 ACTOR*
-apply_rltn(RLTN *r, ACTOR* list)  // apply binary relation to a list
+apply_rltn(RLTN* r, ACTOR* list)  // apply binary relation to a list
 {
     if (null_p(list)) return &a_true;  // 0-arg base case
     if (!pair_p(list)) return NULL;  // fail: improper arg list
@@ -427,6 +435,56 @@ apply_rltn(RLTN *r, ACTOR* list)  // apply binary relation to a list
         list = cdr(list);
     }
     return &a_true;
+}
+
+#if 0
+int
+num_eq_p(ACTOR* x, ACTOR* y)
+{
+    struct example_5 *a = (struct example_5 *)x;
+    struct example_5 *b = (struct example_5 *)y;
+
+    return (a->data_04 == b->data_04);  // same value
+}
+#endif
+
+ACTOR*
+apply_pred_rltn(PRED* p, RLTN* r, ACTOR* list)  // apply relation to elements meeting predicate
+{
+    if (null_p(list)) return &a_true;  // 0-arg base case
+    if (!pair_p(list)) return NULL;  // fail: improper arg list
+    ACTOR* witness = car(list);
+    if (!p(witness)) return NULL;  // predicate failed
+    list = cdr(list);
+    while (!null_p(list)) {
+        if (!pair_p(list)) {
+            return NULL;  // fail: improper arg list
+        }
+        ACTOR* element = car(list);
+        if (!p(element)) return NULL;  // predicate failed
+        if (!r(witness, element)) {
+            return &a_false;
+        }
+        witness = element;
+        list = cdr(list);
+    }
+    return &a_true;
+}
+
+typedef int (NUM_OP)(int acc, int num);
+
+ACTOR*
+num_reduce(int acc, NUM_OP* op, ACTOR* list)  // apply binary operator to numbers
+{
+    while (!null_p(list)) {
+        if (!pair_p(list)) return NULL;  // fail: improper arg list
+        ACTOR* item = car(list);
+        if (!number_p(item)) return NULL;  // type error
+        int num = (int)get_u32(item);
+        acc = op(acc, num);
+        list = cdr(list);
+    }
+    return number(acc);
 }
 
 ACTOR*  // returns the augmented environment, or NULL on failure
@@ -605,7 +663,7 @@ ACTOR*
 parse_number()
 {
     int r = 10;
-    int s = 0;
+    int s = '\0';
     int n = 0;
     int c;
     int d;
@@ -624,15 +682,14 @@ parse_number()
         }
         c = read_char();
     }
-    if (c == '-') {  // optional sign
-        s = 1;
-        c = read_char();
-    } else if (c == '+') {
+    if ((c == '-') || (c == '+')) {  // optional sign
+        s = c;
         c = read_char();
     }
     d = from_digit(c, r);
     if (d < 0) {
         unread_char(c);
+        if (s) unread_char(s);
         return NULL;  // failed
     }
     n = d;
@@ -648,7 +705,7 @@ parse_number()
         }
         n = (r * n) + d;
     }
-    if (s) {
+    if (s == '-') {
         n = -n;
     }
     x = number(n);
@@ -964,7 +1021,14 @@ ground_env()
     char olambda_24b[] = "$lam" "bda\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char odefinem_24b[] = "$def" "ine!" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char cons_24b[] = "cons" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char p_24b[] = "+\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char t_24b[] = "*\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char oif_24b[] = "$if\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char eq_24b[] = "=?\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char lt_24b[] = "<?\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char leq_24b[] = "<=?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char geq_24b[] = ">=?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char gt_24b[] = ">?\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char equalp_24b[] = "equa" "l?\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char eqp_24b[] = "eq?\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char environmentp_24b[] = "envi" "ronm" "ent?" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
@@ -1086,8 +1150,43 @@ ground_env()
     if (!a) return NULL;  // FAIL!
     env = a;
 
+    /* bind "*" */
+    a = extend_env(env, (struct sym_24b*)t_24b, (u32)&ap_num_times);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "+" */
+    a = extend_env(env, (struct sym_24b*)p_24b, (u32)&ap_num_plus);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
     /* bind "$if" */
     a = extend_env(env, (struct sym_24b*)oif_24b, (u32)&op_if);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind ">?" */
+    a = extend_env(env, (struct sym_24b*)gt_24b, (u32)&ap_num_gt_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind ">=?" */
+    a = extend_env(env, (struct sym_24b*)geq_24b, (u32)&ap_num_ge_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "<=?" */
+    a = extend_env(env, (struct sym_24b*)leq_24b, (u32)&ap_num_le_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "<?" */
+    a = extend_env(env, (struct sym_24b*)lt_24b, (u32)&ap_num_lt_p);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "=?" */
+    a = extend_env(env, (struct sym_24b*)eq_24b, (u32)&ap_num_eq_p);
     if (!a) return NULL;  // FAIL!
     env = a;
 

@@ -58,10 +58,10 @@ b_pred:		@ general predicate behavior
 	.text
 	.align 5		@ align to cache-line
 	.global op_boolean_p
-op_boolean_p:		@ applicative "$boolean?"
+op_boolean_p:		@ operative "$boolean?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	boolean_p	@ 0x04: predicate (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -74,7 +74,7 @@ op_boolean_p:		@ applicative "$boolean?"
 ap_boolean_p:		@ applicative "boolean?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_boolean_p	@ 0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -84,10 +84,10 @@ ap_boolean_p:		@ applicative "boolean?"
 	.text
 	.align 5		@ align to cache-line
 	.global op_symbol_p
-op_symbol_p:		@ applicative "$symbol?"
+op_symbol_p:		@ operative "$symbol?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	symbol_p	@ 0x04: predicate (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -100,7 +100,7 @@ op_symbol_p:		@ applicative "$symbol?"
 ap_symbol_p:		@ applicative "symbol?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_symbol_p	@ 0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -110,10 +110,10 @@ ap_symbol_p:		@ applicative "symbol?"
 	.text
 	.align 5		@ align to cache-line
 	.global op_inert_p
-op_inert_p:		@ applicative "$inert?"
+op_inert_p:		@ operative "$inert?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	inert_p		@ 0x04: predicate (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -126,7 +126,7 @@ op_inert_p:		@ applicative "$inert?"
 ap_inert_p:		@ applicative "inert?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_inert_p	@ 0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -136,10 +136,10 @@ ap_inert_p:		@ applicative "inert?"
 	.text
 	.align 5		@ align to cache-line
 	.global op_pair_p
-op_pair_p:		@ applicative "$pair?"
+op_pair_p:		@ operative "$pair?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	pair_p		@ 0x04: predicate (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -152,7 +152,7 @@ op_pair_p:		@ applicative "$pair?"
 ap_pair_p:		@ applicative "pair?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_pair_p	@ 0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -162,10 +162,10 @@ ap_pair_p:		@ applicative "pair?"
 	.text
 	.align 5		@ align to cache-line
 	.global op_null_p
-op_null_p:		@ applicative "$null?"
+op_null_p:		@ operative "$null?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	null_p		@ 0x04: predicate (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -178,7 +178,7 @@ op_null_p:		@ applicative "$null?"
 ap_null_p:		@ applicative "null?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_null_p	@ 0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -188,10 +188,10 @@ ap_null_p:		@ applicative "null?"
 	.text
 	.align 5		@ align to cache-line
 	.global op_ignore_p
-op_ignore_p:		@ applicative "$ignore?"
+op_ignore_p:		@ operative "$ignore?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	ignore_p	@ 0x04: predicate (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -204,7 +204,7 @@ op_ignore_p:		@ applicative "$ignore?"
 ap_ignore_p:		@ applicative "ignore?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_ignore_p	@ 0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -214,10 +214,10 @@ ap_ignore_p:		@ applicative "ignore?"
 	.text
 	.align 5		@ align to cache-line
 	.global op_number_p
-op_number_p:		@ applicative "$number?"
+op_number_p:		@ operative "$number?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	number_p	@ 0x04: predicate (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -230,7 +230,7 @@ op_number_p:		@ applicative "$number?"
 ap_number_p:		@ applicative "number?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_number_p	@ 0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -240,10 +240,10 @@ ap_number_p:		@ applicative "number?"
 	.text
 	.align 5		@ align to cache-line
 	.global op_oper_p
-op_oper_p:		@ applicative "$operative?"
+op_oper_p:		@ operative "$operative?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	operative_p	@ 0x04: predicate (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -256,7 +256,7 @@ op_oper_p:		@ applicative "$operative?"
 ap_oper_p:		@ applicative "operative?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_oper_p	@ 0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -266,10 +266,10 @@ ap_oper_p:		@ applicative "operative?"
 	.text
 	.align 5		@ align to cache-line
 	.global op_appl_p
-op_appl_p:		@ applicative "$applicative?"
+op_appl_p:		@ operative "$applicative?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	applicative_p	@ 0x04: predicate (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -282,7 +282,7 @@ op_appl_p:		@ applicative "$applicative?"
 ap_appl_p:		@ applicative "applicative?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_appl_p @	0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -292,10 +292,10 @@ ap_appl_p:		@ applicative "applicative?"
 	.text
 	.align 5		@ align to cache-line
 	.global op_combiner_p
-op_combiner_p:		@ applicative "$combiner?"
+op_combiner_p:		@ operative "$combiner?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	combiner_p	@ 0x04: predicate (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -308,7 +308,7 @@ op_combiner_p:		@ applicative "$combiner?"
 ap_combiner_p:		@ applicative "combiner?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_combiner_p	@ 0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -318,10 +318,10 @@ ap_combiner_p:		@ applicative "combiner?"
 	.text
 	.align 5		@ align to cache-line
 	.global op_env_p
-op_env_p:		@ applicative "$environment?"
+op_env_p:		@ operative "$environment?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	environment_p	@ 0x04: predicate (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -334,7 +334,7 @@ op_env_p:		@ applicative "$environment?"
 ap_env_p:		@ applicative "environment?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_env_p	@ 0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -369,7 +369,7 @@ b_rltn:		@ general binary relation behavior
 op_eq_p:		@ applicative "$eq?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	eq_p		@ 0x04: relation (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -382,7 +382,7 @@ op_eq_p:		@ applicative "$eq?"
 ap_eq_p:		@ applicative "eq?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_eq_p		@ 0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -395,7 +395,7 @@ ap_eq_p:		@ applicative "eq?"
 op_equal_p:		@ applicative "$equal?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	equal_p		@ 0x04: relation (in C)
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
@@ -408,7 +408,7 @@ op_equal_p:		@ applicative "$equal?"
 ap_equal_p:		@ applicative "equal?"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
 	.int	op_equal_p	@ 0x04: operative
-	.int	0		@ 0x08: -
+	.int	0		@ 0x08: --
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --
 	.int	0		@ 0x14: --
