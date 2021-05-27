@@ -18,7 +18,6 @@ extern ACTOR a_kernel_err;
 extern ACTOR a_exit;
 
 // static combiners
-extern ACTOR ap_list;
 extern ACTOR ap_boolean_p;
 extern ACTOR ap_symbol_p;
 extern ACTOR ap_env_p;
@@ -27,7 +26,9 @@ extern ACTOR ap_inert_p;
 extern ACTOR ap_pair_p;
 extern ACTOR ap_null_p;
 extern ACTOR ap_eq_p;
+
 extern ACTOR ap_cons;
+extern ACTOR ap_list;
 extern ACTOR op_if;
 extern ACTOR op_define;
 extern ACTOR op_vau;
@@ -35,6 +36,9 @@ extern ACTOR ap_wrap;
 extern ACTOR ap_unwrap;
 extern ACTOR op_sequence;
 extern ACTOR op_lambda;
+extern ACTOR ap_eval;
+extern ACTOR ap_make_env;
+
 extern ACTOR ap_dump_bytes;
 extern ACTOR ap_dump_words;
 extern ACTOR ap_load_words;
@@ -890,6 +894,8 @@ ground_env()
     char load_words_24b[] = "load" "-wor" "ds\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char store_words_24b[] = "stor" "e-wo" "rds\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char address_of_24b[] = "addr" "ess-" "of\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char make_env_24b[] = "make" "-env" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char eval_24b[] = "eval" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char wrap_24b[] = "wrap" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char unwrap_24b[] = "unwr" "ap\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char osequence_24b[] = "$seq" "uenc" "e\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
@@ -956,6 +962,16 @@ ground_env()
 
     /* bind "address-of" */
     a = extend_env(env, (struct sym_24b*)address_of_24b, (u32)&ap_address_of);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "make-env" */
+    a = extend_env(env, (struct sym_24b*)make_env_24b, (u32)&ap_make_env);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "eval" */
+    a = extend_env(env, (struct sym_24b*)eval_24b, (u32)&ap_eval);
     if (!a) return NULL;  // FAIL!
     env = a;
 

@@ -851,6 +851,45 @@ op_lambda:		@ operative "$lambda"
 
 	.text
 	.align 5		@ align to cache-line
+	.global op_eval
+op_eval:		@ operative "$eval"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =object_p	@	predicate 1
+	ldr	r2, =environment_p @	predicate 2
+	bl	match_2_args
+	mov	r4, r0		@	expression
+	mov	r7, r1		@	environment
+
+@	mov	r4, r4		@	target = expression (already in r4)
+	ldr	r5, [fp, #0x04]	@	get customer
+	mov	r6, #S_EVAL
+@	mov	r7, r7		@	get environment (already in r7)
+	bl	reserve		@	allocate event block
+	stmia	r0, {r4-r7}	@	write message
+	b	_a_end		@	send message and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_eval
+ap_eval:		@ applicative "eval"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_eval		@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
 	.global op_cons
 op_cons:		@ operative "$cons"
 			@ message = (cust, #S_APPL, opnds, env)
@@ -977,3 +1016,54 @@ k_if:			@ conditional continuation
 	bl	reserve		@	allocate event block
 	stmia	r0, {r4-r7}	@	write message
 	b	_a_end		@	send message and return
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_make_env
+op_make_env:		@ operative "$make-env"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	2f		@ if req == "combine"
+	ldr	r9, [fp, #0x0c] @	get opnds
+	ldr	r8, =a_empty_env @	default parent
+
+	ldr	r1, =a_nil
+	teq	r9, r1
+	beq	1f		@	if opnds != ()
+
+	mov	r0, r9
+	bl	car		@		parent env
+	movs	r8, r0		@		if NULL
+	beq	a_kernel_err	@			signal error
+
+	mov	r0, r9
+	bl	cdr		@		next opnd
+	ldr	r1, =a_nil
+	teq	r0, r1		@		if != ()
+	bne	a_kernel_err	@			signal error
+1:
+	ldr	r0, =b_scope	@	scope behavior
+	bl	create_5	@	create next actor
+	str	r8, [r0, #0x0c] @	set parent
+	mov	r7, r0		@	save new environment/scope
+
+	bl	reserve		@	allocate event block
+	str	r7, [r0, #0x04]	@	message is new environment
+	b	_a_reply	@	send to customer and return
+2:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_make_env
+ap_make_env:		@ applicative "make-env"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_make_env		@ 0x04: operative
+	.int	0		@ 0x08: -
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior

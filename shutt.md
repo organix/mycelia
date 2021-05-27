@@ -189,6 +189,22 @@ is equivalent to
 (<i>wrap</i> (<i>$vau</i> ⟨formals⟩ #ignore . ⟨objects⟩))
 </pre>
 
+### eval
+
+`(eval `_expression_` `_environment_`)`
+
+The _`eval`_ applicative evaluates _expression_
+as a tail context in _environment_,
+and returns the resulting value.
+
+### make-env
+
+`(make-env . `_environments_`)`
+
+The _`make-env`_ applicative constructs and returns a new environment,
+with initially no local bindings,
+and an optional parent environment.
+
 
 ## Library Features
 
