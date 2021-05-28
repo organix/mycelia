@@ -20,8 +20,8 @@
  */
 #include "serial.h"
 
-#define USE_SERIAL_UART0    /* select full UART for serial i/o */
-//#define USE_SERIAL_UART1    /* select mini UART for serial i/o */
+//#define USE_SERIAL_UART0    /* select full UART for serial i/o */
+#define USE_SERIAL_UART1    /* select mini UART for serial i/o */
 
 #define GPIO_BASE       0x20200000
 #define GPFSEL1         (*((volatile u32*)(GPIO_BASE + 0x04)))
@@ -118,6 +118,22 @@ serial_init()
 #ifdef USE_SERIAL_UART1
     u32 r0;
 
+    r0 = GPFSEL1;
+    r0 &= ~(7 << 12);           // gpio pin 14
+    r0 |= 2 << 12;              //   alt5 = mini UART transmit (TX)
+    r0 &= ~(7 << 15);           // gpio pin 15
+    r0 |= 2 << 15;              //   alt5 = mini UART receive (RX)
+    GPFSEL1 = r0;
+
+    GPPUD = 0;
+//    SPIN(150);                  // wait for (at least) 150 clock cycles
+    SPIN(250);                  // wait for (at least) 250 clock cycles
+    r0 = (1 << 14) | (1 << 15);
+    GPPUDCLK0 = r0;
+//    SPIN(150);                  // wait for (at least) 150 clock cycles
+    SPIN(250);                  // wait for (at least) 250 clock cycles
+    GPPUDCLK0 = 0;
+
     UART1->AUXENB = 1;
     UART1->IER = 0;
     UART1->CNTL = 0;
@@ -128,20 +144,7 @@ serial_init()
     /* ((250,000,000 / 115200) / 8) - 1 = 270 */
     UART1->BAUD = 270;
 
-    r0 = GPFSEL1;
-    r0 &= ~(7 << 12);           // gpio pin 14
-    r0 |= 2 << 12;              //   alt5 = mini UART transmit (TX)
-    r0 &= ~(7 << 15);           // gpio pin 15
-    r0 |= 2 << 15;              //   alt5 = mini UART receive (RX)
-    GPFSEL1 = r0;
-
-    GPPUD = 0;
-    SPIN(150);                  // wait for (at least) 150 clock cycles
-    r0 = (1 << 14) | (1 << 15);
-    GPPUDCLK0 = r0;
-    SPIN(150);                  // wait for (at least) 150 clock cycles
-    GPPUDCLK0 = 0;
-
+    SPIN(250);                  // wait for (at least) 250 clock cycles
     UART1->CNTL = 3;
 #endif /* USE_SERIAL_UART1 */
 }
