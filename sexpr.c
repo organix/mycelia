@@ -38,7 +38,12 @@ extern ACTOR ap_num_le_p;
 extern ACTOR ap_num_ge_p;
 extern ACTOR ap_num_gt_p;
 extern ACTOR ap_num_plus;
+extern ACTOR ap_num_minus;
 extern ACTOR ap_num_times;
+extern ACTOR ap_bit_not;
+extern ACTOR ap_bit_and;
+extern ACTOR ap_bit_or;
+extern ACTOR ap_bit_xor;
 
 extern ACTOR ap_cons;
 extern ACTOR ap_list;
@@ -1012,6 +1017,10 @@ ground_env()
     char store_words_24b[] = "stor" "e-wo" "rds\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char content_of_24b[] = "cont" "ent-" "of\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char address_of_24b[] = "addr" "ess-" "of\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char bit_and_24b[] = "bit-" "and\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char bit_or_24b[] = "bit-" "or\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char bit_xor_24b[] = "bit-" "xor\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char bit_not_24b[] = "bit-" "not\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char make_env_24b[] = "make" "-env" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char eval_24b[] = "eval" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char wrap_24b[] = "wrap" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
@@ -1022,6 +1031,7 @@ ground_env()
     char odefinem_24b[] = "$def" "ine!" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char cons_24b[] = "cons" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char p_24b[] = "+\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char m_24b[] = "-\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char t_24b[] = "*\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char oif_24b[] = "$if\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char eq_24b[] = "=?\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
@@ -1105,6 +1115,26 @@ ground_env()
     if (!a) return NULL;  // FAIL!
     env = a;
 
+    /* bind "bit-not" */
+    a = extend_env(env, (struct sym_24b*)bit_not_24b, (u32)&ap_bit_not);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "bit-xor" */
+    a = extend_env(env, (struct sym_24b*)bit_xor_24b, (u32)&ap_bit_xor);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "bit-and" */
+    a = extend_env(env, (struct sym_24b*)bit_and_24b, (u32)&ap_bit_and);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "bit-or" */
+    a = extend_env(env, (struct sym_24b*)bit_or_24b, (u32)&ap_bit_or);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
     /* bind "make-env" */
     a = extend_env(env, (struct sym_24b*)make_env_24b, (u32)&ap_make_env);
     if (!a) return NULL;  // FAIL!
@@ -1152,6 +1182,11 @@ ground_env()
 
     /* bind "*" */
     a = extend_env(env, (struct sym_24b*)t_24b, (u32)&ap_num_times);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "-" */
+    a = extend_env(env, (struct sym_24b*)m_24b, (u32)&ap_num_minus);
     if (!a) return NULL;  // FAIL!
     env = a;
 

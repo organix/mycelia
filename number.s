@@ -267,3 +267,206 @@ ap_num_times:		@ applicative "*"
 	.int	0		@ 0x14: --
 	.int	0		@ 0x18: --
 	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_num_minus
+b_num_minus:	@ numeric subtraction behavior
+			@ (example_5: 0x04=code...)
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+	ldr	r9, [fp, #0x0c] @	get opnds
+
+	mov	r0, r9
+	bl	car		@	first arg
+	movs	r4, r0		@	if NULL
+	beq	a_kernel_err	@		signal error
+	bl	number_p	@
+	teq	r0, #0		@	if !number_p(first)
+	beq	a_kernel_err	@		signal error
+
+	mov	r0, r9
+	bl	cdr		@	rest args
+	movs	r5, r0		@	if NULL
+	beq	a_kernel_err	@		signal error
+
+	ldr	r0, [r4, #0x04]	@	initial accumulator
+	add	r1, ip, #0x04	@	operation addr (in operative block)
+	mov	r2, r5		@	get operands
+	blx	num_reduce	@	apply operation to operands
+	teq	r0, #0		@	if NULL
+	beq	a_kernel_err	@		signal error
+
+	mov	r4, r0		@	save result
+	bl	reserve		@	allocate event block
+	mov	r1, r4		@	restore result
+	b	_a_answer	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_num_minus
+op_num_minus:		@ operative "$-"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	@ operation(r0->int32, r1->int32) => int32
+	sub	r0, r0, r1	@ subtract r0 - r1
+	bx	lr		@ return r0
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_num_minus	@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_num_minus
+ap_num_minus:		@ applicative "-"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_num_minus	@ 0x04: operative
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+@
+@ bit-vector operations
+@
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_bit_not
+b_bit_not:	@ bitwise negation behavior
+			@ (example_5: 0x04=)
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =number_p	@	predicate
+	bl	match_1_arg
+	ldr	r0, [r0, #0x04]	@	integer value
+
+	mvn	r0, r0		@	bit-invert number
+	bl	number		@	construct a kernel number
+	mov	r4, r0		@	save result
+
+	bl	reserve		@	allocate event block
+	mov	r1, r4		@	restore result
+	b	_a_answer	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_bit_not
+op_bit_not:		@ operative "$bit-not"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	0		@ 0x04: --
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_bit_not	@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_bit_not
+ap_bit_not:		@ applicative "bit-not"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_bit_not	@ 0x04: operative
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_bit_and
+op_bit_and:		@ operative "$bit-and"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	@ operation(r0->int32, r1->int32) => int32
+	and	r0, r1, r0	@ bitwise r0 & r1
+	bx	lr		@ return r0
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	-1		@ 0x18: initial accumulator value
+	.int	b_num_op	@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_bit_and
+ap_bit_and:		@ applicative "bit-and"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_bit_and	@ 0x04: operative
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_bit_or
+op_bit_or:		@ operative "$bit-or"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	@ operation(r0->int32, r1->int32) => int32
+	orr	r0, r1, r0	@ bitwise r0 | r1
+	bx	lr		@ return r0
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: initial accumulator value
+	.int	b_num_op	@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_bit_or
+ap_bit_or:		@ applicative "bit-or"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_bit_or	@ 0x04: operative
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_bit_xor
+op_bit_xor:		@ operative "$bit-xor"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	@ operation(r0->int32, r1->int32) => int32
+	eor	r0, r1, r0	@ bitwise r0 ^ r1
+	bx	lr		@ return r0
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: initial accumulator value
+	.int	b_num_op	@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_bit_xor
+ap_bit_xor:		@ applicative "bit-xor"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_bit_xor	@ 0x04: operative
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
