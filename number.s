@@ -470,3 +470,113 @@ ap_bit_xor:		@ applicative "bit-xor"
 	.int	0		@ 0x14: --
 	.int	0		@ 0x18: --
 	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_bit_not
+b_num_2arg:	@ 2-argument numeric behavior
+			@ (example_5: 0x04=)
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+
+	ldr	r0, [fp, #0x0c] @	get opnds
+	ldr	r1, =number_p	@	arg1 predicate
+	ldr	r2, =number_p	@	arg2 predicate
+	bl	match_2_args
+	ldr	r0, [r0, #0x04]	@	integer value
+	ldr	r1, [r1, #0x04]	@	integer value
+
+	add	lr, ip, #0x04	@	operation addr (in operative block)
+	blx	lr		@	call operation
+	bl	number		@	construct a kernel number
+	mov	r4, r0		@	save result
+
+	bl	reserve		@	allocate event block
+	mov	r1, r4		@	restore result
+	b	_a_answer	@	send to customer and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_bit_asr
+op_bit_asr:		@ operative "$bit-asr"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	@ operation(r0->int32, r1->int32) => int32
+	asr	r0, r0, r1	@ asr r0 >> r1
+	bx	lr		@ return r0
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_num_2arg	@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_bit_asr
+ap_bit_asr:		@ applicative "bit-asr"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_bit_asr	@ 0x04: operative
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_bit_lsr
+op_bit_lsr:		@ operative "$bit-lsr"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	@ operation(r0->int32, r1->int32) => int32
+	lsr	r0, r0, r1	@ lsr r0 >> r1
+	bx	lr		@ return r0
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_num_2arg	@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_bit_lsr
+ap_bit_lsr:		@ applicative "bit-lsr"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_bit_lsr	@ 0x04: operative
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_bit_lsl
+op_bit_lsl:		@ operative "$bit-lsl"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	@ operation(r0->int32, r1->int32) => int32
+	lsl	r0, r0, r1	@ lsl r0 << r1
+	bx	lr		@ return r0
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_num_2arg	@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global ap_bit_lsl
+ap_bit_lsl:		@ applicative "bit-lsl"
+	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
+	.int	op_bit_lsl	@ 0x04: operative
+	.int	0		@ 0x08: --
+	.int	0		@ 0x0c: --
+	.int	0		@ 0x10: --
+	.int	0		@ 0x14: --
+	.int	0		@ 0x18: --
+	.int	b_appl		@ 0x1c: address of actor behavior
