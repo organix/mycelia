@@ -267,8 +267,11 @@ all its arguments are numerically equal to each other.
 ### <?, <=?, >=?, >?
 
 `(<? . `_numbers_`)`
+
 `(<=? . `_numbers_`)`
+
 `(>=? . `_numbers_`)`
+
 `(>? . `_numbers_`)`
 
 Each of these applicatives is a predicate that returns `#t` iff

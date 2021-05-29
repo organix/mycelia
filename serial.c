@@ -20,8 +20,8 @@
  */
 #include "serial.h"
 
-//#define USE_SERIAL_UART0    /* select full UART for serial i/o */
-#define USE_SERIAL_UART1    /* select mini UART for serial i/o */
+#define USE_SERIAL_UART0    /* select full UART for serial i/o */
+//#define USE_SERIAL_UART1    /* select mini UART for serial i/o */
 
 #define GPIO_BASE       0x20200000
 #define GPFSEL1         (*((volatile u32*)(GPIO_BASE + 0x04)))
