@@ -14,65 +14,35 @@ by wrapping them with an appropriate condition field check.
 
 ```
 ($define! arm-cond-eq
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #x0000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x0000_0000)))
 ($define! arm-cond-ne
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #x1000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x1000_0000)))
 ($define! arm-cond-cs
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #x2000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x2000_0000)))
 ($define! arm-cond-cc
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #x3000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x3000_0000)))
 ($define! arm-cond-mi
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #x4000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x4000_0000)))
 ($define! arm-cond-pl
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #x5000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x5000_0000)))
 ($define! arm-cond-vs
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #x6000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x6000_0000)))
 ($define! arm-cond-vc
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #x7000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x7000_0000)))
 ($define! arm-cond-hi
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #x8000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x8000_0000)))
 ($define! arm-cond-ls
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #x9000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x9000_0000)))
 ($define! arm-cond-ge
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #xa000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #xa000_0000)))
 ($define! arm-cond-lt
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #xb000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #xb000_0000)))
 ($define! arm-cond-gt
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #xc000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #xc000_0000)))
 ($define! arm-cond-le
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #xd000_0000)
-  ))
-($define! arm-cond-al  ; note: this is the default value (always)
-  ($lambda (inst)
-    (bit-or (bit-and #x0fff_ffff inst) #xe000_0000)
-  ))
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #xd000_0000)))
+($define! arm-cond-al  ; note: this is the default condition (always)
+  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #xe000_0000)))
 ```
 
 ## Registers
@@ -89,15 +59,18 @@ These definitions give mnemonic names to special registers.
 ($define! arm-pc 15)  ; program counter
 ```
 
-## BX Format
+## BX/BLX Format
 
 ```
 ($define! arm-bx-Rn
   ($lambda (n) (bit-and n #xf)))
 ($define! arm-bx
   ($lambda (n)
-    (bit-or #xe12f_ff10 (arm-bx-Rn n))
-  ))
+    (bit-or #xe12f_ff10 (arm-bx-Rn n)) ))
+
+($define! arm-blx
+  ($lambda (n)
+    (bit-or #xe12f_ff30 (arm-bx-Rn n)) ))
 ```
 
 ## B/BL Format
@@ -106,26 +79,20 @@ These definitions give mnemonic names to special registers.
 ($define! arm-pc-prefetch 8)
 ($define! arm-b-offset
   ($lambda (offset)
-    (bit-and (bit-asr (+ offset arm-pc-prefetch) 2) #x00ff_ffff)
-  ))
+    (bit-and (bit-asr (+ offset arm-pc-prefetch) 2) #x00ff_ffff) ))
 ($define! arm-b
   ($lambda (offset)
-    (bit-or #xea00_0000 (arm-b-offset offset))
-  ))
+    (bit-or #xea00_0000 (arm-b-offset offset)) ))
 ($define! arm-bl
   ($lambda (offset)
-    (bit-or #xeb00_0000 (arm-b-offset offset))
-  ))
+    (bit-or #xeb00_0000 (arm-b-offset offset)) ))
 
 ($define! arm-beq  ; branch if equal
   ($lambda (offset)
-    (arm-cond-eq (arm-b offset))
-  ))
-
+    (arm-cond-eq (arm-b offset)) ))
 ($define! arm-bne  ; branch if not equal
   ($lambda (offset)
-    (arm-cond-ne (arm-b offset))
-  ))
+    (arm-cond-ne (arm-b offset)) ))
 ```
 
 ## Data Processing Format
@@ -293,4 +260,139 @@ These definitions give mnemonic names to special registers.
 ($define! arm-dp-Rm-ror-Rs
   ($lambda (m s)
     (bit-or (bit-and m #xf) (bit-lsl (bit-and s #xf) 8) #x0000_0070)))
+```
+
+## MUL/MLA Format
+
+```
+($define! arm-mul-Rd
+  ($lambda (d) (bit-lsl (bit-and d #xf) 16)))
+($define! arm-mul-Rm     ; WARNING! MUST NOT BE THE SAME AS Rd
+  ($lambda (m) (bit-and m #xf)))
+($define! arm-mul-Rs
+  ($lambda (s) (bit-lsl (bit-and s #xf) 8)))
+($define! arm-mul-Rn
+  ($lambda (n) (bit-lsl (bit-and s #xf) 12)))
+
+($define! arm-mul        ; Rd := Rm * Rs; where (d != m)
+  ($lambda (d m s)
+    (bit-or #xe000_0090 (arm-mul-Rd d) (arm-mul-Rm m) (arm-mul-Rs s)) ))
+($define! arm-muls       ; conds(Rd := Rm * Rs); where (d != m)
+  ($lambda (d m s)
+    (bit-or #xe010_0090 (arm-mul-Rd d) (arm-mul-Rm m) (arm-mul-Rs s)) ))
+
+($define! arm-mla        ; Rd := Rm * Rs + Rn; where (d != m)
+  ($lambda (d m s n)
+    (bit-or #xe020_0090 (arm-mul-Rd d) (arm-mul-Rm m) (arm-mul-Rs s) (arm-mul-Rn n)) ))
+($define! arm-mlas       ; conds(Rd := Rm * Rs + Rn); where (d != m)
+  ($lambda (d m s n)
+    (bit-or #xe030_0090 (arm-mul-Rd d) (arm-mul-Rm m) (arm-mul-Rs s) (arm-mul-Rn n)) ))
+```
+
+## LDR/STR Format
+
+```
+#xCILN_DOOM
+C = condition (#xe = always)
+I = <0, 1, immediate, pre/post>
+L = <up/down, byte/word, write-back, load/store>
+N = Rn
+D = Rd
+OOM = immediate offset | <shift, Rm>
+```
+
+```
+($define! arm-ls-Rd
+  ($lambda (d) (bit-lsl (bit-and d #xf) 12)))
+($define! arm-ls-Rn
+  ($lambda (n) (bit-lsl (bit-and n #xf) 16)))
+
+($define! arm-strib       ; [Rn, Ofs] := Rd
+  ($lambda (d n ofs)
+    (bit-or #xe580_0000 (arm-ls-Rd d) (arm-ls-Rn n) ofs)))
+($define! arm-ldrib       ; Rd := [Rn, Ofs]
+  ($lambda (d n ofs)
+    (bit-or #xe590_0000 (arm-ls-Rd d) (arm-ls-Rn n) ofs)))
+
+; Ofs = immediate
+($define! arm-ls-imm
+  ($lambda (imm)
+    (bit-or (bit-and imm #xfff) #x0200_0000)))
+
+; Ofs = register
+($define! arm-ls-Rm
+  ($lambda (m) (bit-and m #xf)))
+```
+
+## LDM/STM Format
+
+```
+#xCILN_RRRR
+C = condition (#xe = always)
+I = <1, 0, 0, pre/post>
+L = <up/down, PSR, write-back, load/store>
+N = Rn (base register)
+RRRR = register selection mask (bit0 = r0)
+```
+
+```
+($define! arm-ls-Regs
+  ($lambda (regs)
+    ($if (pair? regs)
+      (($lambda (a . d)
+        (bit-or (bit-lsl 1 a) (arm-ls-Regs d))) regs)
+      0)
+  ))
+
+($define! arm-stmda       ; [Rn--] := Regs
+  ($lambda (n . regs)
+    (bit-or #xe800_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+($define! arm-ldmda       ; Regs := [Rn--]
+  ($lambda (n . regs)
+    (bit-or #xe810_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+($define! arm-stmdb       ; [--Rn] := Regs
+  ($lambda (n . regs)
+    (bit-or #xe900_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+($define! arm-ldmdb       ; Regs := [--Rn]
+  ($lambda (n . regs)
+    (bit-or #xe910_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+
+($define! arm-stmia       ; [Rn++] := Regs
+  ($lambda (n . regs)
+    (bit-or #xe880_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+($define! arm-ldmia       ; Regs := [Rn++]
+  ($lambda (n . regs)
+    (bit-or #xe890_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+($define! arm-stmib       ; [++Rn] := Regs
+  ($lambda (n . regs)
+    (bit-or #xe980_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+($define! arm-ldmib       ; Regs := [++Rn]
+  ($lambda (n . regs)
+    (bit-or #xe990_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+
+($define! arm-stmda-wb    ; [Rn--] := Regs (w/b Rn)
+  ($lambda (n . regs)
+    (bit-or #xe820_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+($define! arm-ldmda-wb    ; Regs := [Rn--] (w/b Rn)
+  ($lambda (n . regs)
+    (bit-or #xe830_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+($define! arm-stmdb-wb    ; [--Rn] := Regs (w/b Rn)
+  ($lambda (n . regs)
+    (bit-or #xe920_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+($define! arm-ldmdb-wb    ; Regs := [--Rn] (w/b Rn)
+  ($lambda (n . regs)
+    (bit-or #xe930_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+
+($define! arm-stmia-wb    ; [Rn++] := Regs (w/b Rn)
+  ($lambda (n . regs)
+    (bit-or #xe8a0_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+($define! arm-ldmia-wb    ; Regs := [Rn++] (w/b Rn)
+  ($lambda (n . regs)
+    (bit-or #xe8b0_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+($define! arm-stmib-wb    ; [++Rn] := Regs (w/b Rn)
+  ($lambda (n . regs)
+    (bit-or #xe9a0_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+($define! arm-ldmib-wb    ; Regs := [++Rn] (w/b Rn)
+  ($lambda (n . regs)
+    (bit-or #xe9b0_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
 ```
