@@ -45,7 +45,7 @@ b_pred:		@ general predicate behavior
 	bne	1f		@ if req == "combine"
 	ldr	r0, [ip, #0x04]	@	get predicate
 	ldr	r1, [fp, #0x0c]	@	get operands
-	blx	apply_pred	@	apply predicate to operand list
+	bl	apply_pred	@	apply predicate to operand list
 	teq	r0, #0		@	if NULL
 	beq	a_kernel_err	@		signal error
 	mov	r4, r0		@	save result
@@ -353,7 +353,7 @@ b_rltn:		@ general binary relation behavior
 	bne	1f		@ if req == "combine"
 	ldr	r0, [ip, #0x04]	@	get relation
 	ldr	r1, [fp, #0x0c]	@	get operands
-	blx	apply_rltn	@	apply relation to operand list
+	bl	apply_rltn	@	apply relation to operand list
 	teq	r0, #0		@	if NULL
 	beq	a_kernel_err	@		signal error
 	mov	r4, r0		@	save result

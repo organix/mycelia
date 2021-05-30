@@ -46,7 +46,7 @@ b_num_cmp:	@ numeric comparison behavior
 	ldr	r0, =number_p	@	get predicate
 	add	r1, ip, #0x04	@	relation addr (in operative block)
 	ldr	r2, [fp, #0x0c]	@	get operands
-	blx	apply_pred_rltn	@	apply predicate & relation to operands
+	bl	apply_pred_rltn	@	apply predicate & relation to operands
 	teq	r0, #0		@	if NULL
 	beq	a_kernel_err	@		signal error
 	mov	r4, r0		@	save result
@@ -204,7 +204,7 @@ b_num_op:	@ numeric operator behavior
 	ldr	r0, [ip, #0x18]	@	get accumulator
 	add	r1, ip, #0x04	@	operation addr (in operative block)
 	ldr	r2, [fp, #0x0c]	@	get operands
-	blx	num_reduce	@	apply operation to operands
+	bl	num_reduce	@	apply operation to operands
 	teq	r0, #0		@	if NULL
 	beq	a_kernel_err	@		signal error
 	mov	r4, r0		@	save result
@@ -296,7 +296,7 @@ b_num_minus:	@ numeric subtraction behavior
 	ldr	r0, [r4, #0x04]	@	initial accumulator
 	add	r1, ip, #0x04	@	operation addr (in operative block)
 	mov	r2, r5		@	get operands
-	blx	num_reduce	@	apply operation to operands
+	bl	num_reduce	@	apply operation to operands
 	teq	r0, #0		@	if NULL
 	beq	a_kernel_err	@		signal error
 
