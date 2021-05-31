@@ -36,7 +36,7 @@ _start:
 	cmp	r0, r1		@ Are we loaded where we expect to be?
 	beq	k_start		@ Then, jump to kernel entry-point
 	mov	lr, r0		@ Otherwise, relocate ourselves
-	ldr	r2, =0x7F00	@ Copy (32k - 256) bytes
+	ldr	r2, =0xFF00	@ Copy (64k - 256) bytes
 1:	ldmia	r1!, {r3-r10}	@ Read 8 words
 	stmia	r0!, {r3-r10}	@ Write 8 words
 	subs	r2, #32		@ Decrement len

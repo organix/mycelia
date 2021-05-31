@@ -354,8 +354,8 @@ wait_for_kb()
 }
 
 #define KERNEL_ADDR     (0x00008000)
-#define UPLOAD_ADDR     (0x00010000)
-#define UPLOAD_LIMIT    (0x00007F00)
+#define UPLOAD_ADDR     (0x00020000)
+#define UPLOAD_LIMIT    (0x0000FF00)
 
 /*
  * Simple bootstrap monitor
@@ -453,7 +453,7 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia-pi1b 0.1.31 ");
+    serial_puts("mycelia-pi1b 0.2.0 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0

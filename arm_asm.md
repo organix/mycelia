@@ -356,53 +356,53 @@ RRRR = register selection mask (bit0 = r0)
 
 ($define! arm-stmda       ; [Rn--] := Regs
   ($lambda (n . regs)
-    (bit-or #xe800_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))  ;;; FIXME! use `apply` on arm-ls-Regs
+    (bit-or #xe800_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ($define! arm-ldmda       ; Regs := [Rn--]
   ($lambda (n . regs)
-    (bit-or #xe810_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe810_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ($define! arm-stmdb       ; [--Rn] := Regs
   ($lambda (n . regs)
-    (bit-or #xe900_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe900_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ($define! arm-ldmdb       ; Regs := [--Rn]
   ($lambda (n . regs)
-    (bit-or #xe910_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe910_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 
 ($define! arm-stmia       ; [Rn++] := Regs
   ($lambda (n . regs)
-    (bit-or #xe880_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe880_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ($define! arm-ldmia       ; Regs := [Rn++]
   ($lambda (n . regs)
-    (bit-or #xe890_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe890_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ($define! arm-stmib       ; [++Rn] := Regs
   ($lambda (n . regs)
-    (bit-or #xe980_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe980_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ($define! arm-ldmib       ; Regs := [++Rn]
   ($lambda (n . regs)
-    (bit-or #xe990_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe990_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 
 ($define! arm-stmda-wb    ; [Rn--] := Regs (w/b Rn)
   ($lambda (n . regs)
-    (bit-or #xe820_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe820_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ($define! arm-ldmda-wb    ; Regs := [Rn--] (w/b Rn)
   ($lambda (n . regs)
-    (bit-or #xe830_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe830_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ($define! arm-stmdb-wb    ; [--Rn] := Regs (w/b Rn)
   ($lambda (n . regs)
-    (bit-or #xe920_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe920_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ($define! arm-ldmdb-wb    ; Regs := [--Rn] (w/b Rn)
   ($lambda (n . regs)
-    (bit-or #xe930_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe930_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 
 ($define! arm-stmia-wb    ; [Rn++] := Regs (w/b Rn)
   ($lambda (n . regs)
-    (bit-or #xe8a0_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe8a0_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ($define! arm-ldmia-wb    ; Regs := [Rn++] (w/b Rn)
   ($lambda (n . regs)
-    (bit-or #xe8b0_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe8b0_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ($define! arm-stmib-wb    ; [++Rn] := Regs (w/b Rn)
   ($lambda (n . regs)
-    (bit-or #xe9a0_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe9a0_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ($define! arm-ldmib-wb    ; Regs := [++Rn] (w/b Rn)
   ($lambda (n . regs)
-    (bit-or #xe9b0_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe9b0_0000 (arm-ls-Rn n) (apply arm-ls-Regs regs)) ))
 ```

@@ -18,8 +18,6 @@
 #ifndef _RASPI_H_
 #define _RASPI_H_
 
-#include "raspi.h"
-
 typedef unsigned char u8;
 typedef unsigned int u32;
 
