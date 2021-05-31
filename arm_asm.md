@@ -48,9 +48,19 @@ by wrapping them with an appropriate condition field check.
 ## Registers
 
 Most instructions take register numbers as parameters.
-These definitions give mnemonic names to special registers.
+These definitions give mnemonic names for registers.
 
 ```
+($define! arm-r0 0)
+($define! arm-r1 1)
+($define! arm-r2 2)
+($define! arm-r3 3)
+($define! arm-r4 4)
+($define! arm-r5 5)
+($define! arm-r6 6)
+($define! arm-r7 7)
+($define! arm-r8 8)
+($define! arm-r9 9)
 ($define! arm-sl 10)
 ($define! arm-fp 11)
 ($define! arm-ip 12)
@@ -294,7 +304,7 @@ These definitions give mnemonic names to special registers.
 ```
 #xCILN_DOOM
 C = condition (#xe = always)
-I = <0, 1, immediate, pre/post>
+I = <0, 1, reg/imm, pre/post>
 L = <up/down, byte/word, write-back, load/store>
 N = Rn
 D = Rd
@@ -317,11 +327,12 @@ OOM = immediate offset | <shift, Rm>
 ; Ofs = immediate
 ($define! arm-ls-imm
   ($lambda (imm)
-    (bit-or (bit-and imm #xfff) #x0200_0000)))
+    (bit-and imm #xfff)))
 
 ; Ofs = register
 ($define! arm-ls-Rm
-  ($lambda (m) (bit-and m #xf)))
+  ($lambda (m)
+    (bit-or (bit-and m #xf) #x0200_0000)))
 ```
 
 ## LDM/STM Format
@@ -337,12 +348,11 @@ RRRR = register selection mask (bit0 = r0)
 
 ```
 ($define! arm-ls-Regs
-  ($lambda (regs)
+  ($lambda regs
     ($if (pair? regs)
-      (($lambda (a . d)
-        (bit-or (bit-lsl 1 a) (arm-ls-Regs d))) regs)
-      0)
-  ))
+      (($lambda ((a . d))
+        (bit-or (bit-lsl 1 a) (apply arm-ls-Regs d))) regs)
+      0)))
 
 ($define! arm-stmda       ; [Rn--] := Regs
   ($lambda (n . regs)

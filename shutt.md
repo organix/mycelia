@@ -220,11 +220,11 @@ If ⟨objects⟩ is `()`, the result is `#inert`.
 ⟨formals⟩ should be a formal parameter tree as described for operative _`$define!`_.
 The expression
 <pre>
-(<i>$lambda</i> ⟨formals⟩ . ⟨objects⟩)
+(<b><i>$lambda</i></b> ⟨formals⟩ . ⟨objects⟩)
 </pre>
 is equivalent to
 <pre>
-(<i>wrap</i> (<i>$vau</i> ⟨formals⟩ #ignore . ⟨objects⟩))
+(<b><i>wrap</i></b> (<b><i>$vau</i></b> ⟨formals⟩ #ignore . ⟨objects⟩))
 </pre>
 
 ### eval
@@ -346,6 +346,43 @@ In this implementation, _numbers_ can be treated as 32-bit binary vectors.
 
 `(get-current-env)`
 
+### apply
+
+`(apply `_applicative_` `_object_` `_environment_`)`
+`(apply `_applicative_` `_object_`)`
+
+When the first syntax is used,
+applicative _`apply`_ combines the underlying combiner of _applicative_
+with _object_ in dynamic environment _environment_, as a tail context.
+The expression
+<pre>
+(<b><i>apply</i></b> <i>applicative</i> <i>object</i> <i>environment</i>)
+</pre>
+is equivalent to
+<pre>
+(<b><i>eval</i></b> (<b><i>cons</i></b> (<b><i>unwrap</i></b> <i>applicative</i>) <i>object</i>) <i>environment</i>)
+</pre>
+The second syntax is just syntactic sugar; the expression
+<pre>
+(<b><i>apply</i></b> <i>applicative</i> <i>object</i>)
+</pre>
+is equivalent to
+<pre>
+(<b><i>apply</i></b> <i>applicative</i> <i>object</i> (<b><i>make-env</i></b>))
+</pre>
+
+### list*
+
+`(list* `_object_` . `_objects_`)`
+
+The expression
+<pre>
+(<b><i>list*</i></b> 1 2 (<b><i>list</i></b> 3 4))
+</pre>
+evaluates to
+<pre>
+((1 2) 3 4)
+</pre>
 
 ## Machine Tools
 
