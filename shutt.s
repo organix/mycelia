@@ -327,6 +327,11 @@ b_pair:			@ pair combination
 k_comb:			@ combiner continuation
 			@ (example_5: 0x04=cust, 0x08=#S_APPL, 0x0c=right, 0x10=env)
 			@ message = (combiner)
+	ldr	r0, [fp, #0x04]	@ combiner
+	bl	combiner_p
+	teq	r0, #0		@ if !combiner_p(eformal)
+	beq	a_kernel_err	@	signal error
+
 	mov	r0, ip		@ continuation actor becomes an event...
 	b	_a_reply	@ delegate to combiner
 

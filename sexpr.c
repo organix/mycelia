@@ -225,6 +225,8 @@ applicative_p(ACTOR* x)
 int
 operative_p(ACTOR* x)
 {
+    if (list_p(x) || boolean_p(x) || number_p(x) || inert_p(x) || ignore_p(x)
+    ||  symbol_p(x) || environment_p(x) || applicative_p(x)) return 0;
     return object_p(x);  // FIXME: how do we check for operatives? some are hard-coded...
 }
 
@@ -558,7 +560,8 @@ mutate_environment(u32 ext, u32 env)  // mutate env to include ext
     return 0;  // FAIL!
 }
 
-static char* line = NULL;
+static int no_print = 1;  // option to suppress printing of evaluation results
+static char* line = NULL;  // sexpr parser input source
 
 void
 flush_char()
@@ -571,6 +574,7 @@ static int
 read_char()
 {
     if (!line || !line[0]) {  // refill buffer
+        no_print = 0;  // enable printing of evaluation results
         line = editline();
         if (!line) return EOF;
     }
@@ -923,6 +927,7 @@ print_list(ACTOR* x)
 void
 print_sexpr(ACTOR* a)  /* print external representation of s-expression */
 {
+    if (no_print) return;  // option to suppress printing
     if (!a) {  // null pointer
         puts("#<NULL>");
     } else if ((u32)a & 0x3) {  // misaligned address
@@ -1329,6 +1334,7 @@ ground_env()
     TRACE(putchar('\n'));
 
     /* provide additional definitions in source form */
+    no_print = 1;  // suppress printing results while evaluating preamble
     line =
 //"($define! car ($lambda ((x . #ignore)) x))\n"
 //"($define! cdr ($lambda ((#ignore . x)) x))\n"
@@ -1351,7 +1357,7 @@ ground_env()
 "($define! list*\n"
 "  ($lambda (h . t) ($if (null? t) h (cons h (apply list* t))) ))\n"
 #endif
-#if 1  // arm assembler
+#if 0  // arm assembler
 "($define! arm-cond-eq\n"
 "  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x0000_0000)))\n"
 "($define! arm-cond-ne\n"
@@ -1382,16 +1388,16 @@ ground_env()
 "  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #xd000_0000)))\n"
 //"($define! arm-cond-al\n"
 //"  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #xe000_0000)))\n"
-"($define! arm-r0 0)\n"
-"($define! arm-r1 1)\n"
-"($define! arm-r2 2)\n"
-"($define! arm-r3 3)\n"
-"($define! arm-r4 4)\n"
-"($define! arm-r5 5)\n"
-"($define! arm-r6 6)\n"
-"($define! arm-r7 7)\n"
-"($define! arm-r8 8)\n"
-"($define! arm-r9 9)\n"
+//"($define! arm-r0 0)\n"
+//"($define! arm-r1 1)\n"
+//"($define! arm-r2 2)\n"
+//"($define! arm-r3 3)\n"
+//"($define! arm-r4 4)\n"
+//"($define! arm-r5 5)\n"
+//"($define! arm-r6 6)\n"
+//"($define! arm-r7 7)\n"
+//"($define! arm-r8 8)\n"
+//"($define! arm-r9 9)\n"
 "($define! arm-sl 10)\n"
 "($define! arm-fp 11)\n"
 "($define! arm-ip 12)\n"

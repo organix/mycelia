@@ -377,7 +377,7 @@ is equivalent to
 
 The expression
 <pre>
-(<b><i>list*</i></b> 1 2 (<b><i>list</i></b> 3 4))
+(<b><i>list*</i></b> (<b><i>list</i></b> 1 2) (<b><i>list</i></b> 3 4))
 </pre>
 evaluates to
 <pre>

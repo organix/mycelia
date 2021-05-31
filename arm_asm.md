@@ -356,7 +356,7 @@ RRRR = register selection mask (bit0 = r0)
 
 ($define! arm-stmda       ; [Rn--] := Regs
   ($lambda (n . regs)
-    (bit-or #xe800_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))
+    (bit-or #xe800_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))  ;;; FIXME! use `apply` on arm-ls-Regs
 ($define! arm-ldmda       ; Regs := [Rn--]
   ($lambda (n . regs)
     (bit-or #xe810_0000 (arm-ls-Rn n) (arm-ls-Regs regs)) ))

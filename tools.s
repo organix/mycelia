@@ -54,16 +54,17 @@ match_0_args:		@ match arg signature (op)
 match_1_arg:		@ match arg signature (op pred?)
 			@ or signal an error
 			@ (r0=args, r1=pred?)
-	stmdb	sp!, {r4-r5,lr} @ preserve in-use registers
-	mov	r4, r0		@ args
+	stmdb	sp!, {r4-r6,lr} @ preserve in-use registers
+	mov	r4, r0		@ save args
+	mov	r6, r1		@ save pred
 
 	bl	car
 	movs	r5, r0
 	beq	1f		@ if car(args) != NULL
 
-@	blx	r1
-@	teq	r0, #0
-@	beq	1f		@ and pred(car(args))
+	blx	r6
+	teq	r0, #0
+	beq	1f		@ and pred(car(args))
 
 	mov	r0, r4
 	bl	cdr
@@ -75,9 +76,9 @@ match_1_arg:		@ match arg signature (op pred?)
 	bne	1f		@ and cdr(args) == ()
 
 	mov	r0, r5		@	r0 = first arg
-	ldmia	sp!, {r4-r5,pc}	@	restore in-use registers and return
+	ldmia	sp!, {r4-r6,pc}	@	restore in-use registers and return
 1:				@ else
-	ldmia	sp!, {r4-r5,lr}	@	restore in-use registers
+	ldmia	sp!, {r4-r6,lr}	@	restore in-use registers
 	b	a_kernel_err	@	and signal error
 
 	.text
@@ -85,16 +86,18 @@ match_1_arg:		@ match arg signature (op pred?)
 match_2_args:		@ match arg signature (op pred_1? pred_2?)
 			@ or signal an error
 			@ (r0=args, r1=pred_1?, r2=pred_2?)
-	stmdb	sp!, {r4-r6,lr}	@ preserve in-use registers
+	stmdb	sp!, {r4-r8,lr}	@ preserve in-use registers
 	mov	r4, r0		@ args
+	mov	r7, r1		@ save pred_1
+	mov	r8, r2		@ save pred_2
 
 	bl	car
 	movs	r5, r0
 	beq	1f		@ if car(args) != NULL
 
-@	blx	r1
-@	teq	r0, #0
-@	beq	1f		@ and pred_1(car(args))
+	blx	r7
+	teq	r0, #0
+	beq	1f		@ and pred_1(car(args))
 
 	mov	r0, r4
 	bl	cdr
@@ -106,9 +109,9 @@ match_2_args:		@ match arg signature (op pred_1? pred_2?)
 	movs	r6, r0
 	beq	1f		@ if car(cdr(args)) != NULL
 
-@	blx	r2
-@	teq	r0, #0
-@	beq	1f		@ and pred_2(car(cdr(args)))
+	blx	r8
+	teq	r0, #0
+	beq	1f		@ and pred_2(car(cdr(args)))
 
 	mov	r0, r4
 	bl	cdr
@@ -121,9 +124,9 @@ match_2_args:		@ match arg signature (op pred_1? pred_2?)
 
 	mov	r0, r5		@	r0 = first arg
 	mov	r1, r6		@	r1 = second arg
-	ldmia	sp!, {r4-r6,pc}	@	restore in-use registers and return
+	ldmia	sp!, {r4-r8,pc}	@	restore in-use registers and return
 1:				@ else
-	ldmia	sp!, {r4-r6,lr}	@	restore in-use registers
+	ldmia	sp!, {r4-r8,lr}	@	restore in-use registers
 	b	a_kernel_err	@	and signal error
 
 	.text
