@@ -338,17 +338,66 @@ In this implementation, _numbers_ can be treated as 32-bit binary vectors.
 
 `(car `_pair_`)`
 
+#### Derivation
+
+```
+($define! car
+  ($lambda ((x . #ignore)) x))
+```
+
 ### cdr
 
 `(cdr `_pair_`)`
+
+#### Derivation
+
+```
+($define! cdr
+  ($lambda ((#ignore . x)) x))
+```
+
+### caar, cdar, cadr, cddr, caddr
+
+`(caar `_pair_`)`
+
+`(cdar `_pair_`)`
+
+`(cadr `_pair_`)`
+
+`(cddr `_pair_`)`
+
+`(caddr `_pair_`)`
+
+#### Derivation
+
+```
+($define! caar
+  ($lambda (((x . #ignore) . #ignore)) x))
+($define! cdar
+  ($lambda (((#ignore . x) . #ignore)) x))
+($define! cadr
+  ($lambda ((#ignore x . #ignore)) x))
+($define! cddr
+  ($lambda ((#ignore . (#ignore . x))) x))
+($define! caddr
+  ($lambda ((#ignore . (#ignore . (x . #ignore)))) x))
+```
 
 ### get-current-env
 
 `(get-current-env)`
 
+#### Derivation
+
+```
+($define! get-current-env
+  (wrap ($vau () e e)))
+```
+
 ### apply
 
 `(apply `_applicative_` `_object_` `_environment_`)`
+
 `(apply `_applicative_` `_object_`)`
 
 When the first syntax is used,
@@ -371,6 +420,17 @@ is equivalent to
 (<b><i>apply</i></b> <i>applicative</i> <i>object</i> (<b><i>make-env</i></b>))
 </pre>
 
+#### Derivation
+
+```
+($define! apply
+  ($lambda (appl arg . opt)
+    (eval
+      (cons (unwrap appl) arg)
+      ($if (null? opt) (make-env) (car opt)))
+    ))
+```
+
 ### list*
 
 `(list* `_object_` . `_objects_`)`
@@ -383,6 +443,118 @@ evaluates to
 <pre>
 ((1 2) 3 4)
 </pre>
+
+#### Derivation
+
+```
+($define! list*
+  ($lambda (h . t)
+    ($if (null? t)
+      h
+      (cons h (apply list* t)))
+    ))
+```
+
+### $cond
+
+`($cond . `⟨clauses⟩`)`
+
+⟨clauses⟩ should be a list of clause expressions,
+each of the form `(`⟨test⟩` . `⟨body⟩`)`,
+where ⟨body⟩ is a list of expressions.
+
+The expression
+<pre>
+(<b><i>$cond</i></b> (⟨test⟩ . ⟨body⟩) . ⟨clauses⟩)
+</pre>
+is equivalent to
+<pre>
+(<b><i>$if</i></b> ⟨test⟩ (<b><i>$sequence</i></b> . ⟨body⟩) (<b><i>$cond</i></b> . ⟨clauses⟩))
+</pre>
+while the expression <code>(<b><i>$cond</i></b>)</code> is equivalent to `#inert`.
+
+#### Derivation
+
+```
+($define! $cond
+  ($vau clauses env
+    ($if (null? clauses)
+      #inert
+      (apply
+        ($lambda ((test . body) . rest)
+          ($if (eval test env)
+            (eval (cons $sequence body) env)
+            (eval (cons $cond rest) env)))
+        clauses))))
+```
+
+### length
+
+`(length `_object_`)`
+
+Applicative _`length`_ returns the (exact) improper-list length of _object_.
+That is, it returns the number of consecutive cdr references
+that can be followed starting from object.
+If _object_ is not a pair, it returns `0`;
+
+#### Derivation
+
+```
+($define! length
+  ($lambda (object)
+    ($if (pair? object)
+      (+ 1 (length (cdr object)))
+      0)
+    ))
+```
+
+### append
+
+`(append . `_lists_`)`
+
+The _`append`_ applicative returns a freshly allocated list
+of the elements of all the specified lists, in order,
+except that if there is a last specified element of _lists_, it is not copied,
+but is simply referenced by the cdr of the preceding pair (if any) in the resultant list.
+
+#### Derivation
+
+```
+($define! append
+  ($lambda x
+    ($if (pair? x)
+      (apply ($lambda (h . t)
+        ($if (pair? t)
+          ($if (null? h)
+            (apply append t)
+            (cons (car h) (apply append (cons (cdr h) t)))
+          )
+        h)
+      ) x)
+      x)
+  ))
+```
+
+### reverse
+
+`(reverse `_list_`)`
+
+#### Derivation
+
+```
+($define! reverse
+  (($lambda ()
+    ($define! push-pop
+      ($lambda (r s)
+        ($if (null? s)
+          r
+          (push-pop
+            (cons (car s) r)
+            (cdr s)))))
+    ($lambda (s)
+      (push-pop () s))
+  )))
+```
 
 ## Machine Tools
 
