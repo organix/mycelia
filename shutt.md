@@ -394,6 +394,61 @@ In this implementation, _numbers_ can be treated as 32-bit binary vectors.
   (wrap ($vau () e e)))
 ```
 
+### make-standard-env
+
+`(make-standard-env)`
+
+#### Derivation
+
+```
+($define! make-standard-env
+  ($lambda () (get-current-env)))
+```
+
+### $binds?
+
+`($binds? `⟨env⟩` . `⟨symbols⟩`)`
+
+_**not implemented**_
+
+### $get
+
+`($get `⟨env⟩` `⟨symbol⟩`)`
+
+Operative _`$get`_ evaluates ⟨env⟩ in the dynamic environment.
+The resulting _env_, must be an environment.
+If ⟨symbol⟩ is not bound in _env_, an error is signaled.
+If this is not desired, use [`$binds`](#binds) to check first.
+
+#### Derivation
+
+```
+($define! $get
+  ($vau (env symbol) dyn
+    (eval symbol
+      (eval env dyn))))
+```
+
+### $set!
+
+`($set! `⟨env⟩` `⟨formal⟩` `⟨value⟩`)`
+
+Operative _`$set!`_ evaluates ⟨env⟩ and ⟨value⟩ in the dynamic environment.
+The results are _env_ (which must be an environment) and _value_.
+Then ⟨formal⟩ is matched to _value_ in the environment _env_.
+The result returned by _`$set!`_ is `#inert`.
+
+#### Derivation
+
+```
+($define! $set!
+  ($vau (env formal value) dyn
+    (eval
+      (list $define! formal
+        (list (unwrap eval) value dyn))
+      (eval env dyn))))
+```
+
 ### apply
 
 `(apply `_applicative_` `_object_` `_environment_`)`
@@ -699,7 +754,7 @@ The result is `#inert`.
 `($timed . `⟨objects⟩`)`
 
 The _`$timed`_ operative evaluates the elements of the list ⟨objects⟩
-in the dynamic environment, one at a time from left to right.
+in the dynamic environment, one at a time from left to right (c.f.: [`$sequence`](#sequence)).
 The result is the number of microseconds elapsed while performing the computation.
 
 #### Example:
