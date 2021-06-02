@@ -493,7 +493,7 @@ k_map_eval_2:		@ eval args continuation
 	.text
 	.align 5		@ align to cache-line
 	.global op_wrap
-op_wrap:	@ operative "$wrap"
+op_wrap:		@ operative "$wrap"
 			@ message = (cust, #S_APPL, opnds, env)
 			@         | (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
@@ -703,7 +703,7 @@ k_seq_eval:		@ sequential evaluation continuation
 	.text
 	.align 5		@ align to cache-line
 	.global op_unwrap
-op_unwrap:	@ operative "$unwrap"
+op_unwrap:		@ operative "$unwrap"
 			@ message = (cust, #S_APPL, opnds, env)
 			@         | (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
@@ -791,7 +791,7 @@ k_bind:			@ binding continuation
 	.text
 	.align 5		@ align to cache-line
 	.global op_sequence
-op_sequence:	@ operative "$sequence"
+op_sequence:		@ operative "$sequence"
 			@ message = (cust, #S_APPL, opnds, env)
 			@         | (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
@@ -814,6 +814,54 @@ op_sequence:	@ operative "$sequence"
 	b	_a_end		@	send and return
 1:
 	b	self_eval	@ else we are self-evaluating
+
+	.text
+	.align 5		@ align to cache-line
+	.global op_timed
+op_timed:		@ operative "$timed"
+			@ message = (cust, #S_APPL, opnds, env)
+			@         | (cust, #S_EVAL, env)
+	ldr	r3, [fp, #0x08] @ get req
+	teq	r3, #S_APPL
+	bne	1f		@ if req == "combine"
+
+	ldr	r5, [fp, #0x04]	@	get cust
+	ldr	r0, =k_timed	@	k_timed behavior
+	bl	create_5	@	create k_timed
+	str	r5, [r0, #0x04]	@	store cust
+	mov	r5, r0		@	cust = k_timed
+
+	bl	timer_start	@	start global timer
+
+@	ldr	r5, [fp, #0x04]	@	k_timed already in r5
+	ldr	r6, =a_inert	@	result = #inert
+	ldr	r7, [fp, #0x10]	@	get env
+	ldr	r0, =v_sequence	@	k_seq behavior
+	bl	create_5	@	create k_seq
+	stmib	r0, {r5-r7}	@	store cust, result, env
+	mov	r5, r0		@	cust = k_seq
+
+	bl	reserve		@	allocate event block
+	ldr	r4, [fp, #0x0c]	@	target = opnds
+@	mov	r5, r5		@	cust (already in r5)
+	mov	r6, #S_SELF	@	"visit"
+	stmia	r0, {r4-r6}	@	write data to event
+	b	_a_end		@	send and return
+1:
+	b	self_eval	@ else we are self-evaluating
+
+k_timed:		@ timed continuation
+			@ (example_5: 0x04=cust, 0x08=, 0x0c=)
+			@ message = (arg)
+@	ldr	r4, [fp, #0x04]	@ get arg
+	bl	timer_stop	@ get elapsed time
+	bl	number		@ construct a kernel number
+	mov	r4, r0		@ save elapsed time
+
+	ldr	r1, [ip, #0x04]	@ get cust
+	mov	r0, ip		@ continuation actor becomes an event...
+	str	r4, [ip, #0x04]	@ message is elapsed time
+	b	_a_send		@ send message and return
 
 	.text
 	.align 5		@ align to cache-line

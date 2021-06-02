@@ -56,6 +56,7 @@ extern ACTOR op_vau;
 extern ACTOR ap_wrap;
 extern ACTOR ap_unwrap;
 extern ACTOR op_sequence;
+extern ACTOR op_timed;
 extern ACTOR op_lambda;
 extern ACTOR ap_eval;
 extern ACTOR ap_make_env;
@@ -1015,6 +1016,7 @@ ACTOR*
 ground_env()
 {
     char exit_24b[] = "exit" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
+    char otimed_24b[] = "$tim" "ed\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char sponsor_reserve_24b[] = "spon" "sor-" "rese" "rve\0" "\0\0\0\0" "\0\0\0\0";
     char sponsor_release_24b[] = "spon" "sor-" "rele" "ase\0" "\0\0\0\0" "\0\0\0\0";
     char sponsor_enqueue_24b[] = "spon" "sor-" "enqu" "eue\0" "\0\0\0\0" "\0\0\0\0";
@@ -1073,6 +1075,11 @@ ground_env()
 
     /* bind "exit" */
     a = extend_env(env, (struct sym_24b*)exit_24b, (u32)&a_exit);
+    if (!a) return NULL;  // FAIL!
+    env = a;
+
+    /* bind "$timed" */
+    a = extend_env(env, (struct sym_24b*)otimed_24b, (u32)&op_timed);
     if (!a) return NULL;  // FAIL!
     env = a;
 

@@ -693,3 +693,19 @@ to the actor runtime message-event queue.
 The result is `#inert`.
 
 **_WARNING!_** This is a dangerous operation. Be careful!
+
+### $timed
+
+`($timed . `⟨objects⟩`)`
+
+The _`$timed`_ operative evaluates the elements of the list ⟨objects⟩
+in the dynamic environment, one at a time from left to right.
+The result is the number of microseconds elapsed while performing the computation.
+
+#### Example:
+```
+> ($define! f ($lambda (x) ($if (=? x 0) 0 (f (- x 1))) ))
+#inert
+> ($timed (f 1000))
+1588543
+```
