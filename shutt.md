@@ -418,7 +418,7 @@ _**not implemented**_
 Operative _`$get`_ evaluates ⟨env⟩ in the dynamic environment.
 The resulting _env_, must be an environment.
 If ⟨symbol⟩ is not bound in _env_, an error is signaled.
-If this is not desired, use [`$binds`](#binds) to check first.
+If this is not desired, use [`$binds?`](#binds) to check first.
 
 #### Derivation
 
@@ -541,6 +541,30 @@ while the expression <code>(<b><i>$cond</i></b>)</code> is equivalent to `#inert
             (eval (cons $sequence body) env)
             (eval (cons $cond rest) env)))
         clauses))))
+```
+
+### $provide!
+
+`($provide! `⟨symbols⟩` . `⟨body⟩`)`
+
+The _`$provide!`_ operative constructs a child _e_ of the dynamic environment _d_;
+evaluates the elements of ⟨body⟩ in _e_, from left to right, discarding all of the results;
+and exports all of the bindings of symbols in ⟨symbols⟩ from _e_ to _d_,
+i.e., binds each symbol in _d_ to the result of looking it up in _e_.
+The result returned by _`$provide!`_ is `#inert`.
+
+#### Derivation
+
+```
+($define! $provide!
+  ($vau (symbols . body) env
+    (eval
+      (list $define! symbols
+        (list
+          (list $lambda ()
+            (list* $sequence body)
+            (list* list symbols))))
+      env)))
 ```
 
 ### length
