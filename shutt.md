@@ -614,9 +614,39 @@ but is simply referenced by the cdr of the preceding pair (if any) in the result
   ))
 ```
 
+### filter
+
+`(filter `_predicate_` `_list_`)`
+
+The _`filter`_ applicative passes each of the elements of _list_
+as an argument to _predicate_,
+one at a time in no particular order,
+using a fresh empty environment for each call.
+_`filter`_ constructs and returns a list
+of all elements of _list_
+on which _predicate_ returned `#t`,
+in the same order as in _list_.
+
+#### Derivation
+
+```
+($define! filter
+  ($lambda (accept? xs)
+    ($if (null? xs)
+      ()
+      (($lambda ((first . rest))
+        ($if (eval (list (unwrap accept?) first) (make-env))
+          (cons first (filter accept? rest))
+          (filter accept? rest))
+      ) xs)) ))
+```
+
 ### reverse
 
 `(reverse `_list_`)`
+
+The _`reverse`_ applicative returns a freshly allocated list
+of the elements of _list_, in reverse order.
 
 #### Derivation
 
@@ -633,6 +663,59 @@ but is simply referenced by the cdr of the preceding pair (if any) in the result
     ($lambda (s)
       (push-pop () s))
   )))
+```
+
+### reduce
+
+`(reduce `_list_` `_binop_` `_zero_`)`
+
+_list_ should be a list. _binop_ should be an applicative.
+If _list_ is empty, applicative _`reduce`_ returns _zero_.
+If _list_ is nonempty, applicative _`reduce`_ uses binary operation _binop_
+to merge all the elements of _list_ into a single object,
+using any associative grouping of the elements.
+That is, the sequence of objects initially found in _list_
+is repeatedly decremented in length
+by applying _binop_ to a list of any two consecutive objects,
+replacing those two objects with the result
+at the point in the sequence where they occurred;
+and when the sequence contains only one object,
+that object is returned.
+
+#### Derivation
+
+```
+($define! reduce
+  ($lambda (list binop zero)
+    ($if (null? list)
+      zero
+      (($lambda ((first . rest))
+        ($if (null? rest)
+          first
+          (binop first (reduce rest binop zero)))
+      ) list)) ))
+```
+
+#### Alternatives
+
+```
+($define! foldl
+  ($lambda (list binop zero)
+    ($if (null? list)
+      zero
+      (($lambda ((first . rest))
+        (foldl rest binop (binop zero first))
+      ) list)) ))
+```
+
+```
+($define! foldr
+  ($lambda (list binop zero)
+    ($if (null? list)
+      zero
+      (($lambda ((first . rest))
+        (binop first (foldr rest binop zero))
+      ) list)) ))
 ```
 
 ## Machine Tools
