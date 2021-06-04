@@ -705,7 +705,7 @@ in the order of their arguments in the original lists.
   ($define! appl
     ($lambda (applicative (heads tails) env)
       (cons
-        (eval (cons applicative heads) env)
+        (apply applicative heads env)
         ($if (apply null? tails env)
           ()
           (appl applicative (peel tails () ()) env)))
@@ -783,11 +783,11 @@ is equivalent to
 ((<b><i>$lambda</i></b> (⟨form<sub>1</sub>⟩ ... ⟨form<sub><i>n</i></sub>⟩) . ⟨objects⟩) ⟨exp<sub>1</sub>⟩ ... ⟨exp<sub><i>n</i></sub>⟩)
 </pre>
 
-Thus, the ⟨exp<sub>k</sub>⟩ are first evaluated
+Thus, the ⟨exp<sub><i>k</i></sub>⟩ are first evaluated
 in the dynamic environment, in any order;
 then a child environment _e_ of the dynamic environment is created,
-with the ⟨form<sub>k</sub>⟩ matched in _e_
-to the results of the evaluations of the ⟨exp<sub>k</sub>⟩;
+with the ⟨form<sub><i>k</i></sub>⟩ matched in _e_
+to the results of the evaluations of the ⟨exp<sub><i>k</i></sub>⟩;
 and finally the subexpressions of ⟨objects⟩ are evaluated in _e_
 from left to right, with the last (if any) evaluated as a tail context,
 or if ⟨objects⟩ is empty the result is `#inert`.
