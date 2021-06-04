@@ -1604,7 +1604,7 @@ ground_env()
 "    (peg-if ($lambda (token) (equal? value token))) ))\n"
 "($define! peg-range\n"
 "  ($lambda (lo hi)\n"
-"    (peg-if ($lambda (token) ($if (>=? lo token) (<=? hi token) #f))) ))\n"
+"    (peg-if ($lambda (token) (<=? lo token hi))) ))\n"
 //"; Primitive\n"
 "($define! peg-any\n"
 "  ($lambda (in)\n"
