@@ -614,6 +614,30 @@ but is simply referenced by the cdr of the preceding pair (if any) in the result
   ))
 ```
 
+### reverse
+
+`(reverse `_list_`)`
+
+The _`reverse`_ applicative returns a freshly allocated list
+of the elements of _list_, in reverse order.
+
+#### Derivation
+
+```
+($define! reverse
+  (($lambda ()
+    ($define! push-pop
+      ($lambda (r s)
+        ($if (null? s)
+          r
+          (push-pop
+            (cons (car s) r)
+            (cdr s)))))
+    ($lambda (s)
+      (push-pop () s))
+  )))
+```
+
 ### filter
 
 `(filter `_predicate_` `_list_`)`
@@ -641,28 +665,52 @@ in the same order as in _list_.
       ) xs)) ))
 ```
 
-### reverse
+### map
 
-`(reverse `_list_`)`
+`(map `_applicative_` . `_lists_`)`
 
-The _`reverse`_ applicative returns a freshly allocated list
-of the elements of _list_, in reverse order.
+_lists_ must be a nonempty list of lists;
+if there are two or more,
+they must all have the same length.
+If _lists_ is empty,
+or if all of its elements are not lists of the same length,
+an error is signaled.
+
+The _`map`_ applicative applies _applicative_ element-wise
+to the elements of the lists in _lists_
+(i.e., applies it to a list of the first elements of the lists,
+to a list of the second elements of the lists, etc.),
+using the dynamic environment from which _`map`_ was called,
+and returns a list of the results, in order.
+The applications may be performed in any order,
+as long as their results occur in the resultant list
+in the order of their arguments in the original lists.
 
 #### Derivation
 
 ```
-($define! reverse
-  (($lambda ()
-    ($define! push-pop
-      ($lambda (r s)
-        ($if (null? s)
-          r
-          (push-pop
-            (cons (car s) r)
-            (cdr s)))))
-    ($lambda (s)
-      (push-pop () s))
-  )))
+($provide! (map)
+  ($define! map
+    (wrap ($vau (applicative . lists) env
+      (appl applicative (peel lists () ()) env))
+  ))
+  ($define! peel
+    ($lambda (((head . tail) . more) heads tails)
+      ($if (null? more)
+        (list (cons head heads) (cons tail tails))
+        (($lambda ((heads tails))
+          (list (cons head heads) (cons tail tails)))
+        (peel more heads tails)))
+    ))
+  ($define! appl
+    ($lambda (applicative (heads tails) env)
+      (cons
+        (eval (cons applicative heads) env)
+        ($if (apply null? tails env)
+          ()
+          (appl applicative (peel tails () ()) env)))
+    ))
+)
 ```
 
 ### reduce
@@ -716,6 +764,43 @@ that object is returned.
       (($lambda ((first . rest))
         (binop first (foldr rest binop zero))
       ) list)) ))
+```
+
+### $let
+
+`($let `⟨bindings⟩` . `⟨objects⟩`)`
+
+⟨bindings⟩ should be a list of formal-parameter-tree/expression pairings,
+each of the form `(`⟨formals⟩` `⟨expression⟩`)`,
+where each ⟨formals⟩ is a formal parameter tree.
+
+The expression
+<pre>
+(<b><i>$let</i></b> ((⟨form<sub>1</sub>⟩ ⟨exp<sub>1</sub>⟩) ... (⟨form<sub><i>n</i></sub>⟩ ⟨exp<sub><i>n</i></sub>⟩)) . ⟨objects⟩)
+</pre>
+is equivalent to
+<pre>
+((<b><i>$lambda</i></b> (⟨form<sub>1</sub>⟩ ... ⟨form<sub><i>n</i></sub>⟩) . ⟨objects⟩) ⟨exp<sub>1</sub>⟩ ... ⟨exp<sub><i>n</i></sub>⟩)
+</pre>
+
+Thus, the ⟨exp<sub>k</sub>⟩ are first evaluated
+in the dynamic environment, in any order;
+then a child environment _e_ of the dynamic environment is created,
+with the ⟨form<sub>k</sub>⟩ matched in _e_
+to the results of the evaluations of the ⟨exp<sub>k</sub>⟩;
+and finally the subexpressions of ⟨objects⟩ are evaluated in _e_
+from left to right, with the last (if any) evaluated as a tail context,
+or if ⟨objects⟩ is empty the result is `#inert`.
+
+#### Derivation
+
+```
+($define! $let
+  ($vau (bindings . body) env
+    (eval (cons
+      (list* $lambda (map car bindings) body)
+      (map cadr bindings)) env)
+  ))
 ```
 
 ## Machine Tools
