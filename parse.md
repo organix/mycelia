@@ -120,6 +120,23 @@ Otherwise fail without consuming any input.
           (list #f in))) )))
 ```
 
+### peg-not
+
+If _peg_ matches the _input_, fail.
+Otherwise the semantic value is `#inert`
+and the match succeeds without consuming any input.
+This is negative look-ahead.
+
+```
+($define! peg-not
+  ($lambda (peg)
+    ($lambda (in)
+      ($let (((ok . #ignore) (peg in)))
+        ($if ok
+          (list #f in)
+          (list #t #inert in))) )))
+```
+
 ### peg-xform
 
 Attempt to match _peg_.
@@ -249,35 +266,6 @@ Otherwise fail without consuming any input.
 ($define! peg-plus
   ($lambda (peg)
     (peg-and peg (peg-star peg)) ))
-```
-
-### peg-not
-
-If _peg_ matches the _input_, fail.
-Otherwise the semantic value is `#inert`
-and the match succeeds without consuming any input.
-This is negative look-ahead.
-
-```
-($define! peg-not
-  ($lambda (peg)
-    (peg-xform peg
-      ($lambda (ok . state)
-        ($if ok
-          (list #f (cadr state))
-          (list #t #inert (car state))) )) ))
-```
-
-#### Alternate (inline) Derivation
-
-```
-($define! peg-not
-  ($lambda (peg)
-    ($lambda (in)
-      ($let (((ok . #ignore) (peg in)))
-        ($if ok
-          (list #f in)
-          (list #t #inert in))) )))
 ```
 
 ### peg-peek
