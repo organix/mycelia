@@ -6,12 +6,12 @@ token predicate matching,
 and arbitrary look-ahead.
 
 Each parsing expression takes a list of tokens as input,
-and returns either `(#t `value` `remaining`)` on success,
-or `(#f `remaining`)` on match failure.
-The _remaining_ value is the list of unmatched tokens
-remaining in the input list.
-The _value_ is the semantic value of the match,
+and returns either `(#t `_value_` `_remaining_`)` on success,
+or `(#f `_remaining_`)` on match failure.
+_value_ is the semantic value of the match,
 which varies based on the type of the parsing expression.
+_remaining_ is the list of unmatched tokens
+remaining in the input list.
 
 ## Primitive Parsing Expressions
 
@@ -111,7 +111,7 @@ which varies based on the type of the parsing expression.
     (peg-if ($lambda (token) (equal? value token))) ))
 ```
 
-### Alternate (inline) Derivation
+#### Alternate (inline) Derivation
 
 ```
 ($define! peg-equal
@@ -190,7 +190,7 @@ which varies based on the type of the parsing expression.
           (list #t #inert (car state))) )) ))
 ```
 
-### Alternate (inline) Derivation
+#### Alternate (inline) Derivation
 
 ```
 ($define! peg-not
@@ -208,4 +208,22 @@ which varies based on the type of the parsing expression.
 ($define! peg-peek
   ($lambda (peg)
     (peg-not (peg-not peg)) ))
+```
+
+## Usage Examples
+
+```
+> ((peg-star (peg-equal 10)) (list 10 10 10 13 10 13))
+(#t (10 10 10) (13 10 13))
+
+; with arm-asm (38656 byte kernel.img)
+> ($timed ((peg-star (peg-equal 10)) (list 10 10 10 13 10 13)))
+1009458
+
+; without arm-asm (31872 byte kernel.img)
+> ($timed ((peg-star (peg-equal 10)) (list 10 10 10 13 10 13)))
+468171
+448403
+437850
+
 ```
