@@ -149,6 +149,33 @@ Transform the entire result with _xform_.
       (xform (peg in)) )))
 ```
 
+#### Example
+
+```
+($define! digits->number
+  ($lambda (n ds)
+    ($if (null? ds)
+      n
+      (digits->number
+        (+ (* 10 n) (car ds) -48)
+        (cdr ds))
+    )))
+
+($define! peg->number
+  ($lambda ((ok . state))
+    ($if ok
+      ($let (((value rest) state))
+        (list #t (digits->number 0 value) rest))
+      (cons #f state)
+    )))
+
+($define! match-digits (peg-plus (peg-range 48 57)))
+
+> ((peg-xform match-digits peg->number) (list 49 50 51 10))
+(#t 123 (10))
+```
+
+
 ## Derived Parsing Expressions
 
 ### peg-equal
