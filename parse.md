@@ -309,20 +309,187 @@ This is positive look-ahead.
     (peg-not (peg-not peg)) ))
 ```
 
-## Usage Examples
+## Infix Expression Example
+
+A grammar for parsing arithmetic expression with infix operators.
+Operator precedence is encoded into the grammar itself.
 
 ```
-> ((peg-star (peg-equal 10)) (list 10 10 10 13 10 13))
-(#t (10 10 10) (13 10 13))
+; expr   = term ([-+] term)*
+; term   = factor ([*/] factor)*
+; factor = '(' expr ')' | number
+; number = [0-9]+
 
-; with arm-asm (38656 byte kernel.img)
-> ($timed ((peg-star (peg-equal 10)) (list 10 10 10 13 10 13)))
-1009458
+($define! match-expr
+  ($lambda (in)
+    ((peg-xform
+      (peg-seq
+        match-term
+        (peg-star
+          (peg-seq
+            (peg-or
+              (peg-equal 43)  ; plus
+              (peg-equal 45)  ; minus
+            )
+          match-term)))
+      peg->binop
+    ) in)))
+($define! match-term
+  ($lambda (in)
+    ((peg-xform
+      (peg-seq
+        match-factor
+        (peg-star
+          (peg-seq
+            (peg-or
+              (peg-equal 42)  ; times
+              (peg-equal 47)  ; divide
+            )
+            match-factor)))
+      peg->binop
+    ) in)))
+($define! match-factor
+  ($lambda (in)
+    ((peg-alt
+      (peg-xform
+        (peg-seq
+          (peg-equal 40)  ; open paren
+          match-expr
+          (peg-equal 41)  ; close paren
+        )
+        ($lambda ((ok . state))
+          ($if ok
+            ($let (((value rest) state))
+              (list #t (cadr value) rest))
+            (cons #f state)
+          ))
+      )
+      match-number
+    ) in)))
+($define! match-number
+  ($lambda (in)
+    ((peg-xform
+      (peg-plus (peg-range 48 57))  ; [0-9]+
+      ($lambda ((ok . state))
+        ($if ok
+          ($let (((value rest) state))
+            (list #t (digits->number 0 value) rest))
+          (cons #f state)
+        ))
+    ) in)))
 
-; without arm-asm (31872 byte kernel.img)
-> ($timed ((peg-star (peg-equal 10)) (list 10 10 10 13 10 13)))
-468171
-448403
-437850
+($define! char->appl
+  ($lambda (ascii)
+    ($cond
+      ((eq? ascii 43) +)
+      ((eq? ascii 45) -)
+      ((eq? ascii 42) *)
+      ((eq? ascii 47) /)
+      (#t list)
+    )))
+($define! infix->prefix
+  ($lambda ((t0 op-args))
+    ($if (null? op-args)
+      t0
+      (infix->prefix (list (list* (caar op-args) t0 (cdar op-args)) (cdr op-args)))
+;      (infix->prefix (list (list* (char->appl (caar op-args)) t0 (cdar op-args)) (cdr op-args)))
+    )))
+($define! peg->binop
+  ($lambda ((ok . state))
+    ($if ok
+      ($let (((value rest) state))
+        (list #t (infix->prefix value) rest))
+      (cons #f state)
+    )))
+($define! digits->number
+  ($lambda (n ds)
+    ($if (null? ds)
+      n
+      (digits->number
+        (+ (* 10 n) (car ds) -48)
+        (cdr ds))
+    )))
+```
 
+```
+; test-case "1+2"
+> (match-expr (list 49 43 50))
+(#t (43 1 2) ())
+
+; test-case "1+2*3"
+> (match-expr (list 49 43 50 42 51))
+(#t (43 1 (42 2 3)) ())
+
+; test-case "1*2+3"
+> (match-expr (list 49 42 50 43 51))
+(#t (43 (42 1 2) 3) ())
+
+; test-case "1+2*3-90"
+> (match-expr (list 49 43 50 42 51 45 57 48))
+(#t (45 (43 1 (42 2 3)) 90) ())
+
+; test-case "1+2*(3-90)"
+> (match-expr (list 49 43 50 42 40 51 45 57 48 41))
+(#t (43 1 (42 2 (45 3 90))) ())
+```
+
+## LISP/Scheme Example
+
+A grammar for parsing languages in the LISP/Scheme family.
+
+```
+; sexpr  = _ (list | atom)
+; list   = '(' sexpr* _ ')'
+; atom   = (number | symbol)
+; number = [0-9]+
+; symbol = [a-zA-Z0-9]+
+; _      = [ \t-\r]*
+
+($define! match-sexpr
+  ($lambda (in)
+    ((peg-and
+      match-optws
+      (peg-or
+        match-list
+        match-atom
+      )
+    ) in)))
+($define! match-list
+  ($lambda (in)
+    ((peg-seq
+      (peg-equal 40)  ; open paren
+      (peg-star match-sexpr)
+      match-optws
+      (peg-equal 41)  ; close paren
+    ) in)))
+($define! match-atom
+  ($lambda (in)
+    ((peg-or
+      match-number
+      match-symbol
+    ) in)))
+($define! match-number
+  ($lambda (in)
+    ((peg-plus
+      (peg-range 48 57)  ; digit
+    ) in)))
+($define! match-symbol
+  ($lambda (in)
+    ((peg-plus
+      (peg-alt
+        (peg-range 97 122)  ; lowercase
+        (peg-range 65 90)   ; uppercase
+        (peg-range 48 57)   ; digit
+      )
+    ) in)))
+($define! match-optws
+  ($lambda (in)
+    ((peg-star
+      (peg-range 0 32)  ; whitespace (+ctrls)
+    ) in)))
+```
+
+```
+; test-case "(CAR ( LIST 0 1)\t)"
+(match-sexpr (list 40 67 65 82 32 40 32 76 73 83 84 32 48 32 49 41 9 41))
 ```
