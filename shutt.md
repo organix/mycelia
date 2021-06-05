@@ -803,6 +803,97 @@ or if ⟨objects⟩ is empty the result is `#inert`.
   ))
 ```
 
+### not?
+
+`(not? `_boolean_`)`
+
+Applicative _`not?`_ is a predicate
+that returns the logical negation of its argument.
+
+#### Derivation
+
+```
+($define! not? ($lambda (x) ($if x #f #t)))
+```
+
+### and?
+
+`(and? `_boolean_`)`
+
+Applicative _`and?`_ is a predicate
+that returns `#t` unless one or more of its arguments are `#f`.
+
+#### Derivation
+
+```
+($define! and?
+  ($lambda args
+    (eval (cons $and? args) (get-current-env)) ))
+```
+
+### or?
+
+`(or? `_boolean_`)`
+
+Applicative _`or?`_ is a predicate
+that returns `#f` unless one or more of its arguments are `#t`.
+
+#### Derivation
+
+```
+($define! or?
+  ($lambda args
+    (eval (cons $or? args) (get-current-env)) ))
+```
+
+### $and?
+
+`($and? . `⟨objects⟩`)`
+
+Operative _`$and?`_ is a predicate that
+evaluates its operands from left to right,
+until either an operand evaluates to `#f` (result is `#f`),
+or the end of the list is reached (result is `#t`).
+If the an operand does not evaluate to a _boolean_,
+an error is signaled.
+
+#### Derivation
+
+```
+($define! $and?
+  ($vau x e
+    ($cond
+      ((null? x) #t)
+      ((null? (cdr x)) (eval (car x) e))  ; tail context
+      ((eval (car x) e) (apply (wrap $and?) (cdr x) e))
+      (#t #f)
+    )))
+```
+
+### $or?
+
+`($or? . `⟨objects⟩`)`
+
+Operative _`$or?`_ is a predicate that
+evaluates its operands from left to right,
+until either an operand evaluates to `#t` (result is `#t`),
+or the end of the list is reached (result is `#f`).
+If the an operand does not evaluate to a _boolean_,
+an error is signaled.
+
+#### Derivation
+
+```
+($define! $or?
+  ($vau x e
+    ($cond
+      ((null? x) #f)
+      ((null? (cdr x)) (eval (car x) e))  ; tail context
+      ((eval (car x) e) #t)
+      (#t (apply (wrap $or?) (cdr x) e))
+    )))
+```
+
 ## Machine Tools
 
 ### dump-bytes
