@@ -625,6 +625,12 @@ b_oper:			@ compound operative behavior
 	teq	r0, #0		@ if NULL
 	beq	a_kernel_err	@	signal error
 
+@ <debug>
+@	mov	r9, r0		@	save ext env
+@	ldr	r1, [ip, #0x10]	@	stop at senv
+@	bl	dump_env	@	dump ext env
+@	mov	r0, r9		@	restore ext env
+@ </debug>
 @	mov	r0, r0		@	get ext env (already in r0)
 	mov	r1, r4		@	get local env
 	bl	mutate_environment
@@ -639,6 +645,11 @@ b_oper:			@ compound operative behavior
 	stmib	r0, {r5-r7}	@	store cust, result, env
 	mov	r5, r0		@	cust = k_seq
 
+@ <debug>
+@	ldr	r0, [ip, #0x0c]	@	body sexpr
+@	bl	print_sexpr	@	print body to console
+@	bl	serial_eol	@	newline
+@ </debug>
 	bl	reserve		@	allocate event block
 	ldr	r4, [ip, #0x0c]	@	target = body
 @	mov	r5, r5		@	cust (already in r5)

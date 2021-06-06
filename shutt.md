@@ -692,8 +692,10 @@ in the order of their arguments in the original lists.
 ($provide! (map)
   ($define! map
     (wrap ($vau (applicative . lists) env
-      (appl applicative (peel lists () ()) env))
-  ))
+      ($if (apply null? lists env)
+        ()
+        (appl applicative (peel lists () ()) env)
+      ))))
   ($define! peel
     ($lambda (((head . tail) . more) heads tails)
       ($if (null? more)
@@ -713,16 +715,35 @@ in the order of their arguments in the original lists.
 )
 ```
 
+#### Example
+
+```
+> (map + (list 1 2) (list 3 4))
+(4 6)
+
+> (map + (list 1) (list 2))
+(3)
+
+> (map + (list 1 2))
+(1 2)
+
+> (map + (list 1))
+(1)
+
+> (map + ())
+()
+```
+
 ### reduce
 
-`(reduce `_list_` `_binop_` `_zero_`)`
+`(reduce `_args_` `_binop_` `_zero_`)`
 
-_list_ should be a list. _binop_ should be an applicative.
-If _list_ is empty, applicative _`reduce`_ returns _zero_.
-If _list_ is nonempty, applicative _`reduce`_ uses binary operation _binop_
-to merge all the elements of _list_ into a single object,
+_args_ should be a list. _binop_ should be an applicative.
+If _args_ is empty, applicative _`reduce`_ returns _zero_.
+If _args_ is nonempty, applicative _`reduce`_ uses binary operation _binop_
+to merge all the elements of _args_ into a single object,
 using any associative grouping of the elements.
-That is, the sequence of objects initially found in _list_
+That is, the sequence of objects initially found in _args_
 is repeatedly decremented in length
 by applying _binop_ to a list of any two consecutive objects,
 replacing those two objects with the result
@@ -734,41 +755,41 @@ that object is returned.
 
 ```
 ($define! reduce
-  ($lambda (list binop zero)
-    ($if (null? list)
+  ($lambda (args binop zero)
+    ($if (null? args)
       zero
       (($lambda ((first . rest))
         ($if (null? rest)
           first
           (binop first (reduce rest binop zero)))
-      ) list)) ))
+      ) args)) ))
 ```
 
 #### Alternatives
 
 ```
 ($define! foldl
-  ($lambda (list binop zero)
-    ($if (null? list)
+  ($lambda (args binop zero)
+    ($if (null? args)
       zero
       (($lambda ((first . rest))
         (foldl rest binop (binop zero first))
-      ) list)) ))
+      ) args)) ))
 ```
 
 ```
 ($define! foldr
-  ($lambda (list binop zero)
-    ($if (null? list)
+  ($lambda (args binop zero)
+    ($if (null? args)
       zero
       (($lambda ((first . rest))
         (binop first (foldr rest binop zero))
-      ) list)) ))
+      ) args)) ))
 ```
 
 ### $let
 
-`($let `⟨bindings⟩` . `⟨objects⟩`)`
+`($let `⟨bindings⟩` . `⟨body⟩`)`
 
 ⟨bindings⟩ should be a list of formal-parameter-tree/expression pairings,
 each of the form `(`⟨formals⟩` `⟨expression⟩`)`,
@@ -776,11 +797,11 @@ where each ⟨formals⟩ is a formal parameter tree.
 
 The expression
 <pre>
-(<b><i>$let</i></b> ((⟨form<sub>1</sub>⟩ ⟨exp<sub>1</sub>⟩) ... (⟨form<sub><i>n</i></sub>⟩ ⟨exp<sub><i>n</i></sub>⟩)) . ⟨objects⟩)
+(<b><i>$let</i></b> ((⟨form<sub>1</sub>⟩ ⟨exp<sub>1</sub>⟩) ... (⟨form<sub><i>n</i></sub>⟩ ⟨exp<sub><i>n</i></sub>⟩)) . ⟨body⟩)
 </pre>
 is equivalent to
 <pre>
-((<b><i>$lambda</i></b> (⟨form<sub>1</sub>⟩ ... ⟨form<sub><i>n</i></sub>⟩) . ⟨objects⟩) ⟨exp<sub>1</sub>⟩ ... ⟨exp<sub><i>n</i></sub>⟩)
+((<b><i>$lambda</i></b> (⟨form<sub>1</sub>⟩ ... ⟨form<sub><i>n</i></sub>⟩) . ⟨body⟩) ⟨exp<sub>1</sub>⟩ ... ⟨exp<sub><i>n</i></sub>⟩)
 </pre>
 
 Thus, the ⟨exp<sub><i>k</i></sub>⟩ are first evaluated
@@ -788,9 +809,9 @@ in the dynamic environment, in any order;
 then a child environment _e_ of the dynamic environment is created,
 with the ⟨form<sub><i>k</i></sub>⟩ matched in _e_
 to the results of the evaluations of the ⟨exp<sub><i>k</i></sub>⟩;
-and finally the subexpressions of ⟨objects⟩ are evaluated in _e_
+and finally the subexpressions of ⟨body⟩ are evaluated in _e_
 from left to right, with the last (if any) evaluated as a tail context,
-or if ⟨objects⟩ is empty the result is `#inert`.
+or if ⟨body⟩ is empty the result is `#inert`.
 
 #### Derivation
 
@@ -801,6 +822,207 @@ or if ⟨objects⟩ is empty the result is `#inert`.
       (list* $lambda (map car bindings) body)
       (map cadr bindings)) env)
   ))
+```
+
+#### Example
+
+```
+> ($let ((one 1) (two 2)) (list one two))
+(1 2)
+```
+
+### $let*
+
+`($let* `⟨bindings⟩` . `⟨body⟩`)`
+
+The binding expressions are guaranteed to be evaluated from left to right,
+and each of these evaluations has access to the bindings of previous evaluations.
+However, each of these evaluations takes place
+in a child of the environment of the previous one,
+and bindings for the previous evaluation take place in the child, too.
+So, if one of the binding expressions is a _`$vau`_ or _`$lambda`_ expression,
+the resulting combiner still can’t be recursive;
+and only the first binding expression is evaluated in the dynamic environment.
+
+#### Derivation
+
+```
+($define! $let*
+  ($vau (bindings . body) env
+    (eval ($if (null? bindings)
+      (list* $let bindings body)
+      (list $let
+        (list (car bindings))
+        (list* $let* (cdr bindings) body))
+    ) env)))
+```
+
+#### Example
+
+```
+> ($let* ((one 1) (two (+ one one))) (list one two))
+(1 2)
+```
+
+### $letrec
+
+`($letrec `⟨bindings⟩` . `⟨body⟩`)`
+
+The binding expressions may be evaluated in any order.
+None of them are evaluated in the dynamic environment,
+so there is no way to capture the dynamic environment using _`$letrec`_;
+and none of the bindings are made until after the expressions have been evaluated,
+so the expressions cannot see each others’ results;
+but since the bindings are in the same environment as the evaluations,
+they can be recursive, and even mutually recursive, combiners.
+
+#### Derivation
+
+```
+($define! $letrec
+  ($vau (bindings . body) env
+    (eval (list* $let ()
+      (list $define!
+        (map car bindings)
+        (list* list (map cadr bindings)))
+      body) env)))
+```
+
+#### Example
+
+```
+> ($letrec (
+    (odd ($lambda (x) ($if (=? x 0) #f (even (- x 1)))))
+    (even ($lambda (x) ($if (=? x 0) #t (odd (- x 1)))))
+  ) (list (odd 3) (even 3)))
+(#t #f)
+```
+
+### $letrec*
+
+`($letrec* `⟨bindings⟩` . `⟨body⟩`)`
+
+The binding expressions are guaranteed to be evaluated from left to right;
+each of these evaluations has access to the bindings of previous evaluations;
+and the result of each evaluation is matched
+in the same environment where it was performed,
+so if the result is a combiner, it can be recursive.
+Further, the result of each binding expression is matched separately,
+so there is nothing to prevent the same symbol from occurring in more than one ⟨formals⟩.
+However, since each evaluation takes place in a child of the previous one,
+and even the first does not take place in the dynamic environment,
+there is no way to capture the dynamic environment using _`$letrec*`_,
+and no way for combiners resulting from different binding expressions to be mutually recursive.
+
+#### Derivation
+
+```
+($define! $letrec*
+  ($vau (bindings . body) env
+    (eval ($if (null? bindings)
+      (list* $letrec bindings body)
+      (list $letrec
+        (list (car bindings))
+        (list* $letrec* (cdr bindings) body))
+    ) env)))
+```
+
+### $let-redirect
+
+`($let-redirect `⟨env-exp⟩` `⟨bindings⟩` . `⟨body⟩`)`
+
+The binding expressions are evaluated in the dynamic environment,
+but the local environment is a child of
+the environment resulting from evaluating ⟨env-exp⟩.
+This promotes semantic stability,
+by protecting the meaning of expressions in the body
+from unexpected changes to the client’s environment
+(much as static scoping protects explicitly constructed compound combiners).
+
+In the interests of maintaining clarity and orthogonality of semantics,
+there are no variants of _`$let-redirect`_ analogous to
+the variants _`$let*`_, etc., of _`$let`_.
+The variants of _`$let`_ modulate its role
+in locally augmenting the current environment,
+whereas the primary purpose of _`$let-redirect`_
+is presumed to be locally replacing the current environment;
+so it was judged better to provide just one environment replacement device,
+insulating it as much as possible from complexities of environment augmentation.
+
+#### Derivation
+
+```
+($define! $let-redirect
+  ($vau (env-exp bindings . body) env
+    (eval (list*
+      (eval (list* $lambda (map car bindings) body) (eval env-exp env))
+      (map cadr bindings))
+    env)))
+```
+
+### $let-safe
+
+`($let-safe `⟨bindings⟩` . `⟨body⟩`)`
+
+The expression
+<pre>
+(<b><i>$let-safe</i></b> ⟨bindings⟩ . ⟨body⟩)
+</pre>
+is equivalent to
+<pre>
+(<b><i>$let-redirect</i></b> (<b><i>make-standard-env</i></b>) ⟨bindings⟩ . ⟨body⟩)
+</pre>
+
+#### Derivation
+
+```
+($define! $let-safe
+  ($vau (bindings . body) env
+    (eval
+      (list* $let-redirect (make-standard-env) bindings body)
+    env)))
+```
+
+### $remote-eval
+
+`($remote-eval `⟨exp⟩` `⟨env-exp⟩`)`
+
+Operative _`$remote-eval`_ evaluates ⟨exp⟩ as a tail context,
+in the environment that must result from
+the evaluation of ⟨env-exp⟩ in the dynamic environment.
+
+#### Derivation
+
+```
+($define! $remote-eval
+  ($vau (o e) d
+    (eval o (eval e d))))
+```
+
+### $bindings->env
+
+`($bindings->env . `⟨bindings⟩`)`
+
+The expression
+<pre>
+(<b><i>$bindings->env</i></b> . ⟨bindings⟩)
+</pre>
+is equivalent to
+<pre>
+(<b><i>$let-redirect</i></b> (<b><i>make-env</i></b>) ⟨bindings⟩ (<b><i>get-current-env</i></b>))
+</pre>
+
+#### Derivation
+
+```
+($define! $bindings->env
+  ($vau bindings denv
+    (eval (list
+      $let-redirect
+      (make-env)
+      bindings
+      (list get-current-env))
+    denv)))
 ```
 
 ### not?

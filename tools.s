@@ -357,6 +357,7 @@ op_dump_env:		@ operative "$dump-env"
 	ldr	r1, =environment_p @	predicate
 	bl	match_1_arg
 
+	ldr	r1, =a_empty_env @	stop at empty environment
 	bl	dump_env	@	dump environment (*for debugging only*)
 
 	bl	reserve		@	allocate event block

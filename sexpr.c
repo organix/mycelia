@@ -4,7 +4,7 @@
 #include "sexpr.h"
 #include "serial.h"
 
-#define DEBUG(x)   /* debug logging */
+#define DEBUG(x) x /* debug logging */
 #define TRACE(x)   /* trace logging */
 
 // static actors
@@ -308,31 +308,31 @@ ACTOR*
 number(int n)
 {
     // FIXME: consider a memo-table for small integers
-    DEBUG(puts("number(0x"));
-    DEBUG(serial_hex32((u32)n));
-    DEBUG(puts(")="));
+    TRACE(puts("number(0x"));
+    TRACE(serial_hex32((u32)n));
+    TRACE(puts(")="));
     struct example_5 *x = create_5(&b_number);
     x->data_04 = (u32)n;
-    DEBUG(puts("0x"));
-    DEBUG(serial_hex32((u32)x));
-    DEBUG(putchar('\n'));
+    TRACE(puts("0x"));
+    TRACE(serial_hex32((u32)x));
+    TRACE(putchar('\n'));
     return (ACTOR*)x;
 }
 
 ACTOR*
 cons(ACTOR* a, ACTOR* d)
 {
-    DEBUG(puts("cons(0x"));
-    DEBUG(serial_hex32((u32)a));
-    DEBUG(puts(",0x"));
-    DEBUG(serial_hex32((u32)d));
-    DEBUG(puts(")="));
+    TRACE(puts("cons(0x"));
+    TRACE(serial_hex32((u32)a));
+    TRACE(puts(",0x"));
+    TRACE(serial_hex32((u32)d));
+    TRACE(puts(")="));
     struct example_5 *x = create_5(&b_pair);
     x->data_04 = (u32)a;
     x->data_08 = (u32)d;
-    DEBUG(puts("0x"));
-    DEBUG(serial_hex32((u32)x));
-    DEBUG(putchar('\n'));
+    TRACE(puts("0x"));
+    TRACE(serial_hex32((u32)x));
+    TRACE(putchar('\n'));
     return (ACTOR*)x;
 }
 
@@ -974,9 +974,9 @@ print_sexpr(ACTOR* a)  /* print external representation of s-expression */
 }
 
 void
-dump_env(ACTOR* x)
+dump_env(ACTOR* x, ACTOR* y)  // dump environment from x to y
 {
-    for (;;) {
+    while (x != y) {
         struct example_5 *a = (struct example_5 *)x;
         serial_hex32((u32)a);
         puts(": ");
@@ -1336,9 +1336,9 @@ ground_env()
 
     /* establish ground environment */
     kernel_env = env;
-    TRACE(puts("ground_env=0x"));
-    TRACE(serial_hex32((u32)env));
-    TRACE(putchar('\n'));
+    DEBUG(puts("ground_env=0x"));
+    DEBUG(serial_hex32((u32)env));
+    DEBUG(putchar('\n'));
 
     /* provide additional definitions in source form */
     no_print = 1;  // suppress printing results while evaluating preamble
@@ -1566,7 +1566,7 @@ ground_env()
 //"  ($lambda (n . r) (bit-or #xe9b0_0000 (arm-ls-Rn n) (apply arm-ls-Regs r)) ))\n"
 ")\n"
 #endif
-#if 1  // peg parsing
+#if 0  // peg parsing
 "($sequence\n"
 //"; Derived\n"
 "($define! peg-peek\n"
@@ -1654,15 +1654,36 @@ ground_env()
 #endif
 #if 1  // core language definitions
 "($sequence\n"
-"($define! $provide!\n"
-"  ($vau (symbols . body) env\n"
-"    (eval\n"
-"      (list $define! symbols\n"
-"        (list\n"
-"          (list $lambda ()\n"
-"            (list* $sequence body)\n"
-"            (list* list symbols))))\n"
-"      env)))\n"
+"($define! $let-redirect\n"
+"  ($vau (env-exp bindings . body) env\n"
+"    (eval (list*\n"
+"      (eval (list* $lambda (map car bindings) body) (eval env-exp env))\n"
+"      (map cadr bindings))\n"
+"    env)))\n"
+"($define! $let-safe\n"
+"  ($vau (bindings . body) env\n"
+"    (eval (list* $let-redirect (make-standard-env) bindings body) env)))\n"
+"($define! $letrec*\n"
+"  ($vau (bindings . body) env\n"
+"    (eval ($if (null? bindings)\n"
+"      (list* $letrec bindings body)\n"
+"      (list $letrec (list (car bindings)) (list* $letrec* (cdr bindings) body))\n"
+"    ) env)))\n"
+"($define! $letrec\n"
+"  ($vau (bindings . body) env\n"
+"    (eval (list* $let ()\n"
+"      (list $define! (map car bindings) (list* list (map cadr bindings)))\n"
+"      body) env)))\n"
+"($define! $let*\n"
+"  ($vau (bindings . body) env\n"
+"    (eval ($if (null? bindings)\n"
+"      (list* $let bindings body)\n"
+"      (list $let (list (car bindings)) (list* $let* (cdr bindings) body))\n"
+"    ) env)))\n"
+"($define! $remote-eval ($vau (o e) d (eval o (eval e d))))\n"
+"($define! $bindings->env\n"
+"  ($vau bindings denv\n"
+"    (eval (list $let-redirect (make-env) bindings (list get-current-env)) denv)))\n"
 "($define! $get\n"
 "  ($vau (env symbol) dyn\n"
 "    (eval symbol\n"
@@ -1673,6 +1694,15 @@ ground_env()
 "      (list $define! formal\n"
 "        (list (unwrap eval) value dyn))\n"
 "      (eval env dyn))))\n"
+"($define! $provide!\n"
+"  ($vau (symbols . body) env\n"
+"    (eval\n"
+"      (list $define! symbols\n"
+"        (list\n"
+"          (list $lambda ()\n"
+"            (list* $sequence body)\n"
+"            (list* list symbols))))\n"
+"      env)))\n"
 "($define! $cond\n"
 "  ($vau clauses env\n"
 "    ($if (null? clauses)\n"
@@ -1747,28 +1777,28 @@ ground_env()
 "          (filter accept? rest))\n"
 "      ) xs)) ))\n"
 "($define! reduce\n"
-"  ($lambda (list binop zero)\n"
-"    ($if (null? list)\n"
+"  ($lambda (args binop zero)\n"
+"    ($if (null? args)\n"
 "      zero\n"
 "      (($lambda ((first . rest))\n"
 "        ($if (null? rest)\n"
 "          first\n"
 "          (binop first (reduce rest binop zero)))\n"
-"      ) list)) ))\n"
+"      ) args)) ))\n"
 "($define! foldl\n"
-"  ($lambda (list binop zero)\n"
-"    ($if (null? list)\n"
+"  ($lambda (args binop zero)\n"
+"    ($if (null? args)\n"
 "      zero\n"
 "      (($lambda ((first . rest))\n"
 "        (foldl rest binop (binop zero first))\n"
-"      ) list)) ))\n"
+"      ) args)) ))\n"
 "($define! foldr\n"
-"  ($lambda (list binop zero)\n"
-"    ($if (null? list)\n"
+"  ($lambda (args binop zero)\n"
+"    ($if (null? args)\n"
 "      zero\n"
 "      (($lambda ((first . rest))\n"
 "        (binop first (foldr rest binop zero))\n"
-"      ) list)) ))\n"
+"      ) args)) ))\n"
 "($define! make-standard-env ($lambda () (get-current-env)))\n"
 "($define! get-current-env (wrap ($vau () e e)))\n"
 "($define! list*\n"
@@ -1785,8 +1815,10 @@ ground_env()
 "($provide! (map)\n"
 "  ($define! map\n"
 "    (wrap ($vau (applicative . lists) env\n"
-"      (appl applicative (peel lists () ()) env))\n"
-"  ))\n"
+"      ($if (apply null? lists env)\n"
+"        ()\n"
+"        (appl applicative (peel lists () ()) env)\n"
+"      ))))\n"
 "  ($define! peel\n"
 "    ($lambda (((head . tail) . more) heads tails)\n"
 "      ($if (null? more)\n"
