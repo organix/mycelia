@@ -125,6 +125,7 @@ b_number:		@ integer constant
 @ 		BECOME Binding(symbol, value', next)
 @ 		SEND Inert TO cust
 @ 	]
+@	(#eval, env) : [ SEND SELF TO cust ]
 @ 	_ : [ SEND (cust, req) TO next ]
 @ 	END
 @ ]
@@ -132,7 +133,7 @@ b_number:		@ integer constant
 	.align 5		@ align to cache-line
 	.global b_binding
 b_binding:		@ symbol binding
-			@ (example_5: 0x04=symbol, 0x08=value, 0x0c=next)
+			@ (example_5: 0x04=symbol, 0x08=value, 0x0c=next, 0x10=left, 0x14=right)
 			@ message = (cust, #S_GET, symbol')
 			@         | (cust, #S_SET, symbol', value')
 	ldmib	ip, {r4-r6}	@ r4=symbol, r5=value, r6=next
@@ -179,6 +180,7 @@ b_binding:		@ symbol binding
 @ 		BECOME Binding(symbol, value, next)
 @ 		SEND Inert TO cust
 @ 	]
+@	(#eval, env) : [ SEND SELF TO cust ]
 @ 	_ : [ SEND (cust, req) TO parent ]
 @ 	END
 @ ]
@@ -186,9 +188,11 @@ b_binding:		@ symbol binding
 	.align 5		@ align to cache-line
 	.global b_scope
 b_scope:		@ binding scope
-			@ (example_5: 0x04=, 0x08=, 0x0c=parent)
+			@ (example_5: 0x04=, 0x08=, 0x0c=parent, 0x10=root)
 			@ message = (cust, #S_SET, symbol, value)
+			@         | (cust, #S_GET, symbol)
 	ldr	r4, [ip, #0x0c] @ get parent
+	ldr	r5, [ip, #0x10] @ get root
 	ldr	r3, [fp, #0x08] @ get req
 
 	teq	r3, #S_SET
@@ -201,11 +205,14 @@ b_scope:		@ binding scope
 	ldr	r0, =b_scope	@	scope behavior
 	bl	create_5	@	create next actor
 	str	r4, [r0, #0x0c] @	set parent
+	str	r5, [r0, #0x10] @	set root
 
 	ldr	r5, [fp, #0x0c]	@	get symbol
 	ldr	r6, [fp, #0x10]	@	get value
 	mov	r7, r0		@	get next
-	stmib	ip, {r5-r7}	@
+	mov	r8, #0		@	clear left
+	mov	r9, #0		@	clear right
+	stmib	ip, {r5-r9}	@
 	ldr	r0, =b_binding	@	binding behavior
 	ldr	r0, [ip, #0x1c]	@	BECOME
 
@@ -217,6 +224,21 @@ b_scope:		@ binding scope
 	mov	r1, ip		@	get SELF
 	b	_a_answer	@	was are self-evaluating
 2:
+	teq	r3, #S_GET
+	bne	3f		@ else if req == "get"
+	movs	r0, r5		@	get root
+	beq	3f		@	if root != NULL
+	ldr	r1, [fp, #0x0c] @ 		get symbol
+	bl	splay_search	@		binding = splay_search(root, symbol)
+	movs	r5, r0		@		if (binding == NULL)
+	beq	a_empty_env	@			report undefined symbol
+	str	r5, [ip, #0x10] @ 		update root
+
+	ldr	r1, [r0, #0x08]	@		get value
+	ldr	r0, [fp, #0x04]	@		get cust
+	bl	send_1		@		send message
+	b	complete	@		return to dispatcher
+3:
 	bl	reserve		@ allocate event block
 	mov	r1, r4		@ target is parent
 	ldmia	fp, {r2-r9}	@ copy current event
@@ -596,6 +618,8 @@ b_oper:			@ compound operative behavior
 	bl	create_5	@	create "local" env
 	ldr	r1, [ip, #0x10]	@	get senv
 	str	r1, [r0, #0x0c]	@	set parent
+	mov	r2, #0
+	str	r2, [r0, #0x10]	@	clear root
 
 	mov	r4, r0		@	save local env
 	ldr	r5, [ip, #0x04]	@	save formals
@@ -1113,6 +1137,8 @@ op_make_env:		@ operative "$make-env"
 	ldr	r0, =b_scope	@	scope behavior
 	bl	create_5	@	create next actor
 	str	r8, [r0, #0x0c] @	set parent
+	mov	r2, #0
+	str	r2, [r0, #0x10]	@	clear root
 	mov	r7, r0		@	save new environment/scope
 
 	bl	reserve		@	allocate event block

@@ -31,6 +31,5 @@
 extern ACTOR*	match_param_tree(ACTOR* def, ACTOR* arg, ACTOR* env);  /* extend env binding args to def */
 extern ACTOR*   parse_sexpr();  /* parse and return s-expression */
 extern void     print_sexpr(ACTOR*);  /* print external representation of s-expression */
-extern void		kernel_repl();
 
 #endif /* _SEXPR_H_ */

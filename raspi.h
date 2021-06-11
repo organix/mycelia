@@ -34,6 +34,7 @@ extern void sponsor_2();  // "debug" sponsor (don't release events)
 
 /* kernel entry-point */
 extern void mycelia(ACTOR* sponsor, ACTOR* start, u32 trace);
+extern void panic();
 
 /* ARM assembly-language helper functions */
 extern void PUT_32(u32 addr, u32 data);

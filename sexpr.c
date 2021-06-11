@@ -4,7 +4,7 @@
 #include "sexpr.h"
 #include "serial.h"
 
-#define DEBUG(x) x /* debug logging */
+#define DEBUG(x)   /* debug logging */
 #define TRACE(x)   /* trace logging */
 
 // static actors
@@ -246,7 +246,7 @@ struct sym_24b {  // symbol data is offset 0x04 into a cache-line
     u32         data_18;
 };
 
-static int
+static int  // Return 1 if (x == y), otherwise 0.
 eq_24b(struct sym_24b* x, struct sym_24b* y)
 {
     return (x->data_04 == y->data_04)
@@ -255,6 +255,20 @@ eq_24b(struct sym_24b* x, struct sym_24b* y)
         && (x->data_10 == y->data_10)
         && (x->data_14 == y->data_14)
         && (x->data_18 == y->data_18);
+}
+
+static int  // Return <0 if (x < y), 0> if (x > y), otherwise 0 (x == y).
+cmp_24b(struct sym_24b* x, struct sym_24b* y)
+{
+    int d;
+
+    if ((d = (x->data_04 - y->data_04)) != 0) return d;
+    if ((d = (x->data_08 - y->data_08)) != 0) return d;
+    if ((d = (x->data_0c - y->data_0c)) != 0) return d;
+    if ((d = (x->data_10 - y->data_10)) != 0) return d;
+    if ((d = (x->data_14 - y->data_14)) != 0) return d;
+    if ((d = (x->data_18 - y->data_18)) != 0) return d;
+    return (x->data_18 - y->data_18);
 }
 
 static struct example_5* sym_table[256];
@@ -512,6 +526,8 @@ match_param_tree(ACTOR* def, ACTOR* arg, ACTOR* env)
         x->data_04 = (u32)def;  // set symbol
         x->data_08 = (u32)arg;  // set value
         x->data_0c = (u32)env;  // set next
+        x->data_10 = (u32)NULL; // clear left
+        x->data_14 = (u32)NULL; // clear right
         return (ACTOR *)x;
     }
     if (pair_p(def)) {
@@ -571,11 +587,18 @@ flush_char()
     line = NULL;
 }
 
+void close_env();  // FORWARD DECL
+
 static int
 read_char()
 {
     if (!line || !line[0]) {  // refill buffer
-        no_print = 0;  // enable printing of evaluation results
+        if (no_print) {
+#if 1
+            close_env();
+#endif
+            no_print = 0;  // enable printing of evaluation results
+        }
         line = editline();
         if (!line) return EOF;
     }
@@ -1009,7 +1032,151 @@ extend_env(ACTOR* env, struct sym_24b* sym, u32 value)
     x->data_04 = (u32)a;  // set symbol
     x->data_08 = (u32)value;  // set value
     x->data_0c = (u32)env;  // set next
+    x->data_10 = (u32)NULL;  // set left
+    x->data_14 = (u32)NULL;  // set right
     return (ACTOR *)x;
+}
+
+/***
+            00_       01_       02_       03_       04_       05_       06_       07_
+code  _00:  --code--  --code--  --code--  --code--  --code--  --code--  --code--  --code--
+name  _04:            "one"     "two"     "three"   "four"    "five"    "six"     "seven"
+value _08:            1         2         3         4         5         6         7
+next  _0c:  #0x0100   #0x0200   #0x0300   #0x0400   #0x0500   #0x0600   #0x0700   #env_mt
+left  _10:  root      NULL      NULL      NULL      NULL      NULL      NULL      NULL
+right _14:            NULL      NULL      NULL      NULL      NULL      NULL      NULL
+      _18:
+type  _1c:  b_scope   b_bind*g  b_bind*g  b_bind*g  b_bind*g  b_bind*g  b_bind*g  b_bind*g
+
+***/
+
+static int
+cmp_symbol(ACTOR* r, ACTOR* s)
+{
+    struct example_5* x = (struct example_5*)r;
+    struct example_5* y = (struct example_5*)s;
+    struct sym_24b* a = (struct sym_24b*)(&x->data_04);
+    struct sym_24b* b = (struct sym_24b*)(&y->data_04);
+    int d = cmp_24b(a, b);
+    DEBUG(putchar('('));
+    DEBUG(print_symbol(r));
+    DEBUG(puts((d < 0) ? " < " : ((d > 0) ? " > " : " = ")));
+    DEBUG(print_symbol(s));
+    DEBUG(puts(")\n"));
+    return d;
+}
+
+ACTOR*
+splay_search(ACTOR* env, ACTOR* name)
+{
+    if (!env) {  // not found, return NULL
+        return NULL;
+    }
+    struct example_5* e = (struct example_5*)env;  // root e
+    ACTOR* s = (ACTOR*)(e->data_04);  // e.name
+    if (name == s) {  // interned symbols are unique
+        // name == e.name
+        DEBUG(puts("["));
+        DEBUG(print_sexpr(name));
+        DEBUG(puts("]="));
+        DEBUG(print_sexpr(env));
+        DEBUG(putchar('\n'));
+        return env;  // return match
+    }
+    ACTOR* a = NULL;  // return value
+    // zig rotation toward root
+    if (cmp_symbol(name, s) < 0) {
+        // name < e.name
+        a = splay_search((ACTOR*)e->data_10, name);  // recurse left
+        if (!a) return NULL;  // failed, return NULL
+        struct example_5* x = (struct example_5*)a;
+        e->data_10 = x->data_14;  // e.left := a.right
+        x->data_14 = (u32)e;  // a.right := e
+    } else {
+        // name > e.name
+        a = splay_search((ACTOR*)e->data_14, name);  // recurse right
+        if (!a) return NULL;  // failed, return NULL
+        struct example_5* x = (struct example_5*)a;
+        e->data_14 = x->data_10;  // e.right := a.left
+        x->data_10 = (u32)e;  // a.left := e
+    }
+    // FIXME: consider adding zig-zig and zig-zag to implement a proper splay tree
+    return a;
+}
+
+#if 0
+static ACTOR*
+splay_key(ACTOR* name, ACTOR* value)
+{
+    struct example_5 *x = create_5(&b_binding);
+    if (!x) return NULL;  // FAIL!
+    x->data_04 = (u32)name;  // set symbol
+    x->data_08 = (u32)value;  // set value
+    x->data_0c = (u32)NULL;  // set next
+    x->data_10 = (u32)NULL;  // set left
+    x->data_14 = (u32)NULL;  // set right
+    return (ACTOR *)x;
+}
+#endif
+
+static ACTOR*
+splay_update(ACTOR* env, ACTOR* key)
+{
+    if (!env) {  // not found, return key
+        return key;
+    }
+    struct example_5* x = (struct example_5*)key;  // search key
+    ACTOR* r = (ACTOR*)(x->data_04);  // name
+    struct example_5* e = (struct example_5*)env;  // root e
+    ACTOR* s = (ACTOR*)(e->data_04);  // e.name
+    if (r == s) {  // interned symbols are unique
+        // name == e.name
+        return env;  // return match
+    }
+    ACTOR* a = NULL;  // return value
+    // zig rotation toward root
+    if (cmp_symbol(r, s) < 0) {
+        // name < e.name
+        a = splay_update((ACTOR*)e->data_10, key);  // recurse left
+        x = (struct example_5*)a;
+        e->data_10 = x->data_14;  // e.left := a.right
+        x->data_14 = (u32)e;  // a.right := e
+    } else {
+        // name > e.name
+        a = splay_update((ACTOR*)e->data_14, key);  // recurse right
+        x = (struct example_5*)a;
+        e->data_14 = x->data_10;  // e.right := a.left
+        x->data_10 = (u32)e;  // a.left := e
+    }
+    // FIXME: consider adding zig-zig and zig-zag to implement a proper splay tree
+    return a;
+}
+
+void
+close_env()
+{
+    struct example_5* x;
+    /* grow the search tree */
+    DEBUG(puts("kernel_env=0x"));
+    DEBUG(serial_hex32((u32)kernel_env));
+    DEBUG(putchar('\n'));
+    ACTOR* root = NULL;
+    ACTOR* a = kernel_env;
+    while (a && (a != a_empty_env)) {
+        x = (struct example_5*)a;
+        root = splay_update(root, a);
+        a = (ACTOR*)(x->data_0c);  // get next
+    }
+    /* create mutable local scope */
+    x = create_5(&b_scope);
+    if (!x) panic();  // FAIL!
+    x->data_0c = (u32)kernel_env;  // set parent
+    x->data_10 = (u32)root;  // set root
+    kernel_env = (ACTOR *)x;
+    /* extend ground environment */
+    DEBUG(puts("kernel_env'=0x"));
+    DEBUG(serial_hex32((u32)kernel_env));
+    DEBUG(putchar('\n'));
 }
 
 ACTOR*
@@ -1067,7 +1234,6 @@ ground_env()
     char pairp_24b[] = "pair" "?\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     char list_24b[] = "list" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     ACTOR* a;
-    struct example_5 *x;
 
     if (kernel_env) return kernel_env;  // lazy-initialized singleton
 
@@ -1328,21 +1494,19 @@ ground_env()
     if (!a) return NULL;  // FAIL!
     env = a;
 
-    /* mutable local scope */
-    x = create_5(&b_scope);
-    if (!x) return NULL;  // FAIL!
-    x->data_0c = (u32)env;  // set parent
-    env = (ACTOR *)x;
-
     /* establish ground environment */
     kernel_env = env;
     DEBUG(puts("ground_env=0x"));
-    DEBUG(serial_hex32((u32)env));
+    DEBUG(serial_hex32((u32)kernel_env));
     DEBUG(putchar('\n'));
+#if 0
+    close_env();
+#endif
 
     /* provide additional definitions in source form */
     no_print = 1;  // suppress printing results while evaluating preamble
     line =
+//"($define! $quote ($vau (x) #ignore x))\n"
 //"($define! car ($lambda ((x . #ignore)) x))\n"
 //"($define! cdr ($lambda ((#ignore . x)) x))\n"
 //"($define! get-current-environment (wrap ($vau () e e)))\n"
@@ -1566,7 +1730,7 @@ ground_env()
 //"  ($lambda (n . r) (bit-or #xe9b0_0000 (arm-ls-Rn n) (apply arm-ls-Regs r)) ))\n"
 ")\n"
 #endif
-#if 0  // peg parsing
+#if 1  // peg parsing
 "($sequence\n"
 //"; Derived\n"
 "($define! peg-peek\n"
@@ -1848,19 +2012,4 @@ ground_env()
 "\n";
 
     return kernel_env;
-}
-
-void
-kernel_repl()
-{
-    flush_char();
-    for (;;) {
-        putchar('\n');
-        puts("> ");
-        ACTOR* x = parse_sexpr();
-        if (x == NULL) break;
-        // FIXME: this is just a read-print loop (no eval)
-        print_sexpr(x);
-        putchar('\n');
-    }
 }

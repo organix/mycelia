@@ -715,7 +715,7 @@ in the order of their arguments in the original lists.
 )
 ```
 
-#### Example
+#### Examples
 
 ```
 > (map + (list 1 2) (list 3 4))
@@ -732,6 +732,15 @@ in the order of their arguments in the original lists.
 
 > (map + ())
 ()
+
+> (map cons (list 1 2 3) (list 4 5 6))
+((1 . 4) (2 . 5) (3 . 6))
+
+> (map car (list (list 1 2) (list 3 4) (list 5 6)))
+(1 3 5)
+
+> (map cdr (list (list 1 2) (list 3 4) (list 5 6)))
+((2) (4) (6))
 ```
 
 ### reduce
@@ -785,6 +794,19 @@ that object is returned.
       (($lambda ((first . rest))
         (binop first (foldr rest binop zero))
       ) args)) ))
+```
+
+#### Examples
+
+```
+> (reduce (list 1 2 3) cons 0)
+(1 2 . 3)
+
+> (foldl (list 1 2 3) cons 0)
+(((0 . 1) . 2) . 3)
+
+> (foldr (list 1 2 3) cons 0)
+(1 2 3 . 0)
 ```
 
 ### $let
@@ -1125,7 +1147,8 @@ an error is signaled.
 The _`dump-bytes`_ applicative prints a byte dump to the console,
 starting at _address_ and continuing for _count_ bytes.
 
-#### Example:
+#### Example
+
 ```
 > (dump-bytes #xc000 64)
 0000c000  1c f0 9c e5 6c 69 73 74  00 00 00 00 00 00 00 00  |....list........|
@@ -1161,7 +1184,8 @@ The _`dump-words`_ applicative prints a 32-bit word dump to the console,
 starting at _address_ and continuing for _count_ words.
 The _address_ must be aligned on a 4-byte boundary.
 
-#### Example:
+#### Example
+
 ```
 > (dump-words #xd000 32)
 0000_
@@ -1213,7 +1237,8 @@ The _`content-of`_ applicative returns the object at _address_.
 
 The _`dump-words`_ applicative prints an environment dump to the console.
 
-#### Example:
+#### Example
+
 ```
 > (dump-env (get-current-env))
 0000e8a0: get-current-env = #wrap@0000edc0[0000ee00]
@@ -1262,10 +1287,11 @@ The _`$timed`_ operative evaluates the elements of the list ⟨objects⟩
 in the dynamic environment, one at a time from left to right (c.f.: [`$sequence`](#sequence)).
 The result is the number of microseconds elapsed while performing the computation.
 
-#### Example:
+#### Example
+
 ```
-> ($define! f ($lambda (x) ($if (=? x 0) 0 (f (- x 1))) ))
-#inert
+($define! f ($lambda (x) ($if (=? x 0) 0 (f (- x 1))) ))
+
 > ($timed (f 1000))
 1588543
 ```
