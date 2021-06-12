@@ -4,7 +4,9 @@
 #include "sexpr.h"
 #include "serial.h"
 
-#define DEBUG(x)   /* debug logging */
+#define USE_SPLAY_ENV   1   // ground environment search (0=linear|1=binary)
+
+#define DEBUG(x) x /* debug logging */
 #define TRACE(x)   /* trace logging */
 
 // static actors
@@ -271,7 +273,7 @@ cmp_24b(struct sym_24b* x, struct sym_24b* y)
     return (x->data_18 - y->data_18);
 }
 
-static struct example_5* sym_table[256];
+static struct example_5* sym_table[1024];
 static struct example_5** next_sym = sym_table;
 
 ACTOR*
@@ -297,8 +299,17 @@ symbol(struct sym_24b* name)
         TRACE(puts("sym:found\n"));
         return x;  // symbol found, return it
     }
-    if (((void *)(*next_sym) - (void *)(sym_table)) < sizeof(sym_table)) {
-        TRACE(puts("sym:overflow\n"));
+    int mem = ((void *)(next_sym) - (void *)(sym_table));
+    TRACE(puts("sym:mem="));
+    TRACE(serial_dec32((u32)mem));
+    TRACE(puts(",syms=0x"));
+    TRACE(serial_hex32((u32)sym_table));
+    TRACE(puts(",next=0x"));
+    TRACE(serial_hex32((u32)next_sym));
+    TRACE(putchar('\n'));
+    if (mem >= sizeof(sym_table)) {
+        DEBUG(puts("sym:overflow\n"));
+        panic();  // FIXME: is there a better way to handle this error?
         return NULL;  // fail -- symbol table overflow!
     }
     // create a new symbol
@@ -311,10 +322,12 @@ symbol(struct sym_24b* name)
         a->data_14 = name->data_14;
         a->data_18 = name->data_18;
         *next_sym++ = a;  // intern symbol in table
-        TRACE(puts("sym:created\n"));
+        TRACE(puts("sym:created="));
+        TRACE(print_sexpr((ACTOR*)a));
+        TRACE(putchar('\n'));
         return (ACTOR*)a;  // return new symbol
     }
-    TRACE(puts("sym:fail\n"));
+    DEBUG(puts("sym:fail\n"));
     return NULL;  // fail
 }
 
@@ -512,71 +525,9 @@ num_reduce(int acc, NUM_OP* op, ACTOR* list)  // apply binary operator to number
     return number(acc);
 }
 
-ACTOR*  // returns the augmented environment, or NULL on failure
-match_param_tree(ACTOR* def, ACTOR* arg, ACTOR* env)
-{
-    if (ignore_p(def)) return env;
-    if (null_p(def)) {
-        if (!null_p(arg)) return NULL;  // FAIL!
-        return env;
-    }
-    if (symbol_p(def)) {
-        struct example_5 *x = create_5(&b_binding);
-        if (!x) return NULL;  // FAIL!
-        x->data_04 = (u32)def;  // set symbol
-        x->data_08 = (u32)arg;  // set value
-        x->data_0c = (u32)env;  // set next
-        x->data_10 = (u32)NULL; // clear left
-        x->data_14 = (u32)NULL; // clear right
-        return (ACTOR *)x;
-    }
-    if (pair_p(def)) {
-        if (!pair_p(arg)) return NULL;  // FAIL!
-        env = match_param_tree(car(def), car(arg), env);
-        if (env) {
-            env = match_param_tree(cdr(def), cdr(arg), env);
-        }
-        return env;
-    }
-    return NULL;  // FAIL!
-}
-
 /*
- * FIXME:
- *  `mutate_environment` can be more sophisticated than this implementation.
- *  It should check for errors such as duplicate bindings before mutation.
- *  It should modify existing bindings in-place, rather than prepending a new
- *  binding.
+ * FIXME! the `no_print` flag has evolved to mean "evaluating preable in ground environment"
  */
-u32
-mutate_environment(u32 ext, u32 env)  // mutate env to include ext
-{
-    u32 x, y, z;
-    struct example_5 *p;
-    struct example_5 *q;
-    struct example_5 *r;
-
-    if (env == ext) return env;  // same environment, no mutation required
-    x = ext;
-    z = (u32)(&a_kernel_err);
-    while (x != z) {
-        p = (struct example_5 *)x;
-        y = p->data_0c;
-        if (y == env) {
-            q = reserve();  // allocate block
-            r = (struct example_5 *)env;
-            *q = *r;  // copy original head
-            p->data_0c = (u32)q;  // patch tail pointer
-            p = (struct example_5 *)ext;
-            *r = *p;  // copy extended head
-            release(p);  // free extended head
-            return env;
-        }
-        x = y;
-    }
-    return 0;  // FAIL!
-}
-
 static int no_print = 1;  // option to suppress printing of evaluation results
 static char* line = NULL;  // sexpr parser input source
 
@@ -951,7 +902,7 @@ print_list(ACTOR* x)
 void
 print_sexpr(ACTOR* a)  /* print external representation of s-expression */
 {
-    if (no_print) return;  // option to suppress printing
+//    if (no_print) return;  // option to suppress printing
     if (!a) {  // null pointer
         puts("#<NULL>");
     } else if ((u32)a & 0x3) {  // misaligned address
@@ -1019,6 +970,91 @@ dump_env(ACTOR* x, ACTOR* y)  // dump environment from x to y
     }
 }
 
+ACTOR*  // returns the augmented environment, or NULL on failure
+match_param_tree(ACTOR* def, ACTOR* arg, ACTOR* env)
+{
+    if (ignore_p(def)) return env;
+    if (null_p(def)) {
+        if (!null_p(arg)) return NULL;  // FAIL!
+        return env;
+    }
+    if (symbol_p(def)) {
+        struct example_5 *x = create_5(&b_binding);
+        if (!x) return NULL;  // FAIL!
+        x->data_04 = (u32)def;  // set symbol
+        x->data_08 = (u32)arg;  // set value
+        x->data_0c = (u32)env;  // set next
+        x->data_10 = (u32)NULL; // clear left
+        x->data_14 = (u32)NULL; // clear right
+        return (ACTOR *)x;
+    }
+    if (pair_p(def)) {
+        if (!pair_p(arg)) return NULL;  // FAIL!
+        env = match_param_tree(car(def), car(arg), env);
+        if (env) {
+            env = match_param_tree(cdr(def), cdr(arg), env);
+        }
+        return env;
+    }
+    return NULL;  // FAIL!
+}
+
+/*
+ * FIXME:
+ *  `mutate_environment` can be more sophisticated than this implementation.
+ *  It should check for errors such as duplicate bindings before mutation.
+ *  It should modify existing bindings in-place, rather than prepending a new
+ *  binding.
+ */
+u32
+mutate_environment(u32 ext, u32 env)  // mutate env to include ext
+{
+    u32 x, y, z;
+    struct example_5 *p;
+    struct example_5 *q;
+    struct example_5 *r;
+    struct example_5 tmp;
+
+    TRACE(puts("parent_env="));
+    TRACE(print_sexpr((ACTOR*)env));
+    TRACE(putchar('\n'));
+    TRACE(dump_block((u32*)env));
+    TRACE(putchar('\n'));
+    if (env == ext) return env;  // same environment, no mutation required
+    TRACE(dump_env((ACTOR*)ext, (ACTOR*)env));
+    x = ext;
+    z = (u32)(&a_kernel_err);
+    while (x != z) {
+        p = (struct example_5 *)x;
+        y = p->data_0c;  // next
+        if (y == env) {
+#if 0
+            // FIXME: use stack temporary instead of block allocation...
+            q = reserve();  // allocate block
+            r = (struct example_5 *)env;
+            *q = *r;  // copy original head
+            p->data_0c = (u32)q;  // patch tail pointer
+            p = (struct example_5 *)ext;
+            *r = *p;  // copy extended head
+            release(p);  // free extended head
+#else
+            p->data_0c = ext;  // patch next
+            q = (struct example_5 *)ext;
+            r = (struct example_5 *)env;
+            tmp = *q;  // save first binding
+            *q = *r;  // first binding becomes env
+            *r = tmp;  // restore first binding
+#endif
+            TRACE(puts("mutate_env="));
+            TRACE(print_sexpr((ACTOR*)env));
+            TRACE(putchar('\n'));
+            return env;
+        }
+        x = y;
+    }
+    return 0;  // FAIL!
+}
+
 //static u8 the_margin[128];
 static ACTOR* kernel_env = NULL;
 
@@ -1058,11 +1094,11 @@ cmp_symbol(ACTOR* r, ACTOR* s)
     struct sym_24b* a = (struct sym_24b*)(&x->data_04);
     struct sym_24b* b = (struct sym_24b*)(&y->data_04);
     int d = cmp_24b(a, b);
-    DEBUG(putchar('('));
-    DEBUG(print_symbol(r));
-    DEBUG(puts((d < 0) ? " < " : ((d > 0) ? " > " : " = ")));
-    DEBUG(print_symbol(s));
-    DEBUG(puts(")\n"));
+    TRACE(putchar('('));
+    TRACE(print_symbol(r));
+    TRACE(puts((d < 0) ? " < " : ((d > 0) ? " > " : " = ")));
+    TRACE(print_symbol(s));
+    TRACE(puts(")\n"));
     return d;
 }
 
@@ -1076,11 +1112,11 @@ splay_search(ACTOR* env, ACTOR* name)
     ACTOR* s = (ACTOR*)(e->data_04);  // e.name
     if (name == s) {  // interned symbols are unique
         // name == e.name
-        DEBUG(puts("["));
-        DEBUG(print_sexpr(name));
-        DEBUG(puts("]="));
-        DEBUG(print_sexpr(env));
-        DEBUG(putchar('\n'));
+        TRACE(puts("["));
+        TRACE(print_sexpr(name));
+        TRACE(puts("]="));
+        TRACE(print_sexpr(env));
+        TRACE(putchar('\n'));
         return env;  // return match
     }
     ACTOR* a = NULL;  // return value
@@ -1157,16 +1193,32 @@ close_env()
 {
     struct example_5* x;
     /* grow the search tree */
-    DEBUG(puts("kernel_env=0x"));
-    DEBUG(serial_hex32((u32)kernel_env));
-    DEBUG(putchar('\n'));
+    TRACE(puts("kernel_env=0x"));
+    TRACE(serial_hex32((u32)kernel_env));
+    TRACE(putchar('\n'));
     ACTOR* root = NULL;
+#if USE_SPLAY_ENV
     ACTOR* a = kernel_env;
     while (a && (a != a_empty_env)) {
         x = (struct example_5*)a;
         root = splay_update(root, a);
+        if (root != a) {
+            puts("DUPLICATE KEYS IN GROUND ENVIRONMENT!\n");
+            serial_hex32((u32)root);
+            putchar(':');
+            putchar('\n');
+            dump_block((u32*)root);
+            putchar('\n');
+            serial_hex32((u32)a);
+            putchar(':');
+            putchar('\n');
+            dump_block((u32*)a);
+            putchar('\n');
+            //panic();
+        }
         a = (ACTOR*)(x->data_0c);  // get next
     }
+#endif /* USE_SPLAY_ENV */
     /* create mutable local scope */
     x = create_5(&b_scope);
     if (!x) panic();  // FAIL!
@@ -1174,9 +1226,9 @@ close_env()
     x->data_10 = (u32)root;  // set root
     kernel_env = (ACTOR *)x;
     /* extend ground environment */
-    DEBUG(puts("kernel_env'=0x"));
-    DEBUG(serial_hex32((u32)kernel_env));
-    DEBUG(putchar('\n'));
+    TRACE(puts("kernel_env'=0x"));
+    TRACE(serial_hex32((u32)kernel_env));
+    TRACE(putchar('\n'));
 }
 
 ACTOR*
@@ -1235,6 +1287,9 @@ ground_env()
     char list_24b[] = "list" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0" "\0\0\0\0";
     ACTOR* a;
 
+    TRACE(puts("dynamic_env="));
+    TRACE(print_sexpr(kernel_env));
+    TRACE(putchar('\n'));
     if (kernel_env) return kernel_env;  // lazy-initialized singleton
 
     ACTOR *env = &a_empty_env;  // signal an error on lookup failure
@@ -1496,9 +1551,9 @@ ground_env()
 
     /* establish ground environment */
     kernel_env = env;
-    DEBUG(puts("ground_env=0x"));
-    DEBUG(serial_hex32((u32)kernel_env));
-    DEBUG(putchar('\n'));
+    TRACE(puts("ground_env=0x"));
+    TRACE(serial_hex32((u32)kernel_env));
+    TRACE(putchar('\n'));
 #if 0
     close_env();
 #endif
@@ -1515,8 +1570,8 @@ ground_env()
 //make-kernel-standard-environment
 //make-standard-env
 //"($define! get-current-env (wrap ($vau () e e)))\n"
-#if 0  // arm assembler
-"($sequence\n"
+#if 1  // arm assembler
+"($timed\n"
 "($define! arm-cond-eq\n"
 "  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x0000_0000)))\n"
 "($define! arm-cond-ne\n"
@@ -1731,7 +1786,7 @@ ground_env()
 ")\n"
 #endif
 #if 1  // peg parsing
-"($sequence\n"
+"($timed\n"
 //"; Derived\n"
 "($define! peg-peek\n"
 "  ($lambda (peg)\n"
@@ -1817,7 +1872,7 @@ ground_env()
 ")\n"
 #endif
 #if 1  // core language definitions
-"($sequence\n"
+"($timed\n"
 "($define! $let-redirect\n"
 "  ($vau (env-exp bindings . body) env\n"
 "    (eval (list*\n"

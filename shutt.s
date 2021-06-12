@@ -142,8 +142,10 @@ b_binding:		@ symbol binding
 	teq	r3, #S_GET
 	bne	1f		@ if req == "get"
 	ldr	r3, [fp, #0x0c] @ 	get symbol'
+5:
 	teq	r3, r4
-	bne	1f		@	if symbol == symbol'
+@	bne	3f		@	if symbol == symbol'
+	bne	4f		@	if symbol == symbol'
 
 	ldr	r0, [fp, #0x04]	@		get cust
 	mov	r1, r5		@		get value
@@ -172,6 +174,14 @@ b_binding:		@ symbol binding
 	ldmia	fp, {r2-r9}	@ copy current event
 	stmia	r0, {r2-r9}	@ write new event
 	b	_a_send		@ set target, send, and return to dispatcher
+4:
+	mov	ip, r6		@ SELF := next
+	ldr	r0, [ip, #0x1c]	@ get beh
+	ldr	r1, =b_binding
+	teq	r0, r1		@ if beh == b_binding
+	bne	3b
+	ldmib	ip, {r4-r6}	@ 	reload: r4=symbol, r5=value, r6=next
+	b	5b		@	check next binding
 
 @ LET Scope(parent) = \(cust, req).[
 @ 	CASE req OF
