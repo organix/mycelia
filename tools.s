@@ -540,12 +540,29 @@ prompt_txt:
 	.global a_kernel_eval
 a_kernel_eval:		@ kernel eval actor
 			@ message = (expr)
+@@@ "eval" message to expr
 	bl	ground_env	@ get ground environment
 	ldr	r4, [fp, #0x04]	@ get expr to eval
 	ldr	r5, =a_kernel_print @ customer
 	mov	r6, #S_EVAL	@ "eval" request
 	mov	r7, r0		@ environment
 	bl	send_3x		@ send message [FIXME: set watchdog timer...]
+	b	complete	@ return to dispatch loop
+
+@@@ evaluation visitor
+	bl	ground_env	@ get ground environment
+	ldr	r4, =a_kernel_print @ customer
+	ldr	r5, [fp, #0x04]	@ get expr to eval
+	mov	r6, r0		@ environment
+	ldr	r0, =v_eval	@ evaluation visitor
+	bl	create_5	@ new visitor actor
+	stmib	r0, {r4-r6}	@ store cust, sexpr, env
+
+@@@ "visit" message to expr
+	mov	r2, #S_SELF	@ "visit" message
+	mov	r1, r0		@ cust = new visitor
+	mov	r0, r5		@ target = sexpr
+	bl	send_2		@ send message
 	b	complete	@ return to dispatch loop
 
 	.text

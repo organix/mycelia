@@ -285,7 +285,7 @@ a_nil:			@ "()" singleton
 	.text
 	.align 5		@ align to cache-line
 	.global b_symbol
-b_symbol:		@ symbolic name
+b_symbol:		@ symbolic variable name
 			@ (example_5: [0x04..0x1b]=name)
 			@ message = (cust, #S_EVAL, env)
 	ldr	r3, [fp, #0x08] @ get req
@@ -361,11 +361,80 @@ k_comb:			@ combiner continuation
 			@ message = (combiner)
 	ldr	r0, [fp, #0x04]	@ combiner
 	bl	combiner_p
-	teq	r0, #0		@ if !combiner_p(eformal)
+	teq	r0, #0		@ if !combiner_p(combiner)
 	beq	a_kernel_err	@	signal error
 
 	mov	r0, ip		@ continuation actor becomes an event...
 	b	_a_reply	@ delegate to combiner
+
+@
+@ "visitor" style evaluator
+@
+
+	.text
+	.align 5		@ align to cache-line
+	.global v_eval
+v_eval:			@ evaluation visitor
+			@ (example_5: 0x04=cust, 0x08=sexpr, 0x0c=env, 0x10=)
+			@ message = (0x04..0x18=state, 0x1c=behavior)
+	ldr	r0, [fp, #0x1c]	@ get behavior (type signature)
+
+	ldr	r1, =b_symbol
+	teq	r0, r1
+	bne	1f		@ if symbol_p(message)
+			@ (example_5: [0x04..0x1b]=name)
+	mov	r0, ip		@	re-use SELF as message-event
+	ldr	r4, [ip, #0x0c]	@	target = env
+	ldr	r5, [ip, #0x04]	@	get cust
+	mov	r6, #S_GET	@	lookup name in environment
+	mov	r7, ip		@	get SELF
+	stmia	r0, {r4-r7}	@	write data to event
+	b	_a_end		@	send and return
+1:
+	ldr	r1, =b_pair
+	teq	r0, r1
+	bne	2f		@ else if pair_p(message)
+			@ (example_5: 0x04=left, 0x08=right)
+	ldr	r0, [fp, #0x08]	@	cdr(message)
+	str	r0, [ip, #0x10]	@	store params
+	ldr	r0, =v_comb	@	new behavior
+	str	r0, [ip, #0x1c]	@	BECOME
+
+	mov	r4, ip		@	cust = SELF
+	ldr	r5, [fp, #0x04]	@	sexpr = car(message)
+	ldr	r6, [ip, #0x0c]	@	get env
+	ldr	r0, =v_eval	@	evaluation visitor
+	bl	create_5	@	new visitor actor
+	stmib	r0, {r4-r6}	@	store cust, sexpr, env
+
+	mov	r2, #S_SELF	@	"visit" message
+	mov	r1, r0		@	cust = new visitor
+	mov	r0, r5		@	target = sexpr
+	bl	send_2		@	send message
+	b	complete	@	return to dispatch loop
+2:
+	mov	r0, ip		@ else
+	ldr	r4, [ip, #0x04]	@	target = cust
+	ldr	r5, [ip, #0x08]	@	result = sexpr
+	stmia	r0, {r4-r5}	@	write data to event (fka SELF)
+	b	_a_end		@	send and return
+
+v_comb:			@ combination continuation
+			@ (example_5: 0x04=cust, 0x08=sexpr, 0x0c=env, 0x10=params)
+			@ message = (combiner)
+	ldr	r0, [fp, #0x04]	@ combiner
+	bl	combiner_p
+	teq	r0, #0		@ if !combiner_p(combiner)
+	beq	a_kernel_err	@	signal error
+
+	mov	r0, ip		@ re-use SELF as message-event
+	ldr	r4, [fp, #0x04]	@ target = combiner
+	ldr	r5, [ip, #0x04]	@ get cust
+	mov	r6, #S_APPL	@ "combine" request
+	ldr	r7, [ip, #0x10]	@ get params
+	ldr	r8, [ip, #0x0c]	@ get env
+	stmia	r0, {r4-r8}	@ write data to event
+	b	_a_end		@ send and return
 
 @
 @ built-in operatives and applicatives
