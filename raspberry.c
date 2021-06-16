@@ -453,7 +453,7 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia-pi1b 0.2.11 ");
+    serial_puts("mycelia-pi1b 0.2.12 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0
@@ -465,25 +465,16 @@ k_start(u32 sp)
     serial_eol();
 
     clear_bss();
-
     for (;;) {
         // display menu
         serial_eol();
-        serial_puts("Choose your adventure:");
-        serial_eol();
-        serial_puts("  1. Monitor");
-        serial_eol();
-        serial_puts("  2. Console echo");
-        serial_eol();
-        serial_puts("  3. Unit tests");
-        serial_eol();
-        serial_puts("  4. Benchmark");
-        serial_eol();
-        serial_puts("  5. Kernel REPL");
-        serial_eol();
-        serial_puts("  9. Exit");
-        serial_eol();
-
+        serial_puts("Choose your adventure:"); serial_eol();
+        serial_puts("  1. Monitor"); serial_eol();
+        serial_puts("  2. Console echo"); serial_eol();
+        serial_puts("  3. Unit tests"); serial_eol();
+        serial_puts("  4. Benchmark"); serial_eol();
+        serial_puts("  5. Kernel REPL"); serial_eol();
+        serial_puts("  9. Exit"); serial_eol();
         // execute selected option
         switch (_getchar()) {
             case '1': {
