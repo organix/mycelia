@@ -29,6 +29,8 @@ KOBJS=	start.o \
 	number.o \
 	tools.o \
 	sexpr.o \
+	cal.o \
+	bose.o \
 	timer.o \
 	serial.o \
 	raspberry.o \

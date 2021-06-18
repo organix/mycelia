@@ -1570,7 +1570,7 @@ ground_env()
 //make-kernel-standard-environment
 //make-standard-env
 //"($define! get-current-env (wrap ($vau () e e)))\n"
-#if 1  // arm assembler
+#if 0  // arm assembler
 "($timed\n"
 "($define! arm-cond-eq\n"
 "  ($lambda (inst) (bit-or (bit-and #x0fff_ffff inst) #x0000_0000)))\n"
@@ -1785,7 +1785,7 @@ ground_env()
 //"  ($lambda (n . r) (bit-or #xe9b0_0000 (arm-ls-Rn n) (apply arm-ls-Regs r)) ))\n"
 ")\n"
 #endif
-#if 1  // peg parsing
+#if 0  // peg parsing
 "($timed\n"
 //"; Derived\n"
 "($define! peg-peek\n"
