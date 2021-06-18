@@ -262,9 +262,9 @@ print_array(u8** data_ref, int indent, int limit)
     TRACE(puts("print_array: b=0x"));
     TRACE(serial_hex8(b));
     TRACE(putchar('\n'));
+    set_color(PUNCT_COLOR);
+    print('[');
     if (b == array_0) {
-        set_color(PUNCT_COLOR);
-        print('[');
         print(']');
         clear_color();
     } else {
@@ -281,9 +281,15 @@ print_array(u8** data_ref, int indent, int limit)
                     return false;  // failure!
                 }
             }
-            set_color(PUNCT_COLOR);
-            print('[');
-            clear_color();
+            if (limit < 1) {
+                prints("...]");
+                clear_color();
+                *data_ref = end;  // skip value
+                return true;  // success
+            }
+            if (indent) {
+                space(++indent);
+            }
             int once = true;
             while (data < end) {
                 if (once) {
@@ -294,13 +300,16 @@ print_array(u8** data_ref, int indent, int limit)
                     space(indent);
                     clear_color();
                 }
-                if (!print_bose(&data, indent, limit)) {  // element
+                if (!print_bose(&data, indent, limit - 1)) {  // element
                     set_color(PUNCT_COLOR);
                     prints("<bad element>");
                     clear_color();
                     ok = false;  // fail!
                     break;
                 }
+            }
+            if (indent) {
+                space(--indent);
             }
             set_color(PUNCT_COLOR);
             print(']');
@@ -312,6 +321,7 @@ print_array(u8** data_ref, int indent, int limit)
             ok = false;  // fail!
         }
     }
+    clear_color();
     *data_ref = data;  // update data reference
     return ok;
 }
@@ -325,9 +335,9 @@ print_object(u8** data_ref, int indent, int limit)
     TRACE(puts("print_object: b=0x"));
     TRACE(serial_hex8(b));
     TRACE(putchar('\n'));
+    set_color(PUNCT_COLOR);
+    print('{');
     if (b == object_0) {
-        set_color(PUNCT_COLOR);
-        print('{');
         print('}');
         clear_color();
     } else {
@@ -344,9 +354,15 @@ print_object(u8** data_ref, int indent, int limit)
                     return false;  // failure!
                 }
             }
-            set_color(PUNCT_COLOR);
-            print('{');
-            clear_color();
+            if (limit < 1) {
+                prints("...}");
+                clear_color();
+                *data_ref = end;  // skip value
+                return true;  // success
+            }
+            if (indent) {
+                space(++indent);
+            }
             int once = true;
             while (data < end) {
                 if (once) {
@@ -366,17 +382,20 @@ print_object(u8** data_ref, int indent, int limit)
                 }
                 set_color(PUNCT_COLOR);
                 print(':');
-                clear_color();
                 if (indent) {
                     print(' ');
                 }
-                if (!print_bose(&data, indent, limit)) {  // property value
+                clear_color();
+                if (!print_bose(&data, indent, limit - 1)) {  // property value
                     set_color(PUNCT_COLOR);
                     prints("<bad property value>");
                     clear_color();
                     ok = false;  // fail!
                     break;
                 }
+            }
+            if (indent) {
+                space(--indent);
             }
             set_color(PUNCT_COLOR);
             print('}');
@@ -435,7 +454,7 @@ print_bose(u8** data_ref, int indent, int limit)
  */
 
 static u8 buf_0[] = {
-    object_n, n_103, n_2,
+    object_n, n_104, n_2,
         utf8, n_5, 's', 'p', 'a', 'c', 'e',
         object, n_32,
             utf8, n_6, 'o', 'r', 'i', 'g', 'i', 'n',
@@ -467,8 +486,13 @@ test_bose()
 {
     u8* data;
 
+    hexdump(buf_0, sizeof(buf_0));
+
     data = buf_0;
-    hexdump(data, sizeof(buf_0));
-    print_bose(&data, 0, MAX_INT);
+    print_bose(&data, 1, MAX_INT);
+    newline();
+
+    data = buf_0;
+    print_bose(&data, 0, 2);
     newline();
 }
