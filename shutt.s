@@ -1231,7 +1231,7 @@ op_make_env:		@ operative "$make-env"
 	.global ap_make_env
 ap_make_env:		@ applicative "make-env"
 	ldr	pc, [ip, #0x1c]	@ jump to actor behavior
-	.int	op_make_env		@ 0x04: operative
+	.int	op_make_env	@ 0x04: operative
 	.int	0		@ 0x08: -
 	.int	0		@ 0x0c: --
 	.int	0		@ 0x10: --

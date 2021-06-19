@@ -278,7 +278,7 @@ as the code to execute as the actor's behavior.
 
 ```
         +--------+--------+--------+--------+
-  0x00  |       ldr     pc, [ip, #0x1c]     |
+  0x00  |       ldr     pc, [ip, #0x1c]     | = 0xE59CF01C
         +--------+--------+--------+--------+
   0x04  | actor state                       |
         +        .        .        .        +
@@ -336,6 +336,33 @@ Extension blocks are **not actors**.
 They are simply 28 octets of data
 and a `pointer` (at offset `0x1c`)
 to the next extension block (if any).
+
+### Boolean and Null
+
+The values `true`, `false`, and `null`
+are represented by static singleton actors.
+The `prefix` field is the single-octet encoding
+of the value.
+
+```
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [ip, #0x1c]     |
+        +--------+--------+--------+--------+
+  0x04  |        | prefix |                 |
+        +        +--------+        .        +
+  0x08  |                                   |
+        +        .        .        .        +
+  0x0c  |                                   |
+        +        .        .        .        +
+  0x10  |                                   |
+        +        .        .        .        +
+  0x14  |                                   |
+        +        .        .        .        +
+  0x18  |                                   |
+        +--------+--------+--------+--------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+```
 
 ### Number
 
@@ -484,6 +511,8 @@ as a separate actor/value.
 The `size` field is the number of octets
 occupied by the element pointers,
 thus `(size >> 2)` is the number of elements.
+Note that each extension block holds 7 data pointers
+(plus a pointer to the next extension block).
 
 ### Object
 
@@ -514,3 +543,5 @@ for each property name and property value.
 The `size` field is the number of octets
 occupied by the property pointers,
 thus `(size >> 3)` is the number of properties.
+Note that each extension block holds 7 data pointers
+(plus a pointer to the next extension block).

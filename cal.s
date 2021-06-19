@@ -32,6 +32,120 @@
 	.set S_POP,  0x08
 	.set S_PUT,  0x09
 	.set S_PULL, 0x0A
+	.set S_FIND, 0x0B
+	.set S_CMP,  0x0C
+	.set S_PTRN, 0x0D
+	.set S_TYPE, 0x0E
+
+	.text
+	.align 5		@ align to cache-line
+	.global b_value
+b_value:		@ behavior for literal-value actors
+	b	self_eval	@ delegate to self-eval behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global v_null
+v_null:			@ literal value "null"
+	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
+	.byte	0xFF, 0xFF, 0xFF, 0xFF	@ 0x04: prefix/value
+	.byte	0xFF, 0xFF, 0xFF, 0xFF	@ 0x08: --
+	.byte	0xFF, 0xFF, 0xFF, 0xFF	@ 0x0c: --
+	.byte	0xFF, 0xFF, 0xFF, 0xFF	@ 0x10: --
+	.byte	0xFF, 0xFF, 0xFF, 0xFF	@ 0x14: --
+	.byte	0xFF, 0xFF, 0xFF, 0xFF	@ 0x18: --
+	.int	b_value			@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global v_false
+v_false:		@ literal value "false"
+	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
+	.byte	0x00, 0x00, 0x00, 0x00	@ 0x04: prefix/value
+	.byte	0x00, 0x00, 0x00, 0x00	@ 0x08: --
+	.byte	0x00, 0x00, 0x00, 0x00	@ 0x0c: --
+	.byte	0x00, 0x00, 0x00, 0x00	@ 0x10: --
+	.byte	0x00, 0x00, 0x00, 0x00	@ 0x14: --
+	.byte	0x00, 0x00, 0x00, 0x00	@ 0x18: --
+	.int	b_value			@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global v_true
+v_true:			@ literal value "true"
+	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
+	.byte	0x01, 0x01, 0x01, 0x01	@ 0x04: prefix/value
+	.byte	0x01, 0x01, 0x01, 0x01	@ 0x08: --
+	.byte	0x01, 0x01, 0x01, 0x01	@ 0x0c: --
+	.byte	0x01, 0x01, 0x01, 0x01	@ 0x10: --
+	.byte	0x01, 0x01, 0x01, 0x01	@ 0x14: --
+	.byte	0x01, 0x01, 0x01, 0x01	@ 0x18: --
+	.int	b_value			@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global v_number_0
+v_number_0:		@ literal number zero
+	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
+	.byte	0xFF, 0x10, 0x86, 0xFF	@ 0x04: --, +int_0, n_6, --
+	.int	0			@ 0x08: 32-bit integer
+	.int	0			@ 0x0c: 32-bit exponent
+	.int	10			@ 0x10: 32-bit base
+	.int	0xFFFFFFFF		@ 0x14: --
+	.int	0xFFFFFFFF		@ 0x18: --
+	.int	b_value			@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global v_string_0
+v_string_0:		@ literal empty string
+	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
+	.byte	0xFF, 0x08, 0x80, 0x00	@ 0x04: --, octets, n_0, '\0'
+	.int	0			@ 0x08: 4x'\0'
+	.int	0			@ 0x0c: 4x'\0'
+	.int	0			@ 0x10: 4x'\0'
+	.int	0			@ 0x14: 4x'\0'
+	.int	0			@ 0x18: 4x'\0'
+	.int	b_value			@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global v_array_0
+v_array_0:		@ literal empty array
+	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
+	.byte	0xFF, 0x04, 0x10, 0x84	@ 0x04: --, array, +int_0, n_4
+	.int	0			@ 0x08: size in octets (lsb first)
+	.int	0xFFFFFFFF		@ 0x0c: --
+	.int	0xFFFFFFFF		@ 0x10: --
+	.int	0xFFFFFFFF		@ 0x14: --
+	.int	0			@ 0x18: pointer to extended data
+	.int	b_value			@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global v_object_0
+v_object_0:		@ literal empty object
+	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
+	.byte	0xFF, 0x05, 0x10, 0x84	@ 0x04: --, object, +int_0, n_4
+	.int	0			@ 0x08: size in octets (lsb first)
+	.int	0xFFFFFFFF		@ 0x0c: --
+	.int	0xFFFFFFFF		@ 0x10: --
+	.int	0xFFFFFFFF		@ 0x14: --
+	.int	0			@ 0x18: pointer to extended data
+	.int	b_value			@ 0x1c: address of actor behavior
+
+	.text
+	.align 5		@ align to cache-line
+	.global x_value
+x_value:			@ extended-value template
+	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
+	.byte	0xFF, 0x0E, 0x10, 0x84	@ 0x04: --, prefix, +int_0, n_4
+	.int	0			@ 0x08: size in octets (lsb first)
+	.int	0xFFFFFFFF		@ 0x0c: --
+	.int	0xFFFFFFFF		@ 0x10: --
+	.int	0xFFFFFFFF		@ 0x14: --
+	.int	0			@ 0x18: pointer to extended data
+	.int	b_value			@ 0x1c: address of actor behavior
 
 	.text
 	.align 5		@ align to cache-line
