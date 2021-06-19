@@ -454,8 +454,9 @@ print_bose(u8** data_ref, int indent, int limit)
  */
 
 static u8 buf_0[] = {
-    object_n, n_104, n_2,
-        utf8, n_5, 's', 'p', 'a', 'c', 'e',
+//    object_n, n_104, n_2,
+    object_n, n_109, n_2,
+        octets, n_5, 's', 'p', 'a', 'c', 'e',
         object, n_32,
             utf8, n_6, 'o', 'r', 'i', 'g', 'i', 'n',
             array_n, n_3, n_2,
@@ -465,7 +466,8 @@ static u8 buf_0[] = {
             array_n, n_9, n_2,
                 p_int_0, n_2, 600 & 0xFF, 600 >> 8,
                 p_int_0, n_2, 460 & 0xFF, 460 >> 8,
-        utf8, n_6, 's', 'h', 'a', 'p', 'e', 's',
+//        utf8, n_6, 's', 'h', 'a', 'p', 'e', 's',
+        utf8, p_int_0, n_4, 6, 0, 0, 0, 's', 'h', 'a', 'p', 'e', 's',
         array, n_52,
             object, n_24,
                 utf8, n_6, 'o', 'r', 'i', 'g', 'i', 'n',

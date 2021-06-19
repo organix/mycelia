@@ -267,3 +267,250 @@ Hi \ Lo   | `2#_000` | `2#_001` | `2#_010` | `2#_011` | `2#_100` | `2#_101` | `2
 `2#11101_`| `104`    | `105`    | `106`    | `107`    | `108`    | `109`    | `110`    | `111`
 `2#11110_`| `112`    | `113`    | `114`    | `115`    | `116`    | `117`    | `118`    | `119`
 `2#11111_`| `120`    | `121`    | `122`    | `123`    | `124`    | `125`    | `126`    | `null`
+
+## Mycelia Actors
+
+An actor in Mycelia occupies a cache-line,
+which is 32 bytes, or 8x32-bit words.
+The first word is an executable instruction
+that loads the last word (offset `0x1c`)
+as the code to execute as the actor's behavior.
+
+```
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [ip, #0x1c]     |
+        +--------+--------+--------+--------+
+  0x04  | actor state                       |
+        +        .        .        .        +
+  0x08  |                                   |
+        +        .        .        .        +
+  0x0c  |                                   |
+        +        .        .        .        +
+  0x10  |                                   |
+        +        .        .        .        +
+  0x14  |                                   |
+        +        .        .        .        +
+  0x18  |                                   |
+        +--------+--------+--------+--------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+```
+
+On entry to the behavior,
+`r10` (`sl`) points to the _sponsor_,
+`r11` (`fp`) points to the _message-event_,
+`r12` (`ip`) points to the _actor_.
+
+### Value
+
+An extended value, in BOSE, occupies more than one octet.
+The `prefix` carries type and encoding information.
+The `size` field immediately follows the `prefix`,
+and describes the number of octets occupied by the data
+following the `size`.
+
+```
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [ip, #0x1c]     |
+        +--------+--------+--------+--------+
+  0x04  |   --   | prefix | +int_0 |  n_4   |
+        +--------+--------+--------+--------+
+  0x08  | size in octets (lsb first)        |
+        +--------+--------+--------+--------+
+  0x0c  |                                   |
+        +        .        .        .        +
+  0x10  |    12 octets of immediate data    |
+        +        .        .        .        +
+  0x14  |                                   |
+        +--------+--------+--------+--------+
+  0x18  | pointer to extended data block(s) |
+        +--------+--------+--------+--------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+```
+
+If the `size` is greater than 12 octets,
+the `pointer` (at offset `0x18`)
+holds the memory address of the next block of data.
+Extension blocks are **not actors**.
+They are simply 28 octets of data
+and a `pointer` (at offset `0x1c`)
+to the next extension block (if any).
+
+### Number
+
+Integers that are encoded in 32-bits or less
+can represent the entire number in a single actor.
+The `size` field is `n_6` (`0x86`) because
+the 32-bit value will be encoded
+with a 2-octet prefix (e.g.: `p_int_0` `n_4`).
+
+```
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [ip, #0x1c]     |
+        +--------+--------+--------+--------+
+  0x04  |   --   | int_0  |  n_6   |   --   |
+        +--------+--------+--------+--------+
+  0x08  |            32-bit int             |
+        +--------+--------+--------+--------+
+  0x0c  |              exp = 0              |
+        +--------+--------+--------+--------+
+  0x10  |             base = 10             |
+        +--------+--------+--------+--------+
+  0x14  |                                   |
+        +        .        .        .        +
+  0x18  |                                   |
+        +--------+--------+--------+--------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+```
+
+Decimal numbers that are encoded in 32-bits per component
+can represent the entire number in a single actor.
+The `size` field is `n_12` (`0x8c`) because
+each 32-bit component will be encoded
+with a 2-octet prefix.
+
+```
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [ip, #0x1c]     |
+        +--------+--------+--------+--------+
+  0x04  |   --   | dec_0  |  n_12  |   --   |
+        +--------+--------+--------+--------+
+  0x08  |            32-bit int             |
+        +--------+--------+--------+--------+
+  0x0c  |            32-bit exp             |
+        +--------+--------+--------+--------+
+  0x10  |             base = 10             |
+        +--------+--------+--------+--------+
+  0x14  |                                   |
+        +        .        .        .        +
+  0x18  |                                   |
+        +--------+--------+--------+--------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+```
+
+Based numbers that are encoded in 32-bits per component
+can represent the entire number in a single actor.
+The `size` field is `n_18` (`0x92`) because
+each 32-bit component will be encoded
+with a 2-octet prefix.
+
+```
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [ip, #0x1c]     |
+        +--------+--------+--------+--------+
+  0x04  |   --   | base_0 |  n_18  |   --   |
+        +--------+--------+--------+--------+
+  0x08  |            32-bit int             |
+        +--------+--------+--------+--------+
+  0x0c  |            32-bit exp             |
+        +--------+--------+--------+--------+
+  0x10  |            32-bit base            |
+        +--------+--------+--------+--------+
+  0x14  |                                   |
+        +        .        .        .        +
+  0x18  |                                   |
+        +--------+--------+--------+--------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+```
+
+Note that all three fixed-field formats include
+values for all three components,
+using default values for non-encoded components.
+
+### String
+
+Strings that are encoded in 20 octets or less
+can represent the entire string in a single actor
+and avoid allocating any extension blocks.
+
+```
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [ip, #0x1c]     |
+        +--------+--------+--------+--------+
+  0x04  |   --   | prefix |  size  |        |
+        +--------+--------+--------+        +
+  0x08  |                                   |
+        +        .        .        .        +
+  0x0c  |                                   |
+        +        .        .        .        +
+  0x10  |    20 octets of character data    |
+        +        .        .        .        +
+  0x14  |                                   |
+        +        .        .        +--------+
+  0x18  |                          |  0x00  |
+        +--------+--------+--------+--------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+```
+
+The `size` field will be between `n_0` (`0x80`) and `n_20` (`0x94`).
+The `size` field **is not** necessarily equal to the number of characters.
+The number of character depends on the encoding.
+For example, in UTF-16 at most 10 characters can be encoded.
+Note the required `'\0'` (`0x00`) character at the end of the data,
+which in not technically part of the string,
+but may make the string easier to handle in languages like **C**.
+
+### Array
+
+Arrays do not directly contain their elements,
+but rather contain pointers to each element
+as a separate actor/value.
+
+```
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [ip, #0x1c]     |
+        +--------+--------+--------+--------+
+  0x04  |   --   | array  | +int_0 |  n_4   |
+        +--------+--------+--------+--------+
+  0x08  | size in octets (lsb first)        |
+        +--------+--------+--------+--------+
+  0x0c  |                                   |
+        +        +        +        +        +
+  0x10  |   pointers to first 3 elements    |
+        +        +        +        +        +
+  0x14  |                                   |
+        +--------+--------+--------+--------+
+  0x18  | pointer to extended data block(s) |
+        +--------+--------+--------+--------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+```
+
+The `size` field is the number of octets
+occupied by the element pointers,
+thus `(size >> 2)` is the number of elements.
+
+### Object
+
+Objects do not directly contain their properties,
+but rather contain pairs of pointers
+for each property name and property value.
+
+```
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [ip, #0x1c]     |
+        +--------+--------+--------+--------+
+  0x04  |   --   | object | +int_0 |  n_4   |
+        +--------+--------+--------+--------+
+  0x08  | size in octets (lsb first)        |
+        +--------+--------+--------+--------+
+  0x0c  |  pointer to first property name   |
+        +        +        +        +        +
+  0x10  |  pointer to first property value  |
+        +        +        +        +        +
+  0x14  |  pointer to second property name  |
+        +--------+--------+--------+--------+
+  0x18  | pointer to extended data block(s) |
+        +--------+--------+--------+--------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+```
+
+The `size` field is the number of octets
+occupied by the property pointers,
+thus `(size >> 3)` is the number of properties.
