@@ -136,8 +136,8 @@ v_object_0:		@ literal empty object
 
 	.text
 	.align 5		@ align to cache-line
-	.global x_value
-x_value:			@ extended-value template
+	.global ext_value
+ext_value:		@ extended-value template
 	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
 	.byte	0xFF, 0x0E, 0x10, 0x84	@ 0x04: --, prefix, p_int_0, n_4
 	.int	0			@ 0x08: size in octets (lsb first)
@@ -206,12 +206,49 @@ new_octets:		@ allocate a new octet string value actor
 	bne	3b
 2:
 	ldmia	sp!, {pc}	@	pop address from stack, and return
+1:				@ else
+	bl	reserve		@	allocate actor block
+	ldr	r1, =ext_value
+	ldmia	r1, {r2-r9}	@	copy extended-value template
+	ldmia	sp!, {r1,r4}	@	pop src (r1) and count (r4) from stack
+	stmia	r0, {r2-r9}	@	write actor contents
+	mov	r2, #0x08	@	prefix = octets
+	strb	r2, [r0, #0x05]	@	write prefix
 
-1:
-	@ FIXME: allocate extended block(s) for larger string values
-	ldmia	sp!, {r1-r2}	@ pop args from stack
-	mov	r0, #0		@ return null pointer (fail!)
-	ldmia	sp!, {pc}	@ pop address from stack, and return
+	mov	r5, r1		@	r5 = src
+	movs	r6, #12		@	r6 = dst size (12 octets)
+	add	r7, r0, #0x0c	@	r7 = dst
+	mov	r9, r0		@	r9 = actor
+4:				@	loop
+	ldrb	r8, [r5], #1	@		read octet from src
+	strb	r8, [r7], #1	@		write octet to dst
+	subs	r4, r4, #1	@		decrement count
+	beq	5f		@		if (count == 0) break;
+	subs	r6, r6, #1	@		decrement size
+	bne	4b		@		if (size == 0)
+
+	bl	reserve		@			allocate extended block
+	str	r0, [r7]	@			link current to new
+	mov	r7, r0		@			dst = new block
+	mov	r6, #28		@			dst size = 28 octets
+	mov	r0, #0
+	str	r0, [r7, #0x1c]	@			clear link/next pointer
+	b	4b
+5:
+	subs	r6, r6, #1	@	decrement size
+	bne	6f		@	if (size == 0)
+
+	bl	reserve		@		allocate extra block
+	str	r0, [r7]	@		link current to new
+	mov	r7, r0		@		dst = new block
+@	mov	r6, #28		@		dst size = 28 octets
+	mov	r0, #0
+	str	r0, [r7, #0x1c]	@		clear link/next pointer
+6:
+	mov	r8, #0		@	extra '\0' character
+	strb	r8, [r7]	@	write octet to dst
+	mov	r0, r9		@	return actor
+	ldmia	sp!, {pc}	@	pop address from stack, and return
 
 @
 @ interactive environment

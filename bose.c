@@ -23,6 +23,17 @@
 #define DEBUG(x) x /* debug logging */
 #define TRACE(x)   /* trace logging */
 
+struct example_5 {
+    u32         code_00;
+    u32         data_04;
+    u32         data_08;
+    u32         data_0c;
+    u32         data_10;
+    u32         data_14;
+    u32         data_18;
+    ACTOR*      beh_1c;
+};
+
 static void serial_int32(int n) {
     if (n < 0) {
         putchar('-');
@@ -514,6 +525,7 @@ test_bose()
     u8* data;
     ACTOR* a;
     char* s;
+    struct example_5* x;
 
     hexdump(buf_0, sizeof(buf_0));
 
@@ -569,6 +581,28 @@ test_bose()
     a = new_literal("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    x = (struct example_5*)a;
+    a = (ACTOR*)(x->data_18);  // follow extended block pointer
+    while (a) {
+        dump_words((u32*)a, 8);
+        hexdump((u8*)a, 32);
+        x = (struct example_5*)a;
+        a = (x->beh_1c);  // follow extended data pointer
+    }
+
+    s = "0123456789+-*/abcdefghijklmnopqrstuvwxyz";
+    a = new_octets((u8*)s, (u32)strlen(s));
+//    a = new_literal("0123456789+-*/abcdefghijklmnopqrstuvwxyz");
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+    x = (struct example_5*)a;
+    a = (ACTOR*)(x->data_18);  // follow extended block pointer
+    while (a) {
+        dump_words((u32*)a, 8);
+        hexdump((u8*)a, 32);
+        x = (struct example_5*)a;
+        a = (x->beh_1c);  // follow extended data pointer
+    }
 
     puts("Completed.\n");
 }
