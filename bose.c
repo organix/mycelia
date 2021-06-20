@@ -450,6 +450,33 @@ print_bose(u8** data_ref, int indent, int limit)
 }
 
 /*
+ * "standard" library
+ */
+
+#define MAX_INT ((int)0x7FFFFFFF)
+
+int
+strlen(char* s)
+{
+    int n = 0;
+#if 1
+    char*r;
+
+    if ((r = s)) {
+        while ((*s)) {
+            ++s;
+        }
+    }
+    return (s - r);
+#else
+    while ((*s++)) {
+        ++n;
+    }
+#endif
+    return n;
+}
+
+/*
  * test suite
  */
 
@@ -481,13 +508,12 @@ static u8 buf_0[] = {
                 array, n_2, n_13, n_8,
 };
 
-#define MAX_INT ((int)0x7FFFFFFF)
-
 void
 test_bose()
 {
     u8* data;
     ACTOR* a;
+    char* s;
 
     hexdump(buf_0, sizeof(buf_0));
 
@@ -500,14 +526,49 @@ test_bose()
     newline();
 
     a = new_u32(42);
-    hexdump((u8*)a, 32);
     dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
 
     a = new_i32(-42);
-    hexdump((u8*)a, 32);
     dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
 
     a = new_u32(-42);
-    hexdump((u8*)a, 32);
     dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+
+    a = &v_string_0;
+    puts("&v_string_0 = 0x");
+    serial_hex32((u32)a);
+    putchar('\n');
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+
+    s = "";
+    a = new_octets((u8*)s, (u32)strlen(s));
+//    a = new_literal("");
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+
+    a = new_literal("test");
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+
+    a = new_literal("Hello, World!");
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+
+    a = new_literal("< twenty characters");
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+
+    a = new_literal("<= twenty characters");
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+
+    a = new_literal("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+
+    puts("Completed.\n");
 }

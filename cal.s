@@ -155,9 +155,8 @@ x_value:			@ extended-value template
 	.global new_u32
 new_u32:		@ allocate a new unsigned integer value actor
 			@ r0=value
-	stmdb	sp!, {r0,lr}	@ push return address and value on stack
-@	stmdb	sp!, {lr}	@ push return address on stack
-@	stmdb	sp!, {r0}	@ push value on stack
+	stmdb	sp!, {lr}	@ push return address on stack
+	stmdb	sp!, {r0}	@ push value on stack
 	bl	reserve		@ allocate actor block
 	ldr	r1, =v_number_0
 	ldmia	r1, {r2-r9}	@ copy number template
@@ -175,6 +174,43 @@ new_i32:		@ allocate a new signed integer value actor
 	teq	r1, #0		@ interpret as signed
 	movmi	r2, #0x18	@ if value < 0
 	strmib	r2, [r0, #0x05]	@	prefix = n_int_0
+	ldmia	sp!, {pc}	@ pop address from stack, and return
+
+	.text
+	.global new_octets
+new_octets:		@ allocate a new octet string value actor
+			@ r0=octet pointer, r1=count
+	stmdb	sp!, {lr}	@ push return address on stack
+@ <debug>
+@	bl	dump_regs
+@ </debug>
+	stmdb	sp!, {r0-r1}	@ push args on stack
+	cmp	r1, #20
+	bgt	1f		@ if count <= 20
+	bl	reserve		@	allocate actor block
+	ldr	r1, =v_string_0
+	ldmia	r1, {r2-r9}	@	copy string template
+	stmia	r0, {r2-r9}	@	write actor contents
+
+	ldmia	sp!, {r1-r2}	@	pop args from stack
+	add	r3, r2, #0x80	@	smol-encoded count
+	strb	r3, [r0, #0x06]	@	write count
+	add	r3, r0, #0x07	@	string dst pointer
+
+	teq	r2, #0
+	beq	2f		@	while (count != 0)
+3:
+	ldrb	r4, [r1], #1	@		read octet from src
+	strb	r4, [r3], #1	@		write octet to dst
+	subs	r2, r2, #1	@		decrement count
+	bne	3b
+2:
+	ldmia	sp!, {pc}	@	pop address from stack, and return
+
+1:
+	@ FIXME: allocate extended block(s) for larger string values
+	ldmia	sp!, {r1-r2}	@ pop args from stack
+	mov	r0, #0		@ return null pointer (fail!)
 	ldmia	sp!, {pc}	@ pop address from stack, and return
 
 @

@@ -74,7 +74,18 @@ extern int      print_bose(u8** data_ref, int indent, int limit);
 /*
  * symbols exported by `cal.s`
  */
+extern ACTOR    v_null;
+extern ACTOR    v_false;
+extern ACTOR    v_true;
+extern ACTOR    v_number_0;
+extern ACTOR    v_string_0;
+extern ACTOR    v_array_0;
+extern ACTOR    v_object_0;
+
 extern ACTOR*   new_u32(u32 value);
 extern ACTOR*   new_i32(int value);
+extern ACTOR*   new_octets(u8* s, u32 n);
+
+#define new_literal(c_str)  new_octets((u8*)(c_str), (u32)(sizeof(c_str) - 1))
 
 #endif /* _BOSE_H_ */
