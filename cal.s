@@ -87,7 +87,7 @@ v_true:			@ literal value "true"
 	.global v_number_0
 v_number_0:		@ literal number zero
 	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
-	.byte	0xFF, 0x10, 0x86, 0xFF	@ 0x04: --, +int_0, n_6, --
+	.byte	0xFF, 0x10, 0x84, 0xFF	@ 0x04: --, p_int_0, n_4, --
 	.int	0			@ 0x08: 32-bit integer
 	.int	0			@ 0x0c: 32-bit exponent
 	.int	10			@ 0x10: 32-bit base
@@ -113,7 +113,7 @@ v_string_0:		@ literal empty string
 	.global v_array_0
 v_array_0:		@ literal empty array
 	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
-	.byte	0xFF, 0x04, 0x10, 0x84	@ 0x04: --, array, +int_0, n_4
+	.byte	0xFF, 0x04, 0x10, 0x84	@ 0x04: --, array, p_int_0, n_4
 	.int	0			@ 0x08: size in octets (lsb first)
 	.int	0xFFFFFFFF		@ 0x0c: --
 	.int	0xFFFFFFFF		@ 0x10: --
@@ -126,7 +126,7 @@ v_array_0:		@ literal empty array
 	.global v_object_0
 v_object_0:		@ literal empty object
 	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
-	.byte	0xFF, 0x05, 0x10, 0x84	@ 0x04: --, object, +int_0, n_4
+	.byte	0xFF, 0x05, 0x10, 0x84	@ 0x04: --, object, p_int_0, n_4
 	.int	0			@ 0x08: size in octets (lsb first)
 	.int	0xFFFFFFFF		@ 0x0c: --
 	.int	0xFFFFFFFF		@ 0x10: --
@@ -139,13 +139,47 @@ v_object_0:		@ literal empty object
 	.global x_value
 x_value:			@ extended-value template
 	ldr	pc, [ip, #0x1c]		@ jump to actor behavior
-	.byte	0xFF, 0x0E, 0x10, 0x84	@ 0x04: --, prefix, +int_0, n_4
+	.byte	0xFF, 0x0E, 0x10, 0x84	@ 0x04: --, prefix, p_int_0, n_4
 	.int	0			@ 0x08: size in octets (lsb first)
 	.int	0xFFFFFFFF		@ 0x0c: --
 	.int	0xFFFFFFFF		@ 0x10: --
 	.int	0xFFFFFFFF		@ 0x14: --
 	.int	0			@ 0x18: pointer to extended data
 	.int	b_value			@ 0x1c: address of actor behavior
+
+@
+@ support procedures
+@
+
+	.text
+	.global new_u32
+new_u32:		@ allocate a new unsigned integer value actor
+			@ r0=value
+	stmdb	sp!, {r0,lr}	@ push return address and value on stack
+@	stmdb	sp!, {lr}	@ push return address on stack
+@	stmdb	sp!, {r0}	@ push value on stack
+	bl	reserve		@ allocate actor block
+	ldr	r1, =v_number_0
+	ldmia	r1, {r2-r9}	@ copy number template
+	ldmia	sp!, {r4}	@ pop value from stack
+	stmia	r0, {r2-r9}	@ write actor contents
+	ldmia	sp!, {pc}	@ pop address from stack, and return
+
+	.text
+	.global new_i32
+new_i32:		@ allocate a new signed integer value actor
+			@ r0=value
+	stmdb	sp!, {lr}	@ push return address on stack
+	bl	new_u32		@ create positive value actor
+	ldr	r1, [r0, #0x08]	@ get value
+	teq	r1, #0		@ interpret as signed
+	movmi	r2, #0x18	@ if value < 0
+	strmib	r2, [r0, #0x05]	@	prefix = n_int_0
+	ldmia	sp!, {pc}	@ pop address from stack, and return
+
+@
+@ interactive environment
+@
 
 	.text
 	.align 5		@ align to cache-line

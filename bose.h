@@ -69,6 +69,12 @@ typedef enum { /*2#_000*/ /*2#_001*/ /*2#_010*/ /*2#_011*/ /*2#_100*/ /*2#_101*/
 #define SMOL2INT(b) (int)((b) - n_0)
 
 // print an arbitrary BOSE-encoded value
-int     print_bose(u8** data_ref, int indent, int limit);
+extern int      print_bose(u8** data_ref, int indent, int limit);
+
+/*
+ * symbols exported by `cal.s`
+ */
+extern ACTOR*   new_u32(u32 value);
+extern ACTOR*   new_i32(int value);
 
 #endif /* _BOSE_H_ */

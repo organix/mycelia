@@ -368,9 +368,8 @@ of the value.
 
 Integers that are encoded in 32-bits or less
 can represent the entire number in a single actor.
-The `size` field is `n_6` (`0x86`) because
-the 32-bit value will be encoded
-with a 2-octet prefix (e.g.: `p_int_0` `n_4`).
+The `size` field is `n_4` (`0x84`) because
+the 32-bit value will be encoded in 4 octets.
 
 ```
         +--------+--------+--------+--------+
@@ -394,15 +393,15 @@ with a 2-octet prefix (e.g.: `p_int_0` `n_4`).
 
 Decimal numbers that are encoded in 32-bits per component
 can represent the entire number in a single actor.
-The `size` field is `n_12` (`0x8c`) because
-each 32-bit component will be encoded
+The `size` field is `n_10` (`0x8a`) because
+the `expr` component will be encoded
 with a 2-octet prefix.
 
 ```
         +--------+--------+--------+--------+
   0x00  |       ldr     pc, [ip, #0x1c]     |
         +--------+--------+--------+--------+
-  0x04  |   --   | dec_0  |  n_12  |   --   |
+  0x04  |   --   | dec_0  |  n_10  |   --   |
         +--------+--------+--------+--------+
   0x08  |            32-bit int             |
         +--------+--------+--------+--------+
@@ -420,15 +419,15 @@ with a 2-octet prefix.
 
 Based numbers that are encoded in 32-bits per component
 can represent the entire number in a single actor.
-The `size` field is `n_18` (`0x92`) because
-each 32-bit component will be encoded
-with a 2-octet prefix.
+The `size` field is `n_16` (`0x90`) because
+the `expr` and `base` components will be encoded
+with a 2-octet prefix each.
 
 ```
         +--------+--------+--------+--------+
   0x00  |       ldr     pc, [ip, #0x1c]     |
         +--------+--------+--------+--------+
-  0x04  |   --   | base_0 |  n_18  |   --   |
+  0x04  |   --   | base_0 |  n_16  |   --   |
         +--------+--------+--------+--------+
   0x08  |            32-bit int             |
         +--------+--------+--------+--------+

@@ -487,6 +487,7 @@ void
 test_bose()
 {
     u8* data;
+    ACTOR* a;
 
     hexdump(buf_0, sizeof(buf_0));
 
@@ -497,4 +498,16 @@ test_bose()
     data = buf_0;
     print_bose(&data, 0, 2);
     newline();
+
+    a = new_u32(42);
+    hexdump((u8*)a, 32);
+    dump_words((u32*)a, 8);
+
+    a = new_i32(-42);
+    hexdump((u8*)a, 32);
+    dump_words((u32*)a, 8);
+
+    a = new_u32(-42);
+    hexdump((u8*)a, 32);
+    dump_words((u32*)a, 8);
 }
