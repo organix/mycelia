@@ -23,6 +23,14 @@ typedef unsigned int u32;
 
 typedef void (ACTOR)(void);
 
+#ifndef NULL
+#define NULL ((void*)0)
+#endif
+
+#ifndef EOF
+#define EOF (-1)
+#endif
+
 /* public data structures */
 extern const char hex[];  // hexadecimal characters
 
@@ -46,6 +54,22 @@ extern void BRANCH_TO(u32 addr);
 /* macros to enhance efficiency */
 #define PUT_32(addr, data)      (*((volatile u32*)(addr)) = (data))
 #define GET_32(addr)            (*((volatile u32*)(addr)))
+
+/* utilities from mycelia.s */
+struct example_5 {
+    u32         code_00;
+    u32         data_04;
+    u32         data_08;
+    u32         data_0c;
+    u32         data_10;
+    u32         data_14;
+    u32         data_18;
+    ACTOR*      beh_1c;
+};
+
+extern void* reserve();  // allocate 32-byte block -- WARNING! sponsor required
+extern void release(void* block);  // free reserved block
+extern struct example_5 *create_5(ACTOR* behavior);
 
 /* C helpers from raspberry.c */
 extern int putchar(int c);

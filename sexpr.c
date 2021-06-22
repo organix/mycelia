@@ -83,34 +83,6 @@ extern ACTOR b_number;
 extern ACTOR b_appl;
 extern ACTOR b_oper;
 
-// asm utilities
-extern void* reserve();  // allocate 32-byte block
-extern void release(void* block);  // free reserved block
-extern struct example_4 *create_4(ACTOR* behavior, u32 r4, u32 r5, u32 r6);
-extern struct example_5 *create_5(ACTOR* behavior);
-
-struct example_4 {
-    u32         code_00;
-    u32         r4_04;
-    u32         r5_08;
-    u32         r6_0c;
-    u32         r7_10;
-    u32         r8_14;
-    u32         r9_18;
-    ACTOR*      beh_1c;
-};
-
-struct example_5 {
-    u32         code_00;
-    u32         data_04;
-    u32         data_08;
-    u32         data_0c;
-    u32         data_10;
-    u32         data_14;
-    u32         data_18;
-    ACTOR*      beh_1c;
-};
-
 int
 object_p(ACTOR* x)
 {

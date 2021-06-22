@@ -481,6 +481,34 @@ Note the required `'\0'` (`0x00`) character at the end of the data,
 which in not technically part of the string,
 but may make the string easier to handle in languages like **C**.
 
+#### Iterator
+
+Iterating through the characters of a string
+involves decoding a variety of variable-length encodings.
+A stateful "iterator" object keeps track of
+a location within a string,
+giving sequential access to unicode characters.
+
+```
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [ip, #0x1c]     |
+        +--------+--------+--------+--------+
+  0x04  | total octets remaining            |
+        +--------+--------+--------+--------+
+  0x08  | pointer to starting octet         |
+        +--------+--------+--------+--------+
+  0x0c  | pointer to ending octet (last+1)  |
+        +--------+--------+--------+--------+
+  0x10  |                                   |
+        +        .        .        .        +
+  0x14  |                                   |
+        +--------+--------+--------+--------+
+  0x18  | address of decode procedure       |
+        +--------+--------+--------+--------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+```
+
 ### Array
 
 Arrays do not directly contain their elements,

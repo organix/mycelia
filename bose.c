@@ -23,17 +23,6 @@
 #define DEBUG(x) x /* debug logging */
 #define TRACE(x)   /* trace logging */
 
-struct example_5 {
-    u32         code_00;
-    u32         data_04;
-    u32         data_08;
-    u32         data_0c;
-    u32         data_10;
-    u32         data_14;
-    u32         data_18;
-    ACTOR*      beh_1c;
-};
-
 static void serial_int32(int n) {
     if (n < 0) {
         putchar('-');
@@ -125,24 +114,24 @@ clear_color() {
 #endif
 
 static int
-parse_integer(int* result, u8** data_ref)
+decode_integer(int* result, u8** data_ref)
 {
     u8* data = *data_ref;
     u8 b = *data++;
-    TRACE(puts("parse_integer: b=0x"));
+    TRACE(puts("decode_integer: b=0x"));
     TRACE(serial_hex8(b));
     TRACE(putchar('\n'));
     int n = SMOL2INT(b);
     if ((n >= SMOL_MIN) && (n <= SMOL_MAX)) {
         *result = n;
         *data_ref = data;
-        TRACE(puts("parse_integer: smol="));
+        TRACE(puts("decode_integer: smol="));
         TRACE(serial_int32(n));
         TRACE(putchar('\n'));
         return true;  // success
     }
     int size = 0;
-    if (parse_integer(&size, &data)) {
+    if (decode_integer(&size, &data)) {
         u8* end = data + size;
         if (((b & 0xF0) == 0x10)  // Integer type?
         &&  (size <= sizeof(int))) {  // not too large?
@@ -154,7 +143,7 @@ parse_integer(int* result, u8** data_ref)
             }
             *result = n;
             *data_ref = end;
-            TRACE(puts("parse_integer: int="));
+            TRACE(puts("decode_integer: int="));
             TRACE(serial_int32(n));
             TRACE(putchar('\n'));
             return true;  // success
@@ -163,7 +152,7 @@ parse_integer(int* result, u8** data_ref)
     } else {
         *data_ref = data;  // update data reference
     }
-    TRACE(puts("parse_integer: fail!\n"));
+    TRACE(puts("decode_integer: fail!\n"));
     return false;  // failure!
 }
 
@@ -173,7 +162,7 @@ print_number(u8** data_ref)
     int ok = true;
     u8* data = *data_ref;
     int n = 0;
-    if (parse_integer(&n, &data)) {
+    if (decode_integer(&n, &data)) {
         set_color(NUM_COLOR);
         serial_int32(n);
         clear_color();
@@ -209,7 +198,7 @@ print_string(u8** data_ref)
         ok = false;  // fail!
     } else {
         int size = 0;
-        if (parse_integer(&size, &data)) {
+        if (decode_integer(&size, &data)) {
             u8* end = data + size;
             if ((b == utf8_mem) || (b == utf16_mem)) {
                 set_color(TEXT_COLOR);
@@ -280,11 +269,11 @@ print_array(u8** data_ref, int indent, int limit)
         clear_color();
     } else {
         int size = 0;
-        if (parse_integer(&size, &data)) {
+        if (decode_integer(&size, &data)) {
             u8* end = data + size;
             if (b == array_n) {
                 int count = 0;
-                if (!parse_integer(&count, &data)) {
+                if (!decode_integer(&count, &data)) {
                     set_color(PUNCT_COLOR);
                     prints("<bad element count>");
                     clear_color();
@@ -353,11 +342,11 @@ print_object(u8** data_ref, int indent, int limit)
         clear_color();
     } else {
         int size = 0;
-        if (parse_integer(&size, &data)) {
+        if (decode_integer(&size, &data)) {
             u8* end = data + size;
             if (b == object_n) {
                 int count = 0;
-                if (!parse_integer(&count, &data)) {
+                if (!decode_integer(&count, &data)) {
                     set_color(PUNCT_COLOR);
                     prints("<bad property count>");
                     clear_color();
@@ -461,6 +450,185 @@ print_bose(u8** data_ref, int indent, int limit)
 }
 
 /*
+ * composite data structures
+ */
+
+ACTOR*
+new_array()  // allocate a new (empty) array
+{
+    struct example_5* x = (struct example_5*)reserve();
+    struct example_5* y = (struct example_5*)(&v_array_0);
+    *x = *y;  // copy empty array template
+    return (ACTOR*)x;
+}
+
+inline u32
+array_element_count(ACTOR *a)
+{
+    struct example_5* x = (struct example_5*)a;
+    u32 count = (x->data_08 >> 2);
+    return count;
+}
+
+ACTOR*
+array_element(ACTOR* a, u32 index)  // retrieve element at (0-based) index
+{
+    struct example_5* x = (struct example_5*)a;
+    u32 count = (x->data_08 >> 2);
+    if (index < count) {
+        if (index < 3) {
+            u32* w = &x->data_0c;
+            return (ACTOR*)(w[index]);
+        } else {
+            index -= 3;
+            x = (struct example_5*)(x->data_18);
+            while (x) {
+                if (index < 7) {
+                    u32* w = (u32*)x;
+                    return (ACTOR*)(w[index]);
+                }
+                index -= 7;
+                x = (struct example_5*)(x->beh_1c);
+            }
+        }
+    }
+    return NULL;  // fail!
+}
+
+ACTOR*
+array_insert(ACTOR* a, u32 index, ACTOR* element)  // insert element at (0-based) index
+{
+    ACTOR* b = NULL;
+
+    struct example_5* x = (struct example_5*)a;
+    u32 count = (x->data_08 >> 2);
+    if (index <= count) {
+        b = (ACTOR*)reserve();
+        struct example_5* y = (struct example_5*)b;
+        y->code_00 = x->code_00;  // copy code field
+        y->data_04 = x->data_04;  // copy array header
+        y->data_08 = x->data_08 + 4;  // increase size
+        y->data_18 = 0;  // NULL next/link pointer
+        y->beh_1c = x->beh_1c;  // copy actor behavior
+        u32 i = 0;  // index of pointer to copy
+        u32 n = 3;  // number of pointers in block
+        u32* w = &x->data_0c;  // src pointer
+        u32* v = &y->data_0c;  // dst pointer
+        // copy pointers before index
+        while (i < index) {
+            if (n == 0) {  // next block
+                x = (struct example_5*)(*w);
+                w = (u32*)x;
+                y = (struct example_5*)reserve();
+                if (!y) return NULL;  // fail!
+                y->beh_1c = (ACTOR*)0;  // NULL next/link pointer
+                *v = (u32)y;
+                v = (u32*)y;
+                n = 7;
+            }
+            *v++ = *w++;  // copy pointer
+            --n;
+            ++i;
+        }
+        // insert element at index
+        if (n == 0) {  // next block
+            x = (struct example_5*)(*w);
+            w = (u32*)x;
+            y = (struct example_5*)reserve();
+            if (!y) return NULL;  // fail!
+            y->beh_1c = (ACTOR*)0;  // NULL next/link pointer
+            *v = (u32)y;
+            v = (u32*)y;
+            n = 7;
+        }
+        *v++ = (u32)element;
+        --n;
+        ++i;
+        // copy pointers after index
+        while (i <= count) {
+            if (n == 0) {  // next block
+                x = (struct example_5*)(*w);
+                w = (u32*)x;
+                y = (struct example_5*)reserve();
+                if (!y) return NULL;  // fail!
+                y->beh_1c = (ACTOR*)0;  // NULL next/link pointer
+                *v = (u32)y;
+                v = (u32*)y;
+                n = 7;
+            }
+            *v++ = *w++;  // copy pointer
+            --n;
+            ++i;
+        }
+    }
+    return b;
+}
+
+ACTOR*
+new_object()  // allocate a new (empty) object
+{
+    struct example_5* x = (struct example_5*)reserve();
+    struct example_5* y = (struct example_5*)(&v_object_0);
+    *x = *y;  // copy empty object template
+    return (ACTOR*)x;
+}
+
+inline u32
+object_property_count(ACTOR *a)
+{
+    struct example_5* x = (struct example_5*)a;
+    u32 count = (x->data_08 >> 3);
+    return count;
+}
+
+ACTOR*
+string_iterator(ACTOR* s)
+{
+    u8* p;
+    int n;
+
+    u8* bp = (u8*)s;
+    u8 b = *(bp + 0x05);
+    if (b == octets) {
+        struct example_5* x = (struct example_5*)reserve();  // new iterator
+        if (!x) return NULL;  // fail!
+        // FIXME: fill in code and beh for iterator actor!
+        p = bp + 0x06;
+        if (!decode_integer(&n, &p)) return NULL;  // fail!
+        x->data_04 = (u32)n;  // total octets remaining
+        x->data_08 = (u32)p;  // pointer to starting octet
+        if (n <= 20) {
+            x->data_0c = (u32)(p + n);  // pointer to ending octet
+        } else {
+            x->data_0c = (u32)(p + 12);  // pointer to ending octet
+        }
+        return (ACTOR*)x;  // success.
+    }
+    return NULL;  // fail!
+}
+
+u32
+next_character(ACTOR* it)
+{
+    struct example_5* x = (struct example_5*)it;
+    int n = x->data_04;
+    if (n > 0) {
+        u8* p = (u8*)x->data_08;
+        u8* q = (u8*)x->data_0c;
+        if (p >= q) {  // out of bounds
+            p = (u8*)(*((u32*)q));  //  load next block of data
+            q = p + 0x1c;  // update end
+        }
+        // FIXME: use decode procedure to handling encoding
+        u32 code = *p++;
+        x->data_04 = --n;  // update count
+        x->data_08 = (u32)p;  // update start
+        return code;  // success.
+    }
+    return EOF;  // fail!
+}
+
+/*
  * "standard" library
  */
 
@@ -471,7 +639,7 @@ strlen(char* s)
 {
     int n = 0;
 #if 1
-    char*r;
+    char* r;
 
     if ((r = s)) {
         while ((*s)) {
@@ -603,6 +771,14 @@ test_bose()
         x = (struct example_5*)a;
         a = (x->beh_1c);  // follow extended data pointer
     }
+
+    a = new_array();
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+
+    a = new_object();
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
 
     puts("Completed.\n");
 }
