@@ -474,7 +474,7 @@ ACTOR*
 array_element(ACTOR* a, u32 index)  // retrieve element at (0-based) index
 {
     struct example_5* x = (struct example_5*)a;
-    u32 count = (x->data_08 >> 2);
+    u32 count = array_element_count(a);
     if (index < count) {
         if (index < 3) {
             u32* w = &x->data_0c;
@@ -501,7 +501,7 @@ array_insert(ACTOR* a, u32 index, ACTOR* element)  // insert element at (0-based
     ACTOR* b = NULL;
 
     struct example_5* x = (struct example_5*)a;
-    u32 count = (x->data_08 >> 2);
+    u32 count = array_element_count(a);
     if (index <= count) {
         b = (ACTOR*)reserve();
         struct example_5* y = (struct example_5*)b;
@@ -626,6 +626,121 @@ next_character(ACTOR* it)
         return code;  // success.
     }
     return EOF;  // fail!
+}
+
+/*
+ * conversion from internal representation to JSON string
+ */
+
+static int
+number_to_JSON(ACTOR* a)
+{
+    u8* p = (u8*)a;
+    u8 b = *(p + 0x05);
+
+    if ((b & ~0x7) == p_int_0) {
+        u32 w = *((u32*)(p + 0x08));
+        serial_dec32(w);
+    } else if ((b & ~0x7) == m_int_0) {
+        int n = *((int*)(p + 0x08));
+        serial_int32(n);
+    } else {
+        // FIXME: handle different number formats and bignums...
+        return false;  // fail!
+    }
+    return true;  // success.
+}
+
+static int
+string_to_JSON(ACTOR* a)
+{
+    u32 ch = EOF;
+    ACTOR* it = string_iterator(a);
+    if (!it) return false;  // fail!
+    putchar('"');
+    while ((ch = next_character(it)) != EOF) {
+        switch (ch) {
+            case 0x0022:    puts("\\\"");   break;
+            case 0x005C:    puts("\\\\");   break;
+            case 0x002F:    puts("\\/");    break;
+            case 0x0008:    puts("\\b");    break;
+            case 0x000C:    puts("\\f");    break;
+            case 0x000A:    puts("\\n");    break;
+            case 0x000D:    puts("\\r");    break;
+            case 0x0009:    puts("\\t");    break;
+            default:
+                if ((ch < 0x0020) || (ch >= 0x007F)) {
+                    if (ch >= 0x10000) {  // encode surrogate pair
+                        ch -= 0x10000;
+                        u32 w = (ch >> 10) + 0xD800;  // hi 10 bits
+                        puts("\\u");
+                        serial_hex8(w >> 24);
+                        serial_hex8(w >> 16);
+                        serial_hex8(w >> 8);
+                        serial_hex8(w);
+                        w = (ch & 0x03FF) + 0xDC00;  // lo 10 bits
+                        puts("\\u");
+                        serial_hex8(w >> 24);
+                        serial_hex8(w >> 16);
+                        serial_hex8(w >> 8);
+                        serial_hex8(w);
+                    } else {  // encode unicode hexadecimal escape
+                        puts("\\u");
+                        serial_hex8(ch >> 24);
+                        serial_hex8(ch >> 16);
+                        serial_hex8(ch >> 8);
+                        serial_hex8(ch);
+                    }
+                } else {
+                    putchar(ch);
+                }
+                break;
+        }
+    }
+    putchar('"');
+    return true;  // success.
+}
+
+static int
+array_to_JSON(ACTOR* a, int indent, int limit)
+{
+    u32 n = array_element_count(a);
+    return false;  // fail!
+}
+
+static int
+object_to_JSON(ACTOR* a, int indent, int limit)
+{
+    u32 n = object_property_count(a);
+    return false;  // fail!
+}
+
+int
+to_JSON(ACTOR* a, int indent, int limit)
+{
+    int ok = true;
+    struct example_5* x = (struct example_5*)a;
+    u8* p = (u8*)a;
+    u8 b = *(p + 0x05);
+
+    if (x->beh_1c != &b_value) {
+        return false;  // fail! -- wrong actor type
+    } if (b == null) {
+        prints("null");
+    } else if (b == true) {
+        prints("true");
+    } else if (b == false) {
+        prints("false");
+    } else if ((b & 0xF8) == 0x08) {  // String type (2#0000_1xxx)
+        ok = string_to_JSON(a);
+    } else if ((b & 0xF9) == 0x00) {  // Array type (2#0000_0xx0) != false
+        ok = array_to_JSON(a, indent, limit);
+    } else if ((b & 0xF9) == 0x01) {  // Object type (2#0000_0xx1) != true
+        ok = object_to_JSON(a, indent, limit);
+    } else {
+        ok = number_to_JSON(a);
+    }
+    return ok;
 }
 
 /*

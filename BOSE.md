@@ -332,10 +332,34 @@ following the `size`.
 If the `size` is greater than 12 octets,
 the `pointer` (at offset `0x18`)
 holds the memory address of the next block of data.
+
+#### Extension Blocks
+
 Extension blocks are **not actors**.
 They are simply 28 octets of data
 and a `pointer` (at offset `0x1c`)
 to the next extension block (if any).
+
+
+```
+        +--------+--------+--------+--------+
+  0x00  |                                   |
+        +        .        .        .        +
+  0x04  |                                   |
+        +        .        .        .        +
+  0x08  |    28 octets of extension data    |
+        +        .        .        .        +
+  0x0c  |                                   |
+        +        .        .        .        +
+  0x10  |     (28 octets = 7 pointers)      |
+        +        .        .        .        +
+  0x14  |                                   |
+        +        .        .        .        +
+  0x18  |                                   |
+        +--------+--------+--------+--------+
+  0x1c  | pointer to next extension block   |
+        +--------+--------+--------+--------+
+```
 
 ### Boolean and Null
 

@@ -74,6 +74,8 @@ extern int      print_bose(u8** data_ref, int indent, int limit);
 /*
  * symbols exported by `cal.s`
  */
+extern ACTOR    b_value;
+
 extern ACTOR    v_null;
 extern ACTOR    v_false;
 extern ACTOR    v_true;
