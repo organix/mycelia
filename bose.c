@@ -23,6 +23,34 @@
 #define DEBUG(x) x /* debug logging */
 #define TRACE(x)   /* trace logging */
 
+/*
+ * "standard" library
+ */
+
+#define MIN_INT ((int)0x80000000)
+#define MAX_INT ((int)0x7FFFFFFF)
+
+int
+strlen(char* s)
+{
+    int n = 0;
+#if 1
+    char* r;
+
+    if ((r = s)) {
+        while ((*s)) {
+            ++s;
+        }
+    }
+    return (s - r);
+#else
+    while ((*s++)) {
+        ++n;
+    }
+#endif
+    return n;
+}
+
 static void serial_int32(int n) {
     if (n < 0) {
         putchar('-');
@@ -31,6 +59,9 @@ static void serial_int32(int n) {
     serial_dec32(n);
 }
 
+/*
+ * BOSE encode/decode
+ */
 static void
 print(u32 unicode) {
     if ((unicode == '\t')
@@ -454,6 +485,70 @@ print_bose(u8** data_ref, int indent, int limit)
  */
 
 ACTOR*
+string_iterator(ACTOR* s)
+{
+    u8* p;
+    int n;
+
+    u8* bp = (u8*)s;
+    u8 b = *(bp + 0x05);
+    if (b == octets) {
+        struct example_5* x = (struct example_5*)reserve();  // new iterator
+        if (!x) return NULL;  // fail!
+        // FIXME: fill in code and beh for iterator actor!
+        p = bp + 0x06;
+        if (!decode_integer(&n, &p)) return NULL;  // fail!
+        x->data_04 = (u32)n;  // total octets remaining
+        x->data_08 = (u32)p;  // pointer to starting octet
+        if (n <= 20) {
+            x->data_0c = (u32)(p + n);  // pointer to ending octet
+        } else {
+            x->data_0c = (u32)(p + 12);  // pointer to ending octet
+        }
+        return (ACTOR*)x;  // success.
+    }
+    return NULL;  // fail!
+}
+
+u32
+next_character(ACTOR* it)
+{
+    struct example_5* x = (struct example_5*)it;
+    int n = x->data_04;
+    if (n > 0) {
+        u8* p = (u8*)x->data_08;
+        u8* q = (u8*)x->data_0c;
+        if (p >= q) {  // out of bounds
+            p = (u8*)(*((u32*)q));  //  load next block of data
+            x->data_0c = (u32)(p + 0x1c);  // update end
+        }
+        // FIXME: use decode procedure to handling encoding
+        u32 code = *p++;
+        x->data_04 = --n;  // update count
+        x->data_08 = (u32)p;  // update start
+        return code;  // success.
+    }
+    return EOF;  // fail!
+}
+
+int
+string_compare(ACTOR* s, ACTOR* t)
+{
+    int d = 0;  // difference
+    ACTOR* si = string_iterator(s);
+    if (!si) return MIN_INT;  // fail!
+    ACTOR* ti = string_iterator(t);
+    if (!ti) return MIN_INT;  // fail!
+    while (d == 0) {
+        u32 sc = next_character(si);
+        u32 tc = next_character(ti);
+        d = (int)(sc - tc);
+        if ((sc == EOF) || (tc == EOF)) break;  // end of string(s)
+    }
+    return d;
+}
+
+ACTOR*
 new_array()  // allocate a new (empty) array
 {
     struct example_5* x = (struct example_5*)reserve();
@@ -590,53 +685,6 @@ new_object()  // allocate a new (empty) object
 }
 
 ACTOR*
-string_iterator(ACTOR* s)
-{
-    u8* p;
-    int n;
-
-    u8* bp = (u8*)s;
-    u8 b = *(bp + 0x05);
-    if (b == octets) {
-        struct example_5* x = (struct example_5*)reserve();  // new iterator
-        if (!x) return NULL;  // fail!
-        // FIXME: fill in code and beh for iterator actor!
-        p = bp + 0x06;
-        if (!decode_integer(&n, &p)) return NULL;  // fail!
-        x->data_04 = (u32)n;  // total octets remaining
-        x->data_08 = (u32)p;  // pointer to starting octet
-        if (n <= 20) {
-            x->data_0c = (u32)(p + n);  // pointer to ending octet
-        } else {
-            x->data_0c = (u32)(p + 12);  // pointer to ending octet
-        }
-        return (ACTOR*)x;  // success.
-    }
-    return NULL;  // fail!
-}
-
-u32
-next_character(ACTOR* it)
-{
-    struct example_5* x = (struct example_5*)it;
-    int n = x->data_04;
-    if (n > 0) {
-        u8* p = (u8*)x->data_08;
-        u8* q = (u8*)x->data_0c;
-        if (p >= q) {  // out of bounds
-            p = (u8*)(*((u32*)q));  //  load next block of data
-            x->data_0c = (u32)(p + 0x1c);  // update end
-        }
-        // FIXME: use decode procedure to handling encoding
-        u32 code = *p++;
-        x->data_04 = --n;  // update count
-        x->data_08 = (u32)p;  // update start
-        return code;  // success.
-    }
-    return EOF;  // fail!
-}
-
-ACTOR*
 collection_iterator(ACTOR* c)
 {
     u32* p;
@@ -720,20 +768,14 @@ string_to_JSON(ACTOR* a)
                         ch -= 0x10000;
                         u32 w = (ch >> 10) + 0xD800;  // hi 10 bits
                         puts("\\u");
-                        serial_hex8(w >> 24);
-                        serial_hex8(w >> 16);
                         serial_hex8(w >> 8);
                         serial_hex8(w);
                         w = (ch & 0x03FF) + 0xDC00;  // lo 10 bits
                         puts("\\u");
-                        serial_hex8(w >> 24);
-                        serial_hex8(w >> 16);
                         serial_hex8(w >> 8);
                         serial_hex8(w);
                     } else {  // encode unicode hexadecimal escape
                         puts("\\u");
-                        serial_hex8(ch >> 24);
-                        serial_hex8(ch >> 16);
                         serial_hex8(ch >> 8);
                         serial_hex8(ch);
                     }
@@ -821,33 +863,6 @@ to_JSON(ACTOR* a, int indent, int limit)
 }
 
 /*
- * "standard" library
- */
-
-#define MAX_INT ((int)0x7FFFFFFF)
-
-int
-strlen(char* s)
-{
-    int n = 0;
-#if 1
-    char* r;
-
-    if ((r = s)) {
-        while ((*s)) {
-            ++s;
-        }
-    }
-    return (s - r);
-#else
-    while ((*s++)) {
-        ++n;
-    }
-#endif
-    return n;
-}
-
-/*
  * test suite
  */
 
@@ -903,6 +918,8 @@ test_bose()
     ACTOR* a;
     ACTOR* b;
     char* s;
+    u32 i;
+    int n;
 
     hexdump(buf_0, sizeof(buf_0));
 
@@ -1003,6 +1020,39 @@ test_bose()
     dump_extended(a);
     to_JSON(a, 0, MAX_INT);
     putchar('\n');
+
+    for (i = 0; i < array_element_count(a); ++i) {
+        puts("a[");
+        serial_dec32(i);
+        puts("] = ");
+        b = array_element(a, i);
+        to_JSON(b, 0, MAX_INT);
+        putchar('\n');
+    }
+
+    a = new_literal("a bird in hand is worth two in the bush");
+    puts("a = ");
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+    b = new_literal("a bird in hand is worth two in the bush?");
+    puts("b = ");
+    to_JSON(b, 0, MAX_INT);
+    putchar('\n');
+    n = string_compare(a, b);
+    serial_int32(n);
+    puts(" = (a ");
+    putchar((n == MIN_INT) ? '?' : ((n < 0) ? '<' : ((n > 0) ? '>' : '=')));
+    puts(" b); ");
+    n = string_compare(a, a);
+    serial_int32(n);
+    puts(" = (a ");
+    putchar((n == MIN_INT) ? '?' : ((n < 0) ? '<' : ((n > 0) ? '>' : '=')));
+    puts(" a); ");
+    n = string_compare(b, a);
+    serial_int32(n);
+    puts(" = (b ");
+    putchar((n == MIN_INT) ? '?' : ((n < 0) ? '<' : ((n > 0) ? '>' : '=')));
+    puts(" a)\n");
 
     a = new_object();
     dump_extended(a);
