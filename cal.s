@@ -155,14 +155,16 @@ ext_value:		@ extended-value template
 	.global new_u32
 new_u32:		@ allocate a new unsigned integer value actor
 			@ r0=value
-	stmdb	sp!, {lr}	@ push return address on stack
+	stmdb	sp!, {r4-r9,lr}	@ save in-use registers
+@	stmdb	sp!, {lr}	@ push return address on stack
 	stmdb	sp!, {r0}	@ push value on stack
 	bl	reserve		@ allocate actor block
 	ldr	r1, =v_number_0
 	ldmia	r1, {r2-r9}	@ copy number template
 	ldmia	sp!, {r4}	@ pop value from stack
 	stmia	r0, {r2-r9}	@ write actor contents
-	ldmia	sp!, {pc}	@ pop address from stack, and return
+	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers, and return
+@	ldmia	sp!, {pc}	@ pop address from stack, and return
 
 	.text
 	.global new_i32
@@ -180,7 +182,8 @@ new_i32:		@ allocate a new signed integer value actor
 	.global new_octets
 new_octets:		@ allocate a new octet string value actor
 			@ r0=octet pointer, r1=count
-	stmdb	sp!, {lr}	@ push return address on stack
+	stmdb	sp!, {r4-r9,lr}	@ save in-use registers
+@	stmdb	sp!, {lr}	@ push return address on stack
 @ <debug>
 @	bl	dump_regs
 @ </debug>
@@ -205,7 +208,8 @@ new_octets:		@ allocate a new octet string value actor
 	subs	r2, r2, #1	@		decrement count
 	bne	3b
 2:
-	ldmia	sp!, {pc}	@	pop address from stack, and return
+	ldmia	sp!, {r4-r9,pc}	@	restore in-use registers, and return
+@	ldmia	sp!, {pc}	@	pop address from stack, and return
 1:				@ else
 	bl	reserve		@	allocate actor block
 	ldr	r1, =ext_value
@@ -248,7 +252,8 @@ new_octets:		@ allocate a new octet string value actor
 	mov	r8, #0		@	extra '\0' character
 	strb	r8, [r7]	@	write octet to dst
 	mov	r0, r9		@	return actor
-	ldmia	sp!, {pc}	@	pop address from stack, and return
+	ldmia	sp!, {r4-r9,pc}	@	restore in-use registers, and return
+@	ldmia	sp!, {pc}	@	pop address from stack, and return
 
 @
 @ interactive environment

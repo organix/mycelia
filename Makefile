@@ -17,8 +17,8 @@
 #
 
 COPTS=	-nostdlib -nostartfiles -ffreestanding -ffixed-sl -ffixed-fp -ffixed-ip
-#CFLAGS=	$(COPTS) -g -Wall -O2
-CFLAGS=	$(COPTS) -g -Wall
+CFLAGS=	$(COPTS) -g -Wall -O2
+#CFLAGS=	$(COPTS) -g -Wall
 
 AS=	as
 CC=	gcc $(CFLAGS)
