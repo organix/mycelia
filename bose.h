@@ -86,21 +86,26 @@ extern ACTOR    v_object_0;
 
 extern ACTOR*   new_u32(u32 value);
 extern ACTOR*   new_i32(int value);
-extern ACTOR*   new_octets(u8* s, u32 n);
-extern ACTOR*   new_array();
-extern ACTOR*   array_element(ACTOR* a, u32 index);
-extern ACTOR*   array_insert(ACTOR* a, u32 index, ACTOR* element);
-extern ACTOR*   new_object();
 
+extern ACTOR*   new_octets(u8* s, u32 n);
 extern ACTOR*   string_iterator(ACTOR* s);
 extern u32      next_character(ACTOR* it);  // or EOF
+
+extern ACTOR*   new_array();
+extern ACTOR*   array_insert(ACTOR* a, u32 index, ACTOR* element);
+extern ACTOR*   array_element(ACTOR* a, u32 index);
+
+extern ACTOR*   new_object();
+extern ACTOR*   object_set(ACTOR* o, ACTOR* key, ACTOR* value);
+extern ACTOR*   object_get(ACTOR* o, ACTOR* key);
+
 extern ACTOR*   collection_iterator(ACTOR* c);
 extern ACTOR*   next_item(ACTOR* it);  // or NULL
 
 extern int      to_JSON(ACTOR* a, int indent, int limit);
 
-#define new_literal(c_str)          new_octets((u8*)(c_str), (u32)(sizeof(c_str) - 1))
+#define new_literal(c_str)          (new_octets((u8*)(c_str), (u32)(sizeof(c_str) - 1)))
 #define array_element_count(a)      (((struct example_5*)(a))->data_08 >> 2)
-#define object_property_count(a)    (((struct example_5*)(a))->data_08 >> 3)
+#define object_property_count(o)    (((struct example_5*)(o))->data_08 >> 3)
 
 #endif /* _BOSE_H_ */

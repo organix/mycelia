@@ -24,17 +24,15 @@
 #define TRACE(x)   /* trace logging */
 
 /*
- * "standard" library
+ * library utilities
  */
 
 #define MIN_INT ((int)0x80000000)
 #define MAX_INT ((int)0x7FFFFFFF)
 
 int
-strlen(char* s)
+cstr_len(char* s)
 {
-    int n = 0;
-#if 1
     char* r;
 
     if ((r = s)) {
@@ -43,12 +41,6 @@ strlen(char* s)
         }
     }
     return (s - r);
-#else
-    while ((*s++)) {
-        ++n;
-    }
-#endif
-    return n;
 }
 
 static void serial_int32(int n) {
@@ -558,31 +550,6 @@ new_array()  // allocate a new (empty) array
 }
 
 ACTOR*
-array_element(ACTOR* a, u32 index)  // retrieve element at (0-based) index
-{
-    struct example_5* x = (struct example_5*)a;
-    u32 count = array_element_count(a);
-    if (index < count) {
-        if (index < 3) {
-            u32* w = &x->data_0c;
-            return (ACTOR*)(w[index]);
-        } else {
-            index -= 3;
-            x = (struct example_5*)(x->data_18);
-            while (x) {
-                if (index < 7) {
-                    u32* w = (u32*)x;
-                    return (ACTOR*)(w[index]);
-                }
-                index -= 7;
-                x = (struct example_5*)(x->beh_1c);
-            }
-        }
-    }
-    return NULL;  // fail!
-}
-
-ACTOR*
 array_insert(ACTOR* a, u32 index, ACTOR* element)  // insert element at (0-based) index
 {
     ACTOR* b = NULL;
@@ -676,12 +643,178 @@ array_insert(ACTOR* a, u32 index, ACTOR* element)  // insert element at (0-based
 }
 
 ACTOR*
+array_element(ACTOR* a, u32 index)  // retrieve element at (0-based) index
+{
+    struct example_5* x = (struct example_5*)a;
+    u32 count = array_element_count(a);
+    if (index < count) {
+        if (index < 3) {
+            u32* w = &x->data_0c;
+            return (ACTOR*)(w[index]);
+        } else {
+            index -= 3;
+            x = (struct example_5*)(x->data_18);
+            while (x) {
+                if (index < 7) {
+                    u32* w = (u32*)x;
+                    return (ACTOR*)(w[index]);
+                }
+                index -= 7;
+                x = (struct example_5*)(x->beh_1c);
+            }
+        }
+    }
+    return NULL;  // fail!
+}
+
+ACTOR*
 new_object()  // allocate a new (empty) object
 {
     struct example_5* x = (struct example_5*)reserve();
     struct example_5* y = (struct example_5*)(&v_object_0);
     *x = *y;  // copy empty object template
     return (ACTOR*)x;
+}
+
+ACTOR*
+object_set(ACTOR* o, ACTOR* key, ACTOR* value)  // set property in object
+{
+    ACTOR* b = NULL;
+
+    struct example_5* x = (struct example_5*)o;
+    u32 count = object_property_count(o);
+    TRACE(puts("object_set: o=0x"));
+    TRACE(serial_hex32((u32)o));
+    TRACE(puts(", count="));
+    TRACE(serial_dec32(count));
+    TRACE(puts(", key=0x"));
+    TRACE(serial_hex32((u32)key));
+    TRACE(puts(", value=0x"));
+    TRACE(serial_hex32((u32)value));
+    TRACE(putchar('\n'));
+    if (x->beh_1c != &b_value) return NULL;  // fail! -- wrong actor type
+    TRACE(puts("object_set: key="));
+    TRACE(dump_words((u32*)key, 8));
+    TRACE(puts("object_set: value="));
+    TRACE(dump_words((u32*)value, 8));
+    b = (ACTOR*)reserve();
+    struct example_5* y = (struct example_5*)b;
+    y->code_00 = x->code_00;  // copy code field
+    y->data_04 = x->data_04;  // copy object header
+    y->data_08 = x->data_08;  // copy size
+    y->data_18 = 0;  // NULL next/link pointer
+    y->beh_1c = x->beh_1c;  // copy actor behavior
+    u32 n = 3;  // number of pointers in block
+    u32* w = &x->data_0c;  // src pointer
+    u32* v = &y->data_0c;  // dst pointer
+    TRACE(puts("object_set: allocated b="));
+    TRACE(dump_words((u32*)b, 8));
+    // copy properties while search for key match
+    int d = MIN_INT;
+    while (count > 0) {
+        if (n == 0) {  // next block
+            x = (struct example_5*)(*w);
+            w = (u32*)x;
+            y = (struct example_5*)reserve();
+            if (!y) return NULL;  // fail!
+            y->beh_1c = (ACTOR*)0;  // NULL next/link pointer
+            *v = (u32)y;
+            v = (u32*)y;
+            n = 7;
+        }
+        if (d != 0) {  // only compare keys if not already found
+            d = string_compare(key, (ACTOR*)(*w));
+            TRACE(puts("object_set: string_compare("));
+            TRACE(to_JSON(key, 0, MAX_INT));
+            TRACE(puts(", "));
+            TRACE(to_JSON((ACTOR*)(*w), 0, MAX_INT));
+            TRACE(puts(") = "));
+            TRACE(serial_int32(d));
+            TRACE(putchar('\n'));
+            if (d == MIN_INT) return NULL;  // fail!
+            if (d == 0) {  // key matched
+                *v++ = *w++;  // copy key pointer
+                --n;
+                if (n == 0) {  // next block
+                    x = (struct example_5*)(*w);
+                    w = (u32*)x;
+                    y = (struct example_5*)reserve();
+                    if (!y) return NULL;  // fail!
+                    y->beh_1c = (ACTOR*)0;  // NULL next/link pointer
+                    *v = (u32)y;
+                    v = (u32*)y;
+                    n = 7;
+                }
+                *v++ = (u32)value;  // replace value pointer
+                ++w;  // skip src value pointer
+                --n;
+                --count;  // decement property count
+                continue;  // next loop iteration
+            }
+        }
+        *v++ = *w++;  // copy key pointer
+        --n;
+        if (n == 0) {  // next block
+            x = (struct example_5*)(*w);
+            w = (u32*)x;
+            y = (struct example_5*)reserve();
+            if (!y) return NULL;  // fail!
+            y->beh_1c = (ACTOR*)0;  // NULL next/link pointer
+            *v = (u32)y;
+            v = (u32*)y;
+            n = 7;
+        }
+        *v++ = *w++;  // copy value pointer
+        --n;
+        --count;  // decement property count
+    }
+    if (d != 0) {  // no match found, append new property
+        TRACE(puts("object_set: no match found, append new property.\n"));
+        if (n == 0) {  // next block
+            y = (struct example_5*)reserve();
+            if (!y) return NULL;  // fail!
+            y->beh_1c = (ACTOR*)0;  // NULL next/link pointer
+            *v = (u32)y;
+            v = (u32*)y;
+            n = 7;
+        }
+        *v++ = (u32)key;  // new key pointer
+        --n;
+        if (n == 0) {  // next block
+            y = (struct example_5*)reserve();
+            if (!y) return NULL;  // fail!
+            y->beh_1c = (ACTOR*)0;  // NULL next/link pointer
+            *v = (u32)y;
+            v = (u32*)y;
+            n = 7;
+        }
+        *v++ = (u32)value;  // new value pointer
+        //--n;  <-- don't need to update because we're done here!
+        x = (struct example_5*)o;
+        y = (struct example_5*)b;
+        y->data_08 = x->data_08 + 8;  // increase size
+    }
+    TRACE(puts("object_set: returning b=0x"));
+    TRACE(serial_hex32((u32)b));
+    TRACE(putchar('\n'));
+    return b;
+}
+
+ACTOR*
+object_get(ACTOR* o, ACTOR* key)  // get property value from object
+{
+    ACTOR* a = NULL;
+    ACTOR* it = collection_iterator(o);
+    if (!it) return NULL;  // fail!
+    while ((a = next_item(it)) != NULL) {
+        int d = string_compare(key, a);
+        a = next_item(it);  // get value
+        if (a == NULL) return NULL;  // fail!
+        if (d == 0) {  // key matched
+            return a;  // success.
+        }
+    }
+    return NULL;  // fail!
 }
 
 ACTOR*
@@ -921,6 +1054,12 @@ test_bose()
     u32 i;
     int n;
 
+    puts("MIN_INT=");
+    serial_int32(MIN_INT);
+    puts(", MAX_INT=");
+    serial_int32(MAX_INT);
+    newline();
+
     hexdump(buf_0, sizeof(buf_0));
 
     data = buf_0;
@@ -934,14 +1073,20 @@ test_bose()
     a = new_u32(42);
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    to_JSON(a, 0, MAX_INT);
+    newline();
 
     a = new_i32(-42);
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    to_JSON(a, 0, MAX_INT);
+    newline();
 
     a = new_u32(-42);
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    to_JSON(a, 0, MAX_INT);
+    newline();
 
     a = &v_string_0;
     puts("&v_string_0 = 0x");
@@ -949,34 +1094,56 @@ test_bose()
     putchar('\n');
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    to_JSON(a, 0, MAX_INT);
+    newline();
 
     s = "";
-    a = new_octets((u8*)s, (u32)strlen(s));
+    a = new_octets((u8*)s, (u32)cstr_len(s));
 //    a = new_literal("");
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    to_JSON(a, 0, MAX_INT);
+    newline();
+
+    a = new_octets((u8*)"x", 1);
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+    to_JSON(a, 0, MAX_INT);
+    newline();
 
     a = new_literal("test");
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    to_JSON(a, 0, MAX_INT);
+    newline();
 
     a = new_literal("Hello, World!");
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    to_JSON(a, 0, MAX_INT);
+    newline();
 
     a = new_literal("< twenty characters");
     dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    newline();
 
     a = new_literal("<= twenty characters");
     dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    newline();
 
     a = new_literal("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
     dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    newline();
 
     s = "0123456789+-*/abcdefghijklmnopqrstuvwxyz";
-    a = new_octets((u8*)s, (u32)strlen(s));
+    a = new_octets((u8*)s, (u32)cstr_len(s));
 //    a = new_literal("0123456789+-*/abcdefghijklmnopqrstuvwxyz");
     dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    newline();
 
     a = new_array();
     dump_extended(a);
@@ -1057,6 +1224,55 @@ test_bose()
     a = new_object();
     dump_extended(a);
     to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+    a = object_set(a, new_literal("x"), new_i32(1));
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+    a = object_set(a, new_literal("y"), new_i32(2));
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+    a = object_set(a, new_literal("z"), new_i32(0));
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+    a = object_set(a, new_literal("x"), new_i32(-1));
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+    a = object_set(a, new_literal("y"), new_i32(-2));
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+
+    b = new_literal("x");
+    puts("a[");
+    to_JSON(b, 0, MAX_INT);
+    puts("] = ");
+    b = object_get(a, b);
+    to_JSON(b, 0, MAX_INT);
+    putchar('\n');
+    b = new_literal("y");
+    puts("a[");
+    to_JSON(b, 0, MAX_INT);
+    puts("] = ");
+    b = object_get(a, b);
+    to_JSON(b, 0, MAX_INT);
+    putchar('\n');
+    b = new_literal("z");
+    puts("a[");
+    to_JSON(b, 0, MAX_INT);
+    puts("] = ");
+    b = object_get(a, b);
+    to_JSON(b, 0, MAX_INT);
+    putchar('\n');
+    b = new_literal("q");
+    puts("a[");
+    to_JSON(b, 0, MAX_INT);
+    puts("] = ");
+    b = object_get(a, b);
+    to_JSON(b, 0, MAX_INT);
     putchar('\n');
 
     puts("Completed.\n");
