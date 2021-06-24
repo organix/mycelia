@@ -16,8 +16,12 @@
 # limitations under the License.
 #
 
+COPTS=	-nostdlib -nostartfiles -ffreestanding -ffixed-sl -ffixed-fp -ffixed-ip
+#CFLAGS=	$(COPTS) -g -Wall -O2
+CFLAGS=	$(COPTS) -g -Wall
+
 AS=	as
-CC=	gcc -g -Wall -O2 -nostdlib -nostartfiles -ffreestanding -ffixed-sl -ffixed-fp -ffixed-ip
+CC=	gcc $(CFLAGS)
 LD=	ld
 
 KOBJS=	start.o \

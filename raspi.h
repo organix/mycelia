@@ -33,6 +33,7 @@ typedef void (ACTOR)(void);
 
 /* public data structures */
 extern const char hex[];  // hexadecimal characters
+extern u8 heap_start[];  // dynamic allocation base
 
 /* sponsor selection */
 extern void set_sponsor(ACTOR* sl);

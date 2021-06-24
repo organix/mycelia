@@ -28,7 +28,6 @@ extern void k_start(u32 sp);
 extern void monitor();
 
 extern u8 bss_start[];
-extern u8 heap_start[];
 
 /* Private data structures */
 static char linebuf[256];  // line editing buffer

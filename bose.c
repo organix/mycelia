@@ -462,14 +462,6 @@ new_array()  // allocate a new (empty) array
     return (ACTOR*)x;
 }
 
-inline u32
-array_element_count(ACTOR *a)
-{
-    struct example_5* x = (struct example_5*)a;
-    u32 count = (x->data_08 >> 2);
-    return count;
-}
-
 ACTOR*
 array_element(ACTOR* a, u32 index)  // retrieve element at (0-based) index
 {
@@ -502,6 +494,16 @@ array_insert(ACTOR* a, u32 index, ACTOR* element)  // insert element at (0-based
 
     struct example_5* x = (struct example_5*)a;
     u32 count = array_element_count(a);
+    TRACE(puts("array_insert: a=0x"));
+    TRACE(serial_hex32((u32)a));
+    TRACE(puts(", index="));
+    TRACE(serial_dec32(index));
+    TRACE(puts(", count="));
+    TRACE(serial_dec32(count));
+    TRACE(puts(", element=0x"));
+    TRACE(serial_hex32((u32)element));
+    TRACE(putchar('\n'));
+    if (x->beh_1c != &b_value) return NULL;  // fail! -- wrong actor type
     if (index <= count) {
         b = (ACTOR*)reserve();
         struct example_5* y = (struct example_5*)b;
@@ -514,6 +516,8 @@ array_insert(ACTOR* a, u32 index, ACTOR* element)  // insert element at (0-based
         u32 n = 3;  // number of pointers in block
         u32* w = &x->data_0c;  // src pointer
         u32* v = &y->data_0c;  // dst pointer
+        TRACE(puts("array_insert: allocated b="));
+        TRACE(dump_words((u32*)b, 8));
         // copy pointers before index
         while (i < index) {
             if (n == 0) {  // next block
@@ -541,19 +545,28 @@ array_insert(ACTOR* a, u32 index, ACTOR* element)  // insert element at (0-based
             v = (u32*)y;
             n = 7;
         }
+        TRACE(puts("array_insert: at v=0x"));
+        TRACE(serial_hex32((u32)v));
+        TRACE(puts(", i="));
+        TRACE(serial_dec32(i));
+        TRACE(puts(", n="));
+        TRACE(serial_dec32(n));
+        TRACE(puts(", element=0x"));
+        TRACE(serial_hex32((u32)element));
+        TRACE(putchar('\n'));
         *v++ = (u32)element;
-        --n;
         ++i;
         // copy pointers after index
         while (i <= count) {
-            if (n == 0) {  // next block
-                x = (struct example_5*)(*w);
-                w = (u32*)x;
+            if (n == 1) {  // next dst block
                 y = (struct example_5*)reserve();
                 if (!y) return NULL;  // fail!
                 y->beh_1c = (ACTOR*)0;  // NULL next/link pointer
                 *v = (u32)y;
                 v = (u32*)y;
+            } else if (n == 0) {  // next src block
+                x = (struct example_5*)(*w);
+                w = (u32*)x;
                 n = 7;
             }
             *v++ = *w++;  // copy pointer
@@ -561,6 +574,9 @@ array_insert(ACTOR* a, u32 index, ACTOR* element)  // insert element at (0-based
             ++i;
         }
     }
+    TRACE(puts("array_insert: returning b=0x"));
+    TRACE(serial_hex32((u32)b));
+    TRACE(putchar('\n'));
     return b;
 }
 
@@ -571,14 +587,6 @@ new_object()  // allocate a new (empty) object
     struct example_5* y = (struct example_5*)(&v_object_0);
     *x = *y;  // copy empty object template
     return (ACTOR*)x;
-}
-
-inline u32
-object_property_count(ACTOR *a)
-{
-    struct example_5* x = (struct example_5*)a;
-    u32 count = (x->data_08 >> 3);
-    return count;
 }
 
 ACTOR*
@@ -617,7 +625,7 @@ next_character(ACTOR* it)
         u8* q = (u8*)x->data_0c;
         if (p >= q) {  // out of bounds
             p = (u8*)(*((u32*)q));  //  load next block of data
-            q = p + 0x1c;  // update end
+            x->data_0c = (u32)(p + 0x1c);  // update end
         }
         // FIXME: use decode procedure to handling encoding
         u32 code = *p++;
@@ -626,6 +634,44 @@ next_character(ACTOR* it)
         return code;  // success.
     }
     return EOF;  // fail!
+}
+
+ACTOR*
+collection_iterator(ACTOR* c)
+{
+    u32* p;
+    u32 w;
+
+    p = (u32*)c;
+    struct example_5* x = (struct example_5*)reserve();  // new iterator
+    if (!x) return NULL;  // fail!
+    // FIXME: fill in code and beh for iterator actor!
+    p += 2;
+    w = *p++;
+    x->data_04 = w;  // total octets remaining
+    x->data_08 = (u32)p;  // starting address
+    x->data_0c = (u32)(p + 3);  // ending address
+    return (ACTOR*)x;  // success.
+}
+
+ACTOR*
+next_item(ACTOR* it)
+{
+    struct example_5* x = (struct example_5*)it;
+    int n = x->data_04;
+    if (n > 0) {
+        u32* p = (u32*)x->data_08;
+        u32* q = (u32*)x->data_0c;
+        if (p >= q) {  // out of bounds
+            p = (u32*)(*q);  //  load next block of data
+            x->data_0c = (u32)(p + 7);  // update end
+        }
+        u32 w = *p++;
+        x->data_04 = n - sizeof(u32);  // update count
+        x->data_08 = (u32)p;  // update start
+        return (ACTOR*)w;  // success.
+    }
+    return NULL;  // fail!
 }
 
 /*
@@ -704,15 +750,43 @@ string_to_JSON(ACTOR* a)
 static int
 array_to_JSON(ACTOR* a, int indent, int limit)
 {
-    u32 n = array_element_count(a);
-    return false;  // fail!
+    ACTOR* it = collection_iterator(a);
+    if (!it) return false;  // fail!
+    putchar('[');
+    int first = true;
+    while ((a = next_item(it)) != NULL) {
+        if (first) {
+            first = false;
+        } else {
+            puts(", ");
+        }
+        if (!to_JSON(a, indent, limit)) return false;  // fail!
+    }
+    putchar(']');
+    return true;  // success.
 }
 
 static int
 object_to_JSON(ACTOR* a, int indent, int limit)
 {
-    u32 n = object_property_count(a);
-    return false;  // fail!
+    ACTOR* it = collection_iterator(a);
+    if (!it) return false;  // fail!
+    putchar('{');
+    int first = true;
+    while ((a = next_item(it)) != NULL) {
+        if (first) {
+            first = false;
+        } else {
+            puts(", ");
+        }
+        if (!string_to_JSON(a)) return false;  // fail!
+        puts(":");
+        a = next_item(it);
+        if (a == NULL) return false;  // fail!
+        if (!to_JSON(a, indent, limit)) return false;  // fail!
+    }
+    putchar('}');
+    return true;  // success.
 }
 
 int
@@ -724,8 +798,11 @@ to_JSON(ACTOR* a, int indent, int limit)
     u8 b = *(p + 0x05);
 
     if (x->beh_1c != &b_value) {
-        return false;  // fail! -- wrong actor type
-    } if (b == null) {
+        putchar('<');
+        serial_hex32((u32)a);
+        putchar('>');
+        ok = false;  // fail! -- wrong actor type
+    } else if (b == null) {
         prints("null");
     } else if (b == true) {
         prints("true");
@@ -802,13 +879,30 @@ static u8 buf_0[] = {
                 array, n_2, n_13, n_8,
 };
 
+static void
+dump_extended(ACTOR* a)
+{
+    struct example_5* x = (struct example_5*)a;
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+    u8* p = (u8*)a;
+    if ((p[0x06] != p_int_0) || (p[0x07] != n_4)) return;  // not extended
+    a = (ACTOR*)(x->data_18);  // follow extended block pointer
+    while (a && ((u8*)a >= heap_start)) {
+        dump_words((u32*)a, 8);
+        hexdump((u8*)a, 32);
+        x = (struct example_5*)a;
+        a = (x->beh_1c);  // follow next extended data pointer
+    }
+}
+
 void
 test_bose()
 {
     u8* data;
     ACTOR* a;
+    ACTOR* b;
     char* s;
-    struct example_5* x;
 
     hexdump(buf_0, sizeof(buf_0));
 
@@ -854,46 +948,66 @@ test_bose()
     hexdump((u8*)a, 32);
 
     a = new_literal("< twenty characters");
-    dump_words((u32*)a, 8);
-    hexdump((u8*)a, 32);
+    dump_extended(a);
 
     a = new_literal("<= twenty characters");
-    dump_words((u32*)a, 8);
-    hexdump((u8*)a, 32);
+    dump_extended(a);
 
     a = new_literal("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
-    dump_words((u32*)a, 8);
-    hexdump((u8*)a, 32);
-    x = (struct example_5*)a;
-    a = (ACTOR*)(x->data_18);  // follow extended block pointer
-    while (a) {
-        dump_words((u32*)a, 8);
-        hexdump((u8*)a, 32);
-        x = (struct example_5*)a;
-        a = (x->beh_1c);  // follow extended data pointer
-    }
+    dump_extended(a);
 
     s = "0123456789+-*/abcdefghijklmnopqrstuvwxyz";
     a = new_octets((u8*)s, (u32)strlen(s));
 //    a = new_literal("0123456789+-*/abcdefghijklmnopqrstuvwxyz");
-    dump_words((u32*)a, 8);
-    hexdump((u8*)a, 32);
-    x = (struct example_5*)a;
-    a = (ACTOR*)(x->data_18);  // follow extended block pointer
-    while (a) {
-        dump_words((u32*)a, 8);
-        hexdump((u8*)a, 32);
-        x = (struct example_5*)a;
-        a = (x->beh_1c);  // follow extended data pointer
-    }
+    dump_extended(a);
 
     a = new_array();
-    dump_words((u32*)a, 8);
-    hexdump((u8*)a, 32);
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+    a = array_insert(a, 0, &v_true);
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+    a = array_insert(a, 1, &v_false);
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+    b = new_i32(-2); //&v_number_0;
+    dump_extended(b);
+    to_JSON(b, 0, MAX_INT);
+    putchar('\n');
+//    a = array_insert(a, 0, &v_null);
+    a = array_insert(a, 0, b);
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+//    a = array_insert(a, 1, &v_string_0);
+//    a = array_insert(a, 3, &v_string_0);
+//    a = array_insert(a, 1, b);
+    a = array_insert(a, 3, &v_null);
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+//    a = array_insert(a, 4, new_i32(-2));
+//    a = array_insert(a, 1, new_i32(-2));
+    a = array_insert(a, 2, &v_string_0);
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+    b = new_literal("binary-octet stream encoding");
+    dump_extended(b);
+    to_JSON(b, 0, MAX_INT);
+    putchar('\n');
+    a = array_insert(a, array_element_count(a), b);
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
 
     a = new_object();
-    dump_words((u32*)a, 8);
-    hexdump((u8*)a, 32);
+    dump_extended(a);
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
 
     puts("Completed.\n");
 }
