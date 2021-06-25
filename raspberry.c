@@ -453,7 +453,7 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia-pi1b 0.3.0 ");
+    serial_puts("mycelia-pi1b 0.3.1 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0

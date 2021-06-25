@@ -141,6 +141,54 @@ clear_color() {
  * BOSE encode/decode
  */
 
+#define MAX_UNICODE ((int)0x10FFFF)
+
+static int
+decode_int(int* result, ACTOR* it)
+{
+    if (!result || !it) return false;  // fail!
+    u32 w = next_character(it);
+    DEBUG(puts("decode_int: w=0x"));
+    DEBUG(serial_hex32(w));
+    DEBUG(putchar('\n'));
+    if (w > MAX_UNICODE) return false;  // fail!
+    u8 b = w;  // prefix
+    int n = SMOL2INT(b);
+    if ((n >= SMOL_MIN) && (n <= SMOL_MAX)) {
+        *result = n;
+        DEBUG(puts("decode_int: smol="));
+        DEBUG(serial_int32(n));
+        DEBUG(putchar('\n'));
+        return true;  // success
+    }
+    int size = 0;
+    if (!decode_int(&size, it)) return false;  // fail!
+    if (((b & 0xF0) == 0x10)  // Integer type?
+    &&  (size <= sizeof(int))) {  // not too large?
+        u8 sign = (b & 0x8) ? 0xFF : 0x00;
+        int shift = 0;
+        n = 0;
+        while (shift < (sizeof(int) << 3)) {
+            if (size > 0) {
+                b = w = next_character(it);
+                if (w > MAX_UNICODE) return false;  // fail!
+                --size;
+            } else {
+                b = sign;
+            }
+            n |= (((u32)b) << shift);
+            shift += (1 << 3);
+        }
+        *result = n;
+        DEBUG(puts("decode_int: int="));
+        DEBUG(serial_int32(n));
+        DEBUG(putchar('\n'));
+        return true;  // success
+    }
+    DEBUG(puts("decode_int: fail!\n"));
+    return false;  // failure!
+}
+
 static int
 decode_integer(int* result, u8** data_ref)
 {
@@ -1029,6 +1077,23 @@ to_JSON(ACTOR* a, int indent, int limit)
  * test suite
  */
 
+static void
+dump_extended(ACTOR* a)
+{
+    struct example_5* x = (struct example_5*)a;
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+    u8* p = (u8*)a;
+    if ((p[0x06] != p_int_0) || (p[0x07] != n_4)) return;  // not extended
+    a = (ACTOR*)(x->data_18);  // follow extended block pointer
+    while (a && ((u8*)a >= heap_start)) {
+        dump_words((u32*)a, 8);
+        hexdump((u8*)a, 32);
+        x = (struct example_5*)a;
+        a = (x->beh_1c);  // follow next extended data pointer
+    }
+}
+
 static u8 buf_0[] = {
 //    object_n, n_104, n_2,
     object_n, n_109, n_2,
@@ -1058,37 +1123,9 @@ static u8 buf_0[] = {
 };
 
 static void
-dump_extended(ACTOR* a)
-{
-    struct example_5* x = (struct example_5*)a;
-    dump_words((u32*)a, 8);
-    hexdump((u8*)a, 32);
-    u8* p = (u8*)a;
-    if ((p[0x06] != p_int_0) || (p[0x07] != n_4)) return;  // not extended
-    a = (ACTOR*)(x->data_18);  // follow extended block pointer
-    while (a && ((u8*)a >= heap_start)) {
-        dump_words((u32*)a, 8);
-        hexdump((u8*)a, 32);
-        x = (struct example_5*)a;
-        a = (x->beh_1c);  // follow next extended data pointer
-    }
-}
-
-void
-test_bose()
+test_print()
 {
     u8* data;
-    ACTOR* a;
-    ACTOR* b;
-    char* s;
-    u32 i;
-    int n;
-
-    puts("MIN_INT=");
-    serial_int32(MIN_INT);
-    puts(", MAX_INT=");
-    serial_int32(MAX_INT);
-    newline();
 
     hexdump(buf_0, sizeof(buf_0));
 
@@ -1099,6 +1136,12 @@ test_bose()
     data = buf_0;
     print_bose(&data, 0, 2);
     newline();
+}
+
+static void
+test_number()
+{
+    ACTOR* a;
 
     a = new_u32(42);
     dump_words((u32*)a, 8);
@@ -1117,6 +1160,15 @@ test_bose()
     hexdump((u8*)a, 32);
     to_JSON(a, 0, MAX_INT);
     newline();
+}
+
+static void
+test_string()
+{
+    ACTOR* a;
+    ACTOR* b;
+    char* s;
+    int i;
 
     a = &v_string_0;
     puts("&v_string_0 = 0x");
@@ -1183,21 +1235,29 @@ test_bose()
     puts("b = ");
     to_JSON(b, 0, MAX_INT);
     putchar('\n');
-    n = string_compare(a, b);
-    serial_int32(n);
+    i = string_compare(a, b);
+    serial_int32(i);
     puts(" = (a ");
-    putchar((n == MIN_INT) ? '?' : ((n < 0) ? '<' : ((n > 0) ? '>' : '=')));
+    putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
     puts(" b); ");
-    n = string_compare(a, a);
-    serial_int32(n);
+    i = string_compare(a, a);
+    serial_int32(i);
     puts(" = (a ");
-    putchar((n == MIN_INT) ? '?' : ((n < 0) ? '<' : ((n > 0) ? '>' : '=')));
+    putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
     puts(" a); ");
-    n = string_compare(b, a);
-    serial_int32(n);
+    i = string_compare(b, a);
+    serial_int32(i);
     puts(" = (b ");
-    putchar((n == MIN_INT) ? '?' : ((n < 0) ? '<' : ((n > 0) ? '>' : '=')));
+    putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
     puts(" a)\n");
+}
+
+static void
+test_collection()
+{
+    ACTOR* a;
+    ACTOR* b;
+    u32 n;
 
     a = new_array();
     dump_extended(a);
@@ -1242,11 +1302,11 @@ test_bose()
     to_JSON(a, 0, MAX_INT);
     putchar('\n');
 
-    for (i = 0; i < array_element_count(a); ++i) {
+    for (n = 0; n < array_element_count(a); ++n) {
         puts("a[");
-        serial_dec32(i);
+        serial_dec32(n);
         puts("] = ");
-        b = array_element(a, i);
+        b = array_element(a, n);
         to_JSON(b, 0, MAX_INT);
         putchar('\n');
     }
@@ -1312,6 +1372,117 @@ test_bose()
     newline();
     to_JSON(a, 1, MAX_INT);
     newline();
+}
+
+static u8 buf_smol_0[] = { n_0 };
+static u8 buf_p_int_0[] = { p_int_0, n_0 };
+static u8 buf_p_int_1[] = { p_int_0, n_1, 0x01 };
+static u8 buf_m_int_m1[] = { m_int_0, n_1, 0xFF };
+static u8 buf_m_int_m2[] = { m_int_0, n_1, 0xFE };
+static u8 buf_p_int_42[] = { p_int_4, n_3, 0x2A, 0x00, 0x00 };
+static u8 buf_m_int_m42[] = { m_int_4, n_3, 0xD6, 0xFF, 0xFF };
+static u8 buf_p_int_2G[] = { p_int_0, n_4, 0x00, 0x00, 0x00, 0x80 };
+static u8 buf_m_int_m2G[] = { m_int_0, n_4, 0x00, 0x00, 0x00, 0x80 };
+
+void
+test_decode()
+{
+    ACTOR* a;
+    int i;
+
+    a = new_octets(buf_smol_0, sizeof(buf_smol_0));
+    dump_extended(a);
+    i = 0xDEAD;  // == 57005 == -8531
+    if (decode_int(&i, string_iterator(a))) {
+        serial_int32(i);
+        newline();
+    }
+
+    a = new_octets(buf_p_int_0, sizeof(buf_p_int_0));
+    dump_extended(a);
+    i = 0xDEAD;
+    if (decode_int(&i, string_iterator(a))) {
+        serial_int32(i);
+        newline();
+    }
+
+    a = new_octets(buf_p_int_1, sizeof(buf_p_int_1));
+    dump_extended(a);
+    i = 0xDEAD;
+    if (decode_int(&i, string_iterator(a))) {
+        serial_int32(i);
+        newline();
+    }
+
+    a = new_octets(buf_m_int_m1, sizeof(buf_m_int_m1));
+    dump_extended(a);
+    i = 0xDEAD;
+    if (decode_int(&i, string_iterator(a))) {
+        serial_int32(i);
+        newline();
+    }
+
+    a = new_octets(buf_m_int_m2, sizeof(buf_m_int_m2));
+    dump_extended(a);
+    i = 0xDEAD;
+    if (decode_int(&i, string_iterator(a))) {
+        serial_int32(i);
+        newline();
+    }
+
+    a = new_octets(buf_p_int_42, sizeof(buf_p_int_42));
+    dump_extended(a);
+    i = 0xDEAD;
+    if (decode_int(&i, string_iterator(a))) {
+        serial_int32(i);
+        newline();
+    }
+
+    a = new_octets(buf_m_int_m42, sizeof(buf_m_int_m42));
+    dump_extended(a);
+    i = 0xDEAD;
+    if (decode_int(&i, string_iterator(a))) {
+        serial_int32(i);
+        newline();
+    }
+
+    a = new_octets(buf_p_int_2G, sizeof(buf_p_int_2G));
+    dump_extended(a);
+    i = 0xDEAD;
+    if (decode_int(&i, string_iterator(a))) {
+        serial_dec32(i);  // as unsigned
+        newline();
+    }
+
+    a = new_octets(buf_m_int_m2G, sizeof(buf_m_int_m2G));
+    dump_extended(a);
+    i = 0xDEAD;
+    if (decode_int(&i, string_iterator(a))) {
+        serial_int32(i);
+        newline();
+    }
+}
+
+void
+test_bose()
+{
+    puts("MIN_INT=");
+    serial_int32(MIN_INT);
+    puts(", MAX_UNICODE=");
+    serial_int32(MAX_UNICODE);
+    puts(", MAX_INT=");
+    serial_int32(MAX_INT);
+    newline();
+
+    test_print();
+
+    test_number();
+
+    test_string();
+
+    test_collection();
+
+    test_decode();
 
     puts("Completed.\n");
 }
