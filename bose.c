@@ -52,8 +52,9 @@ static void serial_int32(int n) {
 }
 
 /*
- * BOSE encode/decode
+ * console output
  */
+
 static void
 print(u32 unicode) {
     if ((unicode == '\t')
@@ -135,6 +136,10 @@ clear_color() {
 #define clear_color() /* REMOVED */
 
 #endif
+
+/*
+ * BOSE encode/decode
+ */
 
 static int
 decode_integer(int* result, u8** data_ref)
@@ -928,14 +933,25 @@ array_to_JSON(ACTOR* a, int indent, int limit)
     ACTOR* it = collection_iterator(a);
     if (!it) return false;  // fail!
     putchar('[');
-    int first = true;
-    while ((a = next_item(it)) != NULL) {
-        if (first) {
-            first = false;
-        } else {
-            puts(", ");
+    if (limit < 1) {
+        puts("...");
+    } else {
+        if (indent) {
+            space(++indent);
         }
-        if (!to_JSON(a, indent, limit)) return false;  // fail!
+        int first = true;
+        while ((a = next_item(it)) != NULL) {
+            if (first) {
+                first = false;
+            } else {
+                putchar(',');
+                space(indent);
+            }
+            if (!to_JSON(a, indent, limit - 1)) return false;  // fail!
+        }
+        if (indent) {
+            space(--indent);
+        }
     }
     putchar(']');
     return true;  // success.
@@ -947,18 +963,32 @@ object_to_JSON(ACTOR* a, int indent, int limit)
     ACTOR* it = collection_iterator(a);
     if (!it) return false;  // fail!
     putchar('{');
-    int first = true;
-    while ((a = next_item(it)) != NULL) {
-        if (first) {
-            first = false;
-        } else {
-            puts(", ");
+    if (limit < 1) {
+        puts("...");
+    } else {
+        if (indent) {
+            space(++indent);
         }
-        if (!string_to_JSON(a)) return false;  // fail!
-        puts(":");
-        a = next_item(it);
-        if (a == NULL) return false;  // fail!
-        if (!to_JSON(a, indent, limit)) return false;  // fail!
+        int first = true;
+        while ((a = next_item(it)) != NULL) {
+            if (first) {
+                first = false;
+            } else {
+                putchar(',');
+                space(indent);
+            }
+            if (!string_to_JSON(a)) return false;  // fail!
+            putchar(':');
+            if (indent) {
+                putchar(' ');
+            }
+            a = next_item(it);
+            if (a == NULL) return false;  // fail!
+            if (!to_JSON(a, indent, limit - 1)) return false;  // fail!
+        }
+        if (indent) {
+            space(--indent);
+        }
     }
     putchar('}');
     return true;  // success.
@@ -1145,6 +1175,30 @@ test_bose()
     to_JSON(a, 0, MAX_INT);
     newline();
 
+    a = new_literal("a bird in hand is worth two in the bush");
+    puts("a = ");
+    to_JSON(a, 0, MAX_INT);
+    putchar('\n');
+    b = new_literal("a bird in hand is worth two in the bush?");
+    puts("b = ");
+    to_JSON(b, 0, MAX_INT);
+    putchar('\n');
+    n = string_compare(a, b);
+    serial_int32(n);
+    puts(" = (a ");
+    putchar((n == MIN_INT) ? '?' : ((n < 0) ? '<' : ((n > 0) ? '>' : '=')));
+    puts(" b); ");
+    n = string_compare(a, a);
+    serial_int32(n);
+    puts(" = (a ");
+    putchar((n == MIN_INT) ? '?' : ((n < 0) ? '<' : ((n > 0) ? '>' : '=')));
+    puts(" a); ");
+    n = string_compare(b, a);
+    serial_int32(n);
+    puts(" = (b ");
+    putchar((n == MIN_INT) ? '?' : ((n < 0) ? '<' : ((n > 0) ? '>' : '=')));
+    puts(" a)\n");
+
     a = new_array();
     dump_extended(a);
     to_JSON(a, 0, MAX_INT);
@@ -1197,83 +1251,67 @@ test_bose()
         putchar('\n');
     }
 
-    a = new_literal("a bird in hand is worth two in the bush");
-    puts("a = ");
-    to_JSON(a, 0, MAX_INT);
+    ACTOR* o = new_object();
+    dump_extended(o);
+    to_JSON(o, 0, MAX_INT);
     putchar('\n');
-    b = new_literal("a bird in hand is worth two in the bush?");
-    puts("b = ");
-    to_JSON(b, 0, MAX_INT);
+    o = object_set(o, new_literal("x"), new_i32(1));
+    dump_extended(o);
+    to_JSON(o, 0, MAX_INT);
     putchar('\n');
-    n = string_compare(a, b);
-    serial_int32(n);
-    puts(" = (a ");
-    putchar((n == MIN_INT) ? '?' : ((n < 0) ? '<' : ((n > 0) ? '>' : '=')));
-    puts(" b); ");
-    n = string_compare(a, a);
-    serial_int32(n);
-    puts(" = (a ");
-    putchar((n == MIN_INT) ? '?' : ((n < 0) ? '<' : ((n > 0) ? '>' : '=')));
-    puts(" a); ");
-    n = string_compare(b, a);
-    serial_int32(n);
-    puts(" = (b ");
-    putchar((n == MIN_INT) ? '?' : ((n < 0) ? '<' : ((n > 0) ? '>' : '=')));
-    puts(" a)\n");
-
-    a = new_object();
-    dump_extended(a);
-    to_JSON(a, 0, MAX_INT);
+    o = object_set(o, new_literal("y"), new_i32(2));
+    dump_extended(o);
+    to_JSON(o, 0, MAX_INT);
     putchar('\n');
-    a = object_set(a, new_literal("x"), new_i32(1));
-    dump_extended(a);
-    to_JSON(a, 0, MAX_INT);
+    o = object_set(o, new_literal("z"), new_i32(0));
+    dump_extended(o);
+    to_JSON(o, 0, MAX_INT);
     putchar('\n');
-    a = object_set(a, new_literal("y"), new_i32(2));
-    dump_extended(a);
-    to_JSON(a, 0, MAX_INT);
+    o = object_set(o, new_literal("x"), new_i32(-1));
+    dump_extended(o);
+    to_JSON(o, 0, MAX_INT);
     putchar('\n');
-    a = object_set(a, new_literal("z"), new_i32(0));
-    dump_extended(a);
-    to_JSON(a, 0, MAX_INT);
-    putchar('\n');
-    a = object_set(a, new_literal("x"), new_i32(-1));
-    dump_extended(a);
-    to_JSON(a, 0, MAX_INT);
-    putchar('\n');
-    a = object_set(a, new_literal("y"), new_i32(-2));
-    dump_extended(a);
-    to_JSON(a, 0, MAX_INT);
+    o = object_set(o, new_literal("y"), new_i32(-2));
+    dump_extended(o);
+    to_JSON(o, 0, MAX_INT);
     putchar('\n');
 
     b = new_literal("x");
-    puts("a[");
+    puts("o[");
     to_JSON(b, 0, MAX_INT);
     puts("] = ");
-    b = object_get(a, b);
+    b = object_get(o, b);
     to_JSON(b, 0, MAX_INT);
     putchar('\n');
     b = new_literal("y");
-    puts("a[");
+    puts("o[");
     to_JSON(b, 0, MAX_INT);
     puts("] = ");
-    b = object_get(a, b);
+    b = object_get(o, b);
     to_JSON(b, 0, MAX_INT);
     putchar('\n');
     b = new_literal("z");
-    puts("a[");
+    puts("o[");
     to_JSON(b, 0, MAX_INT);
     puts("] = ");
-    b = object_get(a, b);
+    b = object_get(o, b);
     to_JSON(b, 0, MAX_INT);
     putchar('\n');
     b = new_literal("q");
-    puts("a[");
+    puts("o[");
     to_JSON(b, 0, MAX_INT);
     puts("] = ");
-    b = object_get(a, b);
+    b = object_get(o, b);
     to_JSON(b, 0, MAX_INT);
     putchar('\n');
+
+    a = array_insert(a, 0, o);
+    to_JSON(a, 1, 0);
+    newline();
+    to_JSON(a, 1, 1);
+    newline();
+    to_JSON(a, 1, MAX_INT);
+    newline();
 
     puts("Completed.\n");
 }
