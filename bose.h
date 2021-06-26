@@ -107,11 +107,12 @@ extern ACTOR*   object_set(ACTOR* o, ACTOR* key, ACTOR* value);
 extern ACTOR*   object_get(ACTOR* o, ACTOR* key);
 
 extern ACTOR*   new_collection_iterator(ACTOR* c);
-extern ACTOR*   next_item(ACTOR* it);  // or NULL
+extern ACTOR*   read_item(ACTOR* it);  // or NULL
 
 extern int      to_JSON(ACTOR* a, int indent, int limit);
 
 #define new_literal(c_str)          (new_octets((u8*)(c_str), (u32)(sizeof(c_str) - 1)))
+#define get_string_built(sb)        ((ACTOR*)(((struct example_5*)(sb))->data_04))
 #define array_element_count(a)      (((struct example_5*)(a))->data_08 >> 2)
 #define object_property_count(o)    (((struct example_5*)(o))->data_08 >> 3)
 

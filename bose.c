@@ -213,7 +213,24 @@ static ACTOR*
 decode_string(u8 prefix, ACTOR* it)
 {
     ACTOR* v = NULL;  // init to fail
+    if (prefix & 0x01) return NULL;  // fail! -- memo not supported
     int ascii = true;
+    int size = 0;
+    if (!decode_int(&size, it)) return NULL;  // fail!
+    if (prefix == octets) {
+        ACTOR* sb = new_string_builder(prefix);
+        if (!sb) return NULL;  // fail!
+        while (size-- > 0) {
+            u32 ch = read_character(it);
+            if (ch > MAX_UNICODE) return NULL;  // fail!
+            if (ch > 0x7F) {
+                ascii = false;
+            }
+            if (!write_character(sb, ch)) return NULL;  // fail!
+        }
+        v = get_string_built(sb);
+        release(sb);
+    }
     // FIXME: handle additional string encodings
     return v;
 }
@@ -697,7 +714,7 @@ new_string_builder(u8 prefix)
     if (prefix == octets) {
         struct example_5* s = (struct example_5*)reserve();
         if (!s) return NULL;  // fail!
-        struct example_5* z = (struct example_5*)(&v_array_0);
+        struct example_5* z = (struct example_5*)(&v_string_0);
         *s = *z;  // copy empty string template
         p = (u8*)s;
         *(p + 0x06) = p_int_0;  // extended size format
@@ -1024,9 +1041,9 @@ object_get(ACTOR* o, ACTOR* key)  // get property value from object
     ACTOR* a = NULL;
     ACTOR* it = new_collection_iterator(o);
     if (!it) return NULL;  // fail!
-    while ((a = next_item(it)) != NULL) {
+    while ((a = read_item(it)) != NULL) {
         int d = string_compare(key, a);
-        a = next_item(it);  // get value
+        a = read_item(it);  // get value
         if (a == NULL) return NULL;  // fail!
         if (d == 0) {  // key matched
             return a;  // success.
@@ -1054,7 +1071,7 @@ new_collection_iterator(ACTOR* c)
 }
 
 ACTOR*
-next_item(ACTOR* it)
+read_item(ACTOR* it)
 {
     struct example_5* x = (struct example_5*)it;
     int n = x->data_04;
@@ -1143,27 +1160,29 @@ string_to_JSON(ACTOR* a)
 static int
 array_to_JSON(ACTOR* a, int indent, int limit)
 {
-    ACTOR* it = new_collection_iterator(a);
-    if (!it) return false;  // fail!
     putchar('[');
-    if (limit < 1) {
-        puts("...");
-    } else {
-        if (indent) {
-            space(++indent);
-        }
-        int first = true;
-        while ((a = next_item(it)) != NULL) {
-            if (first) {
-                first = false;
-            } else {
-                putchar(',');
-                space(indent);
+    if (array_element_count(a) > 0) {
+        if (limit < 1) {
+            puts("...");
+        } else {
+            ACTOR* it = new_collection_iterator(a);
+            if (!it) return false;  // fail!
+            if (indent) {
+                space(++indent);
             }
-            if (!to_JSON(a, indent, limit - 1)) return false;  // fail!
-        }
-        if (indent) {
-            space(--indent);
+            int first = true;
+            while ((a = read_item(it)) != NULL) {
+                if (first) {
+                    first = false;
+                } else {
+                    putchar(',');
+                    space(indent);
+                }
+                if (!to_JSON(a, indent, limit - 1)) return false;  // fail!
+            }
+            if (indent) {
+                space(--indent);
+            }
         }
     }
     putchar(']');
@@ -1173,34 +1192,36 @@ array_to_JSON(ACTOR* a, int indent, int limit)
 static int
 object_to_JSON(ACTOR* a, int indent, int limit)
 {
-    ACTOR* it = new_collection_iterator(a);
-    if (!it) return false;  // fail!
     putchar('{');
-    if (limit < 1) {
-        puts("...");
-    } else {
-        if (indent) {
-            space(++indent);
-        }
-        int first = true;
-        while ((a = next_item(it)) != NULL) {
-            if (first) {
-                first = false;
-            } else {
-                putchar(',');
-                space(indent);
-            }
-            if (!string_to_JSON(a)) return false;  // fail!
-            putchar(':');
+    if (object_property_count(a) > 0) {
+        if (limit < 1) {
+            puts("...");
+        } else {
+            ACTOR* it = new_collection_iterator(a);
+            if (!it) return false;  // fail!
             if (indent) {
-                putchar(' ');
+                space(++indent);
             }
-            a = next_item(it);
-            if (a == NULL) return false;  // fail!
-            if (!to_JSON(a, indent, limit - 1)) return false;  // fail!
-        }
-        if (indent) {
-            space(--indent);
+            int first = true;
+            while ((a = read_item(it)) != NULL) {
+                if (first) {
+                    first = false;
+                } else {
+                    putchar(',');
+                    space(indent);
+                }
+                if (!string_to_JSON(a)) return false;  // fail!
+                putchar(':');
+                if (indent) {
+                    putchar(' ');
+                }
+                a = read_item(it);
+                if (a == NULL) return false;  // fail!
+                if (!to_JSON(a, indent, limit - 1)) return false;  // fail!
+            }
+            if (indent) {
+                space(--indent);
+            }
         }
     }
     putchar('}');
@@ -1569,7 +1590,12 @@ void
 test_decode()
 {
     ACTOR* a;
+    ACTOR* b;
     int i;
+
+    /*
+     * numbers
+     */
 
     a = new_octets(buf_smol_0, sizeof(buf_smol_0));
     dump_extended(a);
@@ -1641,6 +1667,120 @@ test_decode()
     if (decode_int(&i, new_string_iterator(a))) {
         serial_int32(i);
         newline();
+    }
+
+    /*
+     * strings
+     */
+
+    a = new_octets(buf_string_0, sizeof(buf_string_0));
+    dump_extended(a);
+    b = decode_bose(new_string_iterator(a));
+    if (b) {
+        dump_extended(b);
+        to_JSON(b, 1, MAX_INT);
+        i = string_compare(b, &v_string_0);
+        putchar(' ');
+        putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
+        puts(" \"\"\n");
+    }
+
+    a = new_octets(buf_octets_0, sizeof(buf_octets_0));
+    dump_extended(a);
+    b = decode_bose(new_string_iterator(a));
+    if (b) {
+        dump_extended(b);
+        to_JSON(b, 1, MAX_INT);
+        i = string_compare(b, &v_string_0);
+        putchar(' ');
+        putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
+        puts(" \"\"\n");
+    }
+
+    a = new_octets(buf_utf8_0, sizeof(buf_utf8_0));
+    dump_extended(a);
+    b = decode_bose(new_string_iterator(a));
+    if (b) {
+        dump_extended(b);
+        to_JSON(b, 1, MAX_INT);
+        i = string_compare(b, &v_string_0);
+        putchar(' ');
+        putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
+        puts(" \"\"\n");
+    }
+
+    a = new_octets(buf_utf8_u16_0, sizeof(buf_utf8_u16_0));
+    dump_extended(a);
+    b = decode_bose(new_string_iterator(a));
+    if (b) {
+        dump_extended(b);
+        to_JSON(b, 1, MAX_INT);
+        i = string_compare(b, &v_string_0);
+        putchar(' ');
+        putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
+        puts(" \"\"\n");
+    }
+
+    a = new_octets(buf_octets_x, sizeof(buf_octets_x));
+    dump_extended(a);
+    b = decode_bose(new_string_iterator(a));
+    if (b) {
+        dump_extended(b);
+        to_JSON(b, 1, MAX_INT);
+        i = string_compare(b, &v_string_0);
+        putchar(' ');
+        putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
+        puts(" \"\"\n");
+    }
+    a = new_octets(buf_utf8_x, sizeof(buf_utf8_x));
+    dump_extended(a);
+    a = decode_bose(new_string_iterator(a));
+    if (a) {
+        dump_extended(a);
+        to_JSON(a, 1, MAX_INT);
+        i = string_compare(a, b);
+        putchar(' ');
+        putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
+        putchar(' ');
+        to_JSON(b, 1, MAX_INT);
+        newline();
+    }
+
+    a = new_octets(buf_octets_u16_20, sizeof(buf_octets_u16_20));
+    dump_extended(a);
+    b = decode_bose(new_string_iterator(a));
+    if (b) {
+        dump_extended(b);
+        to_JSON(b, 1, MAX_INT);
+        i = string_compare(b, &v_string_0);
+        putchar(' ');
+        putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
+        puts(" \"\"\n");
+    }
+    a = new_octets(buf_utf8_u16_20, sizeof(buf_utf8_u16_20));
+    dump_extended(a);
+    a = decode_bose(new_string_iterator(a));
+    if (a) {
+        dump_extended(a);
+        to_JSON(a, 1, MAX_INT);
+        i = string_compare(a, b);
+        putchar(' ');
+        putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
+        putchar(' ');
+        to_JSON(b, 1, MAX_INT);
+        newline();
+    }
+
+    a = new_octets(buf_utf16_u16_10, sizeof(buf_utf16_u16_10));
+    dump_extended(a);
+    b = decode_bose(new_string_iterator(a));
+    if (b) {
+        dump_extended(b);
+        to_JSON(b, 1, MAX_INT);
+        i = string_compare(b, &v_string_0);
+        putchar(' ');
+        putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
+        puts(" \"\"\n");
     }
 }
 
