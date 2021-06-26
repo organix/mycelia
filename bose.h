@@ -72,7 +72,7 @@ typedef enum { /*2#_000*/ /*2#_001*/ /*2#_010*/ /*2#_011*/ /*2#_100*/ /*2#_101*/
 extern int      print_bose(u8** data_ref, int indent, int limit);
 
 /*
- * symbols exported by `cal.s`
+ * symbols from `cal.s`
  */
 extern ACTOR    b_value;
 
@@ -86,8 +86,13 @@ extern ACTOR    v_object_0;
 
 extern ACTOR*   new_u32(u32 value);
 extern ACTOR*   new_i32(int value);
-
 extern ACTOR*   new_octets(u8* s, u32 n);
+
+/*
+ * symbols from `bose.c`
+ */
+extern int      decode_int(int* result, ACTOR* it);
+
 extern ACTOR*   string_iterator(ACTOR* s);
 extern u32      next_character(ACTOR* it);  // or EOF
 

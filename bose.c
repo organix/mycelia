@@ -144,34 +144,21 @@ clear_color() {
 #define MAX_UNICODE ((int)0x10FFFF)
 
 static int
-decode_int(int* result, ACTOR* it)
+decode_ext_int(int* result, u8 prefix, ACTOR* it)
 {
-    if (!result || !it) return false;  // fail!
-    u32 w = next_character(it);
-    DEBUG(puts("decode_int: w=0x"));
-    DEBUG(serial_hex32(w));
-    DEBUG(putchar('\n'));
-    if (w > MAX_UNICODE) return false;  // fail!
-    u8 b = w;  // prefix
-    int n = SMOL2INT(b);
-    if ((n >= SMOL_MIN) && (n <= SMOL_MAX)) {
-        *result = n;
-        DEBUG(puts("decode_int: smol="));
-        DEBUG(serial_int32(n));
-        DEBUG(putchar('\n'));
-        return true;  // success
-    }
+    u8 b = prefix;
     int size = 0;
     if (!decode_int(&size, it)) return false;  // fail!
     if (((b & 0xF0) == 0x10)  // Integer type?
     &&  (size <= sizeof(int))) {  // not too large?
         u8 sign = (b & 0x8) ? 0xFF : 0x00;
         int shift = 0;
-        n = 0;
+        int n = 0;
         while (shift < (sizeof(int) << 3)) {
             if (size > 0) {
-                b = w = next_character(it);
+                u32 w = next_character(it);
                 if (w > MAX_UNICODE) return false;  // fail!
+                b = w;
                 --size;
             } else {
                 b = sign;
@@ -180,14 +167,136 @@ decode_int(int* result, ACTOR* it)
             shift += (1 << 3);
         }
         *result = n;
-        DEBUG(puts("decode_int: int="));
-        DEBUG(serial_int32(n));
-        DEBUG(putchar('\n'));
+        TRACE(puts("decode_ext_int: int="));
+        TRACE(serial_int32(n));
+        TRACE(putchar('\n'));
         return true;  // success
     }
-    DEBUG(puts("decode_int: fail!\n"));
+    TRACE(puts("decode_ext_int: fail!\n"));
     return false;  // failure!
 }
+
+int
+decode_int(int* result, ACTOR* it)
+{
+    if (!result || !it) return false;  // fail!
+    u32 w = next_character(it);
+    TRACE(puts("decode_int: w=0x"));
+    TRACE(serial_hex32(w));
+    TRACE(putchar('\n'));
+    if (w > MAX_UNICODE) return false;  // fail!
+    u8 b = w;  // prefix
+    int n = SMOL2INT(b);
+    if ((n >= SMOL_MIN) && (n <= SMOL_MAX)) {
+        *result = n;
+        TRACE(puts("decode_int: smol="));
+        TRACE(serial_int32(n));
+        TRACE(putchar('\n'));
+        return true;  // success
+    }
+    return decode_ext_int(result, b, it);
+}
+
+static ACTOR*
+decode_number(u8 prefix, ACTOR* it)
+{
+    int n;
+    ACTOR* v = NULL;  // init to fail
+    if (decode_ext_int(&n, prefix, it)) {
+        v = new_i32(n);
+    }
+    // FIXME: handle additional number encodings
+    return v;
+}
+
+static ACTOR*
+decode_string(u8 prefix, ACTOR* it)
+{
+    ACTOR* v = NULL;  // init to fail
+    int ascii = true;
+    // FIXME: handle additional string encodings
+    return v;
+}
+
+static ACTOR*
+decode_array(u8 prefix, ACTOR* it)
+{
+    ACTOR* v = NULL;  // init to fail
+    return v;
+}
+
+static ACTOR*
+decode_object(u8 prefix, ACTOR* it)
+{
+    ACTOR* v = NULL;  // init to fail
+    return v;
+}
+
+ACTOR*
+decode_bose(ACTOR* it)
+{
+    ACTOR* v = NULL;  // init to fail
+    if (!it) return NULL;  // fail!
+    u32 w = next_character(it);
+    DEBUG(puts("decode_bose: w=0x"));
+    DEBUG(serial_hex32(w));
+    DEBUG(putchar('\n'));
+    if (w > MAX_UNICODE) return NULL;  // fail!
+    u8 b = w;  // prefix
+    switch (b) {
+        case null: {
+            v = &v_null;
+            break;
+        }
+        case true: {
+            v = &v_true;
+            break;
+        }
+        case false: {
+            v = &v_false;
+            break;
+        }
+        case n_0: {
+            v = &v_number_0;
+            break;
+        }
+        case string_0: {
+            v = &v_string_0;
+            break;
+        }
+        case array_0: {
+            v = &v_array_0;
+            break;
+        }
+        case object_0: {
+            v = &v_object_0;
+            break;
+        }
+        default: {
+            int n = SMOL2INT(b);
+            if ((n >= SMOL_MIN) && (n <= SMOL_MAX)) {
+                v = new_i32(n);
+            } else if ((b & 0xF8) == 0x08) {  // String type (2#0000_1xxx)
+                v = decode_string(b, it);
+            } else if ((b & 0xF9) == 0x00) {  // Array type (2#0000_0xx0) != false
+                v = decode_array(b, it);
+            } else if ((b & 0xF9) == 0x01) {  // Object type (2#0000_0xx1) != true
+                v = decode_object(b, it);
+            } else {
+                v = decode_number(b, it);
+            }
+            break;
+        }
+    }
+    TRACE(puts("decode_bose: v=0x"));
+    TRACE(serial_hex32(v));
+    TRACE(putchar('\n'));
+    return v;
+}
+
+/*
+ * BOSE parse-and-print
+ */
 
 static int
 decode_integer(int* result, u8** data_ref)
@@ -542,14 +651,17 @@ string_iterator(ACTOR* s)
         if (!x) return NULL;  // fail!
         // FIXME: fill in code and beh for iterator actor!
         p = bp + 0x06;
-        if (!decode_integer(&n, &p)) return NULL;  // fail!
+        n = SMOL2INT(*p);
+        if ((n >= 0) && (n <= 20)) {
+            ++p;  // advance to data
+            x->data_0c = (u32)(p + n);  // pointer to ending octet
+        } else if (decode_integer(&n, &p)) {
+            x->data_0c = (u32)(p + 12);  // pointer to ending octet
+        } else {
+            return NULL;  // fail!
+        }
         x->data_04 = (u32)n;  // total octets remaining
         x->data_08 = (u32)p;  // pointer to starting octet
-        if (n <= 20) {
-            x->data_0c = (u32)(p + n);  // pointer to ending octet
-        } else {
-            x->data_0c = (u32)(p + 12);  // pointer to ending octet
-        }
         return (ACTOR*)x;  // success.
     }
     return NULL;  // fail!
@@ -1383,6 +1495,22 @@ static u8 buf_p_int_42[] = { p_int_4, n_3, 0x2A, 0x00, 0x00 };
 static u8 buf_m_int_m42[] = { m_int_4, n_3, 0xD6, 0xFF, 0xFF };
 static u8 buf_p_int_2G[] = { p_int_0, n_4, 0x00, 0x00, 0x00, 0x80 };
 static u8 buf_m_int_m2G[] = { m_int_0, n_4, 0x00, 0x00, 0x00, 0x80 };
+
+static u8 buf_string_0[] = { string_0 };
+static u8 buf_octets_0[] = { octets, n_0 };
+static u8 buf_utf8_0[] = { utf8, n_0 };
+static u8 buf_utf8_u16_0[] = { utf8, p_int_0, n_2, 0x00, 0x00 };
+static u8 buf_octets_x[] = { octets, n_1, 'x' };
+static u8 buf_utf8_x[] = { utf8, n_1, 'x' };
+static u8 buf_octets_u16_20[] = { octets, p_int_0, n_2, 20, 0,
+    '<', '=', ' ', 't', 'w', 'e', 'n', 't', 'y', ' ',
+    'c', 'h', 'a', 'r', 'a', 'c', 't', 'e', 'r', 's' };
+static u8 buf_utf8_u16_20[] = { utf8, p_int_0, n_2, 20, 0,
+    '<', '=', ' ', 't', 'w', 'e', 'n', 't', 'y', ' ',
+    'c', 'h', 'a', 'r', 'a', 'c', 't', 'e', 'r', 's' };
+static u8 buf_utf16_u16_10[] = { utf16, p_int_0, n_2, 20, 0,
+    0, '<', 0, '=', 0, ' ', 0, '1', 0, '0',
+    0, ' ', 0, 'c', 0, 'h', 0, 'a', 0, 'r' };
 
 void
 test_decode()
