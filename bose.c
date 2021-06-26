@@ -156,7 +156,7 @@ decode_ext_int(int* result, u8 prefix, ACTOR* it)
         int n = 0;
         while (shift < (sizeof(int) << 3)) {
             if (size > 0) {
-                u32 w = next_character(it);
+                u32 w = read_character(it);
                 if (w > MAX_UNICODE) return false;  // fail!
                 b = w;
                 --size;
@@ -180,7 +180,7 @@ int
 decode_int(int* result, ACTOR* it)
 {
     if (!result || !it) return false;  // fail!
-    u32 w = next_character(it);
+    u32 w = read_character(it);
     TRACE(puts("decode_int: w=0x"));
     TRACE(serial_hex32(w));
     TRACE(putchar('\n'));
@@ -237,7 +237,7 @@ decode_bose(ACTOR* it)
 {
     ACTOR* v = NULL;  // init to fail
     if (!it) return NULL;  // fail!
-    u32 w = next_character(it);
+    u32 w = read_character(it);
     DEBUG(puts("decode_bose: w=0x"));
     DEBUG(serial_hex32(w));
     DEBUG(putchar('\n'));
@@ -639,7 +639,7 @@ print_bose(u8** data_ref, int indent, int limit)
  */
 
 ACTOR*
-string_iterator(ACTOR* s)
+new_string_iterator(ACTOR* s)
 {
     u8* p;
     int n;
@@ -668,7 +668,7 @@ string_iterator(ACTOR* s)
 }
 
 u32
-next_character(ACTOR* it)
+read_character(ACTOR* it)
 {
     struct example_5* x = (struct example_5*)it;
     int n = x->data_04;
@@ -680,25 +680,76 @@ next_character(ACTOR* it)
             x->data_0c = (u32)(p + 0x1c);  // update end
         }
         // FIXME: use decode procedure to handling encoding
-        u32 code = *p++;
+        u32 ch = *p++;
         x->data_04 = --n;  // update count
         x->data_08 = (u32)p;  // update start
-        return code;  // success.
+        return ch;  // success.
     }
     return EOF;  // fail!
+}
+
+ACTOR*
+new_string_builder(u8 prefix)
+{
+    u8* p;
+    int n;
+
+    if (prefix == octets) {
+        struct example_5* s = (struct example_5*)reserve();
+        if (!s) return NULL;  // fail!
+        struct example_5* z = (struct example_5*)(&v_array_0);
+        *s = *z;  // copy empty string template
+        p = (u8*)s;
+        *(p + 0x06) = p_int_0;  // extended size format
+        *(p + 0x07) = n_4;  // size is a 4-byte integer
+        p += 0x0c;  // advance to data
+        n = 12;  // initial allocate holds 12 octets
+        struct example_5* x = (struct example_5*)reserve();  // new builder
+        if (!x) return NULL;  // fail!
+        // FIXME: fill in code and beh for builder actor!
+        x->data_04 = (u32)s;  // pointer to String being mutated
+        x->data_08 = (u32)p;  // pointer to starting octet
+        x->data_0c = (u32)(p + n);  // pointer to ending octet
+        return (ACTOR*)x;  // success.
+    }
+    // FIXME: support additional String encodings
+    return NULL;  // fail!
+}
+
+int
+write_character(ACTOR* it, u32 ch)
+{
+    struct example_5* x = (struct example_5*)it;
+    struct example_5* s = (struct example_5*)x->data_04;
+    u8* p = (u8*)x->data_08;
+    u8* q = (u8*)x->data_0c;
+    if (p >= q) {  // out of space
+        struct example_5* y = (struct example_5*)reserve();
+        if (!y) return false;  // fail!
+        y->beh_1c = (ACTOR*)0;  // NULL next/link pointer
+        p = (u8*)y;  // update start
+        *((u32*)q) = (u32)p;  // link to next block
+        q = (p + 0x1c);
+        x->data_0c = (u32)q;  // update end
+    }
+    // FIXME: use encode procedure to handling encoding
+    *p++ = ch;  // write character
+    ++(s->data_08);  // update count
+    x->data_08 = (u32)p;  // update start
+    return true;  // success.
 }
 
 int
 string_compare(ACTOR* s, ACTOR* t)
 {
     int d = 0;  // difference
-    ACTOR* si = string_iterator(s);
+    ACTOR* si = new_string_iterator(s);
     if (!si) return MIN_INT;  // fail!
-    ACTOR* ti = string_iterator(t);
+    ACTOR* ti = new_string_iterator(t);
     if (!ti) return MIN_INT;  // fail!
     while (d == 0) {
-        u32 sc = next_character(si);
-        u32 tc = next_character(ti);
+        u32 sc = read_character(si);
+        u32 tc = read_character(ti);
         d = (int)(sc - tc);
         if ((sc == EOF) || (tc == EOF)) break;  // end of string(s)
     }
@@ -709,6 +760,7 @@ ACTOR*
 new_array()  // allocate a new (empty) array
 {
     struct example_5* x = (struct example_5*)reserve();
+    if (!x) return NULL;  // fail!
     struct example_5* y = (struct example_5*)(&v_array_0);
     *x = *y;  // copy empty array template
     return (ACTOR*)x;
@@ -836,6 +888,7 @@ ACTOR*
 new_object()  // allocate a new (empty) object
 {
     struct example_5* x = (struct example_5*)reserve();
+    if (!x) return NULL;  // fail!
     struct example_5* y = (struct example_5*)(&v_object_0);
     *x = *y;  // copy empty object template
     return (ACTOR*)x;
@@ -969,7 +1022,7 @@ ACTOR*
 object_get(ACTOR* o, ACTOR* key)  // get property value from object
 {
     ACTOR* a = NULL;
-    ACTOR* it = collection_iterator(o);
+    ACTOR* it = new_collection_iterator(o);
     if (!it) return NULL;  // fail!
     while ((a = next_item(it)) != NULL) {
         int d = string_compare(key, a);
@@ -983,7 +1036,7 @@ object_get(ACTOR* o, ACTOR* key)  // get property value from object
 }
 
 ACTOR*
-collection_iterator(ACTOR* c)
+new_collection_iterator(ACTOR* c)
 {
     u32* p;
     u32 w;
@@ -1047,10 +1100,10 @@ static int
 string_to_JSON(ACTOR* a)
 {
     u32 ch = EOF;
-    ACTOR* it = string_iterator(a);
+    ACTOR* it = new_string_iterator(a);
     if (!it) return false;  // fail!
     putchar('"');
-    while ((ch = next_character(it)) != EOF) {
+    while ((ch = read_character(it)) != EOF) {
         switch (ch) {
             case 0x0022:    puts("\\\"");   break;
             case 0x005C:    puts("\\\\");   break;
@@ -1090,7 +1143,7 @@ string_to_JSON(ACTOR* a)
 static int
 array_to_JSON(ACTOR* a, int indent, int limit)
 {
-    ACTOR* it = collection_iterator(a);
+    ACTOR* it = new_collection_iterator(a);
     if (!it) return false;  // fail!
     putchar('[');
     if (limit < 1) {
@@ -1120,7 +1173,7 @@ array_to_JSON(ACTOR* a, int indent, int limit)
 static int
 object_to_JSON(ACTOR* a, int indent, int limit)
 {
-    ACTOR* it = collection_iterator(a);
+    ACTOR* it = new_collection_iterator(a);
     if (!it) return false;  // fail!
     putchar('{');
     if (limit < 1) {
@@ -1521,7 +1574,7 @@ test_decode()
     a = new_octets(buf_smol_0, sizeof(buf_smol_0));
     dump_extended(a);
     i = 0xDEAD;  // == 57005 == -8531
-    if (decode_int(&i, string_iterator(a))) {
+    if (decode_int(&i, new_string_iterator(a))) {
         serial_int32(i);
         newline();
     }
@@ -1529,7 +1582,7 @@ test_decode()
     a = new_octets(buf_p_int_0, sizeof(buf_p_int_0));
     dump_extended(a);
     i = 0xDEAD;
-    if (decode_int(&i, string_iterator(a))) {
+    if (decode_int(&i, new_string_iterator(a))) {
         serial_int32(i);
         newline();
     }
@@ -1537,7 +1590,7 @@ test_decode()
     a = new_octets(buf_p_int_1, sizeof(buf_p_int_1));
     dump_extended(a);
     i = 0xDEAD;
-    if (decode_int(&i, string_iterator(a))) {
+    if (decode_int(&i, new_string_iterator(a))) {
         serial_int32(i);
         newline();
     }
@@ -1545,7 +1598,7 @@ test_decode()
     a = new_octets(buf_m_int_m1, sizeof(buf_m_int_m1));
     dump_extended(a);
     i = 0xDEAD;
-    if (decode_int(&i, string_iterator(a))) {
+    if (decode_int(&i, new_string_iterator(a))) {
         serial_int32(i);
         newline();
     }
@@ -1553,7 +1606,7 @@ test_decode()
     a = new_octets(buf_m_int_m2, sizeof(buf_m_int_m2));
     dump_extended(a);
     i = 0xDEAD;
-    if (decode_int(&i, string_iterator(a))) {
+    if (decode_int(&i, new_string_iterator(a))) {
         serial_int32(i);
         newline();
     }
@@ -1561,7 +1614,7 @@ test_decode()
     a = new_octets(buf_p_int_42, sizeof(buf_p_int_42));
     dump_extended(a);
     i = 0xDEAD;
-    if (decode_int(&i, string_iterator(a))) {
+    if (decode_int(&i, new_string_iterator(a))) {
         serial_int32(i);
         newline();
     }
@@ -1569,7 +1622,7 @@ test_decode()
     a = new_octets(buf_m_int_m42, sizeof(buf_m_int_m42));
     dump_extended(a);
     i = 0xDEAD;
-    if (decode_int(&i, string_iterator(a))) {
+    if (decode_int(&i, new_string_iterator(a))) {
         serial_int32(i);
         newline();
     }
@@ -1577,7 +1630,7 @@ test_decode()
     a = new_octets(buf_p_int_2G, sizeof(buf_p_int_2G));
     dump_extended(a);
     i = 0xDEAD;
-    if (decode_int(&i, string_iterator(a))) {
+    if (decode_int(&i, new_string_iterator(a))) {
         serial_dec32(i);  // as unsigned
         newline();
     }
@@ -1585,7 +1638,7 @@ test_decode()
     a = new_octets(buf_m_int_m2G, sizeof(buf_m_int_m2G));
     dump_extended(a);
     i = 0xDEAD;
-    if (decode_int(&i, string_iterator(a))) {
+    if (decode_int(&i, new_string_iterator(a))) {
         serial_int32(i);
         newline();
     }

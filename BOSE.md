@@ -501,7 +501,7 @@ The `size` field will be between `n_0` (`0x80`) and `n_20` (`0x94`).
 The `size` field **is not** necessarily equal to the number of characters.
 The number of character depends on the encoding.
 For example, in UTF-16 at most 10 characters can be encoded.
-Note the required `'\0'` (`0x00`) character at the end of the data,
+Note the extra `'\0'` (`0x00`) character at the end of the data,
 which in not technically part of the string,
 but may make the string easier to handle in languages like **C**.
 
@@ -509,7 +509,7 @@ but may make the string easier to handle in languages like **C**.
 
 Iterating through the characters of a string
 involves decoding a variety of variable-length encodings.
-A stateful "iterator" object keeps track of
+A stateful _Iterator_ object keeps track of
 a location within a string,
 giving sequential access to unicode characters.
 
@@ -528,6 +528,33 @@ giving sequential access to unicode characters.
   0x14  |                                   |
         +--------+--------+--------+--------+
   0x18  | address of decode procedure       |
+        +--------+--------+--------+--------+
+  0x1c  | address of actor behavior         |
+        +--------+--------+--------+--------+
+```
+
+#### Builder
+
+The opposite of an _Iterator_ is a _Builder_,
+which **mutates** a String by sequentially appending
+unicode characters.
+On creation, a builder allocates a new empty String.
+
+```
+        +--------+--------+--------+--------+
+  0x00  |       ldr     pc, [ip, #0x1c]     |
+        +--------+--------+--------+--------+
+  0x04  | pointer to String being mutated   |
+        +--------+--------+--------+--------+
+  0x08  | pointer to starting octet         |
+        +--------+--------+--------+--------+
+  0x0c  | pointer to ending octet (last+1)  |
+        +--------+--------+--------+--------+
+  0x10  |                                   |
+        +        .        .        .        +
+  0x14  |                                   |
+        +--------+--------+--------+--------+
+  0x18  | address of encode procedure       |
         +--------+--------+--------+--------+
   0x1c  | address of actor behavior         |
         +--------+--------+--------+--------+

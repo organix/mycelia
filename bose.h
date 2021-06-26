@@ -93,8 +93,10 @@ extern ACTOR*   new_octets(u8* s, u32 n);
  */
 extern int      decode_int(int* result, ACTOR* it);
 
-extern ACTOR*   string_iterator(ACTOR* s);
-extern u32      next_character(ACTOR* it);  // or EOF
+extern ACTOR*   new_string_iterator(ACTOR* s);
+extern u32      read_character(ACTOR* it);  // or EOF
+extern ACTOR*   new_string_builder(u8 prefix);
+extern int      write_character(ACTOR* it, u32 ch);
 
 extern ACTOR*   new_array();
 extern ACTOR*   array_insert(ACTOR* a, u32 index, ACTOR* element);
@@ -104,7 +106,7 @@ extern ACTOR*   new_object();
 extern ACTOR*   object_set(ACTOR* o, ACTOR* key, ACTOR* value);
 extern ACTOR*   object_get(ACTOR* o, ACTOR* key);
 
-extern ACTOR*   collection_iterator(ACTOR* c);
+extern ACTOR*   new_collection_iterator(ACTOR* c);
 extern ACTOR*   next_item(ACTOR* it);  // or NULL
 
 extern int      to_JSON(ACTOR* a, int indent, int limit);

@@ -222,10 +222,10 @@ new_octets:		@ allocate a new octet string value actor
 4:				@	loop
 	ldrb	r8, [r5], #1	@		read octet from src
 	strb	r8, [r7], #1	@		write octet to dst
-	subs	r4, r4, #1	@		decrement count
-	beq	5f		@		if (count == 0) break;
-	subs	r6, r6, #1	@		decrement size
-	bne	4b		@		if (size == 0)
+	subs	r4, r4, #1	@		if (--count == 0)
+	beq	5f		@			break;
+	subs	r6, r6, #1
+	bne	4b		@		if (--size == 0)
 
 	bl	reserve		@			allocate extended block
 	str	r0, [r7]	@			link current to new
@@ -235,18 +235,6 @@ new_octets:		@ allocate a new octet string value actor
 	str	r0, [r7, #0x1c]	@			clear link/next pointer
 	b	4b
 5:
-	subs	r6, r6, #1	@	decrement size
-	bne	6f		@	if (size == 0)
-
-	bl	reserve		@		allocate extra block
-	str	r0, [r7]	@		link current to new
-	mov	r7, r0		@		dst = new block
-@	mov	r6, #28		@		dst size = 28 octets
-	mov	r0, #0
-	str	r0, [r7, #0x1c]	@		clear link/next pointer
-6:
-	mov	r8, #0		@	extra '\0' character
-	strb	r8, [r7]	@	write octet to dst
 	mov	r0, r9		@	return actor
 	ldmia	sp!, {r4-r9,pc}	@	restore in-use registers, and return
 
