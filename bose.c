@@ -17,8 +17,9 @@
  */
 #include "bose.h"
 
-#define HEXDUMP_ANNOTATION  0  // dump bose-encoded bytes for collection values
-#define ANSI_COLOR_OUTPUT   0  // use ansi terminal escape sequences to set output colors
+#define HEXDUMP_ANNOTATION      0  // dump bose-encoded bytes for collection values
+#define ANSI_COLOR_OUTPUT       0  // use ansi terminal escape sequences to set output colors
+#define UTF8_ASCII_TO_OCTETS    0  // automatically encode ascii utf8 as octets
 
 #define DEBUG(x) x /* debug logging */
 #define TRACE(x)   /* trace logging */
@@ -138,7 +139,7 @@ clear_color() {
 #endif
 
 /*
- * BOSE encode/decode
+ * BOSE encode/decode helpers
  */
 
 #define MAX_UNICODE ((int)0x10FFFF)
@@ -197,6 +198,93 @@ decode_int(int* result, ACTOR* it)
     return decode_ext_int(result, b, it);
 }
 
+static int  // return k = <0:fail, 0:done, >0:more...
+decode_octets(u32* wp, u8 b, int k)
+{
+    *wp = (u32)b;
+    return k;  // (k == 0)
+}
+
+static int  // return k = <0:fail, 0:done, >0:more...
+decode_utf8(u32* wp, u8 b, int k)
+{
+    if (b < 0x80) {  // 1-octet encoding (ascii)
+        if (k != 0) return -1;  // fail!
+        *wp = (u32)b;
+        return 0;  // done
+    }
+    if ((b & 0xC0) == 0x80) {  // continuation byte
+        if (k <= 0) return -1;  // fail!
+        *wp = ((*wp) << 6) | (b & 0x3F);  // shift in next 6 bits
+        return --k;
+    }
+    if ((b & 0xE0) == 0xC0) {  // 2-octet encoding
+        if (k != 0) return -1;  // fail!
+        *wp = (u32)(b & 0x1F);  // first 5 bits
+        return 1;  // 1 more
+    }
+    if ((b & 0xF0) == 0xE0) {  // 3-octet encoding
+        if (k != 0) return -1;  // fail!
+        *wp = (u32)(b & 0x0F);  // first 4 bits
+        return 2;  // 2 more
+    }
+    if ((b & 0xF8) == 0xF0) {  // 4-octet encoding
+        if (k != 0) return -1;  // fail!
+        *wp = (u32)(b & 0x07);  // first 3 bits
+        return 3;  // 3 more
+    }
+    return -1;  // fail!
+}
+
+static int  // return k = <0:fail, 0:done, >0:more...
+encode_octets(u8* bp, u32 w, int k)
+{
+    *bp = (u8)w;
+    return k;  // (k == 0)
+}
+
+static int  // return k = <0:fail, 0:done, >0:more...
+encode_utf8(u8* bp, u32 w, int k)
+{
+    // leading bytes
+    if (k == 0) {
+        if (w < 0x80) {  // 1-octet encoding (ascii)
+            *bp = (u8)w;
+            return 0;  // done
+        }
+        if (w < 0x800) {  // 2-octet encoding
+            *bp = 0xC0 | (u8)(w >> 6);  // first 5 bits
+            return 1;
+        }
+        if (w < 0x10000) {  // 3-octet encoding
+            *bp = 0xE0 | (u8)(w >> 12);  // first 4 bits
+            return 2;
+        }
+        if (w <= MAX_UNICODE) {  // 4-octet encoding
+            *bp = 0xF0 | (u8)(w >> 18);  // first 3 bits
+            return 3;
+        }
+    }
+    // continuation bytes (next 6 bits)
+    if (k == 1) {
+        *bp = 0x80 | (u8)(w & 0x3F);
+        return 0;
+    }
+    if (k == 2) {
+        *bp = 0x80 | (u8)((w >> 6) & 0x3F);
+        return 1;
+    }
+    if (k == 3) {
+        *bp = 0x80 | (u8)((w >> 12) & 0x3F);
+        return 2;
+    }
+    return -1;  // fail!
+}
+
+/*
+ * BOSE encode/decode values
+ */
+
 static ACTOR*
 decode_number(u8 prefix, ACTOR* it)
 {
@@ -212,97 +300,55 @@ decode_number(u8 prefix, ACTOR* it)
 static ACTOR*
 decode_string(u8 prefix, ACTOR* it)
 {
+    int (*decode)(u32*,u8,int);  // character decode procedure
     ACTOR* v = NULL;  // init to fail
     if (prefix & 0x01) return NULL;  // fail! -- memo not supported
-    int ascii = true;
     int size = 0;
     if (!decode_int(&size, it)) return NULL;  // fail!
     if (prefix == octets) {
         DEBUG(puts("decode_string: octets\n"));
-        ACTOR* sb = new_string_builder(prefix);
-        if (!sb) return NULL;  // fail!
-        while (size-- > 0) {
-            u32 ch = read_character(it);
-            if (ch > 0xFF) return NULL;  // fail! -- not in octet range
-            if (ch > 0x7F) {
-                ascii = false;
-            }
-            if (!write_character(sb, ch)) return NULL;  // fail!
-        }
-        v = get_string_built(sb);
-        release(sb);
+        decode = decode_octets;
     } else if (prefix == utf8) {
         DEBUG(puts("decode_string: utf8\n"));
-        ACTOR* sb = new_string_builder(prefix);
-        if (!sb) return NULL;  // fail!
-        // FIXME: check for byte-order-mark at start of string...
-        while (size-- > 0) {
-            u32 ch = read_character(it);
-            if (ch > 0xFF) return NULL;  // fail! -- not in octet range
-            if (ch > 0x7F) {
-                ascii = false;
-                DEBUG(puts("decode_string: non-ascii 0x"));
-                DEBUG(serial_hex8(ch));
-                DEBUG(newline());
-                // FIXME: signal an error for overlong encodings...
-                if ((ch & 0xE0) == 0xC0) {  // 2-octet encoding
-                    ch &= 0x1F;  // first 5 bits
-                    if (size-- <= 0) return NULL;  // fail! -- out of bounds
-                    u32 cx = read_character(it);
-                    if (cx > 0xFF) return NULL;  // fail! -- not in octet range
-                    if ((cx & 0xC0) != 0x80) return NULL;  // not continuation!
-                    ch = (ch << 6) | (cx & 0x3F);  // shift in next 6 bits
-                } else if ((ch & 0xF0) == 0xE0) {  // 3-octet encoding
-                    ch &= 0x0F;  // first 4 bits
-                    if (size-- <= 0) return NULL;  // fail! -- out of bounds
-                    u32 cx = read_character(it);
-                    if (cx > 0xFF) return NULL;  // fail! -- not in octet range
-                    if ((cx & 0xC0) != 0x80) return NULL;  // not continuation!
-                    ch = (ch << 6) | (cx & 0x3F);  // shift in next 6 bits
-                    if (size-- <= 0) return NULL;  // fail! -- out of bounds
-                    cx = read_character(it);
-                    if (cx > 0xFF) return NULL;  // fail! -- not in octet range
-                    if ((cx & 0xC0) != 0x80) return NULL;  // not continuation!
-                    ch = (ch << 6) | (cx & 0x3F);  // shift in next 6 bits
-                } else if ((ch & 0xF8) == 0xF0) {  // 4-octet encoding
-                    ch &= 0x07;  // first 3 bits
-                    if (size-- <= 0) return NULL;  // fail! -- out of bounds
-                    u32 cx = read_character(it);
-                    if (cx > 0xFF) return NULL;  // fail! -- not in octet range
-                    if ((cx & 0xC0) != 0x80) return NULL;  // not continuation!
-                    ch = (ch << 6) | (cx & 0x3F);  // shift in next 6 bits
-                    if (size-- <= 0) return NULL;  // fail! -- out of bounds
-                    cx = read_character(it);
-                    if (cx > 0xFF) return NULL;  // fail! -- not in octet range
-                    if ((cx & 0xC0) != 0x80) return NULL;  // not continuation!
-                    ch = (ch << 6) | (cx & 0x3F);  // shift in next 6 bits
-                    if (size-- <= 0) return NULL;  // fail! -- out of bounds
-                    cx = read_character(it);
-                    if (cx > 0xFF) return NULL;  // fail! -- not in octet range
-                    if ((cx & 0xC0) != 0x80) return NULL;  // not continuation!
-                    ch = (ch << 6) | (cx & 0x3F);  // shift in next 6 bits
-                } else {
-                    return NULL;  // fail! -- bad utf8
-                }
-                DEBUG(puts("decode_string: unicode 0x"));
-                DEBUG(serial_hex32(ch));
-                DEBUG(newline());
-            }
-            if (!write_character(sb, ch)) return NULL;  // fail!
-        }
-        v = get_string_built(sb);
-#if 0
-        if (ascii) {
-            u8* p = (u8*)v;
-            *(p + 0x05) = octets;  // replace utf8 prefix with octets
-            DEBUG(puts("decode_string: utf8->octets for ascii\n"));
+        decode = decode_utf8;
+    } else {
+        // FIXME: handle additional string encodings
+        DEBUG(puts("decode_string: unsupported encoding\n"));
+        return NULL;  // fail!
+    }
+    ACTOR* sb = new_string_builder(prefix);
+    if (!sb) return NULL;  // fail!
+#if UTF8_ASCII_TO_OCTETS
+    int ascii = true;
+#endif
+    u32 ch = 0;
+    int k = 0;
+    while (size-- > 0) {
+        u32 w = read_character(it);
+        if (w > 0xFF) return NULL;  // fail! -- not in octet range
+#if UTF8_ASCII_TO_OCTETS
+        if (w > 0x7F) {
+            ascii = false;
         }
 #endif
-        release(sb);
-    } else {
-        DEBUG(puts("decode_string: unsupported encoding\n"));
+        u8 b = w;
+        k = (*decode)(&ch, b, k);  // call decode procedure
+        if (k < 0) return NULL;  // fail!
+        if (k == 0) {  // character complete
+            if (!write_character(sb, ch)) return NULL;  // fail!
+            ch = 0;
+            k = 0;
+        }
     }
-    // FIXME: handle additional string encodings
+    v = get_string_built(sb);
+    release(sb);
+#if UTF8_ASCII_TO_OCTETS
+    if ((prefix == utf8) && ascii) {
+        u8* p = (u8*)v;
+        *(p + 0x05) = octets;  // replace utf8 prefix with octets
+        DEBUG(puts("decode_string: ascii utf8->octets\n"));
+    }
+#endif
     return v;
 }
 
@@ -726,63 +772,6 @@ print_bose(u8** data_ref, int indent, int limit)
  * composite data structures
  */
 
-static int  // return k = <0:fail, 0:done, >0:more...
-decode_octets(u32* wp, u8 b, int k)
-{
-    *wp = (u32)b;
-    return k;  // (k == 0)
-}
-
-static void
-dump_decode_utf8(u8 b, int k, u32 w, int k_)
-{
-    puts("<0x");
-    serial_hex8(b);
-    putchar(',');
-    serial_int32(k);
-    puts("=0x");
-    serial_hex32(w);
-    putchar(',');
-    serial_int32(k_);
-    putchar('>');
-}
-
-static int  // return k = <0:fail, 0:done, >0:more...
-decode_utf8(u32* wp, u8 b, int k)
-{
-    if (b < 0x80) {  // 1-octet encoding (ascii)
-        if (k != 0) return -1;  // fail!
-        *wp = (u32)b;
-        TRACE(dump_decode_utf8(b, k, *wp, 0));
-        return 0;  // done
-    }
-    if ((b & 0xC0) == 0x80) {  // continuation byte
-        if (k <= 0) return -1;  // fail!
-        *wp = ((*wp) << 6) | (b & 0x3F);  // shift in next 6 bits
-        TRACE(dump_decode_utf8(b, k, *wp, k-1));
-        return --k;
-    }
-    if ((b & 0xE0) == 0xC0) {  // 2-octet encoding
-        if (k != 0) return -1;  // fail!
-        *wp = (u32)(b & 0x1F);  // first 5 bits
-        TRACE(dump_decode_utf8(b, k, *wp, 1));
-        return 1;  // 1 more
-    }
-    if ((b & 0xF0) == 0xE0) {  // 3-octet encoding
-        if (k != 0) return -1;  // fail!
-        *wp = (u32)(b & 0x0F);  // first 4 bits
-        TRACE(dump_decode_utf8(b, k, *wp, 2));
-        return 2;  // 2 more
-    }
-    if ((b & 0xF8) == 0xF0) {  // 4-octet encoding
-        if (k != 0) return -1;  // fail!
-        *wp = (u32)(b & 0x07);  // first 3 bits
-        TRACE(dump_decode_utf8(b, k, *wp, 3));
-        return 3;  // 3 more
-    }
-    return -1;  // fail!
-}
-
 ACTOR*
 new_string_iterator(ACTOR* s)
 {
@@ -794,15 +783,16 @@ new_string_iterator(ACTOR* s)
     u8* bp = (u8*)s;
     u8 b = *(bp + 0x05);
     // set decode procedure
-    DEBUG(puts("new_string_iterator: prefix = "));
-    DEBUG(serial_hex8(b));
-    DEBUG(newline());
+    TRACE(puts("new_string_iterator: prefix = "));
+    TRACE(serial_hex8(b));
+    TRACE(newline());
     if (b == octets) {
         x->data_18 = (u32)decode_octets;
     } else if (b == utf8) {
         x->data_18 = (u32)decode_utf8;
     } else {
         DEBUG(puts("new_string_iterator: unsupported encoding\n"));
+        release(x);
         return NULL;  // fail! -- unsupported encoding
     }
     // initialize iterator
@@ -844,51 +834,6 @@ read_character(ACTOR* it)
         if (k == 0) return ch;  // success.
     }
     return EOF;  // fail!
-}
-
-static int  // return k = <0:fail, 0:done, >0:more...
-encode_octets(u8* bp, u32 w, int k)
-{
-    *bp = (u8)w;
-    return k;  // (k == 0)
-}
-
-static int  // return k = <0:fail, 0:done, >0:more...
-encode_utf8(u8* bp, u32 w, int k)
-{
-    // leading bytes
-    if (k == 0) {
-        if (w < 0x80) {  // 1-octet encoding (ascii)
-            *bp = (u8)w;
-            return 0;  // done
-        }
-        if (w < 0x800) {  // 2-octet encoding
-            *bp = 0xC0 | (u8)(w >> 6);  // first 5 bits
-            return 1;
-        }
-        if (w < 0x10000) {  // 3-octet encoding
-            *bp = 0xE0 | (u8)(w >> 12);  // first 4 bits
-            return 2;
-        }
-        if (w <= MAX_UNICODE) {  // 4-octet encoding
-            *bp = 0xF0 | (u8)(w >> 18);  // first 3 bits
-            return 3;
-        }
-    }
-    // continuation bytes (next 6 bits)
-    if (k == 1) {
-        *bp = 0x80 | (u8)(w & 0x3F);
-        return 0;
-    }
-    if (k == 2) {
-        *bp = 0x80 | (u8)((w >> 6) & 0x3F);
-        return 1;
-    }
-    if (k == 3) {
-        *bp = 0x80 | (u8)((w >> 12) & 0x3F);
-        return 2;
-    }
-    return -1;  // fail!
 }
 
 ACTOR*
