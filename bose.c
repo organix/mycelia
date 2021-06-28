@@ -19,7 +19,7 @@
 
 #define HEXDUMP_ANNOTATION      0  // dump bose-encoded bytes for collection values
 #define ANSI_COLOR_OUTPUT       0  // use ansi terminal escape sequences to set output colors
-#define UTF8_ASCII_TO_OCTETS    0  // automatically encode ascii utf8 as octets
+#define ASCII_UTF8_TO_OCTETS    0  // automatically encode ascii utf8 as octets
 
 #define DEBUG(x) x /* debug logging */
 #define TRACE(x)   /* trace logging */
@@ -157,7 +157,7 @@ decode_ext_int(int* result, u8 prefix, ACTOR* it)
         int n = 0;
         while (shift < (sizeof(int) << 3)) {
             if (size > 0) {
-                u32 w = read_character(it);
+                u32 w = read_code(it);
                 if (w > MAX_UNICODE) return false;  // fail!
                 b = w;
                 --size;
@@ -181,7 +181,7 @@ int
 decode_int(int* result, ACTOR* it)
 {
     if (!result || !it) return false;  // fail!
-    u32 w = read_character(it);
+    u32 w = read_code(it);
     TRACE(puts("decode_int: w=0x"));
     TRACE(serial_hex32(w));
     TRACE(putchar('\n'));
@@ -306,10 +306,10 @@ decode_string(u8 prefix, ACTOR* it)
     int size = 0;
     if (!decode_int(&size, it)) return NULL;  // fail!
     if (prefix == octets) {
-        DEBUG(puts("decode_string: octets\n"));
+        TRACE(puts("decode_string: octets\n"));
         decode = decode_octets;
     } else if (prefix == utf8) {
-        DEBUG(puts("decode_string: utf8\n"));
+        TRACE(puts("decode_string: utf8\n"));
         decode = decode_utf8;
     } else {
         // FIXME: handle additional string encodings
@@ -318,15 +318,15 @@ decode_string(u8 prefix, ACTOR* it)
     }
     ACTOR* sb = new_string_builder(prefix);
     if (!sb) return NULL;  // fail!
-#if UTF8_ASCII_TO_OCTETS
+#if ASCII_UTF8_TO_OCTETS
     int ascii = true;
 #endif
     u32 ch = 0;
     int k = 0;
     while (size-- > 0) {
-        u32 w = read_character(it);
+        u32 w = read_code(it);
         if (w > 0xFF) return NULL;  // fail! -- not in octet range
-#if UTF8_ASCII_TO_OCTETS
+#if ASCII_UTF8_TO_OCTETS
         if (w > 0x7F) {
             ascii = false;
         }
@@ -335,14 +335,14 @@ decode_string(u8 prefix, ACTOR* it)
         k = (*decode)(&ch, b, k);  // call decode procedure
         if (k < 0) return NULL;  // fail!
         if (k == 0) {  // character complete
-            if (!write_character(sb, ch)) return NULL;  // fail!
+            if (!write_code(sb, ch)) return NULL;  // fail!
             ch = 0;
             k = 0;
         }
     }
     v = get_string_built(sb);
     release(sb);
-#if UTF8_ASCII_TO_OCTETS
+#if ASCII_UTF8_TO_OCTETS
     if ((prefix == utf8) && ascii) {
         u8* p = (u8*)v;
         *(p + 0x05) = octets;  // replace utf8 prefix with octets
@@ -356,6 +356,32 @@ static ACTOR*
 decode_array(u8 prefix, ACTOR* it)
 {
     ACTOR* v = NULL;  // init to fail
+    int size = 0;
+    if (!decode_int(&size, it)) return NULL;  // fail!
+    struct example_5* x = (struct example_5*)it;  // outer iterator
+    struct example_5* y = (struct example_5*)reserve();  // inner iterator
+    if (!y) return NULL;  // fail!
+    *y = *x;  // copy outer iterator to inner
+    y->data_04 = (u32)size;  // set inner size
+    ACTOR *in = (ACTOR*)y;  // inner iterator
+    int count = MAX_INT;
+    if (prefix == array_n) {  // counted array?
+        if (!decode_int(&count, in)) return NULL;  // fail!
+    }
+    v = new_array();
+    while (y->data_04 > 0) {
+        ACTOR* item = decode_bose(in);
+        if (!item) return NULL;  // fail!
+        ACTOR* a = array_insert(v, array_element_count(v), item);
+        if (!v) return NULL;  // fail!
+        release(v);
+        v = a;
+        --count;
+        // FIXME: check for correct element count?
+    }
+    y->data_04 = x->data_04 - size;  // calculate outer size remaining
+    *x = *y;  // update outer iterator from inner
+    release(y);  // release inner iterator
     return v;
 }
 
@@ -363,6 +389,34 @@ static ACTOR*
 decode_object(u8 prefix, ACTOR* it)
 {
     ACTOR* v = NULL;  // init to fail
+    int size = 0;
+    if (!decode_int(&size, it)) return NULL;  // fail!
+    struct example_5* x = (struct example_5*)it;  // outer iterator
+    struct example_5* y = (struct example_5*)reserve();  // inner iterator
+    if (!y) return NULL;  // fail!
+    *y = *x;  // copy outer iterator to inner
+    y->data_04 = (u32)size;  // set inner size
+    ACTOR *in = (ACTOR*)y;  // inner iterator
+    int count = MAX_INT;
+    if (prefix == object_n) {  // counted object?
+        if (!decode_int(&count, in)) return NULL;  // fail!
+    }
+    v = new_object();
+    while (y->data_04 > 0) {
+        ACTOR* name = decode_bose(in);
+        if (!name) return NULL;  // fail!
+        ACTOR* value = decode_bose(in);
+        if (!value) return NULL;  // fail!
+        ACTOR* o = object_set(v, name, value);
+        if (!v) return NULL;  // fail!
+        release(v);
+        v = o;
+        --count;
+        // FIXME: check for correct property count?
+    }
+    y->data_04 = x->data_04 - size;  // calculate outer size remaining
+    *x = *y;  // update outer iterator from inner
+    release(y);  // release inner iterator
     return v;
 }
 
@@ -371,10 +425,10 @@ decode_bose(ACTOR* it)
 {
     ACTOR* v = NULL;  // init to fail
     if (!it) return NULL;  // fail!
-    u32 w = read_character(it);
-    DEBUG(puts("decode_bose: w=0x"));
-    DEBUG(serial_hex32(w));
-    DEBUG(putchar('\n'));
+    u32 w = read_code(it);
+    TRACE(puts("decode_bose: w=0x"));
+    TRACE(serial_hex32(w));
+    TRACE(putchar('\n'));
     if (w > MAX_UNICODE) return NULL;  // fail!
     u8 b = w;  // prefix
     switch (b) {
@@ -813,7 +867,7 @@ new_string_iterator(ACTOR* s)
 }
 
 u32
-read_character(ACTOR* it)
+read_code(ACTOR* it)
 {
     u32 ch = 0;
     struct example_5* x = (struct example_5*)it;
@@ -859,9 +913,9 @@ new_string_builder(u8 prefix)
     x->data_08 = (u32)p;  // pointer to starting octet
     x->data_0c = (u32)(p + n);  // pointer to ending octet
     // set encode procedure
-    DEBUG(puts("new_string_builder: prefix = "));
-    DEBUG(serial_hex8(prefix));
-    DEBUG(newline());
+    TRACE(puts("new_string_builder: prefix = "));
+    TRACE(serial_hex8(prefix));
+    TRACE(newline());
     if (prefix == octets) {
         x->data_18 = (u32)encode_octets;
     } else if (prefix == utf8) {
@@ -876,7 +930,7 @@ new_string_builder(u8 prefix)
 }
 
 int
-write_character(ACTOR* it, u32 ch)
+write_code(ACTOR* it, u32 code)
 {
     struct example_5* x = (struct example_5*)it;
     struct example_5* s = (struct example_5*)x->data_04;
@@ -894,7 +948,7 @@ write_character(ACTOR* it, u32 ch)
             q = (p + 0x1c);
             x->data_0c = (u32)q;  // update end
         }
-        k = (*encode)(p, ch, k);  // call encode procedure
+        k = (*encode)(p, code, k);  // call encode procedure
         if (k < 0) return false;  // fail!
         ++(s->data_08);  // update count
         x->data_08 = (u32)(++p);  // update start
@@ -911,8 +965,8 @@ string_compare(ACTOR* s, ACTOR* t)
     ACTOR* ti = new_string_iterator(t);
     if (!ti) return MIN_INT;  // fail!
     while (d == 0) {
-        u32 sc = read_character(si);
-        u32 tc = read_character(ti);
+        u32 sc = read_code(si);
+        u32 tc = read_code(ti);
         d = (int)(sc - tc);
         if ((sc == EOF) || (tc == EOF)) break;  // end of string(s)
     }
@@ -1058,7 +1112,7 @@ new_object()  // allocate a new (empty) object
 }
 
 ACTOR*
-object_set(ACTOR* o, ACTOR* key, ACTOR* value)  // set property in object
+object_set(ACTOR* o, ACTOR* name, ACTOR* value)  // set property in object
 {
     ACTOR* b = NULL;
 
@@ -1068,14 +1122,14 @@ object_set(ACTOR* o, ACTOR* key, ACTOR* value)  // set property in object
     TRACE(serial_hex32((u32)o));
     TRACE(puts(", count="));
     TRACE(serial_dec32(count));
-    TRACE(puts(", key=0x"));
-    TRACE(serial_hex32((u32)key));
+    TRACE(puts(", name=0x"));
+    TRACE(serial_hex32((u32)name));
     TRACE(puts(", value=0x"));
     TRACE(serial_hex32((u32)value));
     TRACE(putchar('\n'));
     if (x->beh_1c != &b_value) return NULL;  // fail! -- wrong actor type
-    TRACE(puts("object_set: key="));
-    TRACE(dump_words((u32*)key, 8));
+    TRACE(puts("object_set: name="));
+    TRACE(dump_words((u32*)name, 8));
     TRACE(puts("object_set: value="));
     TRACE(dump_words((u32*)value, 8));
     b = (ACTOR*)reserve();
@@ -1090,7 +1144,7 @@ object_set(ACTOR* o, ACTOR* key, ACTOR* value)  // set property in object
     u32* v = &y->data_0c;  // dst pointer
     TRACE(puts("object_set: allocated b="));
     TRACE(dump_words((u32*)b, 8));
-    // copy properties while search for key match
+    // copy properties while searching for name match
     int d = MIN_INT;
     while (count > 0) {
         if (n == 0) {  // next block
@@ -1103,18 +1157,18 @@ object_set(ACTOR* o, ACTOR* key, ACTOR* value)  // set property in object
             v = (u32*)y;
             n = 7;
         }
-        if (d != 0) {  // only compare keys if not already found
-            d = string_compare(key, (ACTOR*)(*w));
+        if (d != 0) {  // only compare names if not already found
+            d = string_compare(name, (ACTOR*)(*w));
             TRACE(puts("object_set: string_compare("));
-            TRACE(to_JSON(key, 0, MAX_INT));
+            TRACE(to_JSON(name, 0, MAX_INT));
             TRACE(puts(", "));
             TRACE(to_JSON((ACTOR*)(*w), 0, MAX_INT));
             TRACE(puts(") = "));
             TRACE(serial_int32(d));
             TRACE(putchar('\n'));
             if (d == MIN_INT) return NULL;  // fail!
-            if (d == 0) {  // key matched
-                *v++ = *w++;  // copy key pointer
+            if (d == 0) {  // name matched
+                *v++ = *w++;  // copy name pointer
                 --n;
                 if (n == 0) {  // next block
                     x = (struct example_5*)(*w);
@@ -1133,7 +1187,7 @@ object_set(ACTOR* o, ACTOR* key, ACTOR* value)  // set property in object
                 continue;  // next loop iteration
             }
         }
-        *v++ = *w++;  // copy key pointer
+        *v++ = *w++;  // copy name pointer
         --n;
         if (n == 0) {  // next block
             x = (struct example_5*)(*w);
@@ -1159,7 +1213,7 @@ object_set(ACTOR* o, ACTOR* key, ACTOR* value)  // set property in object
             v = (u32*)y;
             n = 7;
         }
-        *v++ = (u32)key;  // new key pointer
+        *v++ = (u32)name;  // new name pointer
         --n;
         if (n == 0) {  // next block
             y = (struct example_5*)reserve();
@@ -1182,16 +1236,16 @@ object_set(ACTOR* o, ACTOR* key, ACTOR* value)  // set property in object
 }
 
 ACTOR*
-object_get(ACTOR* o, ACTOR* key)  // get property value from object
+object_get(ACTOR* o, ACTOR* name)  // get property value from object
 {
     ACTOR* a = NULL;
     ACTOR* it = new_collection_iterator(o);
     if (!it) return NULL;  // fail!
     while ((a = read_item(it)) != NULL) {
-        int d = string_compare(key, a);
+        int d = string_compare(name, a);
         a = read_item(it);  // get value
         if (a == NULL) return NULL;  // fail!
-        if (d == 0) {  // key matched
+        if (d == 0) {  // name matched
             return a;  // success.
         }
     }
@@ -1266,7 +1320,7 @@ string_to_JSON(ACTOR* a)
     ACTOR* it = new_string_iterator(a);
     if (!it) return false;  // fail!
     putchar('"');
-    while ((ch = read_character(it)) != EOF) {
+    while ((ch = read_code(it)) != EOF) {
         switch (ch) {
             case 0x0022:    puts("\\\"");   break;
             case 0x005C:    puts("\\\\");   break;
@@ -1738,6 +1792,17 @@ static u8 buf_utf8_wikipedia[] = { utf8, n_16,
     0xE2, 0x82, 0xAC,
     0xED, 0x95, 0x9C,
     0xF0, 0x90, 0x8D, 0x88 };
+static u8 buf_array_5[] = { array, n_9,
+    null, n_0, octets, n_3, 'f', 'o', 'o', true, false };
+static u8 buf_object_3[] = { object, n_22,
+    octets, n_4, 'n', 'u', 'l', 'l', null,
+    utf8, n_4, 't', 'r', 'u', 'e', true,
+    utf8, n_5, 'f', 'a', 'l', 's', 'e', false };
+static u8 buf_object_2_array_2[] = { object, n_24,
+    utf8, n_6, 'o', 'r', 'i', 'g', 'i', 'n',
+    array, n_2, n_5, n_3,
+    utf8, n_6, 'e', 'x', 't', 'e', 'n', 't',
+    array, n_2, n_21, n_13 };
 
 void
 test_decode()
@@ -1948,6 +2013,42 @@ test_decode()
         putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
         puts(" \"\"");
 */
+        newline();
+    }
+
+    a = new_octets(buf_array_5, sizeof(buf_array_5));
+    dump_extended(a);
+    b = decode_bose(new_string_iterator(a));
+    if (b) {
+        dump_extended(b);
+        to_JSON(b, 1, MAX_INT);
+        newline();
+    }
+
+    a = new_octets(buf_object_3, sizeof(buf_object_3));
+    dump_extended(a);
+    b = decode_bose(new_string_iterator(a));
+    if (b) {
+        dump_extended(b);
+        to_JSON(b, 1, MAX_INT);
+        newline();
+    }
+
+    a = new_octets(buf_object_2_array_2, sizeof(buf_object_2_array_2));
+    dump_extended(a);
+    b = decode_bose(new_string_iterator(a));
+    if (b) {
+        dump_extended(b);
+        to_JSON(b, 1, MAX_INT);
+        newline();
+    }
+
+    a = new_octets(buf_0, sizeof(buf_0));  // original BOSE example
+    dump_extended(a);
+    b = decode_bose(new_string_iterator(a));
+    if (b) {
+        dump_extended(b);
+        to_JSON(b, 1, MAX_INT);
         newline();
     }
 }

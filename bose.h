@@ -92,19 +92,20 @@ extern ACTOR*   new_octets(u8* s, u32 n);
  * symbols from `bose.c`
  */
 extern int      decode_int(int* result, ACTOR* it);
+extern ACTOR*   decode_bose(ACTOR* it);
 
 extern ACTOR*   new_string_iterator(ACTOR* s);
-extern u32      read_character(ACTOR* it);  // or EOF
+extern u32      read_code(ACTOR* it);  // or EOF
 extern ACTOR*   new_string_builder(u8 prefix);
-extern int      write_character(ACTOR* it, u32 ch);
+extern int      write_code(ACTOR* it, u32 code);
 
 extern ACTOR*   new_array();
 extern ACTOR*   array_insert(ACTOR* a, u32 index, ACTOR* element);
 extern ACTOR*   array_element(ACTOR* a, u32 index);
 
 extern ACTOR*   new_object();
-extern ACTOR*   object_set(ACTOR* o, ACTOR* key, ACTOR* value);
-extern ACTOR*   object_get(ACTOR* o, ACTOR* key);
+extern ACTOR*   object_set(ACTOR* o, ACTOR* name, ACTOR* value);
+extern ACTOR*   object_get(ACTOR* o, ACTOR* name);
 
 extern ACTOR*   new_collection_iterator(ACTOR* c);
 extern ACTOR*   read_item(ACTOR* it);  // or NULL
