@@ -17,8 +17,6 @@
  */
 #include "bose.h"
 
-#define HEXDUMP_ANNOTATION      0  // dump bose-encoded bytes for collection values
-#define ANSI_COLOR_OUTPUT       0  // use ansi terminal escape sequences to set output colors
 #define ASCII_UTF8_TO_OCTETS    0  // automatically encode ascii utf8 as octets
 
 #define DEBUG(x) x /* debug logging */
@@ -93,51 +91,6 @@ space(int indent) {  // space between values
     }
 }
 
-typedef enum {
-    Black = '0',    // ^[[30m
-    Red,            // ^[[31m
-    Green,          // ^[[32m
-    Yellow,         // ^[[33m
-    Blue,           // ^[[34m
-    Magenta,        // ^[[35m
-    Cyan,           // ^[[36m
-    White           // ^[[37m
-} color_t;
-
-#if ANSI_COLOR_OUTPUT
-
-#define NUM_COLOR   Green       // number
-#define TEXT_COLOR  Yellow      // string
-#define MEMO_COLOR  Red         // memo marker
-#define PRIM_COLOR  Magenta     // primitive/capability
-#define PUNCT_COLOR Cyan        // punctuation
-#define DUMP_COLOR  Blue        // hexdump
-
-#define ESC 0x1B
-
-static void
-set_color(color_t color) {
-    putchar(ESC);
-    putchar('[');
-    putchar('3');
-    putchar(color);
-    putchar('m');
-}
-
-static void
-clear_color() {
-    putchar(ESC);
-    putchar('[');
-    putchar('m');
-}
-
-#else
-
-#define set_color(c) /* REMOVED */
-#define clear_color() /* REMOVED */
-
-#endif
-
 /*
  * BOSE encode/decode helpers
  */
@@ -173,7 +126,7 @@ decode_ext_int(int* result, u8 prefix, ACTOR* it)
         TRACE(putchar('\n'));
         return true;  // success
     }
-    TRACE(puts("decode_ext_int: fail!\n"));
+    DEBUG(puts("decode_ext_int: fail!\n"));
     return false;  // failure!
 }
 
@@ -282,7 +235,7 @@ encode_utf8(u8* bp, u32 w, int k)
 }
 
 /*
- * BOSE encode/decode values
+ * decode BOSE values
  */
 
 static ACTOR*
@@ -483,344 +436,9 @@ decode_bose(ACTOR* it)
 }
 
 /*
- * BOSE parse-and-print
+ * encode BOSE values
  */
 
-static int
-decode_integer(int* result, u8** data_ref)
-{
-    u8* data = *data_ref;
-    u8 b = *data++;
-    TRACE(puts("decode_integer: b=0x"));
-    TRACE(serial_hex8(b));
-    TRACE(putchar('\n'));
-    int n = SMOL2INT(b);
-    if ((n >= SMOL_MIN) && (n <= SMOL_MAX)) {
-        *result = n;
-        *data_ref = data;
-        TRACE(puts("decode_integer: smol="));
-        TRACE(serial_int32(n));
-        TRACE(putchar('\n'));
-        return true;  // success
-    }
-    int size = 0;
-    if (decode_integer(&size, &data)) {
-        u8* end = data + size;
-        if (((b & 0xF0) == 0x10)  // Integer type?
-        &&  (size <= sizeof(int))) {  // not too large?
-            //int pad = b & 0x7;
-            //int sign = (b & 0x8) ? -1 : 1;
-            n = (b & 0x8) ? -1 : 0;  // sign extend
-            while (size > 0) {
-                n = (n << 8) | data[--size];
-            }
-            *result = n;
-            *data_ref = end;
-            TRACE(puts("decode_integer: int="));
-            TRACE(serial_int32(n));
-            TRACE(putchar('\n'));
-            return true;  // success
-        }
-        *data_ref = end;  // skip value
-    } else {
-        *data_ref = data;  // update data reference
-    }
-    TRACE(puts("decode_integer: fail!\n"));
-    return false;  // failure!
-}
-
-static int
-print_number(u8** data_ref)
-{
-    int ok = true;
-    u8* data = *data_ref;
-    int n = 0;
-    if (decode_integer(&n, &data)) {
-        set_color(NUM_COLOR);
-        serial_int32(n);
-        clear_color();
-    } else {
-        set_color(NUM_COLOR);
-        prints("<bad number>");
-        clear_color();
-        ok = false;  // fail!
-    }
-    *data_ref = data;  // update data reference
-    return ok;
-}
-
-static int
-print_string(u8** data_ref)
-{
-    int ok = true;
-    u8* data = *data_ref;
-    u8 b = *data++;
-    TRACE(puts("print_string: b=0x"));
-    TRACE(serial_hex8(b));
-    TRACE(putchar('\n'));
-    if (b == string_0) {
-        set_color(TEXT_COLOR);
-        print('"');
-        print('"');
-        clear_color();
-    } else if (b == mem_ref) {
-        b = *data++;
-        set_color(TEXT_COLOR);
-        prints("<no memo>");
-        clear_color();
-        ok = false;  // fail!
-    } else {
-        int size = 0;
-        if (decode_integer(&size, &data)) {
-            u8* end = data + size;
-            if ((b == utf8_mem) || (b == utf16_mem)) {
-                set_color(TEXT_COLOR);
-                prints("<no memo>");
-                clear_color();
-                data += size;
-                ok = false;  // fail!
-            } else if (b == octets) {
-                set_color(TEXT_COLOR);
-                print('"');
-                while (data < end) {
-                    b = *data++;
-                    print(b);
-                }
-                print('"');
-                clear_color();
-            } else if (b == utf8) {
-                set_color(TEXT_COLOR);
-                print('"');
-                while (data < end) {
-                    b = *data++;
-                    print(b);  // FIXME: handle utf8 encoding
-                }
-                print('"');
-                clear_color();
-            } else if (b == utf16) {
-                set_color(TEXT_COLOR);
-                print('"');
-                while (data < end) {
-                    u32 u = *data++;
-                    b = *data++;
-                    u = (u << 8) | b;
-                    print(u);  // FIXME: handle utf16-be/le encoding
-                }
-                print('"');
-                clear_color();
-            } else {
-                set_color(TEXT_COLOR);
-                prints("<bad encoding>");
-                clear_color();
-                data += size;
-                ok = false;  // fail!
-            }
-        } else {
-            set_color(TEXT_COLOR);
-            prints("<bad string size>");
-            clear_color();
-            ok = false;  // fail!
-        }
-    }
-    *data_ref = data;  // update data reference
-    return ok;
-}
-
-static int
-print_array(u8** data_ref, int indent, int limit)
-{
-    int ok = true;
-    u8* data = *data_ref;
-    u8 b = *data++;
-    TRACE(puts("print_array: b=0x"));
-    TRACE(serial_hex8(b));
-    TRACE(putchar('\n'));
-    set_color(PUNCT_COLOR);
-    print('[');
-    if (b == array_0) {
-        print(']');
-        clear_color();
-    } else {
-        int size = 0;
-        if (decode_integer(&size, &data)) {
-            u8* end = data + size;
-            if (b == array_n) {
-                int count = 0;
-                if (!decode_integer(&count, &data)) {
-                    set_color(PUNCT_COLOR);
-                    prints("<bad element count>");
-                    clear_color();
-                    *data_ref = end;  // skip value
-                    return false;  // failure!
-                }
-            }
-            if (limit < 1) {
-                prints("...]");
-                clear_color();
-                *data_ref = end;  // skip value
-                return true;  // success
-            }
-            if (indent) {
-                space(++indent);
-            }
-            int once = true;
-            while (data < end) {
-                if (once) {
-                    once = false;
-                } else {
-                    set_color(PUNCT_COLOR);
-                    print(',');
-                    space(indent);
-                    clear_color();
-                }
-                if (!print_bose(&data, indent, limit - 1)) {  // element
-                    set_color(PUNCT_COLOR);
-                    prints("<bad element>");
-                    clear_color();
-                    ok = false;  // fail!
-                    break;
-                }
-            }
-            if (indent) {
-                space(--indent);
-            }
-            set_color(PUNCT_COLOR);
-            print(']');
-            clear_color();
-        } else {
-            set_color(PUNCT_COLOR);
-            prints("<bad array size>");
-            clear_color();
-            ok = false;  // fail!
-        }
-    }
-    clear_color();
-    *data_ref = data;  // update data reference
-    return ok;
-}
-
-static int
-print_object(u8** data_ref, int indent, int limit)
-{
-    int ok = true;
-    u8* data = *data_ref;
-    u8 b = *data++;
-    TRACE(puts("print_object: b=0x"));
-    TRACE(serial_hex8(b));
-    TRACE(putchar('\n'));
-    set_color(PUNCT_COLOR);
-    print('{');
-    if (b == object_0) {
-        print('}');
-        clear_color();
-    } else {
-        int size = 0;
-        if (decode_integer(&size, &data)) {
-            u8* end = data + size;
-            if (b == object_n) {
-                int count = 0;
-                if (!decode_integer(&count, &data)) {
-                    set_color(PUNCT_COLOR);
-                    prints("<bad property count>");
-                    clear_color();
-                    *data_ref = end;  // skip value
-                    return false;  // failure!
-                }
-            }
-            if (limit < 1) {
-                prints("...}");
-                clear_color();
-                *data_ref = end;  // skip value
-                return true;  // success
-            }
-            if (indent) {
-                space(++indent);
-            }
-            int once = true;
-            while (data < end) {
-                if (once) {
-                    once = false;
-                } else {
-                    set_color(PUNCT_COLOR);
-                    print(',');
-                    space(indent);
-                    clear_color();
-                }
-                if (!print_string(&data)) {  // property name
-                    set_color(PUNCT_COLOR);
-                    prints("<bad property name>");
-                    clear_color();
-                    ok = false;  // fail!
-                    break;
-                }
-                set_color(PUNCT_COLOR);
-                print(':');
-                if (indent) {
-                    print(' ');
-                }
-                clear_color();
-                if (!print_bose(&data, indent, limit - 1)) {  // property value
-                    set_color(PUNCT_COLOR);
-                    prints("<bad property value>");
-                    clear_color();
-                    ok = false;  // fail!
-                    break;
-                }
-            }
-            if (indent) {
-                space(--indent);
-            }
-            set_color(PUNCT_COLOR);
-            print('}');
-            clear_color();
-        } else {
-            set_color(PUNCT_COLOR);
-            prints("<bad object size>");
-            clear_color();
-            ok = false;  // fail!
-        }
-    }
-    *data_ref = data;  // update data reference
-    return ok;
-}
-
-// print an arbitrary BOSE-encoded value
-int
-print_bose(u8** data_ref, int indent, int limit)
-{
-    int ok = true;
-    u8* data = *data_ref;
-    u8 b = *data;
-    TRACE(puts("print_bose: b=0x"));
-    TRACE(serial_hex8(b));
-    TRACE(putchar('\n'));
-    if (b == null) {
-        set_color(PRIM_COLOR);
-        prints("null");
-        clear_color();
-        ++data;
-    } else if (b == true) {
-        set_color(PRIM_COLOR);
-        prints("true");
-        clear_color();
-        ++data;
-    } else if (b == false) {
-        set_color(PRIM_COLOR);
-        prints("false");
-        clear_color();
-        ++data;
-    } else if ((b & 0xF8) == 0x08) {  // String type (2#0000_1xxx)
-        ok = print_string(&data);
-    } else if ((b & 0xF9) == 0x00) {  // Array type (2#0000_0xx0) != false
-        ok = print_array(&data, indent, limit);
-    } else if ((b & 0xF9) == 0x01) {  // Object type (2#0000_0xx1) != true
-        ok = print_object(&data, indent, limit);
-    } else {
-        ok = print_number(&data);
-    }
-    *data_ref = data;  // update data reference
-    return ok;
-}
 
 /*
  * composite data structures
@@ -835,7 +453,7 @@ new_string_iterator(ACTOR* s)
     struct example_5* x = (struct example_5*)reserve();  // new iterator
     if (!x) return NULL;  // fail!
     u8* bp = (u8*)s;
-    u8 b = *(bp + 0x05);
+    u8 b = *(bp + 0x05);  // prefix
     // set decode procedure
     TRACE(puts("new_string_iterator: prefix = "));
     TRACE(serial_hex8(b));
@@ -851,15 +469,15 @@ new_string_iterator(ACTOR* s)
     }
     // initialize iterator
     // FIXME: fill in code and beh for iterator actor!
-    p = bp + 0x06;
-    n = SMOL2INT(*p);
+    b = *(bp + 0x06);  // smol size
+    n = SMOL2INT(b);
     if ((n >= 0) && (n <= 20)) {
-        ++p;  // advance to data
+        p = bp + 0x07;  // pointer to starting octet
         x->data_0c = (u32)(p + n);  // pointer to ending octet
-    } else if (decode_integer(&n, &p)) {
-        x->data_0c = (u32)(p + 12);  // pointer to ending octet
     } else {
-        return NULL;  // fail!
+        n = *((u32*)(bp + 0x08));  // get extended size
+        p = bp + 0x0c;  // pointer to starting octet
+        x->data_0c = (u32)(p + 12);  // pointer to ending octet
     }
     x->data_04 = (u32)n;  // total octets remaining
     x->data_08 = (u32)p;  // pointer to starting octet
@@ -1509,22 +1127,6 @@ static u8 buf_0[] = {
 };
 
 static void
-test_print()
-{
-    u8* data;
-
-    hexdump(buf_0, sizeof(buf_0));
-
-    data = buf_0;
-    print_bose(&data, 1, MAX_INT);
-    newline();
-
-    data = buf_0;
-    print_bose(&data, 0, 2);
-    newline();
-}
-
-static void
 test_number()
 {
     ACTOR* a;
@@ -2050,6 +1652,8 @@ test_decode()
         dump_extended(b);
         to_JSON(b, 1, MAX_INT);
         newline();
+        to_JSON(b, 0, 2);
+        newline();
     }
 }
 
@@ -2063,8 +1667,6 @@ test_bose()
     puts(", MAX_INT=");
     serial_int32(MAX_INT);
     newline();
-
-    test_print();
 
     test_number();
 

@@ -535,7 +535,7 @@ giving sequential access to unicode characters.
 
 #### Builder
 
-The opposite of an _Iterator_ is a _Builder_,
+The complement of an _Iterator_ is a _Builder_,
 which **mutates** a String by sequentially appending
 unicode characters.
 On creation, a builder allocates a new empty String.
