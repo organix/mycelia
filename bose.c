@@ -42,14 +42,6 @@ cstr_len(char* s)
     return (s - r);
 }
 
-static void serial_int32(int n) {
-    if (n < 0) {
-        putchar('-');
-        n = -n;
-    }
-    serial_dec32(n);
-}
-
 /*
  * console output
  */
@@ -189,6 +181,49 @@ decode_utf8(u32* wp, u8 b, int k)
     return -1;  // fail!
 }
 
+int
+encode_u32(ACTOR* sb, u32 w)
+{
+    int ok = true;
+    if (w <= SMOL_MAX) {
+        ok = write_code(sb, INT2SMOL(w));
+    } else if (w <= 0xFFFF) {
+        ok = write_code(sb, p_int_0)
+          && write_code(sb, n_2)
+          && write_code(sb, (w & 0xFF))
+          && write_code(sb, ((w >> 8) & 0xFF));
+    } else {
+        ok = write_code(sb, p_int_0)
+          && write_code(sb, n_4)
+          && write_code(sb, (w & 0xFF))
+          && write_code(sb, ((w >> 8) & 0xFF))
+          && write_code(sb, ((w >> 16) & 0xFF))
+          && write_code(sb, ((w >> 24) & 0xFF));
+    }
+    return ok;
+}
+
+int
+encode_int(ACTOR* sb, int n)
+{
+    int ok = true;
+    if (n < 0) {
+        if (n >= SMOL_MIN) {
+            ok = write_code(sb, INT2SMOL(n));
+        } else {
+            ok = write_code(sb, m_int_0)
+              && write_code(sb, n_4)
+              && write_code(sb, (n & 0xFF))
+              && write_code(sb, ((n >> 8) & 0xFF))
+              && write_code(sb, ((n >> 16) & 0xFF))
+              && write_code(sb, ((n >> 24) & 0xFF));
+        }
+    } else {
+        ok = encode_u32(sb, n);
+    }
+    return ok;
+}
+
 static int  // return k = <0:fail, 0:done, >0:more...
 encode_octets(u8* bp, u32 w, int k)
 {
@@ -244,7 +279,7 @@ decode_number(u8 prefix, ACTOR* it)
     int n;
     ACTOR* v = NULL;  // init to fail
     if (decode_ext_int(&n, prefix, it)) {
-        v = new_i32(n);
+        v = new_int(n);
     }
     // FIXME: handle additional number encodings
     return v;
@@ -416,7 +451,7 @@ decode_bose(ACTOR* it)
         default: {
             int n = SMOL2INT(b);
             if ((n >= SMOL_MIN) && (n <= SMOL_MAX)) {
-                v = new_i32(n);
+                v = new_int(n);
             } else if ((b & 0xF8) == 0x08) {  // String type (2#0000_1xxx)
                 v = decode_string(b, it);
             } else if ((b & 0xF9) == 0x00) {  // Array type (2#0000_0xx0) != false
@@ -439,6 +474,182 @@ decode_bose(ACTOR* it)
  * encode BOSE values
  */
 
+static int
+encode_number(ACTOR* sb, ACTOR* v)
+{
+    int ok = true;
+    u8* p = (u8*)v;
+    u8 b = *(p + 0x05);  // prefix
+    u32 w = *((u32*)(p + 0x08));  // integer
+
+    DEBUG(puts("encode_number[0x"));
+    DEBUG(serial_hex32(w));
+    DEBUG(puts("]\n"));
+    if ((b & ~0x7) == p_int_0) {
+        ok = encode_u32(sb, w);
+    } else if ((b & ~0x7) == m_int_0) {
+        ok = encode_int(sb, w);
+    } else {
+        // FIXME: handle different number formats and bignums...
+        ok = false;  // fail!
+    }
+    return ok;
+}
+
+static int
+encode_string(ACTOR* sb, ACTOR* v)
+{
+    int ok = true;
+    u8* p = (u8*)v;
+    u8 b = *(p + 0x05);  // prefix
+    u8* q = p + 0x18;  // ending octet (extended size)
+    u32 w = SMOL2INT(*(p + 0x06));  // smol size
+    if (w <= 20) {
+        q = p + 0x1b;  // ending octet (smol size)
+        DEBUG(puts("encode_string["));
+        DEBUG(serial_int32(w));
+        DEBUG(puts(":smol]\n"));
+        if (w == 0) return write_code(sb, string_0);  // special case for empty string
+        p += 0x07;  // pointer to starting octet
+    } else {
+        w = *((u32*)(p + 0x08));  // get extended size
+        DEBUG(puts("encode_string["));
+        DEBUG(serial_int32(w));
+        DEBUG(puts(":int]\n"));
+        if (w == 0) return write_code(sb, string_0);  // special case for empty string
+        p += 0x0c;  // pointer to starting octet
+    }
+    ok = write_code(sb, b)
+      && encode_u32(sb, w);
+    while (ok && (w-- > 0)) {
+        if (p >= q) {  // out of bounds
+            p = (u8*)(*((u32*)q));  //  load next block of data
+            q = p + 0x1c;  // update end
+        }
+        ok = write_code(sb, *p++);
+    }
+    return ok;
+}
+
+static int
+encode_array(ACTOR* sb, ACTOR* v)
+{
+    int ok = true;
+    u32 w = array_element_count(v);
+    DEBUG(puts("encode_array["));
+    DEBUG(serial_dec32(w));
+    DEBUG(puts("]\n"));
+    if (w == 0) return write_code(sb, array_0);  // special case for empty array
+    // encode array contents
+    ACTOR* it = new_collection_iterator(v);
+    if (!it) return false;  // fail!
+    ACTOR* content = new_string_builder(octets);
+    if (!content) return false;  // fail!
+    while (w-- > 0) {
+        ACTOR* item = read_item(it);
+        if (!item) return false;  // fail!
+        if (!encode_bose(content, item)) return false;  // fail!
+    }
+    release(it);
+    ACTOR* s = get_string_built(content);
+    struct example_5* x = (struct example_5*)s;
+    release(content);
+    w = x->data_08;  // get content size
+    DEBUG(puts("encode_array: content size = "));
+    DEBUG(serial_dec32(w));
+    DEBUG(newline());
+    // encode array (w/ known size)
+    ok = write_code(sb, array)
+      && encode_u32(sb, w);
+    it = new_string_iterator((ACTOR*)s);
+    if (!it) return false;  // fail!
+    DEBUG(puts("encode_array: content"));
+    while (ok && (w-- > 0)) {
+        u32 ch = read_code(it);
+        if (ch == EOF) return false;  // fail!
+        DEBUG(putchar(' '));
+        DEBUG(serial_hex8(ch));
+        ok = write_code(sb, ch);
+    }
+    DEBUG(newline());
+    release(s);
+    release(it);
+    return ok;
+}
+
+static int
+encode_object(ACTOR* sb, ACTOR* v)
+{
+    int ok = true;
+    u32 w = object_property_count(v);
+    DEBUG(puts("encode_object["));
+    DEBUG(serial_dec32(w));
+    DEBUG(puts("]\n"));
+    if (w == 0) return write_code(sb, object_0);  // special case for empty object
+    // encode object contents
+    ACTOR* it = new_collection_iterator(v);
+    if (!it) return false;  // fail!
+    ACTOR* content = new_string_builder(octets);
+    if (!content) return false;  // fail!
+    while (w-- > 0) {
+        ACTOR* name = read_item(it);
+        if (!name) return false;  // fail!
+        if (!encode_bose(content, name)) return false;  // fail!
+        ACTOR* value = read_item(it);
+        if (!value) return false;  // fail!
+        if (!encode_bose(content, value)) return false;  // fail!
+    }
+    release(it);
+    ACTOR* s = get_string_built(content);
+    struct example_5* x = (struct example_5*)s;
+    release(content);
+    w = x->data_08;  // get content size
+    DEBUG(puts("encode_object: content size = "));
+    DEBUG(serial_dec32(w));
+    DEBUG(newline());
+    // encode object (w/ known size)
+    ok = write_code(sb, object)
+      && encode_u32(sb, w);
+    it = new_string_iterator((ACTOR*)s);
+    if (!it) return false;  // fail!
+    DEBUG(puts("encode_object: content"));
+    while (ok && (w-- > 0)) {
+        u32 ch = read_code(it);
+        if (ch == EOF) return false;  // fail!
+        DEBUG(putchar(' '));
+        DEBUG(serial_hex8(ch));
+        ok = write_code(sb, ch);
+    }
+    DEBUG(newline());
+    release(s);
+    release(it);
+    return ok;
+}
+
+int
+encode_bose(ACTOR* sb, ACTOR* v)
+{
+    int ok = true;
+    struct example_5* x = (struct example_5*)v;
+    u8* p = (u8*)v;
+    u8 b = *(p + 0x05);
+
+    if (x->beh_1c != &b_value) {
+        DEBUG(puts("encode_bose: expected &b_value\n"));
+        ok = false;  // fail! -- wrong actor type
+    } else if ((b == null) || (b == true) || (b == false)) {
+        ok = write_code(sb, b);
+    } else if ((b & 0xF8) == 0x08) {  // String type (2#0000_1xxx)
+        ok = encode_string(sb, v);
+    } else if ((b & 0xF9) == 0x00) {  // Array type (2#0000_0xx0) != false
+        ok = encode_array(sb, v);
+    } else if ((b & 0xF9) == 0x01) {  // Object type (2#0000_0xx1) != true
+        ok = encode_object(sb, v);
+    } else {
+        ok = encode_number(sb, v);
+    }
+    return ok;
+}
 
 /*
  * composite data structures
@@ -475,7 +686,7 @@ new_string_iterator(ACTOR* s)
         p = bp + 0x07;  // pointer to starting octet
         x->data_0c = (u32)(p + n);  // pointer to ending octet
     } else {
-        n = *((u32*)(bp + 0x08));  // get extended size
+        n = *((int*)(bp + 0x08));  // get extended size
         p = bp + 0x0c;  // pointer to starting octet
         x->data_0c = (u32)(p + 12);  // pointer to ending octet
     }
@@ -548,9 +759,9 @@ new_string_builder(u8 prefix)
 }
 
 int
-write_code(ACTOR* it, u32 code)
+write_code(ACTOR* sb, u32 code)
 {
-    struct example_5* x = (struct example_5*)it;
+    struct example_5* x = (struct example_5*)sb;
     struct example_5* s = (struct example_5*)x->data_04;
     u8* p = (u8*)x->data_08;
     u8* q = (u8*)x->data_0c;
@@ -1137,7 +1348,7 @@ test_number()
     to_JSON(a, 0, MAX_INT);
     newline();
 
-    a = new_i32(-42);
+    a = new_int(-42);
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
     to_JSON(a, 0, MAX_INT);
@@ -1259,7 +1470,7 @@ test_collection()
     dump_extended(a);
     to_JSON(a, 0, MAX_INT);
     putchar('\n');
-    b = new_i32(-2); //&v_number_0;
+    b = new_int(-2); //&v_number_0;
     dump_extended(b);
     to_JSON(b, 0, MAX_INT);
     putchar('\n');
@@ -1275,8 +1486,8 @@ test_collection()
     dump_extended(a);
     to_JSON(a, 0, MAX_INT);
     putchar('\n');
-//    a = array_insert(a, 4, new_i32(-2));
-//    a = array_insert(a, 1, new_i32(-2));
+//    a = array_insert(a, 4, new_int(-2));
+//    a = array_insert(a, 1, new_int(-2));
     a = array_insert(a, 2, &v_string_0);
     dump_extended(a);
     to_JSON(a, 0, MAX_INT);
@@ -1303,23 +1514,23 @@ test_collection()
     dump_extended(o);
     to_JSON(o, 0, MAX_INT);
     putchar('\n');
-    o = object_set(o, new_literal("x"), new_i32(1));
+    o = object_set(o, new_literal("x"), new_int(1));
     dump_extended(o);
     to_JSON(o, 0, MAX_INT);
     putchar('\n');
-    o = object_set(o, new_literal("y"), new_i32(2));
+    o = object_set(o, new_literal("y"), new_int(2));
     dump_extended(o);
     to_JSON(o, 0, MAX_INT);
     putchar('\n');
-    o = object_set(o, new_literal("z"), new_i32(0));
+    o = object_set(o, new_literal("z"), new_int(0));
     dump_extended(o);
     to_JSON(o, 0, MAX_INT);
     putchar('\n');
-    o = object_set(o, new_literal("x"), new_i32(-1));
+    o = object_set(o, new_literal("x"), new_int(-1));
     dump_extended(o);
     to_JSON(o, 0, MAX_INT);
     putchar('\n');
-    o = object_set(o, new_literal("y"), new_i32(-2));
+    o = object_set(o, new_literal("y"), new_int(-2));
     dump_extended(o);
     to_JSON(o, 0, MAX_INT);
     putchar('\n');
@@ -1618,6 +1829,10 @@ test_decode()
         newline();
     }
 
+    /*
+     * collections
+     */
+
     a = new_octets(buf_array_5, sizeof(buf_array_5));
     dump_extended(a);
     b = decode_bose(new_string_iterator(a));
@@ -1655,6 +1870,213 @@ test_decode()
         to_JSON(b, 0, 2);
         newline();
     }
+    // re-encode example
+    a = new_string_builder(octets);
+    if (a) {
+        encode_bose(a, b);
+        dump_words((u32*)a, 8);
+        a = get_string_built(a);
+        dump_extended(a);
+        to_JSON(a, 1, MAX_INT);
+        newline();
+        // decode again
+        b = decode_bose(new_string_iterator(a));
+        if (b) {
+            dump_extended(b);
+            to_JSON(b, 1, MAX_INT);
+            newline();
+            to_JSON(b, 0, 2);
+            newline();
+        }
+    }
+}
+
+static void
+test_encode()
+{
+    ACTOR* v;
+    ACTOR* sb;
+    ACTOR* s;
+
+    /*
+     * numbers
+     */
+
+    v = &v_number_0;
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_u32(42);
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_int(-42);
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_u32(420);
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_int(-420);
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_u32(MAX_INT);
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_int(MIN_INT);
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    /*
+     * strings
+     */
+
+    v = &v_string_0;
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_literal("x");
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_literal("testing");
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_literal("<= twenty characters");
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_literal("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    /*
+     * collections
+     */
+
+    v = &v_array_0;
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_array();
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_array();
+    v = array_insert(v, 0, &v_null);
+    v = array_insert(v, 1, &v_true);
+    v = array_insert(v, 2, &v_false);
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
 }
 
 void
@@ -1675,6 +2097,8 @@ test_bose()
     test_collection();
 
     test_decode();
+
+    test_encode();
 
     puts("Completed.\n");
 }

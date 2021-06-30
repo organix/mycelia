@@ -48,6 +48,18 @@ serial_hex8(u8 b)
 }
 
 /*
+ * Print u16 in hexadecimal to serial port
+ */
+void
+serial_hex16(u16 d)
+{
+    serial_write(hex[0xF & (d >> 12)]);
+    serial_write(hex[0xF & (d >> 8)]);
+    serial_write(hex[0xF & (d >> 4)]);
+    serial_write(hex[0xF & d]);
+}
+
+/*
  * Print u32 in hexadecimal to serial port
  */
 void
@@ -78,6 +90,18 @@ serial_dec32(u32 w)
         w /= 10;
     } while (w && (p > dec));
     serial_puts(p);
+}
+
+/*
+ * Print (signed) int in decimal to serial port
+ */
+void
+serial_int32(int n) {
+    if (n < 0) {
+        putchar('-');
+        n = -n;
+    }
+    serial_dec32(n);
 }
 
 /*

@@ -19,6 +19,7 @@
 #define _RASPI_H_
 
 typedef unsigned char u8;
+typedef unsigned short u16;
 typedef unsigned int u32;
 
 typedef void (ACTOR)(void);
@@ -77,8 +78,10 @@ extern int putchar(int c);
 extern void puts(char* s);
 extern int getchar();
 extern void serial_hex8(u8 b);
+extern void serial_hex16(u16 d);
 extern void serial_hex32(u32 w);
 extern void serial_dec32(u32 w);
+extern void serial_int32(int n);
 extern void hexdump(const u8* p, int n);
 extern void dump_words(const u32* p, int n);
 extern void dump256(void* p);

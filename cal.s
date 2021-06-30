@@ -153,7 +153,7 @@ ext_value:		@ extended-value template
 
 	.text
 	.global new_u32
-new_u32:		@ allocate a new unsigned integer value actor
+new_u32:		@ allocate a new unsigned 32-bit value actor
 			@ r0=value
 	stmdb	sp!, {r4-r9,lr}	@ save in-use registers
 	stmdb	sp!, {r0}	@ push value on stack
@@ -165,8 +165,8 @@ new_u32:		@ allocate a new unsigned integer value actor
 	ldmia	sp!, {r4-r9,pc}	@ restore in-use registers, and return
 
 	.text
-	.global new_i32
-new_i32:		@ allocate a new signed integer value actor
+	.global new_int
+new_int:		@ allocate a new signed integer value actor
 			@ r0=value
 	stmdb	sp!, {lr}	@ push return address on stack
 	bl	new_u32		@ create positive value actor

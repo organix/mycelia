@@ -82,7 +82,7 @@ extern ACTOR    v_array_0;
 extern ACTOR    v_object_0;
 
 extern ACTOR*   new_u32(u32 value);
-extern ACTOR*   new_i32(int value);
+extern ACTOR*   new_int(int value);
 extern ACTOR*   new_octets(u8* s, u32 n);
 
 /*
@@ -90,11 +90,14 @@ extern ACTOR*   new_octets(u8* s, u32 n);
  */
 extern int      decode_int(int* result, ACTOR* it);
 extern ACTOR*   decode_bose(ACTOR* it);
+extern int      encode_u32(ACTOR* sb, u32 w);
+extern int      encode_int(ACTOR* sb, int n);
+extern int      encode_bose(ACTOR* sb, ACTOR* v);
 
 extern ACTOR*   new_string_iterator(ACTOR* s);
 extern u32      read_code(ACTOR* it);  // or EOF
 extern ACTOR*   new_string_builder(u8 prefix);
-extern int      write_code(ACTOR* it, u32 code);
+extern int      write_code(ACTOR* sb, u32 code);
 
 extern ACTOR*   new_array();
 extern ACTOR*   array_insert(ACTOR* a, u32 index, ACTOR* element);
