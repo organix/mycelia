@@ -114,6 +114,9 @@ extern ACTOR*   read_item(ACTOR* it);  // or NULL
 
 extern int      to_JSON(ACTOR* a, int indent, int limit);
 
+#define number_int(n)               ((int)(((struct example_5*)(n))->data_08))
+#define number_exp(n)               ((int)(((struct example_5*)(n))->data_0c))
+#define number_base(n)              ((int)(((struct example_5*)(n))->data_10))
 #define new_literal(c_str)          (new_octets((u8*)(c_str), (u32)(sizeof(c_str) - 1)))
 #define get_string_built(sb)        ((ACTOR*)(((struct example_5*)(sb))->data_04))
 #define array_element_count(a)      (((struct example_5*)(a))->data_08 >> 2)

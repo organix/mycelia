@@ -55,6 +55,8 @@ assert_fail(char* _file_, int _line_)
 }
 
 #define assert(cond)    if (!(cond)) assert_fail(__FILE__, __LINE__)
+#define assert_eq(a,b)  assert((a)==(b))
+#define assert_ne(a,b)  assert((a)!=(b))
 
 /*
  * console output
@@ -1356,21 +1358,35 @@ test_number()
 {
     ACTOR* a;
 
+    a = &v_number_0;
+    dump_words((u32*)a, 8);
+    hexdump((u8*)a, 32);
+    assert(a);
+    assert_eq(0, number_int(a));
+    to_JSON(a, 0, MAX_INT);
+    newline();
+
     a = new_u32(42);
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    assert(a);
+    assert_eq(42, number_int(a));
     to_JSON(a, 0, MAX_INT);
     newline();
 
     a = new_int(-42);
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    assert(a);
+    assert_eq(-42, number_int(a));
     to_JSON(a, 0, MAX_INT);
     newline();
 
     a = new_u32(-42);
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    assert(a);
+    assert_eq(-42, number_int(a));
     to_JSON(a, 0, MAX_INT);
     newline();
 }
@@ -1389,6 +1405,7 @@ test_string()
     putchar('\n');
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    assert(a);
     to_JSON(a, 0, MAX_INT);
     newline();
 
@@ -1397,39 +1414,46 @@ test_string()
 //    a = new_literal("");
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    assert(a);
     to_JSON(a, 0, MAX_INT);
     newline();
 
     a = new_octets((u8*)"x", 1);
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    assert(a);
     to_JSON(a, 0, MAX_INT);
     newline();
 
     a = new_literal("test");
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    assert(a);
     to_JSON(a, 0, MAX_INT);
     newline();
 
     a = new_literal("Hello, World!");
     dump_words((u32*)a, 8);
     hexdump((u8*)a, 32);
+    assert(a);
     to_JSON(a, 0, MAX_INT);
     newline();
 
     a = new_literal("< twenty characters");
     dump_extended(a);
+    assert(a);
     to_JSON(a, 0, MAX_INT);
     newline();
 
     a = new_literal("<= twenty characters");
     dump_extended(a);
+    assert(a);
     to_JSON(a, 0, MAX_INT);
     newline();
 
     a = new_literal("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
     dump_extended(a);
+    assert(a);
     to_JSON(a, 0, MAX_INT);
     newline();
 
@@ -1437,14 +1461,17 @@ test_string()
     a = new_octets((u8*)s, (u32)cstr_len(s));
 //    a = new_literal("0123456789+-*/abcdefghijklmnopqrstuvwxyz");
     dump_extended(a);
+    assert(a);
     to_JSON(a, 0, MAX_INT);
     newline();
 
     a = new_literal("a bird in hand is worth two in the bush");
+    assert(a);
     puts("a = ");
     to_JSON(a, 0, MAX_INT);
     putchar('\n');
     b = new_literal("a bird in hand is worth two in the bush?");
+    assert(b);
     puts("b = ");
     to_JSON(b, 0, MAX_INT);
     putchar('\n');
@@ -1453,16 +1480,19 @@ test_string()
     puts(" = (a ");
     putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
     puts(" b); ");
+    assert(i < 0);
     i = string_compare(a, a);
     serial_int32(i);
     puts(" = (a ");
     putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
     puts(" a); ");
+    assert(i == 0);
     i = string_compare(b, a);
     serial_int32(i);
     puts(" = (b ");
     putchar((i == MIN_INT) ? '?' : ((i < 0) ? '<' : ((i > 0) ? '>' : '=')));
     puts(" a)\n");
+    assert(i > 0);
 }
 
 static void
@@ -2140,8 +2170,6 @@ test_cal()
     puts(", MAX_INT=");
     serial_int32(MAX_INT);
     newline();
-
-    assert(false);  // test failure hook
 
     test_number();
 
