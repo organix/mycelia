@@ -244,68 +244,31 @@ new_octets:		@ allocate a new octet string value actor
 
 	.text
 	.align 5		@ align to cache-line
-	.global a_bose_test
-a_bose_test:		@ BOSE self-test
+	.global a_cal_test
+a_cal_test:		@ CAL test suite
 			@ message = ()
-	bl	test_bose	@ run test suite
-	ldr	r0, =a_exit	@ target actor
-	bl	send_0		@ send message
-	b	complete	@ return to dispatch loop
+	bl	test_cal	@ run self-test
+@	b	complete	@ return to dispatch loop
+	b	exit		@ kernel exit
 
 	.text
-	.align 5		@ align to cache-line
-	.global a_bose_read
-a_bose_read:		@ BOSE read actor
-			@ message = (ok, fail)
-	bl	serial_eol	@ write end-of-line
-	ldr	r0, =prompt_txt	@ load address of prompt
-	bl	serial_puts	@ write text to console
-	bl	parse_sexpr	@ parse s-expression from input
-	movs	r1, r0		@ if expr == NULL
-	ldreq	r0, [fp, #0x08]	@	send to fail
-	ldrne	r0, [fp, #0x04]	@ else
-	bl	send_1		@	send expr to ok
-	b	complete	@ return to dispatch loop
-prompt_txt:
-	.ascii	"> \0"
-
-	.text
-	.align 5		@ align to cache-line
-	.global a_bose_eval
-a_bose_eval:		@ BOSE eval actor
-			@ message = (expr)
-	bl	ground_env	@ get ground environment
-	ldr	r4, [fp, #0x04]	@ get expr to eval
-	ldr	r5, =a_bose_print @ customer
-	mov	r6, #S_EVAL	@ "eval" request
-	mov	r7, r0		@ environment
-	bl	send_3x		@ send message [FIXME: set watchdog timer...]
-	b	complete	@ return to dispatch loop
-
-	.text
-	.align 5		@ align to cache-line
-	.global a_bose_print
-a_bose_print:		@ BOSE print actor
-			@ message = (value)
-	ldr	r0, [fp, #0x04]	@ get value from message
-	bl	print_sexpr	@ print s-expression
-	bl	serial_eol	@ write end-of-line
-	ldr	r0, =a_bose_read @ target actor
-	ldr	r1, =a_bose_eval @ ok customer
-	ldr	r2, =a_bose_err @ fail customer
-	bl	send_2		@ send message
-	b	complete	@ return to dispatch loop
-
-	.text
-	.align 5		@ align to cache-line
-	.global a_bose_err
-a_bose_err:		@ BOSE error handler
-			@ message = ()
-	ldr	r0, =error_txt	@ load address of text
+	.align 5		@ align to machine word
+	.global cal_fail
+cal_fail:		@ report failure, and call error hook
+	bl	dump_regs	@ dump register contents
+	ldr	r0, =cal_fail_txt @ load address of error text
 	bl	serial_puts	@ write text to console
 	bl	serial_eol	@ write end-of-line
-	b	a_bose_test	@ re-enter REPL
+	ldr	r0, =cal_err_hook @ address of error hook
+	ldr	lr, [r0]	@ load error hook
+	bx	lr		@ jump to error hook (no return)
+	b	halt		@ halt if we reach this instruction...
 
 	.section .rodata
-error_txt:
-	.ascii	"#<ERROR>\0"
+cal_fail_txt:
+	.ascii "*FAIL*\0"
+
+	.data
+	.global cal_err_hook
+cal_err_hook:
+	.int	=exit		@ address of error handler

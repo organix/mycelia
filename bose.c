@@ -42,6 +42,20 @@ cstr_len(char* s)
     return (s - r);
 }
 
+void
+assert_fail(char* _file_, int _line_)
+{
+    putchar('\n');
+    puts(_file_);
+    putchar(':');
+    serial_dec32(_line_);
+    puts(" -- assert failed!");
+    putchar('\n');
+    cal_fail();
+}
+
+#define assert(cond)    if (!(cond)) assert_fail(__FILE__, __LINE__)
+
 /*
  * console output
  */
@@ -482,9 +496,9 @@ encode_number(ACTOR* sb, ACTOR* v)
     u8 b = *(p + 0x05);  // prefix
     u32 w = *((u32*)(p + 0x08));  // integer
 
-    DEBUG(puts("encode_number[0x"));
-    DEBUG(serial_hex32(w));
-    DEBUG(puts("]\n"));
+    TRACE(puts("encode_number[0x"));
+    TRACE(serial_hex32(w));
+    TRACE(puts("]\n"));
     if ((b & ~0x7) == p_int_0) {
         ok = encode_u32(sb, w);
     } else if ((b & ~0x7) == m_int_0) {
@@ -506,16 +520,16 @@ encode_string(ACTOR* sb, ACTOR* v)
     u32 w = SMOL2INT(*(p + 0x06));  // smol size
     if (w <= 20) {
         q = p + 0x1b;  // ending octet (smol size)
-        DEBUG(puts("encode_string["));
-        DEBUG(serial_int32(w));
-        DEBUG(puts(":smol]\n"));
+        TRACE(puts("encode_string["));
+        TRACE(serial_int32(w));
+        TRACE(puts(":smol]\n"));
         if (w == 0) return write_code(sb, string_0);  // special case for empty string
         p += 0x07;  // pointer to starting octet
     } else {
         w = *((u32*)(p + 0x08));  // get extended size
-        DEBUG(puts("encode_string["));
-        DEBUG(serial_int32(w));
-        DEBUG(puts(":int]\n"));
+        TRACE(puts("encode_string["));
+        TRACE(serial_int32(w));
+        TRACE(puts(":int]\n"));
         if (w == 0) return write_code(sb, string_0);  // special case for empty string
         p += 0x0c;  // pointer to starting octet
     }
@@ -536,9 +550,9 @@ encode_array(ACTOR* sb, ACTOR* v)
 {
     int ok = true;
     u32 w = array_element_count(v);
-    DEBUG(puts("encode_array["));
-    DEBUG(serial_dec32(w));
-    DEBUG(puts("]\n"));
+    TRACE(puts("encode_array["));
+    TRACE(serial_dec32(w));
+    TRACE(puts("]\n"));
     if (w == 0) return write_code(sb, array_0);  // special case for empty array
     // encode array contents
     ACTOR* it = new_collection_iterator(v);
@@ -555,23 +569,23 @@ encode_array(ACTOR* sb, ACTOR* v)
     struct example_5* x = (struct example_5*)s;
     release(content);
     w = x->data_08;  // get content size
-    DEBUG(puts("encode_array: content size = "));
-    DEBUG(serial_dec32(w));
-    DEBUG(newline());
+    TRACE(puts("encode_array: content size = "));
+    TRACE(serial_dec32(w));
+    TRACE(newline());
     // encode array (w/ known size)
     ok = write_code(sb, array)
       && encode_u32(sb, w);
     it = new_string_iterator((ACTOR*)s);
     if (!it) return false;  // fail!
-    DEBUG(puts("encode_array: content"));
+    TRACE(puts("encode_array: content"));
     while (ok && (w-- > 0)) {
         u32 ch = read_code(it);
         if (ch == EOF) return false;  // fail!
-        DEBUG(putchar(' '));
-        DEBUG(serial_hex8(ch));
+        TRACE(putchar(' '));
+        TRACE(serial_hex8(ch));
         ok = write_code(sb, ch);
     }
-    DEBUG(newline());
+    TRACE(newline());
     release(s);
     release(it);
     return ok;
@@ -582,9 +596,9 @@ encode_object(ACTOR* sb, ACTOR* v)
 {
     int ok = true;
     u32 w = object_property_count(v);
-    DEBUG(puts("encode_object["));
-    DEBUG(serial_dec32(w));
-    DEBUG(puts("]\n"));
+    TRACE(puts("encode_object["));
+    TRACE(serial_dec32(w));
+    TRACE(puts("]\n"));
     if (w == 0) return write_code(sb, object_0);  // special case for empty object
     // encode object contents
     ACTOR* it = new_collection_iterator(v);
@@ -604,23 +618,23 @@ encode_object(ACTOR* sb, ACTOR* v)
     struct example_5* x = (struct example_5*)s;
     release(content);
     w = x->data_08;  // get content size
-    DEBUG(puts("encode_object: content size = "));
-    DEBUG(serial_dec32(w));
-    DEBUG(newline());
+    TRACE(puts("encode_object: content size = "));
+    TRACE(serial_dec32(w));
+    TRACE(newline());
     // encode object (w/ known size)
     ok = write_code(sb, object)
       && encode_u32(sb, w);
     it = new_string_iterator((ACTOR*)s);
     if (!it) return false;  // fail!
-    DEBUG(puts("encode_object: content"));
+    TRACE(puts("encode_object: content"));
     while (ok && (w-- > 0)) {
         u32 ch = read_code(it);
         if (ch == EOF) return false;  // fail!
-        DEBUG(putchar(' '));
-        DEBUG(serial_hex8(ch));
+        TRACE(putchar(' '));
+        TRACE(serial_hex8(ch));
         ok = write_code(sb, ch);
     }
-    DEBUG(newline());
+    TRACE(newline());
     release(s);
     release(it);
     return ok;
@@ -2077,10 +2091,47 @@ test_encode()
         release(s);
         release(sb);
     }
+
+    v = &v_object_0;
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_object();
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
+    v = new_object();
+    v = object_set(v, new_literal("x"), new_int(1));
+    v = object_set(v, new_literal("y"), new_int(-1));
+    v = object_set(v, new_literal("z"), new_int(0));
+    sb = new_string_builder(octets);
+    if (sb && encode_bose(sb, v)) {
+        s = get_string_built(sb);
+        dump_extended(s);
+        to_JSON(s, 1, MAX_INT);
+        newline();
+        release(s);
+        release(sb);
+    }
+
 }
 
 void
-test_bose()
+test_cal()
 {
     puts("MIN_INT=");
     serial_int32(MIN_INT);
@@ -2089,6 +2140,8 @@ test_bose()
     puts(", MAX_INT=");
     serial_int32(MAX_INT);
     newline();
+
+    assert(false);  // test failure hook
 
     test_number();
 

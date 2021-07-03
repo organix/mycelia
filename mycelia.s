@@ -960,7 +960,7 @@ a_exit:			@ print message, and exit
 	.ascii	"EXIT...\0"	@ 0x18..0x1f: output text
 
 	.text
-	.align 2		@ align to machine word
+	.align 5		@ align to machine word
 	.global panic
 panic:			@ kernel panic!
 	stmdb	sp!, {r0-r3,lr}	@ preserve registers

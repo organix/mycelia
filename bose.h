@@ -85,6 +85,8 @@ extern ACTOR*   new_u32(u32 value);
 extern ACTOR*   new_int(int value);
 extern ACTOR*   new_octets(u8* s, u32 n);
 
+extern void     cal_fail();
+
 /*
  * symbols from `bose.c`
  */

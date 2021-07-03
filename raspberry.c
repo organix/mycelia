@@ -465,7 +465,7 @@ k_start(u32 sp)
     extern ACTOR a_test;
     extern ACTOR a_bench;
     extern ACTOR a_kernel_repl;
-    extern ACTOR a_bose_test;
+    extern ACTOR a_cal_test;
     extern ACTOR a_exit;
 
     // device initialization
@@ -477,7 +477,7 @@ k_start(u32 sp)
     putchar(wait_for_kb());
 
     // display banner
-    serial_puts("mycelia-pi1b 0.3.2 ");
+    serial_puts("mycelia-pi1b 0.3.3 ");
     serial_puts("sp=0x");
     serial_hex32(sp);
 #if 0
@@ -498,7 +498,7 @@ k_start(u32 sp)
         serial_puts("  3. Unit tests"); serial_eol();
         serial_puts("  4. Benchmark"); serial_eol();
         serial_puts("  5. Kernel REPL"); serial_eol();
-        serial_puts("  6. BOSE self-test"); serial_eol();
+        serial_puts("  6. CAL self-test"); serial_eol();
         serial_puts("  9. Exit"); serial_eol();
         // execute selected option
         switch (_getchar()) {
@@ -529,8 +529,8 @@ k_start(u32 sp)
                 break;
             }
             case '6': {
-                mycelia(&sponsor_0, &a_bose_test, 0);
-//                mycelia(&sponsor_2, &a_bose_test, (u32)&dump_event);
+                mycelia(&sponsor_0, &a_cal_test, 0);
+//                mycelia(&sponsor_2, &a_cal_test, (u32)&dump_event);
                 break;
             }
             case '9': {
