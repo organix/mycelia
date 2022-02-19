@@ -68,6 +68,42 @@ typedef enum { /*2#_000*/ /*2#_001*/ /*2#_010*/ /*2#_011*/ /*2#_100*/ /*2#_101*/
 #define INT2SMOL(n) (u8)(n_0 + (n))
 #define SMOL2INT(b) (int)((b) - n_0)
 
+struct cal_value {
+    u32         code_00;
+    u8          byte_04;
+    u8          byte_05;
+    u8          byte_06;
+    u8          byte_07;
+    u32         data_08;
+    u32         data_0c;
+    u32         data_10;
+    u32         data_14;
+    u32         data_18;
+    ACTOR*      beh_1c;
+};
+
+struct cal_extend {
+    u32         data_00;
+    u32         data_04;
+    u32         data_08;
+    u32         data_0c;
+    u32         data_10;
+    u32         data_14;
+    u32         data_18;
+    void*       next_1c;
+};
+
+struct cal_stream {
+    u32         code_00;
+    u32         data_04;
+    u8*         bptr_08;
+    u8*         bptr_0c;
+    u32         data_10;
+    u32         data_14;
+    u32         func_18;
+    ACTOR*      beh_1c;
+};
+
 /*
  * symbols from `cal.s`
  */
@@ -96,6 +132,10 @@ extern int      encode_u32(ACTOR* sb, u32 w);
 extern int      encode_int(ACTOR* sb, int n);
 extern int      encode_bose(ACTOR* sb, ACTOR* v);
 
+extern int      value_equal(ACTOR* a, ACTOR* b);
+extern int      number_compare(ACTOR* a, ACTOR* b);  // MIN_INT = incomparable
+extern int      string_compare(ACTOR* s, ACTOR* t);  // MIN_INT = incomparable
+
 extern ACTOR*   new_string_iterator(ACTOR* s);
 extern u32      read_code(ACTOR* it);  // or EOF
 extern ACTOR*   new_string_builder(u8 prefix);
@@ -114,12 +154,13 @@ extern ACTOR*   read_item(ACTOR* it);  // or NULL
 
 extern int      to_JSON(ACTOR* a, int indent, int limit);
 
-#define number_int(n)               ((int)(((struct example_5*)(n))->data_08))
-#define number_exp(n)               ((int)(((struct example_5*)(n))->data_0c))
-#define number_base(n)              ((int)(((struct example_5*)(n))->data_10))
+#define value_prefix(v)             (((struct cal_value*)(v))->byte_05)
+#define number_int(n)               ((int)(((struct cal_value*)(n))->data_08))
+#define number_exp(n)               ((int)(((struct cal_value*)(n))->data_0c))
+#define number_base(n)              ((int)(((struct cal_value*)(n))->data_10))
 #define new_literal(c_str)          (new_octets((u8*)(c_str), (u32)(sizeof(c_str) - 1)))
-#define get_string_built(sb)        ((ACTOR*)(((struct example_5*)(sb))->data_04))
-#define array_element_count(a)      (((struct example_5*)(a))->data_08 >> 2)
-#define object_property_count(o)    (((struct example_5*)(o))->data_08 >> 3)
+#define get_string_built(sb)        ((ACTOR*)(((struct cal_stream*)(sb))->data_04))
+#define array_element_count(a)      (((struct cal_value*)(a))->data_08 >> 2)
+#define object_property_count(o)    (((struct cal_value*)(o))->data_08 >> 3)
 
 #endif /* _BOSE_H_ */

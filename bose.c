@@ -671,6 +671,89 @@ encode_bose(ACTOR* sb, ACTOR* v)
  * composite data structures
  */
 
+int
+value_equal(ACTOR* a, ACTOR* b)
+{
+    if (a == b) return true;  // identical
+    if ((a == NULL) || (b == NULL)) return false;  // NULL check
+    struct cal_value* x = (struct cal_value*)a;
+    struct cal_value* y = (struct cal_value*)b;
+    if (x->byte_05 == y->byte_05) {
+        u8 prefix = x->byte_05;
+        if (prefix <= object_0) return true;  // false, true, [], {}
+        if (prefix == string_0) return true;  // ""
+        if (prefix >= n_m64) return true;     // smol numbers, null
+        if ((prefix >= p_int_0) && (prefix <= m_base_7)) {
+            return (number_compare(a, b) == 0);
+        }
+        if ((prefix >= octets) && (prefix <= s_encoded)) {
+            return (string_compare(a, b) == 0);
+        }
+        if ((prefix == array) || (prefix == array_n)) {
+            if (x->data_08 != y->data_08) return false;  // size check
+            ACTOR* ai = new_collection_iterator(a);
+            ACTOR* bi = new_collection_iterator(b);
+            if (!ai || !bi) return false;  // fail!
+            ACTOR* av = NULL;
+            ACTOR* bv = NULL;
+            do {
+                av = read_item(ai);
+                bv = read_item(bi);
+                if (!value_equal(av, bv)) return false;
+            } while (av && bv);
+            return true;  // all elements matched!
+        }
+        if ((prefix == object) || (prefix == object_n)) {
+            if (x->data_08 != y->data_08) return false;  // size check
+            ACTOR* it = new_collection_iterator(a);
+            if (!it) return false;  // fail!
+            ACTOR* name = NULL;
+            while ((name = read_item(it)) != NULL) {
+                ACTOR* value = read_item(it);
+                if (!value_equal(value, object_get(b, name))) return false;
+            };
+            return true;  // all properties matched!
+        }
+    }
+    return false;
+}
+
+int
+number_compare(ACTOR* a, ACTOR* b)  // MIN_INT = incomparable
+{
+    if (a == b) return 0;  // identical
+    struct cal_value* x = (struct cal_value*)a;
+    struct cal_value* y = (struct cal_value*)b;
+    if ((x->byte_05 == y->byte_05)
+    &&  (x->byte_06 == y->byte_06)) {
+        u8 prefix = x->byte_05;
+        int size = SMOL2INT(x->byte_06);
+        if ((prefix >= p_int_0) && (prefix <= m_int_7) && (size <= 4)) {
+            return (x->data_08 - y->data_08);
+        }
+    }
+    return MIN_INT;
+}
+
+int
+string_compare(ACTOR* s, ACTOR* t)  // MIN_INT = incomparable
+{
+    int d = 0;  // difference
+    if (s == t) return 0;  // identical
+    ACTOR* si = new_string_iterator(s);
+    if (!si) return MIN_INT;  // fail!
+    ACTOR* ti = new_string_iterator(t);
+    if (!ti) return MIN_INT;  // fail!
+    while (d == 0) {
+        u32 sc = read_code(si);
+        u32 tc = read_code(ti);
+        d = (int)(sc - tc);
+        if ((sc == EOF) || (tc == EOF)) break;  // end of string(s)
+    }
+    return d;
+}
+
+
 ACTOR*
 new_string_iterator(ACTOR* s)
 {
@@ -681,6 +764,7 @@ new_string_iterator(ACTOR* s)
     if (!x) return NULL;  // fail!
     u8* bp = (u8*)s;
     u8 b = *(bp + 0x05);  // prefix
+    // FIXME: handle special case for string_0
     // set decode procedure
     TRACE(puts("new_string_iterator: prefix = "));
     TRACE(serial_hex8(b));
@@ -732,7 +816,7 @@ read_code(ACTOR* it)
         x->data_08 = (u32)p;  // update start
         if (k == 0) return ch;  // success.
     }
-    return EOF;  // fail!
+    return EOF;  // end of string
 }
 
 ACTOR*
@@ -799,23 +883,6 @@ write_code(ACTOR* sb, u32 code)
         x->data_08 = (u32)(++p);  // update start
     } while (k > 0);
     return true;  // success.
-}
-
-int
-string_compare(ACTOR* s, ACTOR* t)
-{
-    int d = 0;  // difference
-    ACTOR* si = new_string_iterator(s);
-    if (!si) return MIN_INT;  // fail!
-    ACTOR* ti = new_string_iterator(t);
-    if (!ti) return MIN_INT;  // fail!
-    while (d == 0) {
-        u32 sc = read_code(si);
-        u32 tc = read_code(ti);
-        d = (int)(sc - tc);
-        if ((sc == EOF) || (tc == EOF)) break;  // end of string(s)
-    }
-    return d;
 }
 
 ACTOR*
@@ -2170,6 +2237,12 @@ test_cal()
     puts(", MAX_INT=");
     serial_int32(MAX_INT);
     newline();
+
+    puts("sizeof(struct cal_value) = ");
+    serial_dec32(sizeof(struct cal_value));
+    newline();
+    assert(sizeof(struct cal_value) == sizeof(struct cal_extend));
+    assert(sizeof(struct cal_extend) == sizeof(struct cal_stream));
 
     test_number();
 
