@@ -1,7 +1,7 @@
 #
 # Makefile for mycelia
 #
-# Copyright 2014 Dale Schumacher, Tristan Slominski
+# Copyright 2014-2022 Dale Schumacher, Tristan Slominski
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,6 +55,9 @@ kernel.img: loadmap $(KOBJS)
 .c.o:
 	$(CC) -c -o $@ $<
 
+quartet: quartet.c
+	cc $< -o $@
+
 clean:
 	rm -f *.o
 	rm -f *.bin
@@ -63,4 +66,4 @@ clean:
 	rm -f *.list
 	rm -f *.img
 	rm -f *~ core
-
+	rm -f quartet
