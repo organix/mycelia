@@ -44,7 +44,7 @@ Consistent special meanings are given to r10-r15.
 
 All computation is driven by dispatching events.
 An event designates a target actor and
-up 7 words of additional message content.
+up to 7 words of additional message content.
 When the target actor's behavior begins executing,
 r10 (sl) will indicate the sponsor of the computation,
 r11 (fp) will point to the base of the event block, and
@@ -83,8 +83,8 @@ is often the customer (an actor) to whom a reply may be directed.
 The second word of the message (at offset 0x08) is usually the first parameter.
 In the case that an actor may report success or failure,
 two customers are provided.
-The ok customer (at offset 0x04) for success/true results,
-and the fail customer (at offet 0x08) for failure/false results.
+The _ok_ customer (at offset 0x04) for success/true results,
+and the _fail_ customer (at offet 0x08) for failure/false results.
 Additional parameters may follow starting at offset 0x0c.
 
 ## Actor Structure
