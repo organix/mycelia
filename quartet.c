@@ -18,6 +18,18 @@
  * Values may be saved in the dictionary by binding them to a word.
  * All dictionary changes are local to the executing behavior.
  *
+ * The data stack contains universal integer values,
+ * usually interpreted as signed 2's-complement numbers.
+ * Numeric operations do not overflow,
+ * but rather wrap around forming a ring,
+ * which may be interpreted as either signed or unsigned.
+ * The number of bits is not specified,
+ * but is often the native machine word size
+ * (e.g.: 32 or 64 bits).
+ *
+ * The quartet program `TRUE 1 LSR DUP NOT . .`
+ * prints the minimum and maximum signed values.
+ *
  * See further [https://github.com/organix/mycelia/blob/master/quartet.md]
  */
 
@@ -26,17 +38,17 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>  // for intptr_t, uintptr_t, uint8_t, uint16_t, etc.
-#include <inttypes.h>  // for PRIiPTR, PRIuPTR, PRIxPTR, etc.
+#include <inttypes.h>  // for PRIiPTR, PRIuPTR, PRIXPTR, etc.
 #include <ctype.h>
 
 #define DEBUG(x)   // include/exclude debug instrumentation
 #define XDEBUG(x) x // include/exclude extra debugging
 
-// universal Integer type (signed 2's-complement 32/64-bit)
+// universal Integer type (32/64-bit signed 2's-complement)
 typedef intptr_t int_t;
 #define INT(n) ((int_t)(n))
 
-// universal Natural type (unsigned 2's-complement 32/64-bit)
+// universal Natural type (32/64-bit unsigned 2's-complement)
 typedef uintptr_t nat_t;
 #define NAT(n) ((nat_t)(n))
 
@@ -246,7 +258,7 @@ void print_stack() {
 
 static void print_detail(char *label, int_t value) {
     fprintf(stderr, "%s:", label);
-    fprintf(stderr, " d=%"PRIdPTR" u=%"PRIuPTR" x=%"PRIxPTR"",
+    fprintf(stderr, " d=%"PRIdPTR" u=%"PRIuPTR" x=%"PRIXPTR"",
         value, value, value);
     if (is_word(value)) {
         fprintf(stderr, " s=\"%s\"", PTR(value));
@@ -294,7 +306,7 @@ int_t read_word(char *buf, size_t buf_sz) {
     return TRUE;
 }
 
-static char *base36digit = "0123456789abcdefghijklmnopqrstuvwxyz";
+static char *base36digit = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 int_t word_to_number(int_t *value_out, int_t word) {
     DEBUG(fprintf(stderr, "> word_to_number\n"));
     // attempt to parse word as a number
@@ -327,7 +339,7 @@ int_t word_to_number(int_t *value_out, int_t word) {
             n = 0;
             c = *s++;
         }
-        char *p = strchr(base36digit, tolower(c));
+        char *p = strchr(base36digit, toupper(c));
         if (p == NULL) {
             DEBUG(fprintf(stderr, "< word_to_number = FALSE (non-digit)\n"));
             return FALSE;  // non-digit character
@@ -807,27 +819,27 @@ void smoke_test() {
         pos, zero, neg);
     printf("\"%%u\": pos=%"PRIuPTR" zero=%"PRIuPTR" neg=%"PRIuPTR"\n",
         pos, zero, neg);
-    printf("\"%%x\": pos=%"PRIxPTR" zero=%"PRIxPTR" neg=%"PRIxPTR"\n",
+    printf("\"%%x\": pos=%"PRIXPTR" zero=%"PRIXPTR" neg=%"PRIXPTR"\n",
         pos, zero, neg);
-    printf("neg(x) LSL = %"PRIxPTR"\n",
+    printf("neg(x) LSL = %"PRIXPTR"\n",
         LSL(neg, 1));
-    printf("neg(x) LSR = %"PRIxPTR"\n",
+    printf("neg(x) LSR = %"PRIXPTR"\n",
         LSR(neg, 1));
-    printf("neg(x) ASR = %"PRIxPTR"\n",
+    printf("neg(x) ASR = %"PRIXPTR"\n",
         ASR(neg, 1));
-    printf("neg(x) LSR LSL = %"PRIxPTR"\n",
+    printf("neg(x) LSR LSL = %"PRIXPTR"\n",
         LSL(LSR(neg, 1), 1));
-    printf("neg(x) LSR LSL ASR = %"PRIxPTR"\n",
+    printf("neg(x) LSR LSL ASR = %"PRIXPTR"\n",
         ASR(LSL(LSR(neg, 1), 1), 1));
-    printf("neg(x) LSR NOT = %"PRIxPTR"\n",
+    printf("neg(x) LSR NOT = %"PRIXPTR"\n",
         NOT(LSR(neg, 1)));
-    printf("neg(x) LSL NOT = %"PRIxPTR"\n",
+    printf("neg(x) LSL NOT = %"PRIXPTR"\n",
         NOT(LSL(neg, 1)));
-    printf("pos(x) LTZ = %"PRIxPTR" EQZ = %"PRIxPTR" GTZ = %"PRIxPTR"\n",
+    printf("pos(x) LTZ = %"PRIXPTR" EQZ = %"PRIXPTR" GTZ = %"PRIXPTR"\n",
         LTZ(pos), EQZ(pos), GTZ(pos));
-    printf("zero(x) LTZ = %"PRIxPTR" EQZ = %"PRIxPTR" GTZ = %"PRIxPTR"\n",
+    printf("zero(x) LTZ = %"PRIXPTR" EQZ = %"PRIXPTR" GTZ = %"PRIXPTR"\n",
         LTZ(zero), EQZ(zero), GTZ(zero));
-    printf("neg(x) LTZ = %"PRIxPTR" EQZ = %"PRIxPTR" GTZ = %"PRIxPTR"\n",
+    printf("neg(x) LTZ = %"PRIXPTR" EQZ = %"PRIXPTR" GTZ = %"PRIXPTR"\n",
         LTZ(neg), EQZ(neg), GTZ(neg));
 
     printf("word_list[%zu] = \"%s\"\n",
@@ -836,11 +848,11 @@ void smoke_test() {
         MAX_WORDS-1, word_list[MAX_WORDS-1]);
     int_t cmp;
     if (lookup_word(&cmp, INT("COMPARE"))) {
-        printf("lookup_word(\"COMPARE\") = %"PRIxPTR" = \"%s\"\n", cmp, PTR(cmp));
+        printf("lookup_word(\"COMPARE\") = %"PRIXPTR" = \"%s\"\n", cmp, PTR(cmp));
     }
     int_t find = INT(lookup_word);
-    printf("lookup_word = %"PRIxPTR"\n", find);
-    printf("lookup_def = %"PRIxPTR"\n", INT(lookup_def));
+    printf("lookup_word = %"PRIXPTR"\n", find);
+    printf("lookup_def = %"PRIXPTR"\n", INT(lookup_def));
     printf("is_word(TRUE) = %"PRIdPTR"\n", is_word(TRUE));
     printf("is_word(FALSE) = %"PRIdPTR"\n", is_word(FALSE));
     printf("is_word(word_list[0]) = %"PRIdPTR"\n", is_word(INT(word_list[0])));
@@ -854,67 +866,67 @@ void smoke_test() {
     int_t ok;
     word = INT("0");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("-1");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("0123456789");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("16#0123456789ABCdef");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("8#0123456789abcDEF");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("8#01234567");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR" num(o)=%lo\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR" num(o)=%lo\n",
         ok, PTR(word), num, num, num, (unsigned long)num);
     word = INT("-10#2");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("2#10");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("#");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("#1");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("1#");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("2#");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("-16#F");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("2#1000_0000");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
     word = INT("36#xyzzy");
     ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIxPTR"\n",
+    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
         ok, PTR(word), num, num, num);
 }
 

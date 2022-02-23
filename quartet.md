@@ -27,45 +27,83 @@ All dictionary changes are local to the executing behavior.
 
 The following primitive definitions are assumed to be present in the initial dictionary.
 
+### Actor Primitives
+
 Input                | Operation       | Output                  | Description
 ---------------------|-----------------|-------------------------|------------
 _block_              | `CREATE`        | _actor_                 | Create a new actor with _block_ behavior
 ..._message_ _actor_ | `SEND`          | &mdash;                 | Send _message_ to _actor_
 _block_              | `BECOME`        | &mdash;                 | Replace current actor's behavior with _block_
 &mdash;              | `SELF`          | _actor_                 | Push the current actor's address on the data stack
+
+### Dictionary and Execution
+
+Input                | Operation       | Output                  | Description
+---------------------|-----------------|-------------------------|------------
 _value_              | `=` _word_      | &mdash;                 | Bind _value_ to _word_ in the current dictionary
 &mdash;              | `'` _word_      | _word_                  | Push (literal) _word_ on the data stack
 &mdash;              | `@` _word_      | _value_                 | Lookup _value_ bound to _word_ in the current dictionary
 &mdash;              | `[` ... `]`     | _block_                 | Create block (quoted) value
 [ ...                | `(` ... `)`     | [ ... _value_           | Immediate (unquoted) value
+
+### Boolean Conditionals
+
+Input                | Operation       | Output                  | Description
+---------------------|-----------------|-------------------------|------------
 &mdash;              | `TRUE`          | TRUE                    | All bits set (1)
 &mdash;              | `FALSE`         | FALSE                   | All bits clear (0)
 _bool_               | `IF` [ ] `ELSE` [ ] | &mdash;             | Conditional execution of blocks
+
+### Stack Manipulation
+
+Input                | Operation       | Output                  | Description
+---------------------|-----------------|-------------------------|------------
 _v_                  | `DROP`          | &mdash;                 | Drop the top element
 _v_                  | `DUP`           | _v_ _v_                 | Duplicate the top element (same as `1 PICK`)
 _v_<sub>2</sub> _v_<sub>1</sub> | `SWAP` | _v_<sub>1</sub> _v_<sub>2</sub> | Swap the top two elements (same as `2 ROLL`)
 _v_<sub>n</sub> ... _v_<sub>1</sub> _n_ | `PICK` | _v_<sub>n</sub> ... _v_<sub>1</sub> _v_<sub>n</sub> | Duplicate element _n_
 _v_<sub>n</sub> ... _v_<sub>1</sub> _n_ | `ROLL` | _v_<sub>n-1</sub> ... _v_<sub>1</sub> _v_<sub>n</sub> | Rotate stack elements (negative for reverse)
 &mdash;              | `DEPTH`         | _n_                     | Number of items on the data stack
+
+### Numeric and Logical Operations
+
+Input                | Operation       | Output                  | Description
+---------------------|-----------------|-------------------------|------------
+_n_                  | `NEG`           | -_n_                    | Numeric negation (2's complement)
 _n_ _m_              | `ADD`           | _n+m_                   | Numeric addition
+_n_ _m_              | `SUB`           | _n-m_                   | Numeric subtraction
 _n_ _m_              | `MUL`           | _n*m_                   | Numeric multiplication
 _n_ _m_              | `COMPARE`       | _n-m_                   | Compare numeric values
 _n_                  | `LT?`           | _bool_                  | `TRUE` if _n_ < 0; otherwise `FALSE`
 _n_                  | `EQ?`           | _bool_                  | `TRUE` if _n_ = 0; otherwise `FALSE`
 _n_                  | `GT?`           | _bool_                  | `TRUE` if _n_ > 0; otherwise `FALSE`
-_n_                  | `NOT`           | ~_n_                    | Bitwise negation
+_n_                  | `NOT`           | ~_n_                    | Bitwise not (inversion)
 _n_ _m_              | `AND`           | _n_&_m_                 | Bitwise and
 _n_ _m_              | `OR`            | _n_\|_m_                | Bitwise or
 _n_ _m_              | `XOR`           | _n_^_m_                 | Bitwise xor
 _n_ _m_              | `LSL`           | _n_<<_m_                | Logical shift left
 _n_ _m_              | `LSR`           | _n_>>_m_                | Logical shift right
 _n_ _m_              | `ASR`           | _n_>>_m_                | Arithmetic shift right (sign-extend)
+
+### Direct Memory Access
+
+Input                | Operation       | Output                  | Description
+---------------------|-----------------|-------------------------|------------
 _address_            | `?`             | _value_                 | Load _value_ from _address_
 _value_ _address_    | `!`             | &mdash;                 | Store _value_ into _address_
 _address_            | `??`            | _value_                 | Atomic load _value_ from volatile _address_
 _value_ _address_    | `!!`            | &mdash;                 | Atomic store _value_ into volatile _address_
 
-### Example
+
+### Interactive Features
+
+Input                | Operation       | Output                  | Description
+---------------------|-----------------|-------------------------|------------
+_code_               | `EMIT`          | &mdash;                 | Print ascii character _code_
+&mdash;              | `...`           | &mdash;                 | Print stack contents (non-destructive)
+_value_              | `.`             | &mdash;                 | Print _value_
+
+## Example
 
 ```
 [ ] = sink_beh 
@@ -92,7 +130,7 @@ _value_ _address_    | `!!`            | &mdash;                 | Atomic store 
 ] DUP = serial_write_beh CREATE = serial_write
 
 [ # octet
-  DUP = octet '\r' COMPARE
+  DUP = octet 16#0D COMPARE
   EQ? IF [
     ' Stop dispatcher SEND
   ]
