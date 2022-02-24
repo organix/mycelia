@@ -69,6 +69,7 @@ _v_<sub>n</sub> ... _v_<sub>1</sub> _n_ | `ROLL` | _v_<sub>n-1</sub> ... _v_<sub
 
 Input                | Operation       | Output                  | Description
 ---------------------|-----------------|-------------------------|------------
+&mdash;              | `INF`           | INF                     | Infinity/Undefined (only MSB set)
 _n_                  | `NEG`           | -_n_                    | Numeric negation (2's complement)
 _n_ _m_              | `ADD`           | _n+m_                   | Numeric addition
 _n_ _m_              | `SUB`           | _n-m_                   | Numeric subtraction
@@ -103,6 +104,7 @@ Input                | Operation       | Output                  | Description
 &mdash;              | `WORDS`         | &mdash;                 | Print list of defined words
 _code_               | `EMIT`          | &mdash;                 | Print ascii character _code_
 &mdash;              | `...`           | &mdash;                 | Print stack contents (non-destructive)
+_value_              | `.?`            | &mdash;                 | Print internal representation of _value_
 _value_              | `.`             | &mdash;                 | Print _value_
 
 ## Example

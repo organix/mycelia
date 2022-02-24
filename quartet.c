@@ -64,6 +64,9 @@ typedef int_t (*func_t)(int_t);
 #define TRUE INT(-1)
 #define FALSE INT(0)
 
+// universal Infinity/Undefined
+#define INF INT(~(NAT(-1)>>1))
+
 #define NEG(n)   (-(n))
 #define ADD(n,m) ((n)+(m))
 #define SUB(n,m) ((n)-(m))
@@ -193,6 +196,7 @@ char word_list[MAX_WORDS][CACHE_LINE_SZ] = {
     "PICK",
     "ROLL",
     "DEPTH",
+    "INF",
     "NEG",
     "ADD",
     "SUB",
@@ -220,8 +224,8 @@ char word_list[MAX_WORDS][CACHE_LINE_SZ] = {
     ".",
     ""
 };
-size_t ro_words = 46;  // limit of read-only words
-size_t rw_words = 46;  // limit of read/write words
+size_t ro_words = 47;  // limit of read-only words
+size_t rw_words = 47;  // limit of read/write words
 
 int_t is_word(int_t value) {
 //    if (NAT(value - INT(word_list)) < sizeof(word_list)) {
@@ -240,7 +244,9 @@ void print_ascii(int_t code) {
 void print_block(int_t block);  // FORWARD DECLARATION
 
 void print_value(int_t value) {
-    if (is_word(value)) {
+    if (value == INF) {
+        printf("INF");
+    } else if (is_word(value)) {
         printf("%s", PTR(value));
     } else if (is_block(value)) {
         print_block(value);
@@ -582,11 +588,26 @@ int_t prim_PICK() {
 }
 int_t prim_ROLL() { POP1ARG(n); return data_roll(n); }
 int_t prim_DEPTH() { return data_push(INT(data_top)); }
+int_t prim_INF() { return data_push(INF); }
 int_t prim_NEG() { POP1PUSH1(n, NEG); }
 int_t prim_ADD() { POP2PUSH1(n, m, ADD); }
 int_t prim_SUB() { POP2PUSH1(n, m, SUB); }
 int_t prim_MUL() { POP2PUSH1(n, m, MUL); }
-int_t prim_DIVMOD() { POP2ARG(value, addr); return panic("unimplemented DIVMOD"); }
+int_t prim_DIVMOD() {  // n = (m * q) + r
+    POP2ARG(n, m);
+    int_t q = INF;
+    int_t r = n;
+    if ((n == INF) && (m == -1)) {
+        q = INF;
+        r = 0;
+    } else if (m != 0) {
+        q = n / m;
+        r = n % m;
+    }
+    if (!data_push(q)) return FALSE;
+    return data_push(r);
+    // [ 3 ROLL MUL ADD ] = EUCLID  # n m DIVMOD m EUCLID -- n
+}
 int_t prim_CMP() { POP2PUSH1(n, m, CMP); }
 int_t prim_LTZ() { POP1PUSH1(n, LTZ); }
 int_t prim_EQZ() { POP1PUSH1(n, EQZ); }
@@ -650,7 +671,7 @@ int_t word_def[MAX_WORDS] = {
     INT(prim_BECOME),
     INT(prim_SELF),
     INT(prim_Bind),
-    INT(prim_Literal),
+    INT(prim_Literal),  // [5]
     INT(prim_Lookup),
     INT(prim_OpenQuote),  // [7]
     INT(prim_CloseQuote),  // [8]
@@ -666,6 +687,7 @@ int_t word_def[MAX_WORDS] = {
     INT(prim_PICK),
     INT(prim_ROLL),
     INT(prim_DEPTH),
+    INF, // INT(prim_INF),  // FIXME: could be just literal INF?
     INT(prim_NEG),
     INT(prim_ADD),
     INT(prim_SUB),
@@ -694,6 +716,7 @@ int_t word_def[MAX_WORDS] = {
     FALSE
 };
 // syntactic marker words
+int_t word_Literal = INT(&word_list[5]);
 int_t word_OpenQuote = INT(&word_list[7]);
 int_t word_CloseQuote = INT(&word_list[8]);
 int_t word_OpenUnquote = INT(&word_list[9]);
