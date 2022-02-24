@@ -197,6 +197,7 @@ char word_list[MAX_WORDS][CACHE_LINE_SZ] = {
     "ADD",
     "SUB",
     "MUL",
+    "DIVMOD",
     "COMPARE",
     "LT?",
     "EQ?",
@@ -212,17 +213,19 @@ char word_list[MAX_WORDS][CACHE_LINE_SZ] = {
     "!",
     "??",
     "!!",
+    "WORDS",
     "EMIT",
     "...",
     ".?",
     ".",
     ""
 };
-size_t num_words = 44;
+size_t ro_words = 46;  // limit of read-only words
+size_t rw_words = 46;  // limit of read/write words
 
 int_t is_word(int_t value) {
 //    if (NAT(value - INT(word_list)) < sizeof(word_list)) {
-    if (NAT(value - INT(word_list)) <= (num_words * CACHE_LINE_SZ)) {
+    if (NAT(value - INT(word_list)) <= (rw_words * CACHE_LINE_SZ)) {
         return TRUE;
     }
     return FALSE;
@@ -364,7 +367,7 @@ int_t word_to_number(int_t *value_out, int_t word) {
 }
 
 int_t parse_word(int_t *word_out) {
-    ptr_t word_buf = word_list[num_words];
+    ptr_t word_buf = word_list[rw_words];
     if (!read_word(word_buf, CACHE_LINE_SZ)) return FALSE;
     int_t word = INT(word_buf);
     word_to_number(&word, word);  // attempt to parse word as a number
@@ -372,9 +375,27 @@ int_t parse_word(int_t *word_out) {
     return TRUE;
 }
 
-int_t lookup_word(int_t *word_out, int_t word) {
-    //for (size_t n = 0; (n < num_words); ++n) {  // search from *start* of dictionary
-    for (size_t n = num_words; (n-- > 0); ) {  // search from *end* of dictionary
+ptr_t next_word_ptr = PTR(0);
+int_t next_word(int_t *word_out) {
+    if (next_word_ptr) {
+        // read from block data
+        return panic("block scope not implemented");
+    }
+    // read from input stream
+    return parse_word(word_out);
+}
+
+int_t create_word(int_t *word_out, int_t word) {
+    if (rw_words >= MAX_WORDS) return panic("too many words");
+    if (PTR(word) != word_list[rw_words]) return panic("can only create last word read");
+    ++rw_words;  // create new word
+    DEBUG(print_detail("  create_word", word));
+    *word_out = word;
+    return TRUE;
+}
+
+int_t find_ro_word(int_t *word_out, int_t word) {
+    for (size_t n = rw_words; (n-- > 0); ) {  // search from _end_ of dictionary
         int_t memo = INT(word_list[n]);
         if (strcmp(PTR(word), PTR(memo)) == 0) {
             *word_out = memo;
@@ -384,16 +405,25 @@ int_t lookup_word(int_t *word_out, int_t word) {
     return FALSE;
 }
 
-int_t intern_word(int_t *word_out, int_t word) {
-    if (num_words >= MAX_WORDS) return panic("too many words");
-    if (PTR(word) != word_list[num_words]) return panic("can only intern last word read");
-    if (!lookup_word(word_out, word)) {
-        // new word
-        ++num_words;
-        *word_out = word;
+int_t get_ro_word(int_t *word_out, int_t word) {
+    if (find_ro_word(word_out, word)) return TRUE;  // word already exists
+    return create_word(word_out, word);
+}
+
+int_t find_rw_word(int_t *word_out, int_t word) {
+    for (size_t n = rw_words; (n-- >= ro_words); ) {  // search only read/write words
+        int_t memo = INT(word_list[n]);
+        if (strcmp(PTR(word), PTR(memo)) == 0) {
+            *word_out = memo;
+            return TRUE;
+        }
     }
-    DEBUG(print_detail("  intern_word", *word_out));
-    return TRUE;
+    return FALSE;
+}
+
+int_t get_rw_word(int_t *word_out, int_t word) {
+    if (find_rw_word(word_out, word)) return TRUE;  // word already exists
+    return create_word(word_out, word);
 }
 
 /*
@@ -480,21 +510,21 @@ int_t prim_SELF() { return panic("unimplemented SELF"); }
 int_t prim_Bind() {
     POP1ARG(value);
     int_t word;
-    if (!parse_word(&word)) return FALSE;
+    if (!next_word(&word)) return FALSE;
     if (!is_word(word)) return FALSE;
-    if (!intern_word(&word, word)) return FALSE;
+    if (!get_rw_word(&word, word)) return FALSE;
     return bind_def(word, value);
 }
 int_t prim_Literal() {
     int_t word;
-    if (!parse_word(&word)) return FALSE;
-    if (!is_word(word)) return FALSE;
-    if (!intern_word(&word, word)) return FALSE;
+    if (!next_word(&word)) return FALSE;
+    //if (!is_word(word)) return FALSE;  // FIXME: numeric literals are ok too...
+    if (!get_ro_word(&word, word)) return FALSE;
     return data_push(word);
 }
 int_t prim_Lookup() {
     int_t word;
-    if (!parse_word(&word)) return FALSE;
+    if (!next_word(&word)) return FALSE;
     if (!is_word(word)) return FALSE;
     int_t value;
     if (!get_def(&value, word)) return FALSE;
@@ -556,6 +586,7 @@ int_t prim_NEG() { POP1PUSH1(n, NEG); }
 int_t prim_ADD() { POP2PUSH1(n, m, ADD); }
 int_t prim_SUB() { POP2PUSH1(n, m, SUB); }
 int_t prim_MUL() { POP2PUSH1(n, m, MUL); }
+int_t prim_DIVMOD() { POP2ARG(value, addr); return panic("unimplemented DIVMOD"); }
 int_t prim_CMP() { POP2PUSH1(n, m, CMP); }
 int_t prim_LTZ() { POP1PUSH1(n, LTZ); }
 int_t prim_EQZ() { POP1PUSH1(n, EQZ); }
@@ -573,6 +604,25 @@ int_t prim_Store() { POP2ARG(value, addr); return panic("unimplemented !"); }
 int_t prim_LoadAtomic() { POP1ARG(addr); return panic("unimplemented ??"); }
 int_t prim_StoreAtomic() { POP2ARG(value, addr); return panic("unimplemented !!"); }
 // interactive extentions
+int_t prim_WORDS() {
+    size_t i;
+    printf("ro:");
+    for (i = 0; i < ro_words; ++i) {
+        print_ascii(' ');
+        print_value(INT(word_list[i]));
+    }
+    print_ascii('\n');
+    if (ro_words < rw_words) {
+        printf("rw:");
+        for (i = ro_words; i < rw_words; ++i) {
+            print_ascii(' ');
+            print_value(INT(word_list[i]));
+        }
+        print_ascii('\n');
+    }
+    fflush(stdout);
+    return TRUE;
+}
 int_t prim_EMIT() { POP1ARG(code); print_ascii(code); return TRUE; }
 int_t prim_PrintStack() {
     print_stack();
@@ -620,6 +670,7 @@ int_t word_def[MAX_WORDS] = {
     INT(prim_ADD),
     INT(prim_SUB),
     INT(prim_MUL),
+    INT(prim_DIVMOD),
     INT(prim_CMP),
     INT(prim_LTZ),
     INT(prim_EQZ),
@@ -635,6 +686,7 @@ int_t word_def[MAX_WORDS] = {
     INT(prim_Store),
     INT(prim_LoadAtomic),
     INT(prim_StoreAtomic),
+    INT(prim_WORDS),
     INT(prim_EMIT),
     INT(prim_PrintStack),
     INT(prim_PrintDetail),
@@ -651,7 +703,7 @@ int_t word_ELSE = INT(&word_list[14]);
 
 int_t lookup_def(int_t *value_out, int_t word) {
     size_t index = NAT(word - INT(word_list)) / CACHE_LINE_SZ;
-    if (index < num_words) {
+    if (index < rw_words) {
         *value_out = INT(word_def[index]);
         return TRUE;
     }
@@ -659,7 +711,7 @@ int_t lookup_def(int_t *value_out, int_t word) {
 }
 
 int_t get_def(int_t *value_out, int_t word) {
-    if (!lookup_word(&word, word)) {
+    if (!find_ro_word(&word, word)) {
         // error on undefined word
         print_value(word);
         fflush(stdout);
@@ -670,13 +722,13 @@ int_t get_def(int_t *value_out, int_t word) {
 
 int_t bind_def(int_t word, int_t value) {
     size_t index = NAT(word - INT(word_list)) / CACHE_LINE_SZ;
-    if (index < num_words) {
+    if ((index >= ro_words) && (index < rw_words)) {
         word_def[index] = value;
         return TRUE;
     }
     print_value(word);
     fflush(stdout);
-    return panic("bind bad word");
+    return error("bind failed");
 }
 
 /*
@@ -728,7 +780,7 @@ int_t interpret() {
 
         // read next word from input
         int_t word;
-        if (!parse_word(&word)) {
+        if (!next_word(&word)) {
             break;  // no more words...
         }
         XDEBUG(print_detail("  interpret (word)", word));
@@ -751,14 +803,14 @@ int_t compile() {
 
         // read next word from input
         int_t word;
-        if (!parse_word(&word)) {
+        if (!next_word(&word)) {
             break;  // no more words...
         }
         XDEBUG(print_detail("  compile (word)", word));
 
         // compile word reference
         if (is_word(word)) {
-            if (!intern_word(&word, word)) return FALSE;
+            if (!get_ro_word(&word, word)) return FALSE;
             XDEBUG(print_detail("  compile (intern)", word));
 
             // check for special compile-time behavior
@@ -843,21 +895,21 @@ void smoke_test() {
         LTZ(neg), EQZ(neg), GTZ(neg));
 
     printf("word_list[%zu] = \"%s\"\n",
-        num_words-1, word_list[num_words-1]);
+        ro_words-1, word_list[ro_words-1]);
     printf("word_list[%zu] = \"%s\"\n",
         MAX_WORDS-1, word_list[MAX_WORDS-1]);
     int_t cmp;
-    if (lookup_word(&cmp, INT("COMPARE"))) {
-        printf("lookup_word(\"COMPARE\") = %"PRIXPTR" = \"%s\"\n", cmp, PTR(cmp));
+    if (find_ro_word(&cmp, INT("COMPARE"))) {
+        printf("find_ro_word(\"COMPARE\") = %"PRIXPTR" = \"%s\"\n", cmp, PTR(cmp));
     }
-    int_t find = INT(lookup_word);
-    printf("lookup_word = %"PRIXPTR"\n", find);
+    int_t find = INT(find_ro_word);
+    printf("find_ro_word = %"PRIXPTR"\n", find);
     printf("lookup_def = %"PRIXPTR"\n", INT(lookup_def));
     printf("is_word(TRUE) = %"PRIdPTR"\n", is_word(TRUE));
     printf("is_word(FALSE) = %"PRIdPTR"\n", is_word(FALSE));
     printf("is_word(word_list[0]) = %"PRIdPTR"\n", is_word(INT(word_list[0])));
-    printf("is_word(word_list[%zu]) = %"PRIdPTR"\n", num_words-1, is_word(INT(word_list[num_words-1])));
-    printf("is_word(word_list[num_words]) = %"PRIdPTR"\n", is_word(INT(word_list[num_words])));
+    printf("is_word(word_list[%zu]) = %"PRIdPTR"\n", ro_words-1, is_word(INT(word_list[ro_words-1])));
+    printf("is_word(word_list[ro_words]) = %"PRIdPTR"\n", is_word(INT(word_list[ro_words])));
     printf("is_word(word_list[%zu]) = %"PRIdPTR"\n", MAX_WORDS-1, is_word(INT(word_list[MAX_WORDS-1])));
     printf("is_word(word_list[MAX_WORDS]) = %"PRIdPTR"\n", is_word(INT(word_list[MAX_WORDS])));
 

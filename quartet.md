@@ -36,7 +36,7 @@ _block_              | `CREATE`        | _actor_                 | Create a new 
 _block_              | `BECOME`        | &mdash;                 | Replace current actor's behavior with _block_
 &mdash;              | `SELF`          | _actor_                 | Push the current actor's address on the data stack
 
-### Dictionary and Execution
+### Dictionary and Quoting
 
 Input                | Operation       | Output                  | Description
 ---------------------|-----------------|-------------------------|------------
@@ -73,6 +73,7 @@ _n_                  | `NEG`           | -_n_                    | Numeric negat
 _n_ _m_              | `ADD`           | _n+m_                   | Numeric addition
 _n_ _m_              | `SUB`           | _n-m_                   | Numeric subtraction
 _n_ _m_              | `MUL`           | _n*m_                   | Numeric multiplication
+_n_ _m_              | `DIVMOD`        | _q_ _r_                 | Numeric division/modulus
 _n_ _m_              | `COMPARE`       | _n-m_                   | Compare numeric values
 _n_                  | `LT?`           | _bool_                  | `TRUE` if _n_ < 0; otherwise `FALSE`
 _n_                  | `EQ?`           | _bool_                  | `TRUE` if _n_ = 0; otherwise `FALSE`
@@ -99,6 +100,7 @@ _value_ _address_    | `!!`            | &mdash;                 | Atomic store 
 
 Input                | Operation       | Output                  | Description
 ---------------------|-----------------|-------------------------|------------
+&mdash;              | `WORDS`         | &mdash;                 | Print list of defined words
 _code_               | `EMIT`          | &mdash;                 | Print ascii character _code_
 &mdash;              | `...`           | &mdash;                 | Print stack contents (non-destructive)
 _value_              | `.`             | &mdash;                 | Print _value_
