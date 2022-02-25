@@ -83,10 +83,20 @@ typedef int_t (*func_t)(int_t);
 #define LSR(n,m) INT(NAT(n)>>(m))
 #define ASR(n,m) ((n)>>(m))
 
-typedef struct block_hdr {
-    nat_t       len;        // number of int_t in data[]
-    int_t       data[];     // addressable memory
-} block_hdr_t;
+typedef struct block {
+    nat_t       len;                    // number of int_t in data[]
+    int_t       data[];                 // addressable memory
+} block_t;
+
+#define PROC_DECL(name)  int_t name(ptr_t self, ptr_t arg)
+#define MAX_NAME_SZ (4 * sizeof(int_t))         // word buffer size
+typedef struct thunk {
+    PROC_DECL((*proc));                 // executable code pointer
+    int_t       var[3];                 // bound variables
+    char        name[MAX_NAME_SZ];      // NUL-terminated string
+} thunk_t;
+
+#define CACHE_LINE_SZ (sizeof(thunk_t))  // bytes per idealized cache line
 
 int_t is_word(int_t value);  // FORWARD DECLARATION
 int_t is_block(int_t value);  // FORWARD DECLARATION
@@ -171,58 +181,105 @@ int_t data_roll(int_t n) {
  * word dictionary
  */
 
-#define CACHE_LINE_SZ (8 * sizeof(int_t))  // bytes per idealized cache line
+PROC_DECL(prim_Constant);
+PROC_DECL(prim_CREATE);
+PROC_DECL(prim_SEND);
+PROC_DECL(prim_BECOME);
+PROC_DECL(prim_SELF);
+PROC_DECL(prim_Bind);
+PROC_DECL(prim_Literal);
+PROC_DECL(prim_Lookup);
+PROC_DECL(prim_OpenQuote);
+PROC_DECL(prim_CloseQuote);
+PROC_DECL(prim_OpenUnquote);
+PROC_DECL(prim_CloseUnquote);
+PROC_DECL(prim_TRUE);
+PROC_DECL(prim_FALSE);
+PROC_DECL(prim_IF);
+PROC_DECL(prim_ELSE);
+PROC_DECL(prim_DROP);
+PROC_DECL(prim_DUP);
+PROC_DECL(prim_SWAP);
+PROC_DECL(prim_PICK);
+PROC_DECL(prim_ROLL);
+PROC_DECL(prim_DEPTH);
+PROC_DECL(prim_INF);
+PROC_DECL(prim_NEG);
+PROC_DECL(prim_ADD);
+PROC_DECL(prim_SUB);
+PROC_DECL(prim_MUL);
+PROC_DECL(prim_DIVMOD);
+PROC_DECL(prim_CMP);
+PROC_DECL(prim_LTZ);
+PROC_DECL(prim_EQZ);
+PROC_DECL(prim_GTZ);
+PROC_DECL(prim_NOT);
+PROC_DECL(prim_AND);
+PROC_DECL(prim_IOR);
+PROC_DECL(prim_XOR);
+PROC_DECL(prim_LSL);
+PROC_DECL(prim_LSR);
+PROC_DECL(prim_ASR);
+PROC_DECL(prim_Load);
+PROC_DECL(prim_Store);
+PROC_DECL(prim_LoadAtomic);
+PROC_DECL(prim_StoreAtomic);
+PROC_DECL(prim_WORDS);
+PROC_DECL(prim_EMIT);
+PROC_DECL(prim_PrintStack);
+PROC_DECL(prim_PrintDetail);
+PROC_DECL(prim_Print);
 
 #define MAX_WORDS ((size_t)(128))
-char word_list[MAX_WORDS][CACHE_LINE_SZ] = {
-    "CREATE",
-    "SEND",
-    "BECOME",
-    "SELF",
-    "=",
-    "'",
-    "@",
-    "[",
-    "]",
-    "(",
-    ")",
-    "TRUE",
-    "FALSE",
-    "IF",
-    "ELSE",
-    "DROP",
-    "DUP",
-    "SWAP",
-    "PICK",
-    "ROLL",
-    "DEPTH",
-    "INF",
-    "NEG",
-    "ADD",
-    "SUB",
-    "MUL",
-    "DIVMOD",
-    "COMPARE",
-    "LT?",
-    "EQ?",
-    "GT?",
-    "NOT",
-    "AND",
-    "OR",
-    "XOR",
-    "LSL",
-    "LSR",
-    "ASR",
-    "?",
-    "!",
-    "??",
-    "!!",
-    "WORDS",
-    "EMIT",
-    "...",
-    ".?",
-    ".",
-    ""
+//char word_list[MAX_WORDS][CACHE_LINE_SZ] = {
+thunk_t word_list[MAX_WORDS] = {
+    { .proc = prim_CREATE, .name = "CREATE" },
+    { .proc = prim_SEND, .name = "SEND" },
+    { .proc = prim_BECOME, .name = "BECOME" },
+    { .proc = prim_SELF, .name = "SELF" },
+    { .proc = prim_Bind, .name = "=" },
+    { .proc = prim_Literal, .name = "'" },
+    { .proc = prim_Lookup, .name = "@" },
+    { .proc = prim_OpenQuote, .name = "[" },
+    { .proc = prim_CloseQuote, .name = "]" },
+    { .proc = prim_OpenUnquote, .name = "(" },
+    { .proc = prim_CloseUnquote, .name = ")" },
+    { .proc = prim_Constant, .var = { TRUE }, .name = "TRUE" },
+    { .proc = prim_Constant, .var = { FALSE }, .name = "FALSE" },
+    { .proc = prim_IF, .name = "IF" },
+    { .proc = prim_ELSE, .name = "ELSE" },
+    { .proc = prim_DROP, .name = "DROP" },
+    { .proc = prim_DUP, .name = "DUP" },
+    { .proc = prim_SWAP, .name = "SWAP" },
+    { .proc = prim_PICK, .name = "PICK" },
+    { .proc = prim_ROLL, .name = "ROLL" },
+    { .proc = prim_DEPTH, .name = "DEPTH" },
+    { .proc = prim_Constant, .var = { INF }, .name = "INF" },
+    { .proc = prim_NEG, .name = "NEG" },
+    { .proc = prim_ADD, .name = "ADD" },
+    { .proc = prim_SUB, .name = "SUB" },
+    { .proc = prim_MUL, .name = "MUL" },
+    { .proc = prim_DIVMOD, .name = "DIVMOD" },
+    { .proc = prim_CMP, .name = "COMPARE" },
+    { .proc = prim_LTZ, .name = "LT?" },
+    { .proc = prim_EQZ, .name = "EQ?" },
+    { .proc = prim_GTZ, .name = "GT?" },
+    { .proc = prim_NOT, .name = "NOT" },
+    { .proc = prim_AND, .name = "AND" },
+    { .proc = prim_IOR, .name = "OR" },
+    { .proc = prim_XOR, .name = "XOR" },
+    { .proc = prim_LSL, .name = "LSL" },
+    { .proc = prim_LSR, .name = "LSR" },
+    { .proc = prim_ASR, .name = "ASR" },
+    { .proc = prim_Load, .name = "?" },
+    { .proc = prim_Store, .name = "!" },
+    { .proc = prim_LoadAtomic, .name = "??" },
+    { .proc = prim_StoreAtomic, .name = "!!" },
+    { .proc = prim_WORDS, .name = "WORDS" },
+    { .proc = prim_EMIT, .name = "EMIT" },
+    { .proc = prim_PrintStack, .name = "..." },
+    { .proc = prim_PrintDetail, .name = ".?" },
+    { .proc = prim_Print, .name = "." },
 };
 size_t ro_words = 47;  // limit of read-only words
 size_t rw_words = 47;  // limit of read/write words
@@ -247,7 +304,8 @@ void print_value(int_t value) {
     if (value == INF) {
         printf("INF");
     } else if (is_word(value)) {
-        printf("%s", PTR(value));
+        thunk_t *w = PTR(value);
+        printf("%s", w->name);
     } else if (is_block(value)) {
         print_block(value);
     } else {
@@ -270,7 +328,8 @@ static void print_detail(char *label, int_t value) {
     fprintf(stderr, " d=%"PRIdPTR" u=%"PRIuPTR" x=%"PRIXPTR"",
         value, value, value);
     if (is_word(value)) {
-        fprintf(stderr, " s=\"%s\"", PTR(value));
+        thunk_t *w = PTR(value);
+        fprintf(stderr, " s=\"%s\"", w->name);
     }
     if (is_block(value)) {
         nat_t *blk = (nat_t *)(value);
@@ -316,15 +375,14 @@ int_t read_word(char *buf, size_t buf_sz) {
 }
 
 static char *base36digit = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-int_t word_to_number(int_t *value_out, int_t word) {
-    DEBUG(fprintf(stderr, "> word_to_number\n"));
+int_t name_to_number(int_t *value_out, char *s) {
+    DEBUG(fprintf(stderr, "> name_to_number\n"));
     // attempt to parse word as a number
     int_t neg = FALSE;
     int_t got_base = FALSE;
     int_t got_digit = FALSE;
     uintptr_t base = 10;
-    char *s = PTR(word);
-    DEBUG(fprintf(stderr, "  word_to_number: s=\"%s\"\n", s));
+    DEBUG(fprintf(stderr, "  name_to_number: s=\"%s\"\n", s));
     uintptr_t n = 0;
     char c = *s++;
     if (c == '-') {  // remember leading minus
@@ -340,7 +398,7 @@ int_t word_to_number(int_t *value_out, int_t word) {
         if (!got_base && got_digit && (c == '#')) {
             base = n;
             if ((base < 2) || (base > 36)) {
-                DEBUG(fprintf(stderr, "< word_to_number = FALSE (base range)\n"));
+                DEBUG(fprintf(stderr, "< name_to_number = FALSE (base range)\n"));
                 return FALSE;  // number base out of range
             }
             got_base = TRUE;
@@ -350,12 +408,12 @@ int_t word_to_number(int_t *value_out, int_t word) {
         }
         char *p = strchr(base36digit, toupper(c));
         if (p == NULL) {
-            DEBUG(fprintf(stderr, "< word_to_number = FALSE (non-digit)\n"));
+            DEBUG(fprintf(stderr, "< name_to_number = FALSE (non-digit)\n"));
             return FALSE;  // non-digit character
         }
         uintptr_t digit = NAT(p - base36digit);
         if (digit >= base) {
-            DEBUG(fprintf(stderr, "< word_to_number = FALSE (digit range)\n"));
+            DEBUG(fprintf(stderr, "< name_to_number = FALSE (digit range)\n"));
             return FALSE;  // digit out of range for base
         }
         n *= base;
@@ -364,19 +422,20 @@ int_t word_to_number(int_t *value_out, int_t word) {
         c = *s++;
     }
     if (!got_digit) {
-        DEBUG(fprintf(stderr, "< word_to_number = FALSE (need digits)\n"));
+        DEBUG(fprintf(stderr, "< name_to_number = FALSE (need digits)\n"));
         return FALSE;  // need at least one digit
     }
     *value_out = (neg ? -INT(n) : INT(n));
-    DEBUG(fprintf(stderr, "< word_to_number = TRUE\n"));
+    DEBUG(fprintf(stderr, "< name_to_number = TRUE\n"));
     return TRUE;
 }
 
 int_t parse_word(int_t *word_out) {
-    ptr_t word_buf = word_list[rw_words];
-    if (!read_word(word_buf, CACHE_LINE_SZ)) return FALSE;
-    int_t word = INT(word_buf);
-    word_to_number(&word, word);  // attempt to parse word as a number
+    thunk_t *w = &word_list[rw_words];
+    char *word_buf = w->name;
+    if (!read_word(word_buf, MAX_NAME_SZ)) return FALSE;
+    int_t word = INT(w);
+    name_to_number(&word, word_buf);  // attempt to parse word as a number
     *word_out = word;
     return TRUE;
 }
@@ -393,7 +452,7 @@ int_t next_word(int_t *word_out) {
 
 int_t create_word(int_t *word_out, int_t word) {
     if (rw_words >= MAX_WORDS) return panic("too many words");
-    if (PTR(word) != word_list[rw_words]) return panic("can only create last word read");
+    if (PTR(word) != &word_list[rw_words]) return panic("can only create last word read");
     ++rw_words;  // create new word
     DEBUG(print_detail("  create_word", word));
     *word_out = word;
@@ -401,10 +460,11 @@ int_t create_word(int_t *word_out, int_t word) {
 }
 
 int_t find_ro_word(int_t *word_out, int_t word) {
+    thunk_t *w = PTR(word);
     for (size_t n = rw_words; (n-- > 0); ) {  // search from _end_ of dictionary
-        int_t memo = INT(word_list[n]);
-        if (strcmp(PTR(word), PTR(memo)) == 0) {
-            *word_out = memo;
+        thunk_t *m = &word_list[n];
+        if (strcmp(w->name, m->name) == 0) {
+            *word_out = INT(m);
             return TRUE;
         }
     }
@@ -417,10 +477,11 @@ int_t get_ro_word(int_t *word_out, int_t word) {
 }
 
 int_t find_rw_word(int_t *word_out, int_t word) {
-    for (size_t n = rw_words; (n-- >= ro_words); ) {  // search only read/write words
-        int_t memo = INT(word_list[n]);
-        if (strcmp(PTR(word), PTR(memo)) == 0) {
-            *word_out = memo;
+    thunk_t *w = PTR(word);
+    for (size_t n = rw_words; (n-- > ro_words); ) {  // search from _end_ of dictionary
+        thunk_t *m = &word_list[n];
+        if (strcmp(w->name, m->name) == 0) {
+            *word_out = INT(m);
             return TRUE;
         }
     }
@@ -449,7 +510,7 @@ int_t is_block(int_t value) {
 }
 
 void print_block(int_t block) {
-    block_hdr_t *blk = PTR(block);
+    block_t *blk = PTR(block);
     print_ascii('[');
     print_ascii(' ');
     for (size_t i = 0; i < blk->len; ++i) {
@@ -466,7 +527,7 @@ int_t make_block(int_t *block_out, int_t *base, size_t len) {
     if ((block_next + len) > MAX_BLOCK_MEM) {
         return panic("out of block memory");
     }
-    block_hdr_t *blk = PTR(&block_mem[block_next]);
+    block_t *blk = PTR(&block_mem[block_next]);
     block_next += len;
     blk->len = NAT(len);
     while (len-- > 0) {
@@ -509,11 +570,18 @@ static int_t quoted = FALSE;  // word scan mode (TRUE=compile, FALSE=interpret)
 int_t interpret();  // FORWARD DECLARATION
 int_t compile();  // FORWARD DECLARATION
 
-int_t prim_CREATE() { return panic("unimplemented CREATE"); }
-int_t prim_SEND() { return panic("unimplemented SEND"); }
-int_t prim_BECOME() { return panic("unimplemented BECOME"); }
-int_t prim_SELF() { return panic("unimplemented SELF"); }
-int_t prim_Bind() {
+#define PROC(name)  int_t name(ptr_t self, ptr_t arg)
+PROC_DECL(prim_Constant) {
+    thunk_t *my = self;
+    int_t value = my->var[0];
+    XDEBUG(print_detail("  prim_Constant", value));
+    return data_push(value);
+}
+PROC_DECL(prim_CREATE) { return panic("unimplemented CREATE"); }
+PROC_DECL(prim_SEND) { return panic("unimplemented SEND"); }
+PROC_DECL(prim_BECOME) { return panic("unimplemented BECOME"); }
+PROC_DECL(prim_SELF) { return panic("unimplemented SELF"); }
+PROC_DECL(prim_Bind) {
     POP1ARG(value);
     int_t word;
     if (!next_word(&word)) return FALSE;
@@ -521,14 +589,14 @@ int_t prim_Bind() {
     if (!get_rw_word(&word, word)) return FALSE;
     return bind_def(word, value);
 }
-int_t prim_Literal() {
+PROC_DECL(prim_Literal) {
     int_t word;
     if (!next_word(&word)) return FALSE;
     //if (!is_word(word)) return FALSE;  // FIXME: numeric literals are ok too...
     if (!get_ro_word(&word, word)) return FALSE;
     return data_push(word);
 }
-int_t prim_Lookup() {
+PROC_DECL(prim_Lookup) {
     int_t word;
     if (!next_word(&word)) return FALSE;
     if (!is_word(word)) return FALSE;
@@ -536,7 +604,7 @@ int_t prim_Lookup() {
     if (!get_def(&value, word)) return FALSE;
     return data_push(value);
 }
-int_t prim_OpenQuote() {
+PROC_DECL(prim_OpenQuote) {
     XDEBUG(fprintf(stderr, "  prim_OpenQuote (data_top=%"PRIdPTR")\n", data_top));
     size_t quote_top = data_top;
     quoted = TRUE;
@@ -554,46 +622,46 @@ int_t prim_OpenQuote() {
     data_top = quote_top;  // restore stack top
     return data_push(block);
 }
-int_t prim_CloseQuote() { return panic("unexpected ]"); }
-int_t prim_OpenUnquote() { return panic("unexpected ("); }
-int_t prim_CloseUnquote() {
+PROC_DECL(prim_CloseQuote) { return panic("unexpected ]"); }
+PROC_DECL(prim_OpenUnquote) { return panic("unexpected ("); }
+PROC_DECL(prim_CloseUnquote) {
     XDEBUG(fprintf(stderr, "  prim_CloseUnquote (data_top=%"PRIdPTR")\n", data_top));
     quoted = TRUE;
     return TRUE;
 }
-int_t prim_TRUE() { return data_push(TRUE); }
-int_t prim_FALSE() { return data_push(FALSE); }
-int_t prim_IF() { return panic("unimplemented IF"); }
-int_t prim_ELSE() { return panic("unmatched ELSE"); }
-int_t prim_DROP() {
+PROC_DECL(prim_TRUE) { return data_push(TRUE); }
+PROC_DECL(prim_FALSE) { return data_push(FALSE); }
+PROC_DECL(prim_IF) { return panic("unimplemented IF"); }
+PROC_DECL(prim_ELSE) { return panic("unmatched ELSE"); }
+PROC_DECL(prim_DROP) {
     if (data_top < 1) return stack_underflow();
     --data_top;
     return TRUE;
 }
-int_t prim_DUP() {
+PROC_DECL(prim_DUP) {
     int_t v;
     if (!data_pick(&v, INT(1))) return FALSE;
     return data_push(v);
 }
-int_t prim_SWAP() {
+PROC_DECL(prim_SWAP) {
     POP2ARG(v_2, v_1);
     if (!data_push(v_1)) return FALSE;
     return data_push(v_2);
 }
-int_t prim_PICK() {
+PROC_DECL(prim_PICK) {
     int_t v_n;
     POP1ARG(n);
     if (!data_pick(&v_n, n)) return FALSE;
     return data_push(v_n);
 }
-int_t prim_ROLL() { POP1ARG(n); return data_roll(n); }
-int_t prim_DEPTH() { return data_push(INT(data_top)); }
-int_t prim_INF() { return data_push(INF); }
-int_t prim_NEG() { POP1PUSH1(n, NEG); }
-int_t prim_ADD() { POP2PUSH1(n, m, ADD); }
-int_t prim_SUB() { POP2PUSH1(n, m, SUB); }
-int_t prim_MUL() { POP2PUSH1(n, m, MUL); }
-int_t prim_DIVMOD() {  // n = (m * q) + r
+PROC_DECL(prim_ROLL) { POP1ARG(n); return data_roll(n); }
+PROC_DECL(prim_DEPTH) { return data_push(INT(data_top)); }
+PROC_DECL(prim_INF) { return data_push(INF); }
+PROC_DECL(prim_NEG) { POP1PUSH1(n, NEG); }
+PROC_DECL(prim_ADD) { POP2PUSH1(n, m, ADD); }
+PROC_DECL(prim_SUB) { POP2PUSH1(n, m, SUB); }
+PROC_DECL(prim_MUL) { POP2PUSH1(n, m, MUL); }
+PROC_DECL(prim_DIVMOD) {  // n = (m * q) + r
     POP2ARG(n, m);
     int_t q = INF;
     int_t r = n;
@@ -603,61 +671,65 @@ int_t prim_DIVMOD() {  // n = (m * q) + r
     } else if (m != 0) {
         q = n / m;
         r = n % m;
+        // FIXME: map to euclidean division
+        // -7 3 DIVMOD -- -3 2  # now: -2 -1
+        // -7 -3 DIVMOD -- 3 2  # now: 2 -1
+        // [https://en.wikipedia.org/wiki/Modulo_operation]
     }
     if (!data_push(q)) return FALSE;
     return data_push(r);
     // [ 3 ROLL MUL ADD ] = EUCLID  # n m DIVMOD m EUCLID -- n
 }
-int_t prim_CMP() { POP2PUSH1(n, m, CMP); }
-int_t prim_LTZ() { POP1PUSH1(n, LTZ); }
-int_t prim_EQZ() { POP1PUSH1(n, EQZ); }
-int_t prim_GTZ() { POP1PUSH1(n, GTZ); }
-int_t prim_NOT() { POP1PUSH1(n, NOT); }
-int_t prim_AND() { POP2PUSH1(n, m, AND); }
-int_t prim_IOR() { POP2PUSH1(n, m, IOR); }
-int_t prim_XOR() { POP2PUSH1(n, m, XOR); }
-int_t prim_LSL() { POP2PUSH1(n, m, LSL); }
-int_t prim_LSR() { POP2PUSH1(n, m, LSR); }
-int_t prim_ASR() { POP2PUSH1(n, m, ASR); }
+PROC_DECL(prim_CMP) { POP2PUSH1(n, m, CMP); }
+PROC_DECL(prim_LTZ) { POP1PUSH1(n, LTZ); }
+PROC_DECL(prim_EQZ) { POP1PUSH1(n, EQZ); }
+PROC_DECL(prim_GTZ) { POP1PUSH1(n, GTZ); }
+PROC_DECL(prim_NOT) { POP1PUSH1(n, NOT); }
+PROC_DECL(prim_AND) { POP2PUSH1(n, m, AND); }
+PROC_DECL(prim_IOR) { POP2PUSH1(n, m, IOR); }
+PROC_DECL(prim_XOR) { POP2PUSH1(n, m, XOR); }
+PROC_DECL(prim_LSL) { POP2PUSH1(n, m, LSL); }
+PROC_DECL(prim_LSR) { POP2PUSH1(n, m, LSR); }
+PROC_DECL(prim_ASR) { POP2PUSH1(n, m, ASR); }
 // direct memory access
-int_t prim_Load() { POP1ARG(addr); return panic("unimplemented ?"); }
-int_t prim_Store() { POP2ARG(value, addr); return panic("unimplemented !"); }
-int_t prim_LoadAtomic() { POP1ARG(addr); return panic("unimplemented ??"); }
-int_t prim_StoreAtomic() { POP2ARG(value, addr); return panic("unimplemented !!"); }
+PROC_DECL(prim_Load) { POP1ARG(addr); return panic("unimplemented ?"); }
+PROC_DECL(prim_Store) { POP2ARG(value, addr); return panic("unimplemented !"); }
+PROC_DECL(prim_LoadAtomic) { POP1ARG(addr); return panic("unimplemented ??"); }
+PROC_DECL(prim_StoreAtomic) { POP2ARG(value, addr); return panic("unimplemented !!"); }
 // interactive extentions
-int_t prim_WORDS() {
+PROC_DECL(prim_WORDS) {
     size_t i;
     printf("ro:");
     for (i = 0; i < ro_words; ++i) {
         print_ascii(' ');
-        print_value(INT(word_list[i]));
+        print_value(INT(&word_list[i]));
     }
     print_ascii('\n');
     if (ro_words < rw_words) {
         printf("rw:");
         for (i = ro_words; i < rw_words; ++i) {
             print_ascii(' ');
-            print_value(INT(word_list[i]));
+            print_value(INT(&word_list[i]));
         }
         print_ascii('\n');
     }
     fflush(stdout);
     return TRUE;
 }
-int_t prim_EMIT() { POP1ARG(code); print_ascii(code); return TRUE; }
-int_t prim_PrintStack() {
+PROC_DECL(prim_EMIT) { POP1ARG(code); print_ascii(code); return TRUE; }
+PROC_DECL(prim_PrintStack) {
     print_stack();
     fflush(stdout);
     return TRUE;
 }
-int_t prim_PrintDetail() {
+PROC_DECL(prim_PrintDetail) {
     POP1ARG(value);
     print_value(value);
     fflush(stdout);
     print_detail(" ", value);
     return TRUE;
 }
-int_t prim_Print() {
+PROC_DECL(prim_Print) {
     POP1ARG(value);
     print_value(value);
     print_ascii('\n');
@@ -763,7 +835,7 @@ int_t exec_word(int_t word);  // FORWARD DECLARATION
 int_t exec_block(int_t word) {
     XDEBUG(fprintf(stderr, "> exec_block\n"));
     XDEBUG(print_detail("  exec_block (word)", word));
-    block_hdr_t *blk = PTR(word);
+    block_t *blk = PTR(word);
     for (size_t i = 0; i < blk->len; ++i) {
         if (!exec_word(blk->data[i])) return FALSE;
     }
@@ -917,10 +989,10 @@ void smoke_test() {
     printf("neg(x) LTZ = %"PRIXPTR" EQZ = %"PRIXPTR" GTZ = %"PRIXPTR"\n",
         LTZ(neg), EQZ(neg), GTZ(neg));
 
-    printf("word_list[%zu] = \"%s\"\n",
-        ro_words-1, word_list[ro_words-1]);
-    printf("word_list[%zu] = \"%s\"\n",
-        MAX_WORDS-1, word_list[MAX_WORDS-1]);
+    printf("word_list[%zu].name = \"%s\"\n",
+        ro_words-1, word_list[ro_words-1].name);
+    printf("word_list[%zu].name = \"%s\"\n",
+        MAX_WORDS-1, word_list[MAX_WORDS-1].name);
     int_t cmp;
     if (find_ro_word(&cmp, INT("COMPARE"))) {
         printf("find_ro_word(\"COMPARE\") = %"PRIXPTR" = \"%s\"\n", cmp, PTR(cmp));
@@ -930,85 +1002,86 @@ void smoke_test() {
     printf("lookup_def = %"PRIXPTR"\n", INT(lookup_def));
     printf("is_word(TRUE) = %"PRIdPTR"\n", is_word(TRUE));
     printf("is_word(FALSE) = %"PRIdPTR"\n", is_word(FALSE));
-    printf("is_word(word_list[0]) = %"PRIdPTR"\n", is_word(INT(word_list[0])));
-    printf("is_word(word_list[%zu]) = %"PRIdPTR"\n", ro_words-1, is_word(INT(word_list[ro_words-1])));
-    printf("is_word(word_list[ro_words]) = %"PRIdPTR"\n", is_word(INT(word_list[ro_words])));
-    printf("is_word(word_list[%zu]) = %"PRIdPTR"\n", MAX_WORDS-1, is_word(INT(word_list[MAX_WORDS-1])));
-    printf("is_word(word_list[MAX_WORDS]) = %"PRIdPTR"\n", is_word(INT(word_list[MAX_WORDS])));
+    printf("is_word(word_list[0]) = %"PRIdPTR"\n", is_word(INT(&word_list[0])));
+    printf("is_word(word_list[%zu]) = %"PRIdPTR"\n", ro_words-1, is_word(INT(&word_list[ro_words-1])));
+    printf("is_word(word_list[ro_words]) = %"PRIdPTR"\n", is_word(INT(&word_list[ro_words])));
+    printf("is_word(word_list[%zu]) = %"PRIdPTR"\n", MAX_WORDS-1, is_word(INT(&word_list[MAX_WORDS-1])));
+    printf("is_word(word_list[MAX_WORDS]) = %"PRIdPTR"\n", is_word(INT(&word_list[MAX_WORDS])));
 
+    char *name;
     int_t word;
     int_t num;
     int_t ok;
-    word = INT("0");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("-1");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("0123456789");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("16#0123456789ABCdef");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("8#0123456789abcDEF");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("8#01234567");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR" num(o)=%lo\n",
-        ok, PTR(word), num, num, num, (unsigned long)num);
-    word = INT("-10#2");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("2#10");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("#");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("#1");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("1#");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("2#");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("-16#F");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("2#1000_0000");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
-    word = INT("36#xyzzy");
-    ok = word_to_number(&num, word);
-    printf("ok=%"PRIdPTR" word=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
-        ok, PTR(word), num, num, num);
+    name = "0";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "-1";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "0123456789";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "16#0123456789ABCdef";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "8#0123456789abcDEF";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "8#01234567";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR" num(o)=%lo\n",
+        ok, name, num, num, num, (unsigned long)num);
+    name = "-10#2";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "2#10";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "#";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "#1";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "1#";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "2#";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "-16#F";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "2#1000_0000";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
+    name = "36#xyzzy";
+    ok = name_to_number(&num, name);
+    printf("ok=%"PRIdPTR" name=\"%s\" num(d)=%"PRIdPTR" num(u)=%"PRIuPTR" num(x)=%"PRIXPTR"\n",
+        ok, name, num, num, num);
 }
 
 int main(int argc, char const *argv[])
 {
     //print_platform_info();
-    //smoke_test();
+    smoke_test();
 
 #if 1
     printf("-- sanity check --\n");
