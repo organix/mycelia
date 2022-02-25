@@ -56,10 +56,6 @@ typedef uintptr_t nat_t;
 typedef void * ptr_t;
 #define PTR(n) ((ptr_t)(n))
 
-// universal Code Pointer type (32/64-bit machine address)
-typedef int_t (*func_t)(int_t);
-#define FUNC(n) ((func_t)(n))
-
 // universal Boolean constants
 #define TRUE INT(-1)
 #define FALSE INT(0)
@@ -97,10 +93,6 @@ typedef struct thunk {
 } thunk_t;
 
 #define CACHE_LINE_SZ (sizeof(thunk_t))  // bytes per idealized cache line
-
-int_t is_proc(int_t value);  // FORWARD DECLARATION
-int_t is_word(int_t value);  // FORWARD DECLARATION
-int_t is_block(int_t value);  // FORWARD DECLARATION
 
 int_t panic(char *reason) {
     fprintf(stderr, "\nPANIC! %s\n", reason);
@@ -184,6 +176,19 @@ int_t data_roll(int_t n) {
 PROC_DECL(prim_Undefined);
 PROC_DECL(prim_Constant);
 PROC_DECL(prim_Block);
+
+int_t is_defined(int_t word) {
+    thunk_t *w = PTR(word);
+    if (w->proc == PTR(0)) return FALSE;
+    if (w->proc == prim_Undefined) return FALSE;
+    return TRUE;
+}
+
+int_t is_const(int_t word) {
+    thunk_t *w = PTR(word);
+    if (w->proc == prim_Constant) return TRUE;
+    return FALSE;
+}
 
 PROC_DECL(prim_CREATE);
 PROC_DECL(prim_SEND);
@@ -282,6 +287,7 @@ thunk_t word_list[MAX_WORDS] = {
     { .proc = prim_PrintStack, .name = "..." },
     { .proc = prim_PrintDetail, .name = ".?" },
     { .proc = prim_Print, .name = "." },
+    { .proc = prim_Undefined, .name = "" }
 };
 size_t ro_words = 47;  // limit of read-only words
 size_t rw_words = 47;  // limit of read/write words
@@ -294,19 +300,22 @@ int_t word_CloseUnquote = INT(&word_list[10]);
 int_t word_IF = INT(&word_list[13]);
 int_t word_ELSE = INT(&word_list[14]);
 
+int_t is_block(int_t value);  // FORWARD DECLARATION
+
+int_t is_proc(int_t value) {
+    if ((value < INT(prim_CREATE))
+     || (value > INT(prim_Print))) {
+        return FALSE;
+    }
+    return TRUE;
+}
+
 int_t is_word(int_t value) {
 //    if (NAT(value - INT(word_list)) < sizeof(word_list)) {
     if (NAT(value - INT(word_list)) <= (rw_words * sizeof(thunk_t))) {
         return TRUE;
     }
     return FALSE;
-}
-
-int_t is_defined(int_t word) {
-    thunk_t *w = PTR(word);
-    if (w->proc == PTR(0)) return FALSE;
-    if (w->proc == prim_Undefined) return FALSE;
-    return TRUE;
 }
 
 void print_ascii(int_t code) {
@@ -325,6 +334,8 @@ void print_value(int_t value) {
         printf("%s", w->name);
     } else if (is_block(value)) {
         print_block(value);
+    } else if (is_proc(value)) {
+        fprintf(stderr, "%p", PTR(value));
     } else {
         printf("%"PRIdPTR, value);
     }
@@ -828,6 +839,7 @@ int_t bind_def(int_t word, int_t value) {
 
 int_t exec_word(int_t word) {
     XDEBUG(print_detail("  exec_word (word)", word));
+    if (!is_word(word)) { return panic("exec requires a word"); }
     if (!is_defined(word)) {
         // find definition in current dictionary
         if (!find_ro_word(&word, word)) {
@@ -1061,9 +1073,11 @@ int main(int argc, char const *argv[])
     print_detail("   CREATE", INT(prim_CREATE));
     print_detail("    Print", INT(prim_Print));
     print_detail("     main", INT(main));
-    print_detail("  is_proc", INT(is_proc));
 #endif
     if (!(NAT(panic) < NAT(main))) {
+        return panic("expected panic() < main()");
+    }
+    if (!(INT(prim_CREATE) < INT(prim_Print))) {
         return panic("expected panic() < main()");
     }
     if (is_proc(INT(prim_Undefined))) {
@@ -1078,13 +1092,4 @@ int main(int argc, char const *argv[])
 
     printf("-- interpreter --\n");
     return (interpret() ? 0 : 1);
-}
-
-// WARNING! THIS FUNCTION MUST FOLLOW main(), BUT DECLARED BEFORE panic().
-int_t is_proc(int_t value) {
-    if ((value < INT(prim_CREATE))
-     || (value > INT(prim_Print))) {
-        return FALSE;
-    }
-    return TRUE;
 }
