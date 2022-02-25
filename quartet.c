@@ -71,7 +71,7 @@ typedef int_t (*func_t)(int_t);
 #define ADD(n,m) ((n)+(m))
 #define SUB(n,m) ((n)-(m))
 #define MUL(n,m) ((n)*(m))
-#define CMP(n,m) ((n)-(m))
+//#define CMP(n,m) ((n)-(m))
 #define LTZ(n)   (((n)<0)?TRUE:FALSE)
 #define EQZ(n)   (((n)==0)?TRUE:FALSE)
 #define GTZ(n)   (((n)>0)?TRUE:FALSE)
@@ -98,9 +98,9 @@ typedef struct thunk {
 
 #define CACHE_LINE_SZ (sizeof(thunk_t))  // bytes per idealized cache line
 
+int_t is_proc(int_t value);  // FORWARD DECLARATION
 int_t is_word(int_t value);  // FORWARD DECLARATION
 int_t is_block(int_t value);  // FORWARD DECLARATION
-int_t is_func(int_t value);  // FORWARD DECLARATION
 
 int_t panic(char *reason) {
     fprintf(stderr, "\nPANIC! %s\n", reason);
@@ -181,7 +181,10 @@ int_t data_roll(int_t n) {
  * word dictionary
  */
 
+PROC_DECL(prim_Undefined);
 PROC_DECL(prim_Constant);
+PROC_DECL(prim_Block);
+
 PROC_DECL(prim_CREATE);
 PROC_DECL(prim_SEND);
 PROC_DECL(prim_BECOME);
@@ -193,8 +196,8 @@ PROC_DECL(prim_OpenQuote);
 PROC_DECL(prim_CloseQuote);
 PROC_DECL(prim_OpenUnquote);
 PROC_DECL(prim_CloseUnquote);
-PROC_DECL(prim_TRUE);
-PROC_DECL(prim_FALSE);
+//PROC_DECL(prim_TRUE);
+//PROC_DECL(prim_FALSE);
 PROC_DECL(prim_IF);
 PROC_DECL(prim_ELSE);
 PROC_DECL(prim_DROP);
@@ -203,13 +206,13 @@ PROC_DECL(prim_SWAP);
 PROC_DECL(prim_PICK);
 PROC_DECL(prim_ROLL);
 PROC_DECL(prim_DEPTH);
-PROC_DECL(prim_INF);
+//PROC_DECL(prim_INF);
 PROC_DECL(prim_NEG);
 PROC_DECL(prim_ADD);
 PROC_DECL(prim_SUB);
 PROC_DECL(prim_MUL);
 PROC_DECL(prim_DIVMOD);
-PROC_DECL(prim_CMP);
+//PROC_DECL(prim_CMP);
 PROC_DECL(prim_LTZ);
 PROC_DECL(prim_EQZ);
 PROC_DECL(prim_GTZ);
@@ -231,23 +234,22 @@ PROC_DECL(prim_PrintDetail);
 PROC_DECL(prim_Print);
 
 #define MAX_WORDS ((size_t)(128))
-//char word_list[MAX_WORDS][CACHE_LINE_SZ] = {
 thunk_t word_list[MAX_WORDS] = {
     { .proc = prim_CREATE, .name = "CREATE" },
     { .proc = prim_SEND, .name = "SEND" },
     { .proc = prim_BECOME, .name = "BECOME" },
     { .proc = prim_SELF, .name = "SELF" },
     { .proc = prim_Bind, .name = "=" },
-    { .proc = prim_Literal, .name = "'" },
+    { .proc = prim_Literal, .name = "'" },  // [5]
     { .proc = prim_Lookup, .name = "@" },
-    { .proc = prim_OpenQuote, .name = "[" },
-    { .proc = prim_CloseQuote, .name = "]" },
-    { .proc = prim_OpenUnquote, .name = "(" },
-    { .proc = prim_CloseUnquote, .name = ")" },
+    { .proc = prim_OpenQuote, .name = "[" },  // [7]
+    { .proc = prim_CloseQuote, .name = "]" },  // [8]
+    { .proc = prim_OpenUnquote, .name = "(" },  // [9]
+    { .proc = prim_CloseUnquote, .name = ")" },  // [10]
     { .proc = prim_Constant, .var = { TRUE }, .name = "TRUE" },
     { .proc = prim_Constant, .var = { FALSE }, .name = "FALSE" },
-    { .proc = prim_IF, .name = "IF" },
-    { .proc = prim_ELSE, .name = "ELSE" },
+    { .proc = prim_IF, .name = "IF" },  // [13]
+    { .proc = prim_ELSE, .name = "ELSE" },  // [14]
     { .proc = prim_DROP, .name = "DROP" },
     { .proc = prim_DUP, .name = "DUP" },
     { .proc = prim_SWAP, .name = "SWAP" },
@@ -260,7 +262,7 @@ thunk_t word_list[MAX_WORDS] = {
     { .proc = prim_SUB, .name = "SUB" },
     { .proc = prim_MUL, .name = "MUL" },
     { .proc = prim_DIVMOD, .name = "DIVMOD" },
-    { .proc = prim_CMP, .name = "COMPARE" },
+    { .proc = prim_SUB, .name = "COMPARE" },
     { .proc = prim_LTZ, .name = "LT?" },
     { .proc = prim_EQZ, .name = "EQ?" },
     { .proc = prim_GTZ, .name = "GT?" },
@@ -283,13 +285,28 @@ thunk_t word_list[MAX_WORDS] = {
 };
 size_t ro_words = 47;  // limit of read-only words
 size_t rw_words = 47;  // limit of read/write words
+// syntactic marker words
+int_t word_Literal = INT(&word_list[5]);
+int_t word_OpenQuote = INT(&word_list[7]);
+int_t word_CloseQuote = INT(&word_list[8]);
+int_t word_OpenUnquote = INT(&word_list[9]);
+int_t word_CloseUnquote = INT(&word_list[10]);
+int_t word_IF = INT(&word_list[13]);
+int_t word_ELSE = INT(&word_list[14]);
 
 int_t is_word(int_t value) {
 //    if (NAT(value - INT(word_list)) < sizeof(word_list)) {
-    if (NAT(value - INT(word_list)) <= (rw_words * CACHE_LINE_SZ)) {
+    if (NAT(value - INT(word_list)) <= (rw_words * sizeof(thunk_t))) {
         return TRUE;
     }
     return FALSE;
+}
+
+int_t is_defined(int_t word) {
+    thunk_t *w = PTR(word);
+    if (w->proc == PTR(0)) return FALSE;
+    if (w->proc == prim_Undefined) return FALSE;
+    return TRUE;
 }
 
 void print_ascii(int_t code) {
@@ -330,14 +347,27 @@ static void print_detail(char *label, int_t value) {
     if (is_word(value)) {
         thunk_t *w = PTR(value);
         fprintf(stderr, " s=\"%s\"", w->name);
+        if (w->proc == prim_Constant) {
+            fprintf(stderr, " n=%"PRIdPTR"", w->var[0]);
+        }
     }
     if (is_block(value)) {
         nat_t *blk = (nat_t *)(value);
         fprintf(stderr, " [%"PRIuPTR"]", *blk);
     }
-    if (is_func(value)) {
+    if (is_proc(value)) {
         fprintf(stderr, " p=%p", PTR(value));
     }
+    fprintf(stderr, "\n");
+    fflush(stderr);
+}
+
+static void print_thunk(char *label, thunk_t *w) {
+    fprintf(stderr, "%s:", label);
+    fprintf(stderr, " proc=%p", w->proc);
+    fprintf(stderr, " var=[ %"PRIdPTR" %"PRIdPTR" %"PRIdPTR" ]",
+        w->var[0], w->var[1], w->var[2]);
+    fprintf(stderr, " s=\"%s\"", w->name);
     fprintf(stderr, "\n");
     fflush(stderr);
 }
@@ -432,11 +462,16 @@ int_t name_to_number(int_t *value_out, char *s) {
 
 int_t parse_word(int_t *word_out) {
     thunk_t *w = &word_list[rw_words];
+    w->proc = prim_Undefined;
     char *word_buf = w->name;
     if (!read_word(word_buf, MAX_NAME_SZ)) return FALSE;
-    int_t word = INT(w);
-    name_to_number(&word, word_buf);  // attempt to parse word as a number
-    *word_out = word;
+    // attempt to parse word as a number
+    int_t num = INF;
+    if (name_to_number(&num, word_buf)) {
+        w->proc = prim_Constant;
+        w->var[0] = num;
+    }
+    *word_out = INT(w);
     return TRUE;
 }
 
@@ -521,9 +556,6 @@ void print_block(int_t block) {
 }
 
 int_t make_block(int_t *block_out, int_t *base, size_t len) {
-#if 0
-    return panic("block storage not implemented");
-#else
     if ((block_next + len) > MAX_BLOCK_MEM) {
         return panic("out of block memory");
     }
@@ -535,7 +567,6 @@ int_t make_block(int_t *block_out, int_t *base, size_t len) {
     }
     *block_out = INT(blk);
     return TRUE;
-#endif
 }
 
 /*
@@ -569,14 +600,26 @@ int_t bind_def(int_t word, int_t value);  // FORWARD DECLARATION
 static int_t quoted = FALSE;  // word scan mode (TRUE=compile, FALSE=interpret)
 int_t interpret();  // FORWARD DECLARATION
 int_t compile();  // FORWARD DECLARATION
+int_t exec_word(int_t word);  // FORWARD DECLARATION
 
-#define PROC(name)  int_t name(ptr_t self, ptr_t arg)
+PROC_DECL(prim_Undefined) { return panic("undefined procedure"); }
 PROC_DECL(prim_Constant) {
     thunk_t *my = self;
     int_t value = my->var[0];
     XDEBUG(print_detail("  prim_Constant", value));
     return data_push(value);
 }
+PROC_DECL(prim_Block) {
+    XDEBUG(fprintf(stderr, "> prim_Block\n"));
+    thunk_t *my = self;
+    block_t *blk = PTR(my->var[0]);
+    for (size_t i = 0; i < blk->len; ++i) {
+        if (!exec_word(blk->data[i])) return FALSE;
+    }
+    XDEBUG(fprintf(stderr, "< prim_Block\n"));
+    return TRUE;
+}
+
 PROC_DECL(prim_CREATE) { return panic("unimplemented CREATE"); }
 PROC_DECL(prim_SEND) { return panic("unimplemented SEND"); }
 PROC_DECL(prim_BECOME) { return panic("unimplemented BECOME"); }
@@ -585,21 +628,18 @@ PROC_DECL(prim_Bind) {
     POP1ARG(value);
     int_t word;
     if (!next_word(&word)) return FALSE;
-    if (!is_word(word)) return FALSE;
     if (!get_rw_word(&word, word)) return FALSE;
     return bind_def(word, value);
 }
 PROC_DECL(prim_Literal) {
     int_t word;
     if (!next_word(&word)) return FALSE;
-    //if (!is_word(word)) return FALSE;  // FIXME: numeric literals are ok too...
     if (!get_ro_word(&word, word)) return FALSE;
     return data_push(word);
 }
 PROC_DECL(prim_Lookup) {
     int_t word;
     if (!next_word(&word)) return FALSE;
-    if (!is_word(word)) return FALSE;
     int_t value;
     if (!get_def(&value, word)) return FALSE;
     return data_push(value);
@@ -629,8 +669,8 @@ PROC_DECL(prim_CloseUnquote) {
     quoted = TRUE;
     return TRUE;
 }
-PROC_DECL(prim_TRUE) { return data_push(TRUE); }
-PROC_DECL(prim_FALSE) { return data_push(FALSE); }
+//PROC_DECL(prim_TRUE) { return data_push(TRUE); }
+//PROC_DECL(prim_FALSE) { return data_push(FALSE); }
 PROC_DECL(prim_IF) { return panic("unimplemented IF"); }
 PROC_DECL(prim_ELSE) { return panic("unmatched ELSE"); }
 PROC_DECL(prim_DROP) {
@@ -656,7 +696,7 @@ PROC_DECL(prim_PICK) {
 }
 PROC_DECL(prim_ROLL) { POP1ARG(n); return data_roll(n); }
 PROC_DECL(prim_DEPTH) { return data_push(INT(data_top)); }
-PROC_DECL(prim_INF) { return data_push(INF); }
+//PROC_DECL(prim_INF) { return data_push(INF); }
 PROC_DECL(prim_NEG) { POP1PUSH1(n, NEG); }
 PROC_DECL(prim_ADD) { POP2PUSH1(n, m, ADD); }
 PROC_DECL(prim_SUB) { POP2PUSH1(n, m, SUB); }
@@ -680,7 +720,7 @@ PROC_DECL(prim_DIVMOD) {  // n = (m * q) + r
     return data_push(r);
     // [ 3 ROLL MUL ADD ] = EUCLID  # n m DIVMOD m EUCLID -- n
 }
-PROC_DECL(prim_CMP) { POP2PUSH1(n, m, CMP); }
+//PROC_DECL(prim_CMP) { POP2PUSH1(n, m, CMP); }
 PROC_DECL(prim_LTZ) { POP1PUSH1(n, LTZ); }
 PROC_DECL(prim_EQZ) { POP1PUSH1(n, EQZ); }
 PROC_DECL(prim_GTZ) { POP1PUSH1(n, GTZ); }
@@ -737,134 +777,70 @@ PROC_DECL(prim_Print) {
     return TRUE;
 }
 
-int_t word_def[MAX_WORDS] = {
-    INT(prim_CREATE),
-    INT(prim_SEND),
-    INT(prim_BECOME),
-    INT(prim_SELF),
-    INT(prim_Bind),
-    INT(prim_Literal),  // [5]
-    INT(prim_Lookup),
-    INT(prim_OpenQuote),  // [7]
-    INT(prim_CloseQuote),  // [8]
-    INT(prim_OpenUnquote),  // [9]
-    INT(prim_CloseUnquote),  // [10]
-    TRUE, // INT(prim_TRUE),  // FIXME: could be just literal TRUE?
-    FALSE, // INT(prim_FALSE),  // FIXME: could be just literal FALSE?
-    INT(prim_IF),  // [13]
-    INT(prim_ELSE),  // [14]
-    INT(prim_DROP),
-    INT(prim_DUP),
-    INT(prim_SWAP),
-    INT(prim_PICK),
-    INT(prim_ROLL),
-    INT(prim_DEPTH),
-    INF, // INT(prim_INF),  // FIXME: could be just literal INF?
-    INT(prim_NEG),
-    INT(prim_ADD),
-    INT(prim_SUB),
-    INT(prim_MUL),
-    INT(prim_DIVMOD),
-    INT(prim_CMP),
-    INT(prim_LTZ),
-    INT(prim_EQZ),
-    INT(prim_GTZ),
-    INT(prim_NOT),
-    INT(prim_AND),
-    INT(prim_IOR),
-    INT(prim_XOR),
-    INT(prim_LSL),
-    INT(prim_LSR),
-    INT(prim_ASR),
-    INT(prim_Load),
-    INT(prim_Store),
-    INT(prim_LoadAtomic),
-    INT(prim_StoreAtomic),
-    INT(prim_WORDS),
-    INT(prim_EMIT),
-    INT(prim_PrintStack),
-    INT(prim_PrintDetail),
-    INT(prim_Print),
-    FALSE
-};
-// syntactic marker words
-int_t word_Literal = INT(&word_list[5]);
-int_t word_OpenQuote = INT(&word_list[7]);
-int_t word_CloseQuote = INT(&word_list[8]);
-int_t word_OpenUnquote = INT(&word_list[9]);
-int_t word_CloseUnquote = INT(&word_list[10]);
-int_t word_IF = INT(&word_list[13]);
-int_t word_ELSE = INT(&word_list[14]);
-
 int_t lookup_def(int_t *value_out, int_t word) {
-    size_t index = NAT(word - INT(word_list)) / CACHE_LINE_SZ;
-    if (index < rw_words) {
-        *value_out = INT(word_def[index]);
-        return TRUE;
+    if (!is_defined(word)) return FALSE;
+    thunk_t *w = PTR(word);
+    ptr_t proc = w->proc;
+    if (proc == prim_Constant) {
+        *value_out = w->var[0];
+    } else if (proc == prim_Block) {
+        *value_out = w->var[0];
+    } else {
+        *value_out = INT(proc);
     }
-    return FALSE;
+    return TRUE;
 }
 
 int_t get_def(int_t *value_out, int_t word) {
-    if (!find_ro_word(&word, word)) {
-        // error on undefined word
-        print_value(word);
-        fflush(stdout);
-        return error("undefined word");
+    if (find_ro_word(&word, word)
+     && lookup_def(value_out, word)) {
+        return TRUE;
     }
-    return lookup_def(value_out, word);
+    // error on undefined word
+    print_value(word);
+    fflush(stdout);
+    return error("undefined word");
 }
 
 int_t bind_def(int_t word, int_t value) {
-    size_t index = NAT(word - INT(word_list)) / CACHE_LINE_SZ;
-    if ((index >= ro_words) && (index < rw_words)) {
-        word_def[index] = value;
-        return TRUE;
+    size_t index = NAT(word - INT(word_list)) / sizeof(thunk_t);
+    if ((index < ro_words) || (index >= rw_words)) {
+        print_value(word);
+        fflush(stdout);
+        return error("bind failed");
     }
-    print_value(word);
-    fflush(stdout);
-    return error("bind failed");
+    thunk_t *w = PTR(word);
+    if (is_proc(value)) {
+        w->proc = PTR(value);
+    } else if (is_block(value)) {
+        w->proc = prim_Block;
+        w->var[0] = value;
+    } else {
+        w->proc = prim_Constant;
+        w->var[0] = value;
+    }
+    return TRUE;
 }
 
 /*
  * word interpreter/compiler
  */
 
-int_t exec_word(int_t word);  // FORWARD DECLARATION
-
-int_t exec_block(int_t word) {
-    XDEBUG(fprintf(stderr, "> exec_block\n"));
-    XDEBUG(print_detail("  exec_block (word)", word));
-    block_t *blk = PTR(word);
-    for (size_t i = 0; i < blk->len; ++i) {
-        if (!exec_word(blk->data[i])) return FALSE;
-    }
-    XDEBUG(fprintf(stderr, "< exec_block\n"));
-    return TRUE;
-}
-
 int_t exec_word(int_t word) {
-    int_t value = word;
     XDEBUG(print_detail("  exec_word (word)", word));
-
-    if (is_word(word)) {
+    if (!is_defined(word)) {
         // find definition in current dictionary
-        if (!get_def(&value, word)) return FALSE;
-        XDEBUG(print_detail("  exec_word (def)", value));
-
-        // execute value
-        if (is_block(value)) {
-            return exec_block(value);
-        } if (is_func(value)) {
-            // execute function
-            int_t (*fn)() = FUNC(value);
-            return (*fn)();
+        if (!find_ro_word(&word, word)) {
+            // error on undefined word
+            print_value(word);
+            fflush(stdout);
+            return error("undefined word");
         }
+        XDEBUG(print_detail("  exec_word (def)", word));
     }
-
-    // push value on stack
-    XDEBUG(print_detail("  exec_word (value)", value));
-    return data_push(value);
+    thunk_t *w = PTR(word);
+    XDEBUG(print_thunk("  exec_word (thunk)", w));
+    return (*w->proc)(PTR(w), PTR(0));
 }
 
 int_t interpret() {
@@ -872,15 +848,11 @@ int_t interpret() {
     size_t exec_top = data_top;  // save stack pointer for error recovery
     XDEBUG(fprintf(stderr, "  interpret data_top=%zu\n", exec_top));
     while (!quoted) {
-
-        // read next word from input
         int_t word;
         if (!next_word(&word)) {
             break;  // no more words...
         }
         XDEBUG(print_detail("  interpret (word)", word));
-
-        // execute word
         if (!exec_word(word)) {
             data_top = exec_top;  // restore stack on failure
         }
@@ -890,44 +862,41 @@ int_t interpret() {
     return TRUE;
 }
 
+int_t quote_word(int_t word) {
+    XDEBUG(print_detail("  quote_word (word)", word));
+    // compile word reference
+    if (!get_ro_word(&word, word)) return FALSE;
+    XDEBUG(print_detail("  quote_word (save)", word));
+    // check for special compile-time behavior
+    if (word == word_CloseQuote) {
+        XDEBUG(fprintf(stderr, "  word_CloseQuote (data_top=%"PRIdPTR")\n", data_top));
+        quoted = FALSE;
+        return TRUE;
+    }
+    if (word == word_OpenUnquote) {
+        XDEBUG(fprintf(stderr, "  word_OpenUnquote (data_top=%"PRIdPTR")\n", data_top));
+        size_t unquote_top = data_top;
+        quoted = FALSE;
+        if (!interpret()) return FALSE;
+        quoted = TRUE;
+        if (data_top < unquote_top) return panic("stack underflow");
+        return TRUE;
+    }
+    // push word on stack
+    return data_push(word);
+}
+
 int_t compile() {
     XDEBUG(fprintf(stderr, "> compile (quoted=%"PRIdPTR")\n", quoted));
     XDEBUG(print_detail("  compile (word_CloseQuote)", word_CloseQuote));
     XDEBUG(print_detail("  compile (word_OpenUnquote)", word_OpenUnquote));
     while (quoted) {
-
-        // read next word from input
         int_t word;
         if (!next_word(&word)) {
             break;  // no more words...
         }
         XDEBUG(print_detail("  compile (word)", word));
-
-        // compile word reference
-        if (is_word(word)) {
-            if (!get_ro_word(&word, word)) return FALSE;
-            XDEBUG(print_detail("  compile (intern)", word));
-
-            // check for special compile-time behavior
-            if (word == word_CloseQuote) {
-                XDEBUG(fprintf(stderr, "  word_CloseQuote (data_top=%"PRIdPTR")\n", data_top));
-                quoted = FALSE;
-                continue;
-            }
-            if (word == word_OpenUnquote) {
-                XDEBUG(fprintf(stderr, "  word_OpenUnquote (data_top=%"PRIdPTR")\n", data_top));
-                size_t unquote_top = data_top;
-                quoted = FALSE;
-                if (!interpret()) return FALSE;
-                quoted = TRUE;
-                if (data_top < unquote_top) return panic("stack underflow");
-                continue;
-            }
-        }
-
-        // push word on stack
-        if (!data_push(word)) return FALSE;
-
+        if (!quote_word(word)) return FALSE;
     } // loop
     XDEBUG(fprintf(stderr, "< compile (quoted=%"PRIdPTR")\n", quoted));
     return TRUE;
@@ -1081,34 +1050,41 @@ void smoke_test() {
 int main(int argc, char const *argv[])
 {
     //print_platform_info();
-    smoke_test();
+    //smoke_test();
 
 #if 1
     printf("-- sanity check --\n");
     print_detail("    panic", INT(panic));
+    print_detail("Undefined", INT(prim_Undefined));
+    print_detail(" Constant", INT(prim_Constant));
+    print_detail("    Block", INT(prim_Block));
     print_detail("   CREATE", INT(prim_CREATE));
-    print_detail("        .", INT(prim_Print));
+    print_detail("    Print", INT(prim_Print));
     print_detail("     main", INT(main));
-    print_detail("  is_func", INT(is_func));
+    print_detail("  is_proc", INT(is_proc));
 #endif
     if (!(NAT(panic) < NAT(main))) {
         return panic("expected panic() < main()");
     }
-    if (!is_func(INT(prim_CREATE))) {
-        return panic("expected is_func(prim_CREATE)");
+    if (is_proc(INT(prim_Undefined))) {
+        return panic("expected !is_proc(prim_Undefined)");
     }
-    if (!is_func(INT(prim_Print))) {
-        return panic("expected is_func(prim_Print)");
+    if (!is_proc(INT(prim_CREATE))) {
+        return panic("expected is_proc(prim_CREATE)");
+    }
+    if (!is_proc(INT(prim_Print))) {
+        return panic("expected is_proc(prim_Print)");
     }
 
-    //printf("-- interpreter --\n");
+    printf("-- interpreter --\n");
     return (interpret() ? 0 : 1);
 }
 
 // WARNING! THIS FUNCTION MUST FOLLOW main(), BUT DECLARED BEFORE panic().
-int_t is_func(int_t value)
-{
-    nat_t fn_ptr = NAT(value);
-    value = ((NAT(panic) < fn_ptr) && (fn_ptr < NAT(main))) ? TRUE : FALSE;
-    return value;
+int_t is_proc(int_t value) {
+    if ((value < INT(prim_CREATE))
+     || (value > INT(prim_Print))) {
+        return FALSE;
+    }
+    return TRUE;
 }
