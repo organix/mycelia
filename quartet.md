@@ -23,6 +23,18 @@ Values may be saved in the dictionary
 by binding them to a word.
 All dictionary changes are local to the executing behavior.
 
+The data stack contains universal integer values,
+usually interpreted as signed 2's-complement numbers.
+Numeric operations do not overflow,
+but rather wrap around forming a ring,
+which may be interpreted as either signed or unsigned.
+The number of bits is not specified,
+but is often the native machine word size
+(e.g.: 32 or 64 bits).
+
+The quartet program `TRUE 1 LSR DUP NOT . .`
+prints the minimum and maximum signed values.
+
 ## Primitive Dictionary
 
 The following primitive definitions are assumed to be present in the initial dictionary.
@@ -156,7 +168,7 @@ _value_              | `.`             | &mdash;                 | Print _value_
     SWAP = cust
     SELF SWAP output SEND
     SELF cust SEND
-    output empty-Q serial_empty_beh BECOME
+    output empty-Q serial_buffer_beh BECOME
   ]
 ] = serial_empty_beh
 [ # output queue
