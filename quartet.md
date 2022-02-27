@@ -47,6 +47,7 @@ _block_              | `CREATE`        | _actor_                 | Create a new 
 ..._message_ _actor_ | `SEND`          | &mdash;                 | Send _message_ to _actor_
 _block_              | `BECOME`        | &mdash;                 | Replace current actor's behavior with _block_
 &mdash;              | `SELF`          | _actor_                 | Push the current actor's address on the data stack
+&mdash;              | `FAIL`          | &mdash;                 | Abort processing and revert to prior state
 
 ### Dictionary and Quoting
 
@@ -64,6 +65,7 @@ Input                | Operation       | Output                  | Description
 ---------------------|-----------------|-------------------------|------------
 &mdash;              | `TRUE`          | TRUE                    | All bits set (1)
 &mdash;              | `FALSE`         | FALSE                   | All bits clear (0)
+_value_              | `ZERO?`         | _bool_                  | `TRUE` if _value_ = 0; otherwise `FALSE`
 _bool_               | `IF` [ ] `ELSE` [ ] | &mdash;             | Conditional execution of blocks
 
 ### Stack Manipulation
