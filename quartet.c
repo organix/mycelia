@@ -175,8 +175,11 @@ void print_value(int_t value) {
 static char *tag_label[] = { "NUM", "WORD", "BLOCK", "PROC" };
 static void print_detail(char *label, int_t value) {
     fprintf(stderr, "%s:", label);
-    fprintf(stderr, " t=%s i=%"PRIdPTR" n=%"PRIuPTR" p=%p",
-        tag_label[value & TAG_MASK], TO_INT(value), TO_NAT(value), TO_PTR(value));
+    fprintf(stderr, " %"PRIXPTR"", value);
+    fprintf(stderr, " t=%s", tag_label[value & TAG_MASK]);
+    fprintf(stderr, " i=%"PRIdPTR"", TO_INT(value));
+    //fprintf(stderr, " n=%"PRIuPTR"", TO_NAT(value));
+    fprintf(stderr, " p=%p", TO_PTR(value));
     if (IS_WORD(value)) {
         thunk_t *w = TO_PTR(value);
         fprintf(stderr, " s=\"%s\"", w->name);
@@ -363,17 +366,18 @@ int_t block_mem[MAX_BLOCK_MEM];
 size_t block_next = 0;
 
 int_t make_block(int_t *block_out, int_t *base, size_t len) {
-    size_t next = block_next + len;
+    size_t next = block_next + len + 1;
     if (next > MAX_BLOCK_MEM) {
         return panic("out of block memory");
     }
     block_t *blk = PTR(&block_mem[block_next]);
-    block_next = next;
     blk->len = NAT(len);
     while (len-- > 0) {
         blk->data[len] = base[len];
     }
+    block_next = next;
     *block_out = MK_BLOCK(blk);
+    XDEBUG(print_detail("  make_block", *block_out));
     return TRUE;
 }
 
@@ -502,6 +506,7 @@ size_t rw_words = 46;  // limit of read/write words
 
 static void print_thunk(char *label, thunk_t *w) {
     fprintf(stderr, "%s:", label);
+    fprintf(stderr, " %p", w);
     fprintf(stderr, " value=%"PRIXPTR"", w->value);
     fprintf(stderr, " var=[ %"PRIdPTR" %"PRIdPTR" %"PRIdPTR" ]",
         w->var[0], w->var[1], w->var[2]);
@@ -535,21 +540,24 @@ int_t parse_value(int_t *value_out) {
     } else {
         *value_out = MK_WORD(w);
     }
+    XDEBUG(print_detail("  parse_value", *value_out));
     return TRUE;
 }
 
-ptr_t next_value_ptr = PTR(0);
-//nat_t next_value_cnt = NAT(0);
+int_t *next_value_ptr = PTR(0);
+nat_t next_value_cnt = NAT(0);
 int_t next_value(int_t *value_out) {
     if (next_value_ptr) {
+        XDEBUG(fprintf(stderr, "  next_value cnt=%"PRIuPTR" ptr=%p\n", next_value_cnt, next_value_ptr));
         // read from block data
-        return panic("block scope not implemented");
-//        if (next_value_cnt) {
-//            --next_value_cnt;
-//            *value_out = *next_value_ptr++;
-//        }
-//        next_value_ptr = PTR(0);
-//        return FALSE;  // no more words (in block)
+        if (next_value_cnt) {
+            --next_value_cnt;
+            *value_out = *next_value_ptr++;
+            XDEBUG(print_detail("  next_value", *value_out));
+            return TRUE;
+        }
+        next_value_ptr = PTR(0);
+        return FALSE;  // no more words (in block)
     }
     // read from input stream
     return parse_value(value_out);
@@ -640,10 +648,8 @@ static int_t undefined_word(int_t word) {
     return error("undefined word");
 }
 
-static int_t quoted = FALSE;  // word scan mode (TRUE=compile, FALSE=interpret)
 int_t interpret();  // FORWARD DECLARATION
 int_t compile();  // FORWARD DECLARATION
-int_t exec_block(int_t word);  // FORWARD DECLARATION
 
 PROC_DECL(prim_Undefined) { return error("undefined procedure"); }
 
@@ -805,6 +811,8 @@ PROC_DECL(prim_Print) {
  * word interpreter/compiler
  */
 
+nat_t quote_depth = 0;  // count nested quoting levels
+
 int_t exec_value(int_t value) {
     XDEBUG(print_detail("  exec_value (value)", value));
     if (IS_WORD(value)) {
@@ -816,13 +824,22 @@ int_t exec_value(int_t value) {
         value = w->value;
         XDEBUG(print_detail("  exec_value (def)", value));
     }
+    // execute value
     if (IS_BLOCK(value)) {
+        // save current value source
+        nat_t prev_value_cnt = next_value_cnt;
+        int_t *prev_value_ptr = next_value_ptr;
+        // use block as value source
+        XDEBUG(print_detail("  exec_value (block)", value));
         block_t *blk = TO_PTR(value);
-        for (size_t i = 0; i < blk->len; ++i) {
-            // FIXME: this look will not work correctly for words that consume input!
-            if (!exec_value(blk->data[i])) return FALSE;
-        }
-        return TRUE; //exec_block(value);
+        next_value_cnt = blk->len;
+        next_value_ptr = blk->data;
+        // run nested interpreter, reading from block
+        int_t ok = interpret();
+        // restore previous value source
+        next_value_cnt = prev_value_cnt;
+        next_value_ptr = prev_value_ptr;
+        return ok;
     }
     if (IS_PROC(value)) {
         PROC_DECL((*proc)) = TO_PTR(value);
@@ -831,59 +848,97 @@ int_t exec_value(int_t value) {
     // push value on stack
     return data_push(value);
 }
-/*
-    XDEBUG(fprintf(stderr, "  prim_OpenQuote (data_top=%"PRIdPTR")\n", data_top));
-    size_t quote_top = data_top;
-    quoted = TRUE;
-    int_t ok = compile();
-    quoted = FALSE;
-    if (data_top < quote_top) return panic("stack underflow");
-    if (!ok) {
-        data_top = quote_top;  // restore stack top
-        return FALSE;
-    }
-    int_t *base = &data_stack[quote_top];
-    size_t len = (data_top - quote_top);
-    int_t block;
-    if (!make_block(&block, base, len)) return FALSE;
-    data_top = quote_top;  // restore stack top
-    return data_push(block);
-*/
 
 int_t interpret() {
-    XDEBUG(fprintf(stderr, "> interpret (quoted=%"PRIdPTR")\n", quoted));
+    int_t value;
+    XDEBUG(fprintf(stderr, "> interpret data_top=%zu\n", data_top));
     size_t exec_top = data_top;  // save stack pointer for error recovery
-    XDEBUG(fprintf(stderr, "  interpret data_top=%zu\n", exec_top));
-    while (!quoted) {
-        int_t value;
-        if (!next_value(&value)) {
-            break;  // no more words...
+    XDEBUG(fprintf(stderr, "  interpret cnt=%"PRIuPTR" ptr=%p\n", next_value_cnt, next_value_ptr));
+    while (next_value(&value)) {
+        if (IS_WORD(value)) {
+            thunk_t *w = TO_PTR(value);
+            if ((quote_depth == 0) && strcmp(w->name, "[") == 0) {
+                // compile quoted block
+                ++quote_depth;
+                int_t ok = compile();
+                --quote_depth;
+                if (!ok) {
+                    data_top = exec_top;  // restore stack on failure
+                    XDEBUG(fprintf(stderr, "< interpret compile FAIL! data_top=%zu\n", data_top));
+                    return FALSE;
+                }
+                continue;
+            }
+            if ((quote_depth > 0) && (strcmp(w->name, ")") == 0)) {
+                break;  // end of unquote...
+            }
         }
         if (!exec_value(value)) {
             data_top = exec_top;  // restore stack on failure
+            if (quote_depth > 0) {
+                XDEBUG(fprintf(stderr, "< interpret exec FAIL! data_top=%zu\n", data_top));
+                return FALSE;
+            }
         }
     }
-    XDEBUG(fprintf(stderr, "< interpret (quoted=%"PRIdPTR")\n", quoted));
+    XDEBUG(fprintf(stderr, "< interpret ok data_top=%zu\n", data_top));
     return TRUE;
 }
 
-int_t compile() {
-    XDEBUG(fprintf(stderr, "> compile (quoted=%"PRIdPTR")\n", quoted));
-    while (quoted) {
-        int_t value;
-        if (!next_value(&value)) {
-            break;  // no more words...
-        }
-        XDEBUG(print_detail("  compile (value)", value));
-        if (IS_WORD(value)) {
-            if (!get_ro_word(&value, value)) return FALSE;
-            XDEBUG(print_detail("  quote (word)", value));
-        }
-        // push value on stack
-        if (!data_push(value)) return FALSE;
+int_t quote_value(int_t value) {
+    XDEBUG(print_detail("  quote_value (value)", value));
+    if (IS_WORD(value)) {
+        if (!get_ro_word(&value, value)) return FALSE;
+        XDEBUG(print_detail("  quote_value (word)", value));
     }
-    XDEBUG(fprintf(stderr, "< compile (quoted=%"PRIdPTR")\n", quoted));
-    return TRUE;
+    // push value on stack
+    return data_push(value);
+}
+
+int_t compile() {
+    int_t value;
+    XDEBUG(fprintf(stderr, "> compile data_top=%zu\n", data_top));
+    size_t quote_top = data_top;  // save stack pointer for error recovery
+    while (next_value(&value)) {
+        if (IS_WORD(value)) {
+            thunk_t *w = TO_PTR(value);
+            if (quote_depth == 1) {
+                if (strcmp(w->name, "]") == 0) {
+                    break;  // end of quote...
+                }
+                if (strcmp(w->name, "(") == 0) {
+                    // interpret unquoted block
+                    if (!interpret()) return panic("unquoted interpret failed");
+                    if (data_top < quote_top) return stack_underflow();
+                    continue;
+                }
+            }
+            if (strcmp(w->name, "[") == 0) {
+                // nested block
+                ++quote_depth;
+            } else if (strcmp(w->name, "]") == 0) {
+                // unnest block
+                --quote_depth;
+            }
+        }
+        if (!quote_value(value)) {
+            data_top = quote_top;  // restore stack on failure
+            XDEBUG(fprintf(stderr, "< compile quote FAIL! data_top=%zu\n", data_top));
+            return FALSE;
+        }
+    }
+    if (data_top < quote_top) return stack_underflow();
+    // construct block value from stack contents
+    int_t *base = &data_stack[quote_top];
+    size_t len = (data_top - quote_top);
+    data_top = quote_top;  // restore stack top
+    int_t block;
+    if (!make_block(&block, base, len)) {
+        XDEBUG(fprintf(stderr, "< compile block FAIL! data_top=%zu\n", data_top));
+        return FALSE;
+    }
+    XDEBUG(fprintf(stderr, "< compile ok data_top=%zu\n", data_top));
+    return data_push(block);
 }
 
 void print_platform_info() {
