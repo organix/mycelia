@@ -7,12 +7,13 @@ stack-oriented machine with a dictionary
 
 Program source is provided as a stream of _words_
 (whitespace separated in text format).
-Each word is looked up in the current _dictionary_.
-If the value is a _block_ it is executed,
+If the word parses as a _number_
+the value is pushed on the data _stack_.
+Otherwise the word is looked up in the current _dictionary_.
+If the associated value is a _block_ it is executed,
 otherwise the value is pushed on the data _stack_.
-Literal values are pushed on the data _stack_,
-which is used to provide parameters
-and return values for executing blocks.
+The data _stack_ holds parameters for executing blocks
+and their return values.
 Some blocks also consume words from the source stream.
 
 An actor's behavior is described with a _block_.
@@ -25,25 +26,29 @@ All dictionary changes are local to the executing behavior.
 
 ## Implementation
 
+Blocks are essentially
+[functional closures](https://en.wikipedia.org/wiki/Closure_(computer_programming)).
+Executing a word definition is like applying the function
+to the parameters on the stack (consuming them).
+Result values (if any) are left on the stack.
+
 The data stack contains universal integer values,
 usually interpreted as signed 2's-complement numbers.
 Numeric operations do not overflow,
 but rather wrap around forming a ring,
 which may be interpreted as either signed or unsigned.
-The number of bits is not specified,
-but is often the native machine word size
-(e.g.: 32 or 64 bits).
+The number of bits is not specified.
 
 The quartet program `TRUE 1 LSR DUP NOT . .`
 prints the minimum and maximum signed values.
 
 ### Tagged Types
 
-Program source is represented by only 2 types,
+Program source is represented by only two types,
 _Words_ and _Numbers_.
 Values on the data stack can have richer types.
 Stack values can be
-_Words, _Numbers_, _Blocks_, _Procedures_, and _Actors_
+_Words_, _Numbers_, _Blocks_, _Procedures_, and _Actors_
 (_Boolean_ values are just _Numbers_).
 Any value that can appear on the stack
 can also be bound to a _Word_ in the dictionary.

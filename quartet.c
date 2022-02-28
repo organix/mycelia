@@ -1,25 +1,30 @@
 /*
  * quartet.c -- Hosted imperative stack-oriented actor machine
  * Copyright 2014-2022 Dale Schumacher, Tristan Slominski
- *
- * Program source is provided as a stream of words
- * (whitespace separated in text format).
- * Each word is looked up in the current dictionary.
- * If the value is a block it is executed,
- * otherwise the value is pushed on the data stack.
- * Literal values are pushed on the data stack,
- * which is used to provide parameters and
- * return values for executing blocks.
- * Some blocks also consume words from the source stream.
- *
- * An actor's behavior is described with a block.
- * The message received by the actor is the contents of the data stack.
- * The SEND primitive sends the current stack contents, clearing the stack.
- * Values may be saved in the dictionary by binding them to a word.
- * All dictionary changes are local to the executing behavior.
- *
- * See further [https://github.com/organix/mycelia/blob/master/quartet.md]
  */
+
+/**
+Program source is provided as a stream of _words_
+(whitespace separated in text format).
+If the word parses as a _number_
+the value is pushed on the data _stack_.
+Otherwise the word is looked up in the current _dictionary_.
+If the associated value is a _block_ it is executed,
+otherwise the value is pushed on the data _stack_.
+The data _stack_ holds parameters for executing blocks
+and their return values.
+Some blocks also consume words from the source stream.
+
+An actor's behavior is described with a _block_.
+The message received by the actor is the contents of the data stack.
+The `SEND` primitive sends the current stack contents,
+clearing the stack.
+Values may be saved in the dictionary
+by binding them to a word.
+All dictionary changes are local to the executing behavior.
+
+See further [https://github.com/organix/mycelia/blob/master/quartet.md]
+**/
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -77,26 +82,26 @@ typedef void * ptr_t;
 // universal Boolean constants
 #define TRUE MK_NUM(-1)
 #define FALSE MK_NUM(0)
-#define MK_BOOL(x) ((x) ? TRUE : FALSE)
+#define MK_BOOL(x)  ((x) ? TRUE : FALSE)
 
 // universal Infinity/Undefined
 #define INF INT(~(NAT(-1)>>1))
 
-#define NEG(n)   MK_NUM(-TO_INT(n))
-#define ADD(n,m) ((n)+(m))
-#define SUB(n,m) ((n)-(m))
-#define MUL(n,m) MK_NUM(TO_INT(n)*TO_INT(m))
-#define CMP(n,m) ((n)-(m))
-#define LTZ(n)   (((n)<0)?TRUE:FALSE)
-#define EQZ(n)   (((n)==0)?TRUE:FALSE)
-#define GTZ(n)   (((n)>0)?TRUE:FALSE)
-#define NOT(n)   MK_NUM(~TO_NAT(n))
-#define AND(n,m) ((n)&(m))
-#define IOR(n,m) ((n)|(m))
-#define XOR(n,m) ((n)^(m))
-#define LSL(n,m) ((NAT(n)<<TO_INT(m)) & ~TAG_MASK)
-#define LSR(n,m) ((NAT(n)>>TO_INT(m)) & ~TAG_MASK)
-#define ASR(n,m) ((INT(n)>>TO_INT(m)) & ~TAG_MASK)
+#define NEG(n)      MK_NUM(-TO_INT(n))
+#define ADD(n,m)    ((n)+(m))
+#define SUB(n,m)    ((n)-(m))
+#define MUL(n,m)    MK_NUM(TO_INT(n)*TO_INT(m))
+#define CMP(n,m)    ((n)-(m))
+#define LTZ(n)      (((n)<0)?TRUE:FALSE)
+#define EQZ(n)      (((n)==0)?TRUE:FALSE)
+#define GTZ(n)      (((n)>0)?TRUE:FALSE)
+#define NOT(n)      MK_NUM(~TO_NAT(n))
+#define AND(n,m)    ((n)&(m))
+#define IOR(n,m)    ((n)|(m))
+#define XOR(n,m)    ((n)^(m))
+#define LSL(n,m)    ((NAT(n)<<TO_INT(m)) & ~TAG_MASK)
+#define LSR(n,m)    ((NAT(n)>>TO_INT(m)) & ~TAG_MASK)
+#define ASR(n,m)    ((INT(n)>>TO_INT(m)) & ~TAG_MASK)
 
 typedef struct block {
     nat_t       len;                    // number of int_t in data[]
@@ -114,6 +119,10 @@ typedef struct thunk {
 #define CACHE_LINE_SZ (sizeof(thunk_t))  // bytes per idealized cache line
 #define VMEM_PAGE_SZ ((size_t)1 << 12)  // bytes per idealized memory page
 
+/*
+ * error handling
+ */
+
 int_t panic(char *reason) {
     fprintf(stderr, "\nPANIC! %s\n", reason);
     exit(-1);
@@ -126,6 +135,154 @@ int_t error(char *reason) {
 }
 
 /*
+ * printing utilities
+ */
+
+void print_ascii(int_t code) {
+    if ((code & 0x7F) == code) {  // code is in ascii range
+        putchar(code);
+    }
+}
+
+void print_value(int_t value) {
+    if (IS_NUM(value)) {
+        value = TO_INT(value);
+        if (value == INF) {
+            printf("INF");
+        } else {
+            printf("%"PRIdPTR, value);
+        }
+    } else if (IS_WORD(value)) {
+        thunk_t *w = TO_PTR(value);
+        printf("%s", w->name);
+    } else if (IS_BLOCK(value)) {
+        block_t *blk = TO_PTR(value);
+        print_ascii('[');
+        print_ascii(' ');
+        for (size_t i = 0; i < blk->len; ++i) {
+            print_value(blk->data[i]);
+            print_ascii(' ');
+        }
+        print_ascii(']');
+    } else {
+        printf("%p", TO_PTR(value));
+    }
+    //print_ascii(' ');
+    //print_ascii('\n');
+    fflush(stdout);
+}
+
+static char *tag_label[] = { "NUM", "WORD", "BLOCK", "PROC" };
+static void print_detail(char *label, int_t value) {
+    fprintf(stderr, "%s:", label);
+    fprintf(stderr, " t=%s i=%"PRIdPTR" n=%"PRIuPTR" p=%p",
+        tag_label[value & TAG_MASK], TO_INT(value), TO_NAT(value), TO_PTR(value));
+    if (IS_WORD(value)) {
+        thunk_t *w = TO_PTR(value);
+        fprintf(stderr, " s=\"%s\"", w->name);
+        //fprintf(stderr, " v=%"PRIXPTR"", w->value);
+    }
+    if (IS_BLOCK(value)) {
+        block_t *blk = TO_PTR(value);
+        fprintf(stderr, " [%"PRIuPTR"]", blk->len);
+    }
+    fprintf(stderr, "\n");
+    fflush(stderr);
+}
+
+/*
+ * parsing utilities
+ */
+
+int_t read_token(char *buf, size_t buf_sz) {
+    DEBUG(fprintf(stderr, "> read_token\n"));
+    char *p = buf;
+    char *q = p + buf_sz;
+    DEBUG(fprintf(stderr, "  read_token: skip leading whitespace\n"));
+    int c = getchar();
+    while ((c <= ' ') || (c == '#') || (c >= 0x7F)) {
+        if (c == '#') {  // comment extends to end of line
+            DEBUG(fprintf(stderr, "  read_token: skip comment to EOL\n"));
+            while ((c != EOF) && (c != '\n')) {
+                c = getchar();
+            }
+        }
+        if (c == EOF) {
+            DEBUG(fprintf(stderr, "< read_token = FALSE (eof)\n"));
+            return FALSE;  // end of file
+        }
+        c = getchar();
+    }
+    DEBUG(fprintf(stderr, "  read_token: gather token characters\n"));
+    while ((c != EOF) && (c > ' ') && (c < 0x7F)) {
+        *p++ = c;
+        if (p >= q) {
+            return panic("token buffer overflow");
+        }
+        c = getchar();
+    }
+    *p = '\0';  // NUL-terminate string
+    DEBUG(fprintf(stderr, "< read_token = TRUE \"%s\"\n", buf));
+    return TRUE;
+}
+
+static char *base36digit = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+int_t token_to_number(int_t *value_out, char *s) {
+    DEBUG(fprintf(stderr, "> token_to_number\n"));
+    // attempt to parse token as a number
+    int_t neg = FALSE;
+    int_t got_base = FALSE;
+    int_t got_digit = FALSE;
+    uintptr_t base = 10;
+    DEBUG(fprintf(stderr, "  token_to_number: s=\"%s\"\n", s));
+    uintptr_t n = 0;
+    char c = *s++;
+    if (c == '-') {  // remember leading minus
+        neg = TRUE;
+        c = *s++;
+    } else if (c == '+') {  // skip leading plus
+        c = *s++;
+    }
+    while (c) {
+        if (c == '_') {  // skip separator
+            c = *s++;
+        }
+        if (!got_base && got_digit && (c == '#')) {
+            base = n;
+            if ((base < 2) || (base > 36)) {
+                DEBUG(fprintf(stderr, "< token_to_number = FALSE (base range)\n"));
+                return FALSE;  // number base out of range
+            }
+            got_base = TRUE;
+            got_digit = FALSE;
+            n = 0;
+            c = *s++;
+        }
+        char *p = strchr(base36digit, toupper(c));
+        if (p == NULL) {
+            DEBUG(fprintf(stderr, "< token_to_number = FALSE (non-digit)\n"));
+            return FALSE;  // non-digit character
+        }
+        uintptr_t digit = NAT(p - base36digit);
+        if (digit >= base) {
+            DEBUG(fprintf(stderr, "< token_to_number = FALSE (digit range)\n"));
+            return FALSE;  // digit out of range for base
+        }
+        n *= base;
+        n += digit;
+        got_digit = TRUE;
+        c = *s++;
+    }
+    if (!got_digit) {
+        DEBUG(fprintf(stderr, "< token_to_number = FALSE (need digits)\n"));
+        return FALSE;  // need at least one digit
+    }
+    *value_out = (neg ? -INT(n) : INT(n));
+    DEBUG(fprintf(stderr, "< token_to_number = TRUE\n"));
+    return TRUE;
+}
+
+/*
  * data stack
  */
 
@@ -133,12 +290,20 @@ int_t error(char *reason) {
 int_t data_stack[MAX_STACK];
 size_t data_top = 0;
 
+void print_stack() {
+    for (size_t i = 0; i < data_top; ++i) {
+        print_value(data_stack[i]);
+        print_ascii(' ');
+    }
+}
+
 static int_t stack_overflow() { return panic("stack overflow"); }
 static int_t stack_underflow() { return error("empty stack"); }
+static int_t index_out_of_bounds() { return panic("index out of bounds"); }
 
 int_t data_push(int_t value) {
     if (data_top >= MAX_STACK) {
-        return panic("stack overflow");
+        return stack_overflow();
     }
     data_stack[data_top++] = value;
     return TRUE;
@@ -154,7 +319,7 @@ int_t data_pop(int_t *value_out) {
 
 int_t data_pick(int_t *value_out, int n) {
     if ((n < 1) || (n > data_top)) {
-        return panic("index out of bounds");
+        return index_out_of_bounds();
     }
     *value_out = data_stack[data_top - n];
     return TRUE;
@@ -164,7 +329,7 @@ int_t data_roll(int n) {
     if (n == 0) return TRUE;  // no-op
     if (n > 0) {
         if (n > data_top) {
-            return panic("index out of bounds");
+            return index_out_of_bounds();
         }
         int_t *p = &data_stack[data_top - n];
         int_t x = p[0];
@@ -176,7 +341,7 @@ int_t data_roll(int n) {
     } else {  // reverse rotate
         n = -n;
         if (n > data_top) {
-            return panic("index out of bounds");
+            return index_out_of_bounds();
         }
         int_t *p = &data_stack[data_top - 1];
         int_t x = p[0];
@@ -196,16 +361,6 @@ int_t data_roll(int n) {
 #define MAX_BLOCK_MEM (VMEM_PAGE_SZ / sizeof(int_t))
 int_t block_mem[MAX_BLOCK_MEM];
 size_t block_next = 0;
-
-/*
-int_t is_block(int_t value) {
-//    if (NAT(value - INT(block_mem)) < sizeof(block_mem)) {
-    if (NAT(TO_PTR(value) - PTR(block_mem)) < (block_next * sizeof(int_t))) {
-        return TRUE;
-    }
-    return FALSE;
-}
-*/
 
 int_t make_block(int_t *block_out, int_t *base, size_t len) {
     size_t next = block_next + len;
@@ -227,23 +382,6 @@ int_t make_block(int_t *block_out, int_t *base, size_t len) {
  */
 
 PROC_DECL(prim_Undefined);
-//PROC_DECL(prim_Constant);
-//PROC_DECL(prim_Block);
-
-/*
-int_t is_defined(int_t word) {
-    thunk_t *w = PTR(word);
-    if (w->proc == PTR(0)) return FALSE;
-    if (w->proc == prim_Undefined) return FALSE;
-    return TRUE;
-}
-
-int_t is_const(int_t word) {
-    thunk_t *w = PTR(word);
-    if (w->proc == prim_Constant) return TRUE;
-    return FALSE;
-}
-*/
 
 PROC_DECL(prim_CREATE);
 PROC_DECL(prim_SEND);
@@ -257,8 +395,8 @@ PROC_DECL(prim_OpenQuote);
 PROC_DECL(prim_CloseQuote);
 PROC_DECL(prim_OpenUnquote);
 PROC_DECL(prim_CloseUnquote);
-PROC_DECL(prim_TRUE);
-PROC_DECL(prim_FALSE);
+//PROC_DECL(prim_TRUE);
+//PROC_DECL(prim_FALSE);
 //PROC_DECL(prim_ZEROP);
 PROC_DECL(prim_IF);
 PROC_DECL(prim_ELSE);
@@ -269,7 +407,7 @@ PROC_DECL(prim_SWAP);
 PROC_DECL(prim_PICK);
 PROC_DECL(prim_ROLL);
 PROC_DECL(prim_DEPTH);
-PROC_DECL(prim_INF);
+//PROC_DECL(prim_INF);
 PROC_DECL(prim_NEG);
 PROC_DECL(prim_ADD);
 PROC_DECL(prim_SUB);
@@ -362,85 +500,6 @@ size_t ro_words = 46;  // limit of read-only words
 size_t rw_words = 46;  // limit of read/write words
 #endif
 
-//int_t is_block(int_t value);  // FORWARD DECLARATION
-
-/*
-int_t is_proc(int_t value) {
-    if ((value < INT(prim_CREATE))
-     || (value > INT(prim_Print))) {
-        return FALSE;
-    }
-    return TRUE;
-}
-*/
-
-int_t is_word(int_t value) {
-//    if (NAT(value - INT(word_list)) < sizeof(word_list)) {
-    if (NAT(value - INT(word_list)) <= (rw_words * sizeof(thunk_t))) {
-        return TRUE;
-    }
-    return FALSE;
-}
-
-void print_ascii(int_t code) {
-    if ((code & 0x7F) == code) {  // code is in ascii range
-        putchar(code);
-    }
-}
-
-void print_value(int_t value) {
-    if (IS_NUM(value)) {
-        value = TO_INT(value);
-        if (value == INF) {
-            printf("INF");
-        } else {
-            printf("%"PRIdPTR, value);
-        }
-    } else if (IS_WORD(value)) {
-        thunk_t *w = TO_PTR(value);
-        printf("%s", w->name);
-    } else if (IS_BLOCK(value)) {
-        block_t *blk = TO_PTR(value);
-        print_ascii('[');
-        print_ascii(' ');
-        for (size_t i = 0; i < blk->len; ++i) {
-            print_value(blk->data[i]);
-            print_ascii(' ');
-        }
-        print_ascii(']');
-    } else {
-        printf("%p", TO_PTR(value));
-    }
-    //print_ascii(' ');
-    //print_ascii('\n');
-    fflush(stdout);
-}
-
-void print_stack() {
-    for (size_t i = 0; i < data_top; ++i) {
-        print_value(data_stack[i]);
-        print_ascii(' ');
-    }
-}
-
-static char *tag_label[] = { "NUM", "WORD", "BLOCK", "PROC" };
-static void print_detail(char *label, int_t value) {
-    fprintf(stderr, "%s:", label);
-    fprintf(stderr, " t=%s i=%"PRIdPTR" n=%"PRIuPTR" p=%p",
-        tag_label[value & TAG_MASK], TO_INT(value), TO_NAT(value), TO_PTR(value));
-    if (IS_WORD(value)) {
-        thunk_t *w = TO_PTR(value);
-        fprintf(stderr, " s=\"%s\"", w->name);
-        //fprintf(stderr, " v=%"PRIXPTR"", w->value);
-    }
-    if (IS_BLOCK(value)) {
-        block_t *blk = TO_PTR(value);
-        fprintf(stderr, " [%"PRIuPTR"]", blk->len);
-    }
-    fprintf(stderr, "\n");
-    fflush(stderr);
-}
-
 static void print_thunk(char *label, thunk_t *w) {
     fprintf(stderr, "%s:", label);
     fprintf(stderr, " value=%"PRIXPTR"", w->value);
@@ -451,93 +510,16 @@ static void print_thunk(char *label, thunk_t *w) {
     fflush(stderr);
 }
 
-int_t read_token(char *buf, size_t buf_sz) {
-    DEBUG(fprintf(stderr, "> read_token\n"));
-    char *p = buf;
-    char *q = p + buf_sz;
-    DEBUG(fprintf(stderr, "  read_token: skip leading whitespace\n"));
-    int c = getchar();
-    while ((c <= ' ') || (c == '#') || (c >= 0x7F)) {
-        if (c == '#') {  // comment extends to end of line
-            DEBUG(fprintf(stderr, "  read_token: skip comment to EOL\n"));
-            while ((c != EOF) && (c != '\n')) {
-                c = getchar();
-            }
-        }
-        if (c == EOF) {
-            DEBUG(fprintf(stderr, "< read_token = FALSE (eof)\n"));
-            return FALSE;  // end of file
-        }
-        c = getchar();
+#if 0
+/* this code is an example a range check implemented by a single comparison */
+int_t is_word(int_t value) {
+//    if (NAT(value - INT(word_list)) < sizeof(word_list)) {
+    if (NAT(value - INT(word_list)) <= (rw_words * sizeof(thunk_t))) {
+        return TRUE;
     }
-    DEBUG(fprintf(stderr, "  read_token: gather token characters\n"));
-    while ((c != EOF) && (c > ' ') && (c < 0x7F)) {
-        *p++ = c;
-        if (p >= q) {
-            return panic("token buffer overflow");
-        }
-        c = getchar();
-    }
-    *p = '\0';  // NUL-terminate string
-    DEBUG(fprintf(stderr, "< read_token = TRUE \"%s\"\n", buf));
-    return TRUE;
+    return FALSE;
 }
-
-static char *base36digit = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-int_t token_to_number(int_t *value_out, char *s) {
-    DEBUG(fprintf(stderr, "> token_to_number\n"));
-    // attempt to parse token as a number
-    int_t neg = FALSE;
-    int_t got_base = FALSE;
-    int_t got_digit = FALSE;
-    uintptr_t base = 10;
-    DEBUG(fprintf(stderr, "  token_to_number: s=\"%s\"\n", s));
-    uintptr_t n = 0;
-    char c = *s++;
-    if (c == '-') {  // remember leading minus
-        neg = TRUE;
-        c = *s++;
-    } else if (c == '+') {  // skip leading plus
-        c = *s++;
-    }
-    while (c) {
-        if (c == '_') {  // skip separator
-            c = *s++;
-        }
-        if (!got_base && got_digit && (c == '#')) {
-            base = n;
-            if ((base < 2) || (base > 36)) {
-                DEBUG(fprintf(stderr, "< token_to_number = FALSE (base range)\n"));
-                return FALSE;  // number base out of range
-            }
-            got_base = TRUE;
-            got_digit = FALSE;
-            n = 0;
-            c = *s++;
-        }
-        char *p = strchr(base36digit, toupper(c));
-        if (p == NULL) {
-            DEBUG(fprintf(stderr, "< token_to_number = FALSE (non-digit)\n"));
-            return FALSE;  // non-digit character
-        }
-        uintptr_t digit = NAT(p - base36digit);
-        if (digit >= base) {
-            DEBUG(fprintf(stderr, "< token_to_number = FALSE (digit range)\n"));
-            return FALSE;  // digit out of range for base
-        }
-        n *= base;
-        n += digit;
-        got_digit = TRUE;
-        c = *s++;
-    }
-    if (!got_digit) {
-        DEBUG(fprintf(stderr, "< token_to_number = FALSE (need digits)\n"));
-        return FALSE;  // need at least one digit
-    }
-    *value_out = (neg ? -INT(n) : INT(n));
-    DEBUG(fprintf(stderr, "< token_to_number = TRUE\n"));
-    return TRUE;
-}
+#endif
 
 int_t parse_value(int_t *value_out) {
     // read token into next available word buffer
@@ -557,22 +539,30 @@ int_t parse_value(int_t *value_out) {
 }
 
 ptr_t next_value_ptr = PTR(0);
+//nat_t next_value_cnt = NAT(0);
 int_t next_value(int_t *value_out) {
     if (next_value_ptr) {
         // read from block data
         return panic("block scope not implemented");
+//        if (next_value_cnt) {
+//            --next_value_cnt;
+//            *value_out = *next_value_ptr++;
+//        }
+//        next_value_ptr = PTR(0);
+//        return FALSE;  // no more words (in block)
     }
     // read from input stream
     return parse_value(value_out);
 }
 
+// convert latest token into new word
 int_t create_word(int_t *word_out, int_t word) {
     thunk_t *w = TO_PTR(word);
     if (rw_words >= MAX_WORDS) return panic("too many words");
-    if (w != &word_list[rw_words]) return panic("can only create last word read");
+    if (w != &word_list[rw_words]) return panic("can only create from latest token");
     ++rw_words;  // extend r/w dictionary
     word = MK_WORD(w);
-    XDEBUG(print_detail("  create_word", word));
+    XDEBUG(print_thunk("  create_word", TO_PTR(word)));
     *word_out = word;
     return TRUE;
 }
@@ -583,7 +573,9 @@ int_t find_ro_word(int_t *word_out, int_t word) {
     for (size_t n = rw_words; (n-- > 0); ) {  // search from _end_ of dictionary
         thunk_t *m = &word_list[n];
         if (strcmp(w->name, m->name) == 0) {
-            *word_out = MK_WORD(m);
+            word = MK_WORD(m);
+            XDEBUG(print_thunk("  ro_word", TO_PTR(word)));
+            *word_out = word;
             return TRUE;
         }
     }
@@ -602,7 +594,9 @@ int_t find_rw_word(int_t *word_out, int_t word) {
     for (size_t n = rw_words; (n-- > ro_words); ) {  // search from _end_ of dictionary
         thunk_t *m = &word_list[n];
         if (strcmp(w->name, m->name) == 0) {
-            *word_out = MK_WORD(m);
+            word = MK_WORD(m);
+            XDEBUG(print_thunk("  rw_word", TO_PTR(word)));
+            *word_out = word;
             return TRUE;
         }
     }
@@ -639,6 +633,13 @@ int_t get_rw_word(int_t *word_out, int_t word) {
     data_stack[data_top-1] = oper(arg1, arg2); \
     return TRUE;
 
+static int_t undefined_word(int_t word) {
+    // error on undefined word
+    print_value(word);
+    fflush(stdout);
+    return error("undefined word");
+}
+
 static int_t quoted = FALSE;  // word scan mode (TRUE=compile, FALSE=interpret)
 int_t interpret();  // FORWARD DECLARATION
 int_t compile();  // FORWARD DECLARATION
@@ -661,10 +662,7 @@ PROC_DECL(prim_Bind) {
         w->value = value;
         return TRUE;
     }
-    // error on undefined word
-    print_value(word);
-    fflush(stdout);
-    return error("undefined word");
+    return undefined_word(word);
 }
 PROC_DECL(prim_Literal) {
     int_t word;
@@ -682,44 +680,12 @@ PROC_DECL(prim_Lookup) {
         thunk_t *w = TO_PTR(word);
         return data_push(w->value);
     }
-    // error on undefined word
-    print_value(word);
-    fflush(stdout);
-    return error("undefined word");
+    return undefined_word(word);
 }
-PROC_DECL(prim_OpenQuote) {
-    XDEBUG(fprintf(stderr, "  prim_OpenQuote (data_top=%"PRIdPTR")\n", data_top));
-#if 1
-    return error("unexpected [");
-#else
-    size_t quote_top = data_top;
-    quoted = TRUE;
-    int_t ok = compile();
-    quoted = FALSE;
-    if (data_top < quote_top) return panic("stack underflow");
-    if (!ok) {
-        data_top = quote_top;  // restore stack top
-        return FALSE;
-    }
-    int_t *base = &data_stack[quote_top];
-    size_t len = (data_top - quote_top);
-    int_t block;
-    if (!make_block(&block, base, len)) return FALSE;
-    data_top = quote_top;  // restore stack top
-    return data_push(block);
-#endif
-}
+PROC_DECL(prim_OpenQuote) { return error("unexpected ["); }
 PROC_DECL(prim_CloseQuote) { return error("unexpected ]"); }
 PROC_DECL(prim_OpenUnquote) { return error("unexpected ("); }
-PROC_DECL(prim_CloseUnquote) {
-    XDEBUG(fprintf(stderr, "  prim_CloseUnquote (data_top=%"PRIdPTR")\n", data_top));
-#if 1
-    return error("unexpected )");
-#else
-    quoted = TRUE;
-    return TRUE;
-#endif
-}
+PROC_DECL(prim_CloseUnquote) { return error("unexpected )"); }
 PROC_DECL(prim_TRUE) { return data_push(TRUE); }
 PROC_DECL(prim_FALSE) { return data_push(FALSE); }
 PROC_DECL(prim_IF) { return error("unimplemented IF"); }
@@ -835,40 +801,6 @@ PROC_DECL(prim_Print) {
     return TRUE;
 }
 
-#if 0
-int_t lookup_def(int_t *value_out, int_t word) {
-    if (!IS_WORD(word)) return error("WORD expected");
-    *value_out = word;
-    return TRUE;
-}
-
-int_t get_def(int_t *value_out, int_t word) {
-    if (!IS_WORD(word)) return error("WORD expected");
-    if (find_ro_word(&word, word)
-     && lookup_def(value_out, word)) {
-        return TRUE;
-    }
-    // error on undefined word
-    print_value(word);
-    fflush(stdout);
-    return error("undefined word");
-}
-
-int_t bind_def(int_t word, int_t value) {
-    if (!IS_WORD(word)) return error("WORD expected");
-    size_t index = NAT(TO_PTR(word) - PTR(word_list)) / sizeof(thunk_t);
-    if ((index < ro_words) || (index >= rw_words)) {
-        print_value(word);
-        fflush(stdout);
-        return error("bind failed");
-    }
-    thunk_t *w = TO_PTR(word);
-    w->proc = prim_Constant;
-    w->var[0] = value;
-    return TRUE;
-}
-#endif
-
 /*
  * word interpreter/compiler
  */
@@ -878,12 +810,7 @@ int_t exec_value(int_t value) {
     if (IS_WORD(value)) {
         // find definition in current dictionary
         int_t word;
-        if (!find_ro_word(&word, value)) {
-            // error on undefined word
-            print_value(value);
-            fflush(stdout);
-            return error("undefined word");
-        }
+        if (!find_ro_word(&word, value)) return undefined_word(value);
         XDEBUG(print_detail("  exec_value (word)", word));
         thunk_t *w = TO_PTR(word);
         value = w->value;
@@ -904,6 +831,24 @@ int_t exec_value(int_t value) {
     // push value on stack
     return data_push(value);
 }
+/*
+    XDEBUG(fprintf(stderr, "  prim_OpenQuote (data_top=%"PRIdPTR")\n", data_top));
+    size_t quote_top = data_top;
+    quoted = TRUE;
+    int_t ok = compile();
+    quoted = FALSE;
+    if (data_top < quote_top) return panic("stack underflow");
+    if (!ok) {
+        data_top = quote_top;  // restore stack top
+        return FALSE;
+    }
+    int_t *base = &data_stack[quote_top];
+    size_t len = (data_top - quote_top);
+    int_t block;
+    if (!make_block(&block, base, len)) return FALSE;
+    data_top = quote_top;  // restore stack top
+    return data_push(block);
+*/
 
 int_t interpret() {
     XDEBUG(fprintf(stderr, "> interpret (quoted=%"PRIdPTR")\n", quoted));
@@ -1066,7 +1011,7 @@ void smoke_test() {
 int main(int argc, char const *argv[])
 {
     //print_platform_info();
-    smoke_test();
+    //smoke_test();
 
 #if 1
     printf("-- sanity check --\n");
@@ -1078,23 +1023,15 @@ int main(int argc, char const *argv[])
     print_detail("    Print", INT(prim_Print));
     print_detail("     main", INT(main));
 #endif
+#if 0
+    // ensure that function pointer range checks will work...
     if (!(NAT(panic) < NAT(main))) {
         return panic("expected panic() < main()");
     }
     if (!(INT(prim_CREATE) < INT(prim_Print))) {
         return panic("expected panic() < main()");
     }
-/*
-    if (is_proc(INT(prim_Undefined))) {
-        return panic("expected !is_proc(prim_Undefined)");
-    }
-    if (!is_proc(INT(prim_CREATE))) {
-        return panic("expected is_proc(prim_CREATE)");
-    }
-    if (!is_proc(INT(prim_Print))) {
-        return panic("expected is_proc(prim_Print)");
-    }
-*/
+#endif
 
     printf("-- interpreter --\n");
     return (interpret() ? 0 : 1);
