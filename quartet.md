@@ -23,6 +23,8 @@ Values may be saved in the dictionary
 by binding them to a word.
 All dictionary changes are local to the executing behavior.
 
+## Implementation
+
 The data stack contains universal integer values,
 usually interpreted as signed 2's-complement numbers.
 Numeric operations do not overflow,
@@ -34,6 +36,17 @@ but is often the native machine word size
 
 The quartet program `TRUE 1 LSR DUP NOT . .`
 prints the minimum and maximum signed values.
+
+### Tagged Types
+
+Program source is represented by only 2 types,
+_Words_ and _Numbers_.
+Values on the data stack can have richer types.
+Stack values can be
+_Words, _Numbers_, _Blocks_, _Procedures_, and _Actors_
+(_Boolean_ values are just _Numbers_).
+Any value that can appear on the stack
+can also be bound to a _Word_ in the dictionary.
 
 ## Primitive Dictionary
 
@@ -66,7 +79,8 @@ Input                | Operation       | Output                  | Description
 &mdash;              | `TRUE`          | TRUE                    | All bits set (1)
 &mdash;              | `FALSE`         | FALSE                   | All bits clear (0)
 _value_              | `ZERO?`         | _bool_                  | `TRUE` if _value_ = 0; otherwise `FALSE`
-_bool_               | `IF` [ ] `ELSE` [ ] | &mdash;             | Conditional execution of blocks
+_bool_               | `IF` [ ] `ELSE` [ ] | &mdash;             | Execute block based on condition
+_bool_               | `WHILE` [ ]     | &mdash;                 | Execute block while condition holds
 
 ### Stack Manipulation
 
