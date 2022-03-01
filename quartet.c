@@ -417,6 +417,7 @@ PROC_DECL(prim_ADD);
 PROC_DECL(prim_SUB);
 PROC_DECL(prim_MUL);
 PROC_DECL(prim_DIVMOD);
+PROC_DECL(prim_FMA);
 PROC_DECL(prim_CMP);
 PROC_DECL(prim_LTZ);
 PROC_DECL(prim_EQZ);
@@ -472,6 +473,7 @@ thunk_t word_list[MAX_WORDS] = {
     { .value = MK_PROC(prim_SUB), .name = "SUB" },
     { .value = MK_PROC(prim_MUL), .name = "MUL" },
     { .value = MK_PROC(prim_DIVMOD), .name = "DIVMOD" },
+    { .value = MK_PROC(prim_FMA), .name = "FMA" },
     { .value = MK_PROC(prim_SUB), .name = "COMPARE" },
     { .value = MK_PROC(prim_LTZ), .name = "LT?" },
     { .value = MK_PROC(prim_EQZ), .name = "EQ?" },
@@ -497,11 +499,11 @@ thunk_t word_list[MAX_WORDS] = {
     { .value = UNDEFINED, .name = "" }
 };
 #if ALLOW_DMA
-size_t ro_words = 50;  // limit of read-only words
-size_t rw_words = 50;  // limit of read/write words
+size_t ro_words = 51;  // limit of read-only words
+size_t rw_words = 51;  // limit of read/write words
 #else
-size_t ro_words = 46;  // limit of read-only words
-size_t rw_words = 46;  // limit of read/write words
+size_t ro_words = 47;  // limit of read-only words
+size_t rw_words = 47;  // limit of read/write words
 #endif
 
 static void print_thunk(char *label, thunk_t *w) {
@@ -778,15 +780,22 @@ PROC_DECL(prim_DIVMOD) {  // n = (m * q) + r
         q = n / m;
         r = n % m;
         // FIXME: map to euclidean division
-        // -7 3 DIVMOD -- -3 2  # now: -2 -1
-        // -7 -3 DIVMOD -- 3 2  # now: 2 -1
+        // -7 3 DIVMOD -- 2 -3  # now: -1 -2
+        // -7 -3 DIVMOD -- 2 3  # now: -1 2
         // [https://en.wikipedia.org/wiki/Modulo_operation]
     }
     q = MK_NUM(q);
     r = MK_NUM(r);
-    if (!data_push(q)) return FALSE;
-    return data_push(r);
-    // [ 3 ROLL MUL ADD ] = EUCLID  # n m DIVMOD m EUCLID -- n
+    if (!data_push(r)) return FALSE;
+    return data_push(q);
+}
+// n m DIVMOD m FMA -- n  # EUCLID
+PROC_DECL(prim_FMA) {
+    POP1ARG(a);
+    POP1ARG(b);
+    POP1ARG(c);
+    int_t x = TO_INT(a) * TO_INT(b) + TO_INT(c);
+    return data_push(MK_NUM(x));
 }
 PROC_DECL(prim_CMP) { POP2PUSH1(n, m, CMP); }
 PROC_DECL(prim_LTZ) { POP1PUSH1(n, LTZ); }

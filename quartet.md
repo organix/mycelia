@@ -108,7 +108,8 @@ _n_                  | `NEG`           | -_n_                    | Numeric negat
 _n_ _m_              | `ADD`           | _n+m_                   | Numeric addition
 _n_ _m_              | `SUB`           | _n-m_                   | Numeric subtraction
 _n_ _m_              | `MUL`           | _n*m_                   | Numeric multiplication
-_n_ _m_              | `DIVMOD`        | _q_ _r_                 | Numeric division/modulus
+_n_ _m_              | `DIVMOD`        | _r_ _q_                 | Numeric division/modulus
+_c_ _b_ _a_          | `FMA`           | _a*b+c_                 | Fused multiply/add
 _n_ _m_              | `COMPARE`       | _n-m_                   | Compare numeric values
 _n_                  | `LT?`           | _bool_                  | `TRUE` if _n_ < 0; otherwise `FALSE`
 _n_                  | `EQ?`           | _bool_                  | `TRUE` if _n_ = 0; otherwise `FALSE`
