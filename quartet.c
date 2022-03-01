@@ -377,7 +377,7 @@ int_t make_block(int_t *block_out, int_t *base, size_t len) {
     }
     block_next = next;
     *block_out = MK_BLOCK(blk);
-    XDEBUG(print_detail("  make_block", *block_out));
+    DEBUG(print_detail("  make_block", *block_out));
     return TRUE;
 }
 
@@ -540,7 +540,7 @@ int_t parse_value(int_t *value_out) {
     } else {
         *value_out = MK_WORD(w);
     }
-    XDEBUG(print_detail("  parse_value", *value_out));
+    DEBUG(print_detail("  parse_value", *value_out));
     return TRUE;
 }
 
@@ -548,12 +548,12 @@ int_t *next_value_ptr = PTR(0);
 nat_t next_value_cnt = NAT(0);
 int_t next_value(int_t *value_out) {
     if (next_value_ptr) {
-        XDEBUG(fprintf(stderr, "  next_value cnt=%"PRIuPTR" ptr=%p\n", next_value_cnt, next_value_ptr));
+        DEBUG(fprintf(stderr, "  next_value cnt=%"PRIuPTR" ptr=%p\n", next_value_cnt, next_value_ptr));
         // read from block data
         if (next_value_cnt) {
             --next_value_cnt;
             *value_out = *next_value_ptr++;
-            XDEBUG(print_detail("  next_value", *value_out));
+            DEBUG(print_detail("  next_value", *value_out));
             return TRUE;
         }
         next_value_ptr = PTR(0);
@@ -570,7 +570,7 @@ int_t create_word(int_t *word_out, int_t word) {
     if (w != &word_list[rw_words]) return panic("can only create from latest token");
     ++rw_words;  // extend r/w dictionary
     word = MK_WORD(w);
-    XDEBUG(print_thunk("  create_word", TO_PTR(word)));
+    DEBUG(print_thunk("  create_word", TO_PTR(word)));
     *word_out = word;
     return TRUE;
 }
@@ -582,7 +582,7 @@ int_t find_ro_word(int_t *word_out, int_t word) {
         thunk_t *m = &word_list[n];
         if (strcmp(w->name, m->name) == 0) {
             word = MK_WORD(m);
-            XDEBUG(print_thunk("  ro_word", TO_PTR(word)));
+            DEBUG(print_thunk("  ro_word", TO_PTR(word)));
             *word_out = word;
             return TRUE;
         }
@@ -603,7 +603,7 @@ int_t find_rw_word(int_t *word_out, int_t word) {
         thunk_t *m = &word_list[n];
         if (strcmp(w->name, m->name) == 0) {
             word = MK_WORD(m);
-            XDEBUG(print_thunk("  rw_word", TO_PTR(word)));
+            DEBUG(print_thunk("  rw_word", TO_PTR(word)));
             *word_out = word;
             return TRUE;
         }
@@ -650,6 +650,8 @@ static int_t undefined_word(int_t word) {
 
 int_t interpret();  // FORWARD DECLARATION
 int_t compile();  // FORWARD DECLARATION
+int_t get_block(int_t value);  // FORWARD DECLARATION
+int_t exec_value(int_t value);  // FORWARD DECLARATION
 
 PROC_DECL(prim_Undefined) { return error("undefined procedure"); }
 
@@ -696,7 +698,19 @@ PROC_DECL(prim_TRUE) { return data_push(TRUE); }
 PROC_DECL(prim_FALSE) { return data_push(FALSE); }
 PROC_DECL(prim_IF) { return error("unimplemented IF"); }
 PROC_DECL(prim_ELSE) { return error("unexpected ELSE"); }
-PROC_DECL(prim_WHILE) { return error("unimplemented WHILE"); }
+PROC_DECL(prim_WHILE) {
+    POP1ARG(cond);
+    int_t word;
+    if (!next_value(&word)) return FALSE;
+    if (!get_block(word)) return FALSE;
+    word = data_stack[--data_top];  // pop block from stack
+    while (cond) {
+        exec_value(word);
+        if (data_top < 1) return stack_underflow();
+        cond = data_stack[--data_top];  // pop condition from stack
+    }
+    return TRUE;
+}
 PROC_DECL(prim_DROP) {
     if (data_top < 1) return stack_underflow();
     --data_top;
@@ -814,15 +828,15 @@ PROC_DECL(prim_Print) {
 nat_t quote_depth = 0;  // count nested quoting levels
 
 int_t exec_value(int_t value) {
-    XDEBUG(print_detail("  exec_value (value)", value));
+    DEBUG(print_detail("  exec_value (value)", value));
     if (IS_WORD(value)) {
         // find definition in current dictionary
         int_t word;
         if (!find_ro_word(&word, value)) return undefined_word(value);
-        XDEBUG(print_detail("  exec_value (word)", word));
+        DEBUG(print_detail("  exec_value (word)", word));
         thunk_t *w = TO_PTR(word);
         value = w->value;
-        XDEBUG(print_detail("  exec_value (def)", value));
+        DEBUG(print_detail("  exec_value (def)", value));
     }
     // execute value
     if (IS_BLOCK(value)) {
@@ -830,7 +844,7 @@ int_t exec_value(int_t value) {
         nat_t prev_value_cnt = next_value_cnt;
         int_t *prev_value_ptr = next_value_ptr;
         // use block as value source
-        XDEBUG(print_detail("  exec_value (block)", value));
+        DEBUG(print_detail("  exec_value (block)", value));
         block_t *blk = TO_PTR(value);
         next_value_cnt = blk->len;
         next_value_ptr = blk->data;
@@ -849,26 +863,31 @@ int_t exec_value(int_t value) {
     return data_push(value);
 }
 
+int_t get_block(int_t value) {
+    if (IS_WORD(value)) {
+        thunk_t *w = TO_PTR(value);
+        if (strcmp(w->name, "[") == 0) {
+            // compile quoted block
+            ++quote_depth;
+            if (!compile()) return panic("block quoting failed");
+            --quote_depth;
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
 int_t interpret() {
     int_t value;
-    XDEBUG(fprintf(stderr, "> interpret data_top=%zu\n", data_top));
+    DEBUG(fprintf(stderr, "> interpret data_top=%zu\n", data_top));
     size_t exec_top = data_top;  // save stack pointer for error recovery
-    XDEBUG(fprintf(stderr, "  interpret cnt=%"PRIuPTR" ptr=%p\n", next_value_cnt, next_value_ptr));
+    DEBUG(fprintf(stderr, "  interpret cnt=%"PRIuPTR" ptr=%p\n", next_value_cnt, next_value_ptr));
     while (next_value(&value)) {
+        if (get_block(value)) {
+            continue;
+        }
         if (IS_WORD(value)) {
             thunk_t *w = TO_PTR(value);
-            if ((quote_depth == 0) && strcmp(w->name, "[") == 0) {
-                // compile quoted block
-                ++quote_depth;
-                int_t ok = compile();
-                --quote_depth;
-                if (!ok) {
-                    data_top = exec_top;  // restore stack on failure
-                    XDEBUG(fprintf(stderr, "< interpret compile FAIL! data_top=%zu\n", data_top));
-                    return FALSE;
-                }
-                continue;
-            }
             if ((quote_depth > 0) && (strcmp(w->name, ")") == 0)) {
                 break;  // end of unquote...
             }
@@ -876,20 +895,20 @@ int_t interpret() {
         if (!exec_value(value)) {
             data_top = exec_top;  // restore stack on failure
             if (quote_depth > 0) {
-                XDEBUG(fprintf(stderr, "< interpret exec FAIL! data_top=%zu\n", data_top));
+                DEBUG(fprintf(stderr, "< interpret exec FAIL! data_top=%zu\n", data_top));
                 return FALSE;
             }
         }
     }
-    XDEBUG(fprintf(stderr, "< interpret ok data_top=%zu\n", data_top));
+    DEBUG(fprintf(stderr, "< interpret ok data_top=%zu\n", data_top));
     return TRUE;
 }
 
 int_t quote_value(int_t value) {
-    XDEBUG(print_detail("  quote_value (value)", value));
+    DEBUG(print_detail("  quote_value (value)", value));
     if (IS_WORD(value)) {
         if (!get_ro_word(&value, value)) return FALSE;
-        XDEBUG(print_detail("  quote_value (word)", value));
+        DEBUG(print_detail("  quote_value (word)", value));
     }
     // push value on stack
     return data_push(value);
@@ -897,7 +916,7 @@ int_t quote_value(int_t value) {
 
 int_t compile() {
     int_t value;
-    XDEBUG(fprintf(stderr, "> compile data_top=%zu\n", data_top));
+    DEBUG(fprintf(stderr, "> compile data_top=%zu\n", data_top));
     size_t quote_top = data_top;  // save stack pointer for error recovery
     while (next_value(&value)) {
         if (IS_WORD(value)) {
@@ -923,7 +942,7 @@ int_t compile() {
         }
         if (!quote_value(value)) {
             data_top = quote_top;  // restore stack on failure
-            XDEBUG(fprintf(stderr, "< compile quote FAIL! data_top=%zu\n", data_top));
+            DEBUG(fprintf(stderr, "< compile quote FAIL! data_top=%zu\n", data_top));
             return FALSE;
         }
     }
@@ -934,10 +953,10 @@ int_t compile() {
     data_top = quote_top;  // restore stack top
     int_t block;
     if (!make_block(&block, base, len)) {
-        XDEBUG(fprintf(stderr, "< compile block FAIL! data_top=%zu\n", data_top));
+        DEBUG(fprintf(stderr, "< compile block FAIL! data_top=%zu\n", data_top));
         return FALSE;
     }
-    XDEBUG(fprintf(stderr, "< compile ok data_top=%zu\n", data_top));
+    DEBUG(fprintf(stderr, "< compile ok data_top=%zu\n", data_top));
     return data_push(block);
 }
 
