@@ -84,7 +84,7 @@ typedef void * ptr_t;
 #define FALSE MK_NUM(0)
 #define MK_BOOL(x)  ((x) ? TRUE : FALSE)
 
-// universal Infinity/Undefined
+// universal Infinity
 #define INF INT(~(NAT(-1)>>1))
 
 #define NEG(n)      MK_NUM(-TO_INT(n))
@@ -377,7 +377,7 @@ int_t make_block(int_t *block_out, int_t *base, size_t len) {
     }
     block_next = next;
     *block_out = MK_BLOCK(blk);
-    DEBUG(print_detail("  make_block", *block_out));
+    XDEBUG(print_detail("  make_block", *block_out));
     return TRUE;
 }
 
@@ -386,6 +386,7 @@ int_t make_block(int_t *block_out, int_t *base, size_t len) {
  */
 
 PROC_DECL(prim_Undefined);
+#define UNDEFINED MK_PROC(prim_Undefined)
 
 PROC_DECL(prim_CREATE);
 PROC_DECL(prim_SEND);
@@ -403,7 +404,7 @@ PROC_DECL(prim_CloseUnquote);
 //PROC_DECL(prim_FALSE);
 //PROC_DECL(prim_ZEROP);
 PROC_DECL(prim_IF);
-PROC_DECL(prim_ELSE);
+PROC_DECL(prim_IF_ELSE);
 PROC_DECL(prim_WHILE);
 PROC_DECL(prim_DROP);
 PROC_DECL(prim_DUP);
@@ -458,7 +459,7 @@ thunk_t word_list[MAX_WORDS] = {
     { .value = FALSE, .name = "FALSE" },
     { .value = MK_PROC(prim_EQZ), .name = "ZERO?" },
     { .value = MK_PROC(prim_IF), .name = "IF" },
-    { .value = MK_PROC(prim_ELSE), .name = "ELSE" },
+    { .value = MK_PROC(prim_IF_ELSE), .name = "IF-ELSE" },
     { .value = MK_PROC(prim_WHILE), .name = "WHILE" },
     { .value = MK_PROC(prim_DROP), .name = "DROP" },
     { .value = MK_PROC(prim_DUP), .name = "DUP" },
@@ -494,7 +495,7 @@ thunk_t word_list[MAX_WORDS] = {
     { .value = MK_PROC(prim_PrintStack), .name = "..." },
     { .value = MK_PROC(prim_PrintDetail), .name = ".?" },
     { .value = MK_PROC(prim_Print), .name = "." },
-    { .value = MK_PROC(prim_Undefined), .name = "" }
+    { .value = UNDEFINED, .name = "" }
 };
 #if ALLOW_DMA
 size_t ro_words = 50;  // limit of read-only words
@@ -529,7 +530,7 @@ int_t is_word(int_t value) {
 int_t parse_value(int_t *value_out) {
     // read token into next available word buffer
     thunk_t *w = &word_list[rw_words];
-    w->value = MK_PROC(prim_Undefined);
+    w->value = UNDEFINED;
     char *word_buf = w->name;
     if (!read_token(word_buf, MAX_NAME_SZ)) return FALSE;
 
@@ -567,7 +568,7 @@ int_t next_value(int_t *value_out) {
 int_t create_word(int_t *word_out, int_t word) {
     thunk_t *w = TO_PTR(word);
     if (rw_words >= MAX_WORDS) return panic("too many words");
-    if (w != &word_list[rw_words]) return panic("can only create from latest token");
+    if (w != &word_list[rw_words]) return panic("must create from latest token");
     ++rw_words;  // extend r/w dictionary
     word = MK_WORD(w);
     DEBUG(print_thunk("  create_word", TO_PTR(word)));
@@ -640,6 +641,11 @@ int_t get_rw_word(int_t *word_out, int_t word) {
     --data_top; \
     data_stack[data_top-1] = oper(arg1, arg2); \
     return TRUE;
+#define GET_BLOCK(block) \
+    int_t block; \
+    if (!next_value(&block)) return FALSE; \
+    if (!get_block(block)) return FALSE; \
+    block = data_stack[--data_top];
 
 static int_t undefined_word(int_t word) {
     // error on undefined word
@@ -696,18 +702,37 @@ PROC_DECL(prim_OpenUnquote) { return error("unexpected ("); }
 PROC_DECL(prim_CloseUnquote) { return error("unexpected )"); }
 PROC_DECL(prim_TRUE) { return data_push(TRUE); }
 PROC_DECL(prim_FALSE) { return data_push(FALSE); }
-PROC_DECL(prim_IF) { return error("unimplemented IF"); }
-PROC_DECL(prim_ELSE) { return error("unexpected ELSE"); }
+PROC_DECL(prim_IF) {
+    POP1ARG(cond);
+    DEBUG(print_detail("  prim_IF (cond)", cond));
+    GET_BLOCK(block);
+    DEBUG(print_detail("  prim_IF (block)", block));
+    if (cond) {
+        if (!exec_value(block)) return FALSE;
+    }
+    return TRUE;
+}
+// [ DUP EQ? IF-ELSE [ DROP ' = . ] [ DUP LT? IF [ ' < . ] GT? IF [ ' > . ] ] ] = CMP  # n CMP --
+PROC_DECL(prim_IF_ELSE) {
+    POP1ARG(cond);
+    DEBUG(print_detail("  prim_IF_ELSE (cond)", cond));
+    GET_BLOCK(cnsq);
+    DEBUG(print_detail("  prim_IF_ELSE (cnsq)", cnsq));
+    GET_BLOCK(altn);
+    DEBUG(print_detail("  prim_IF_ELSE (altn)", altn));
+    if (!exec_value(cond ? cnsq : altn)) return FALSE;
+    return TRUE;
+}
 PROC_DECL(prim_WHILE) {
     POP1ARG(cond);
-    int_t word;
-    if (!next_value(&word)) return FALSE;
-    if (!get_block(word)) return FALSE;
-    word = data_stack[--data_top];  // pop block from stack
+    DEBUG(print_detail("  prim_WHILE (cond)", cond));
+    GET_BLOCK(block);
+    DEBUG(print_detail("  prim_WHILE (block)", block));
     while (cond) {
-        exec_value(word);
+        if (!exec_value(block)) return FALSE;
         if (data_top < 1) return stack_underflow();
         cond = data_stack[--data_top];  // pop condition from stack
+        DEBUG(print_detail("  prim_WHILE (cond...)", cond));
     }
     return TRUE;
 }
@@ -956,6 +981,7 @@ int_t compile() {
         DEBUG(fprintf(stderr, "< compile block FAIL! data_top=%zu\n", data_top));
         return FALSE;
     }
+    XDEBUG(fprintf(stderr, "  compile: "); print_value(block); print_ascii('\n'); fflush(stdout));
     DEBUG(fprintf(stderr, "< compile ok data_top=%zu\n", data_top));
     return data_push(block);
 }

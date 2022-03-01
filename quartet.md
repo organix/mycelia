@@ -84,7 +84,8 @@ Input                | Operation       | Output                  | Description
 &mdash;              | `TRUE`          | TRUE                    | All bits set (1)
 &mdash;              | `FALSE`         | FALSE                   | All bits clear (0)
 _value_              | `ZERO?`         | _bool_                  | `TRUE` if _value_ = 0; otherwise `FALSE`
-_bool_               | `IF` [ ] `ELSE` [ ] | &mdash;             | Execute block based on condition
+_bool_               | `IF` [ ]        | &mdash;                 | Execute block based on condition
+_bool_               | `IF-ELSE` [ ] [ ] | &mdash;               | Choose block based on condition
 _bool_               | `WHILE` [ ]     | &mdash;                 | Execute block while condition holds
 
 ### Stack Manipulation
@@ -148,19 +149,19 @@ _value_              | `.`             | &mdash;                 | Print _value_
 
 [ # cust
   UART0_RXDATA ??  # read UART receive fifo status/data
-  DUP LT? IF [
+  DUP LT? IF-ELSE [
     DROP
     SELF SEND  # retry
-  ] ELSE [
+  ] [
     16#FF AND SWAP SEND
   ]
 ] DUP = serial_read_beh CREATE = serial_read
 
 [ # cust octet
   UART0_TXDATA ??  # read UART transmit fifo status
-  LT? IF [
+  LT? IF-ELSE [
     SELF SEND  # retry
-  ] ELSE [
+  ] [
     UART0_TXDATA !!  # write UART fifo data
     SELF SWAP SEND
   ]
@@ -197,16 +198,16 @@ _value_              | `.`             | &mdash;                 | Print _value_
   = output
   [ # $output | cust octet
     DUP output COMPARE
-    EQ? IF [ # $output
+    EQ? IF-ELSE [ # $output
       DROP
-      queue Q-empty IF [
+      queue Q-empty IF-ELSE [
         output serial_empty_beh BECOME
-      ] ELSE [
+      ] [
         queue Q-TAKE
         output SWAP serial_buffer_beh BECOME
         SELF SWAP SEND
       ]
-    ] ELSE [ # cust octet
+    ] [ # cust octet
       queue Q-PUT
       output SWAP serial_buffer_beh BECOME
       SELF SWAP SEND
