@@ -722,6 +722,7 @@ PROC_DECL(prim_IF_ELSE) {
     if (!exec_value(cond ? cnsq : altn)) return FALSE;
     return TRUE;
 }
+// 5 DUP GT? WHILE [ DUP . 1 SUB DUP GT? ] DROP
 PROC_DECL(prim_WHILE) {
     POP1ARG(cond);
     DEBUG(print_detail("  prim_WHILE (cond)", cond));
@@ -825,7 +826,11 @@ PROC_DECL(prim_WORDS) {
     fflush(stdout);
     return TRUE;
 }
-PROC_DECL(prim_EMIT) { POP1ARG(code); print_ascii(code); return TRUE; }
+PROC_DECL(prim_EMIT) {
+    POP1ARG(code);
+    print_ascii(TO_INT(code));
+    return TRUE;
+}
 PROC_DECL(prim_PrintStack) {
     print_stack();
     fflush(stdout);
