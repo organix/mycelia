@@ -85,7 +85,7 @@ typedef void * ptr_t;
 #define MK_BOOL(x)  ((x) ? TRUE : FALSE)
 
 // universal Infinity
-#define INF INT(~(NAT(-1)>>1))
+#define INF MK_NUM(TO_INT(~(NAT(-1)>>1)))
 
 #define NEG(n)      MK_NUM(-TO_INT(n))
 #define ADD(n,m)    ((n)+(m))
@@ -146,11 +146,10 @@ void print_ascii(int_t code) {
 
 void print_value(int_t value) {
     if (IS_NUM(value)) {
-        value = TO_INT(value);
         if (value == INF) {
             printf("INF");
         } else {
-            printf("%"PRIdPTR, value);
+            printf("%"PRIdPTR, TO_INT(value));
         }
     } else if (IS_WORD(value)) {
         thunk_t *w = TO_PTR(value);
@@ -467,7 +466,7 @@ thunk_t word_list[MAX_WORDS] = {
     { .value = MK_PROC(prim_PICK), .name = "PICK" },
     { .value = MK_PROC(prim_ROLL), .name = "ROLL" },
     { .value = MK_PROC(prim_DEPTH), .name = "DEPTH" },
-    { .value = MK_NUM(INF), .name = "INF" },
+    { .value = INF, .name = "INF" },
     { .value = MK_PROC(prim_NEG), .name = "NEG" },
     { .value = MK_PROC(prim_ADD), .name = "ADD" },
     { .value = MK_PROC(prim_SUB), .name = "SUB" },
@@ -535,7 +534,7 @@ int_t parse_value(int_t *value_out) {
     if (!read_token(word_buf, MAX_NAME_SZ)) return FALSE;
 
     // attempt to parse token as a number
-    int_t num = INF;
+    int_t num = TO_INT(INF);
     if (token_to_number(&num, word_buf)) {
         *value_out = MK_NUM(num);
     } else {
@@ -700,8 +699,8 @@ PROC_DECL(prim_OpenQuote) { return error("unexpected ["); }
 PROC_DECL(prim_CloseQuote) { return error("unexpected ]"); }
 PROC_DECL(prim_OpenUnquote) { return error("unexpected ("); }
 PROC_DECL(prim_CloseUnquote) { return error("unexpected )"); }
-PROC_DECL(prim_TRUE) { return data_push(TRUE); }
-PROC_DECL(prim_FALSE) { return data_push(FALSE); }
+//PROC_DECL(prim_TRUE) { return data_push(TRUE); }
+//PROC_DECL(prim_FALSE) { return data_push(FALSE); }
 PROC_DECL(prim_IF) {
     POP1ARG(cond);
     DEBUG(print_detail("  prim_IF (cond)", cond));
@@ -759,8 +758,8 @@ PROC_DECL(prim_PICK) {
 }
 PROC_DECL(prim_ROLL) { POP1ARG(n); return data_roll(TO_INT(n)); }
 PROC_DECL(prim_DEPTH) { return data_push(MK_NUM(data_top)); }
-PROC_DECL(prim_INF) { return data_push(MK_NUM(INF)); }
-PROC_DECL(prim_NEG) { POP1PUSH1(n, NEG); }
+//PROC_DECL(prim_INF) { return data_push(INF); }
+PROC_DECL(prim_NEG) { POP1PUSH1(n, NEG);}
 PROC_DECL(prim_ADD) { POP2PUSH1(n, m, ADD); }
 PROC_DECL(prim_SUB) { POP2PUSH1(n, m, SUB); }
 PROC_DECL(prim_MUL) { POP2PUSH1(n, m, MUL); }
@@ -768,10 +767,11 @@ PROC_DECL(prim_DIVMOD) {  // n = (m * q) + r
     POP2ARG(n, m);
     n = TO_INT(n);
     m = TO_INT(m);
-    int_t q = INF;
+    int_t i = TO_INT(INF);
+    int_t q = i;
     int_t r = n;
-    if ((n == INF) && (m == -1)) {
-        q = INF;
+    if ((n == i) && (m == -1)) {
+        q = i;
         r = 0;
     } else if (m != 0) {
         q = n / m;
@@ -889,6 +889,9 @@ int_t exec_value(int_t value) {
 }
 
 int_t get_block(int_t value) {
+    if (IS_BLOCK(value)) {
+        return data_push(value);
+    }
     if (IS_WORD(value)) {
         thunk_t *w = TO_PTR(value);
         if (strcmp(w->name, "[") == 0) {
@@ -944,25 +947,19 @@ int_t compile() {
     DEBUG(fprintf(stderr, "> compile data_top=%zu\n", data_top));
     size_t quote_top = data_top;  // save stack pointer for error recovery
     while (next_value(&value)) {
+        if (get_block(value)) {
+            continue;  // nested block
+        }
         if (IS_WORD(value)) {
             thunk_t *w = TO_PTR(value);
-            if (quote_depth == 1) {
-                if (strcmp(w->name, "]") == 0) {
-                    break;  // end of quote...
-                }
-                if (strcmp(w->name, "(") == 0) {
-                    // interpret unquoted block
-                    if (!interpret()) return panic("unquoted interpret failed");
-                    if (data_top < quote_top) return stack_underflow();
-                    continue;
-                }
+            if (strcmp(w->name, "]") == 0) {
+                break;  // end of quote...
             }
-            if (strcmp(w->name, "[") == 0) {
-                // nested block
-                ++quote_depth;
-            } else if (strcmp(w->name, "]") == 0) {
-                // unnest block
-                --quote_depth;
+            if (strcmp(w->name, "(") == 0) {
+                // interpret unquoted block
+                if (!interpret()) return panic("unquoted interpret failed");
+                if (data_top < quote_top) return stack_underflow();
+                continue;
             }
         }
         if (!quote_value(value)) {
