@@ -107,16 +107,16 @@ typedef struct block {
     nat_t       len;                    // number of int_t in data[]
     int_t       data[];                 // addressable memory
 } block_t;
+/* note: block.data[0] is usually a PROC defining the execution behavior */
 
 #define MAX_NAME_SZ (4 * sizeof(int_t))         // word buffer size
-typedef struct thunk {
-    //PROC_DECL((*proc));                 // executable code pointer
+typedef struct word {
     int_t       value;                  // bound value
     int_t       var[3];                 // bound variables
     char        name[MAX_NAME_SZ];      // NUL-terminated string
-} thunk_t;
+} word_t;
 
-#define CACHE_LINE_SZ (sizeof(thunk_t))  // bytes per idealized cache line
+#define CACHE_LINE_SZ (sizeof(word_t))  // bytes per idealized cache line
 #define VMEM_PAGE_SZ ((size_t)1 << 12)  // bytes per idealized memory page
 
 /*
@@ -152,7 +152,7 @@ void print_value(int_t value) {
             printf("%"PRIdPTR, TO_INT(value));
         }
     } else if (IS_WORD(value)) {
-        thunk_t *w = TO_PTR(value);
+        word_t *w = TO_PTR(value);
         printf("%s", w->name);
     } else if (IS_BLOCK(value)) {
         block_t *blk = TO_PTR(value);
@@ -180,7 +180,7 @@ static void print_detail(char *label, int_t value) {
     //fprintf(stderr, " n=%"PRIuPTR"", TO_NAT(value));
     fprintf(stderr, " p=%p", TO_PTR(value));
     if (IS_WORD(value)) {
-        thunk_t *w = TO_PTR(value);
+        word_t *w = TO_PTR(value);
         fprintf(stderr, " s=\"%s\"", w->name);
         //fprintf(stderr, " v=%"PRIXPTR"", w->value);
     }
@@ -442,7 +442,7 @@ PROC_DECL(prim_PrintDetail);
 PROC_DECL(prim_Print);
 
 #define MAX_WORDS ((size_t)(128))
-thunk_t word_list[MAX_WORDS] = {
+word_t word_list[MAX_WORDS] = {
     { .value = MK_PROC(prim_CREATE), .name = "CREATE" },
     { .value = MK_PROC(prim_SEND), .name = "SEND" },
     { .value = MK_PROC(prim_BECOME), .name = "BECOME" },
@@ -506,7 +506,7 @@ size_t ro_words = 47;  // limit of read-only words
 size_t rw_words = 47;  // limit of read/write words
 #endif
 
-static void print_thunk(char *label, thunk_t *w) {
+static void print_word(char *label, word_t *w) {
     fprintf(stderr, "%s:", label);
     fprintf(stderr, " %p", w);
     fprintf(stderr, " value=%"PRIXPTR"", w->value);
@@ -521,7 +521,7 @@ static void print_thunk(char *label, thunk_t *w) {
 /* this code is an example a range check implemented by a single comparison */
 int_t is_word(int_t value) {
 //    if (NAT(value - INT(word_list)) < sizeof(word_list)) {
-    if (NAT(value - INT(word_list)) <= (rw_words * sizeof(thunk_t))) {
+    if (NAT(value - INT(word_list)) <= (rw_words * sizeof(word_t))) {
         return TRUE;
     }
     return FALSE;
@@ -530,7 +530,7 @@ int_t is_word(int_t value) {
 
 int_t parse_value(int_t *value_out) {
     // read token into next available word buffer
-    thunk_t *w = &word_list[rw_words];
+    word_t *w = &word_list[rw_words];
     w->value = UNDEFINED;
     char *word_buf = w->name;
     if (!read_token(word_buf, MAX_NAME_SZ)) return FALSE;
@@ -567,24 +567,24 @@ int_t next_value(int_t *value_out) {
 
 // convert latest token into new word
 int_t create_word(int_t *word_out, int_t word) {
-    thunk_t *w = TO_PTR(word);
+    word_t *w = TO_PTR(word);
     if (rw_words >= MAX_WORDS) return panic("too many words");
     if (w != &word_list[rw_words]) return panic("must create from latest token");
     ++rw_words;  // extend r/w dictionary
     word = MK_WORD(w);
-    DEBUG(print_thunk("  create_word", TO_PTR(word)));
+    DEBUG(print_word("  create_word", TO_PTR(word)));
     *word_out = word;
     return TRUE;
 }
 
 // lookup word in entire dictionary, fail if not found.
 int_t find_ro_word(int_t *word_out, int_t word) {
-    thunk_t *w = TO_PTR(word);
+    word_t *w = TO_PTR(word);
     for (size_t n = rw_words; (n-- > 0); ) {  // search from _end_ of dictionary
-        thunk_t *m = &word_list[n];
+        word_t *m = &word_list[n];
         if (strcmp(w->name, m->name) == 0) {
             word = MK_WORD(m);
-            DEBUG(print_thunk("  ro_word", TO_PTR(word)));
+            DEBUG(print_word("  ro_word", TO_PTR(word)));
             *word_out = word;
             return TRUE;
         }
@@ -600,12 +600,12 @@ int_t get_ro_word(int_t *word_out, int_t word) {
 
 // lookup word in writable dictionary, fail if not found.
 int_t find_rw_word(int_t *word_out, int_t word) {
-    thunk_t *w = TO_PTR(word);
+    word_t *w = TO_PTR(word);
     for (size_t n = rw_words; (n-- > ro_words); ) {  // search from _end_ of dictionary
-        thunk_t *m = &word_list[n];
+        word_t *m = &word_list[n];
         if (strcmp(w->name, m->name) == 0) {
             word = MK_WORD(m);
-            DEBUG(print_thunk("  rw_word", TO_PTR(word)));
+            DEBUG(print_word("  rw_word", TO_PTR(word)));
             *word_out = word;
             return TRUE;
         }
@@ -673,7 +673,7 @@ PROC_DECL(prim_Bind) {
     if (!next_value(&word)) return FALSE;
     if (!IS_WORD(word)) return error("WORD required");
     if (get_rw_word(&word, word)) {
-        thunk_t *w = TO_PTR(word);
+        word_t *w = TO_PTR(word);
         w->value = value;
         return TRUE;
     }
@@ -692,7 +692,7 @@ PROC_DECL(prim_Lookup) {
     if (!next_value(&word)) return FALSE;
     if (!IS_WORD(word)) return error("WORD required");
     if (find_ro_word(&word, word)) {
-        thunk_t *w = TO_PTR(word);
+        word_t *w = TO_PTR(word);
         return data_push(w->value);
     }
     return undefined_word(word);
@@ -873,7 +873,7 @@ int_t exec_value(int_t value) {
         int_t word;
         if (!find_ro_word(&word, value)) return undefined_word(value);
         DEBUG(print_detail("  exec_value (word)", word));
-        thunk_t *w = TO_PTR(word);
+        word_t *w = TO_PTR(word);
         value = w->value;
         DEBUG(print_detail("  exec_value (def)", value));
     }
@@ -907,7 +907,7 @@ int_t get_block(int_t value) {
         return data_push(value);
     }
     if (IS_WORD(value)) {
-        thunk_t *w = TO_PTR(value);
+        word_t *w = TO_PTR(value);
         if (strcmp(w->name, "[") == 0) {
             // compile quoted block
             ++quote_depth;
@@ -929,7 +929,7 @@ int_t interpret() {
             continue;
         }
         if (IS_WORD(value)) {
-            thunk_t *w = TO_PTR(value);
+            word_t *w = TO_PTR(value);
             if ((quote_depth > 0) && (strcmp(w->name, ")") == 0)) {
                 break;  // end of unquote...
             }
@@ -965,7 +965,7 @@ int_t compile() {
             continue;  // nested block
         }
         if (IS_WORD(value)) {
-            thunk_t *w = TO_PTR(value);
+            word_t *w = TO_PTR(value);
             if (strcmp(w->name, "]") == 0) {
                 break;  // end of quote...
             }
