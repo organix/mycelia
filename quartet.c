@@ -109,23 +109,33 @@ typedef struct block {
 } block_t;
 /* note: block.data[0] is usually a PROC defining the execution behavior */
 
-typedef struct capture {
-    int_t       value;                  // bound value
-    int_t       word;                   // variable name
-} capture_t;
+typedef struct env {
+    nat_t       len;                    // .len = block data length (3)
+    int_t       value;                  // .data[0] = bound value
+    int_t       word;                   // .data[1] = variable name
+    struct env *env;                    // .data[2] = parent environment
+} env_t;
 
 typedef struct closure {
-    nat_t       len;                    // .len = block data length (2 * vars + 3)
+    nat_t       len;                    // .len = block data length (3)
     int_t       proc;                   // .data[0] = execution behavior
     int_t       block;                  // .data[1] = quoted words
-    nat_t       vars;                   // .data[2] = number of capture_t in var[]
-    capture_t   var[];                  // .data[3...] = addressable memory
+    struct env *env;                    // .data[2] = parent environment
 } closure_t;
+
+typedef struct context {
+    nat_t       len;                    // .len = block data length (3)
+    int_t      *ptr;                    // .data[0] = next_value_ptr
+    nat_t       cnt;                    // .data[1] = next_value_cnt
+    env_t      *env;                    // .data[2] = dynamic environment
+} context_t;
 
 #define MAX_NAME_SZ (4 * sizeof(int_t)) // word buffer size
 typedef struct word {
-    int_t       value;                  // bound value
-    int_t       var[3];                 // bound variables
+    nat_t       len;                    // .len = block data length (0/3/7)
+    int_t       value;                  // .data[0] = bound value
+    int_t       word;                   // .data[1] = variable name
+    env_t      *env;                    // .data[2] = parent environment
     char        name[MAX_NAME_SZ];      // NUL-terminated string
 } word_t;
 
@@ -174,7 +184,7 @@ void print_value(int_t value) {
         printf("%s", w->name);
     } else if (IS_BLOCK(value)) {
         closure_t *scope = TO_PTR(value);
-        if ((scope->len == 7) && IS_PROC(scope->proc)) {
+        if ((scope->len == 3) && IS_PROC(scope->proc)) {
             print_block(scope->block);
         } else {
             print_ascii('^');
@@ -379,6 +389,13 @@ int_t data_roll(int n) {
  * word dictionary
  */
 
+static int_t undefined_word(int_t word) {
+    // error on undefined word
+    print_value(word);
+    fflush(stdout);
+    return error("undefined word");
+}
+
 PROC_DECL(prim_CREATE);
 PROC_DECL(prim_SEND);
 PROC_DECL(prim_BECOME);
@@ -498,12 +515,11 @@ size_t ro_words = 47;  // limit of read-only words
 size_t rw_words = 47;  // limit of read/write words
 #endif
 
-static void print_word(char *label, word_t *w) {
+static void print_word(char *label, int_t word) {
+    word_t *w = TO_PTR(word);
     fprintf(stderr, "%s:", label);
     fprintf(stderr, " %p", w);
     fprintf(stderr, " value=%"PRIXPTR"", w->value);
-    fprintf(stderr, " var=[ %"PRIdPTR" %"PRIdPTR" %"PRIdPTR" ]",
-        w->var[0], w->var[1], w->var[2]);
     fprintf(stderr, " s=\"%s\"", w->name);
     fprintf(stderr, "\n");
     fflush(stderr);
@@ -538,19 +554,21 @@ int_t parse_value(int_t *value_out) {
     return TRUE;
 }
 
-int_t *next_value_ptr = PTR(0);
-nat_t next_value_cnt = NAT(0);
+context_t *next_context = PTR(0);
+//int_t *next_value_ptr = PTR(0);
+//nat_t next_value_cnt = NAT(0);
 int_t next_value(int_t *value_out) {
-    if (next_value_ptr) {
-        DEBUG(fprintf(stderr, "  next_value cnt=%"PRIuPTR" ptr=%p\n", next_value_cnt, next_value_ptr));
+    if (next_context) {
+        DEBUG(fprintf(stderr, "  next_value cnt=%"PRIuPTR" ptr=%p env=%p\n",
+            next_context->cnt, next_context->ptr, next_context->env));
         // read from block data
-        if (next_value_cnt) {
-            --next_value_cnt;
-            *value_out = *next_value_ptr++;
+        if (next_context->cnt) {
+            --next_context->cnt;
+            *value_out = *next_context->ptr++;
             DEBUG(print_detail("  next_value", *value_out));
             return TRUE;
         }
-        next_value_ptr = PTR(0);
+        next_context->ptr = PTR(0);
         return FALSE;  // no more words (in block)
     }
     // read from input stream
@@ -564,7 +582,7 @@ int_t create_word(int_t *word_out, int_t word) {
     if (w != &word_list[rw_words]) return panic("must create from latest token");
     ++rw_words;  // extend r/w dictionary
     word = MK_WORD(w);
-    DEBUG(print_word("  create_word", TO_PTR(word)));
+    DEBUG(print_word("  create_word", word));
     *word_out = word;
     return TRUE;
 }
@@ -576,7 +594,7 @@ int_t find_ro_word(int_t *word_out, int_t word) {
         word_t *m = &word_list[n];
         if (strcmp(w->name, m->name) == 0) {
             word = MK_WORD(m);
-            DEBUG(print_word("  ro_word", TO_PTR(word)));
+            DEBUG(print_word("  ro_word", word));
             *word_out = word;
             return TRUE;
         }
@@ -597,7 +615,7 @@ int_t find_rw_word(int_t *word_out, int_t word) {
         word_t *m = &word_list[n];
         if (strcmp(w->name, m->name) == 0) {
             word = MK_WORD(m);
-            DEBUG(print_word("  rw_word", TO_PTR(word)));
+            DEBUG(print_word("  rw_word", word));
             *word_out = word;
             return TRUE;
         }
@@ -609,6 +627,72 @@ int_t find_rw_word(int_t *word_out, int_t word) {
 int_t get_rw_word(int_t *word_out, int_t word) {
     if (find_rw_word(word_out, word)) return TRUE;  // word already exists
     return create_word(word_out, word);
+}
+
+// get currently-bound value for word
+int_t get_word_value(int_t *value_out, int_t word) {
+    // find word in current dictionary
+    XDEBUG(print_word("  get_word_value (word)", word));
+    int_t norm;
+    if (!find_ro_word(&norm, word)) return undefined_word(word);
+    if (norm != word) {
+        if (next_context) {
+            XDEBUG(print_word("  get_word_value (NORM)", norm));  // FIXME: should not happen!
+        } else {
+            XDEBUG(print_word("  get_word_value (norm)", norm));
+        }
+        word = norm;  // use normalized word
+    }
+    // find value bound to word
+    if (next_context) {
+        XDEBUG(fprintf(stderr, "  get_word_value cnt=%"PRIuPTR" ptr=%p env=%p\n",
+            next_context->cnt, next_context->ptr, next_context->env));
+        // from local dictionary
+        env_t *env = next_context->env;
+        while (env) {
+            if (env->word == word) {
+                *value_out = env->value;
+                XDEBUG(print_detail("  get_word_value (local)", *value_out));
+                return TRUE;
+            }
+            env = env->env;  // follow environment chain
+        }
+    }
+    // from global dictionary
+    word_t *w = TO_PTR(word);
+    *value_out = w->value;
+    XDEBUG(print_detail("  get_word_value (global)", *value_out));
+    return TRUE;
+}
+
+int_t new_block(int_t *block_out, nat_t len);  // FORWARD
+
+// set currently-bound value for word
+int_t set_word_value(int_t word, int_t value) {
+    // find word in current dictionary
+    if (!get_rw_word(&word, word)) return undefined_word(word);
+    XDEBUG(print_word("  set_word_value (word)", word));
+    if (next_context) {
+        // bind word in local dictionary
+        XDEBUG(fprintf(stderr, "  set_word_value cnt=%"PRIuPTR" ptr=%p env=%p\n",
+            next_context->cnt, next_context->ptr, next_context->env));
+        // create local binding
+        int_t block;
+        if (!new_block(&block, 3)) return FALSE;
+        env_t *env = TO_PTR(block);
+        env->word = word;
+        env->value = value;
+        // chain environments
+        env->env = next_context->env;
+        next_context->env = env;
+        XDEBUG(print_detail("  set_word_value (local)", value));
+    } else {
+        // bind word in global dictionary
+        word_t *w = TO_PTR(word);
+        w->value = value;
+        XDEBUG(print_detail("  set_word_value (global)", value));
+    }
+    return TRUE;
 }
 
 /*
@@ -640,13 +724,6 @@ int_t get_rw_word(int_t *word_out, int_t word) {
     if (!get_block(block)) return FALSE; \
     block = data_stack[--data_top];
 
-static int_t undefined_word(int_t word) {
-    // error on undefined word
-    print_value(word);
-    fflush(stdout);
-    return error("undefined word");
-}
-
 int_t interpret();  // FORWARD DECLARATION
 int_t compile();  // FORWARD DECLARATION
 int_t get_block(int_t value);  // FORWARD DECLARATION
@@ -662,12 +739,7 @@ PROC_DECL(prim_Bind) {
     int_t word;
     if (!next_value(&word)) return FALSE;
     if (!IS_WORD(word)) return error("WORD required");
-    if (get_rw_word(&word, word)) {
-        word_t *w = TO_PTR(word);
-        w->value = value;
-        return TRUE;
-    }
-    return undefined_word(word);
+    return set_word_value(word, value);
 }
 PROC_DECL(prim_Literal) {
     int_t word;
@@ -681,11 +753,9 @@ PROC_DECL(prim_Lookup) {
     int_t word;
     if (!next_value(&word)) return FALSE;
     if (!IS_WORD(word)) return error("WORD required");
-    if (find_ro_word(&word, word)) {
-        word_t *w = TO_PTR(word);
-        return data_push(w->value);
-    }
-    return undefined_word(word);
+    int_t value;
+    if (!get_word_value(&value, word)) return FALSE;
+    return data_push(value);
 }
 PROC_DECL(prim_OpenQuote) { return error("unexpected ["); }
 PROC_DECL(prim_CloseQuote) { return error("unexpected ]"); }
@@ -871,21 +941,25 @@ static void print_block(int_t block) {
     print_ascii(']');
 }
 
+static void print_env(env_t *env) {
+    fprintf(stderr, "\n");
+    while (env) {
+        word_t *w = TO_PTR(env->word);
+        fprintf(stderr, "    ");
+        print_detail(w->name, env->value);
+        env = env->env;  // follow environment chain
+    }
+    fflush(stderr);
+}
+
 static void print_closure(char *label, int_t block) {
     closure_t *scope = TO_PTR(block);
     fprintf(stderr, "%s:", label);
     fprintf(stderr, " len=%"PRIuPTR"", scope->len);
     fprintf(stderr, " proc=%p", TO_PTR(scope->proc));
     fprintf(stderr, " block=%p", TO_PTR(scope->block));
-    fprintf(stderr, " vars=%"PRIuPTR"", scope->vars);
-    fprintf(stderr, "\n");
-    for (nat_t n = 0; n < scope->vars; ++n) {
-        capture_t *cap = &(scope->var[n]);
-        word_t *w = TO_PTR(cap->word);
-        fprintf(stderr, "    ");
-        print_detail(w->name, w->value);
-    }
-    fflush(stderr);
+    fprintf(stderr, " env=%p", scope->env);
+    print_env(scope->env);
     if (IS_BLOCK(scope->block)) {
         printf("    ");
         print_block(scope->block);
@@ -917,27 +991,36 @@ int_t make_block(int_t *block_out, int_t *base, nat_t len) {
     return TRUE;
 }
 
-int_t exec_block(int_t block) {
+int_t exec_block(int_t block, env_t *env) {
     if (!IS_BLOCK(block)) return error("block required");
     XDEBUG(printf("exec_block: "); print_block(block); printf("\n"); fflush(stdout));
 
     // save current value source
-    nat_t prev_value_cnt = next_value_cnt;
-    int_t *prev_value_ptr = next_value_ptr;
+    context_t *prev_context = next_context;
+    //nat_t prev_value_cnt = next_value_cnt;
+    //int_t *prev_value_ptr = next_value_ptr;
 
     // find quoted words in block
     block_t *blk = TO_PTR(block);
 
     // use block as value source
-    next_value_cnt = blk->len;
-    next_value_ptr = blk->data;
+    context_t blk_context = {
+        .len = 3,
+        .ptr = blk->data,
+        .cnt = blk->len,
+        .env = env
+    };
+    next_context = &blk_context;
+    //next_value_cnt = blk->len;
+    //next_value_ptr = blk->data;
 
     // run nested interpreter, reading from block
     int_t ok = interpret();
 
     // restore previous value source
-    next_value_cnt = prev_value_cnt;
-    next_value_ptr = prev_value_ptr;
+    next_context = prev_context;
+    //next_value_cnt = prev_value_cnt;
+    //next_value_ptr = prev_value_ptr;
     return ok;
 }
 
@@ -945,51 +1028,16 @@ PROC_DECL(prim_Closure) {
     print_closure("  prim_Closure", self);
     closure_t *scope = TO_PTR(self);
     if (scope->proc != MK_PROC(prim_Closure)) return panic("block is not a closure");
-    int_t block = scope->block;
-    return exec_block(block);
+    return exec_block(scope->block, scope->env);
 }
 
 // create a new scope for capturing variables
 int_t new_scope(int_t *block_out) {
-    if (!new_block(block_out, 7)) return FALSE;
+    if (!new_block(block_out, 3)) return FALSE;
     closure_t *scope = TO_PTR(*block_out);
     scope->proc = MK_PROC(prim_Closure);
     scope->block = UNDEFINED;
-    scope->vars = 0;
-    return TRUE;
-}
-
-int_t find_variable(capture_t **cap_out, int_t closure, int_t word) {
-    word_t *k = TO_PTR(word);
-    closure_t *scope = TO_PTR(closure);
-    DEBUG(fprintf(stderr, "> find_variable: %s\n", k->name));
-    for (nat_t n = 0; n < scope->vars; ++n) {
-        capture_t *cap = &(scope->var[n]);
-        word_t *w = TO_PTR(cap->word);
-        if (strcmp(k->name, w->name) == 0) {
-            *cap_out = cap;
-            DEBUG(fprintf(stderr, "< find_variable = TRUE\n"));
-            return TRUE;
-        }
-    }
-    DEBUG(fprintf(stderr, "< find_variable = FALSE\n"));
-    return FALSE;
-}
-
-int_t add_variable(int_t closure, int_t word, int_t value) {
-    closure_t *scope = TO_PTR(closure);
-    capture_t *cap;
-    if (!find_variable(&cap, closure, word)) {
-        nat_t vars = scope->vars + 1;
-        nat_t len = 2 * vars + 3;
-        if (len > scope->len) return error("too many captured variables");
-        DEBUG(print_detail("  add_variable (key)", word));
-        cap = &(scope->var[scope->vars]);
-        cap->word = word;
-        scope->vars = vars;
-    }
-    DEBUG(print_detail("  add_variable (value)", value));
-    cap->value = value;
+    scope->env = PTR(0);
     return TRUE;
 }
 
@@ -1000,14 +1048,9 @@ int_t add_variable(int_t closure, int_t word, int_t value) {
 nat_t quote_depth = 0;  // count nested quoting levels
 
 int_t exec_value(int_t value) {
-    DEBUG(print_detail("  exec_value (value)", value));
+    XDEBUG(print_detail("  exec_value (value)", value));
     if (IS_WORD(value)) {
-        // find definition in current dictionary
-        int_t word;
-        if (!find_ro_word(&word, value)) return undefined_word(value);
-        DEBUG(print_detail("  exec_value (word)", word));
-        word_t *w = TO_PTR(word);
-        value = w->value;
+        if (!get_word_value(&value, value)) return FALSE;
         DEBUG(print_detail("  exec_value (def)", value));
     }
     // execute value
@@ -1044,9 +1087,18 @@ int_t interpret() {
     int_t value;
     DEBUG(fprintf(stderr, "> interpret data_top=%zu\n", data_top));
     size_t exec_top = data_top;  // save stack pointer for error recovery
-    DEBUG(fprintf(stderr, "  interpret cnt=%"PRIuPTR" ptr=%p\n", next_value_cnt, next_value_ptr));
+    if (next_context) {
+        XDEBUG(fprintf(stderr, "  interpret cnt=%"PRIuPTR" ptr=%p env=%p\n",
+            next_context->cnt, next_context->ptr, next_context->env));
+    }
     while (next_value(&value)) {
         if (get_block(value)) {
+            // FIXME: wrap _block_ in a _closure_ to capture current environment...
+            if (next_context) {
+                closure_t *scope = TO_PTR(value);
+                scope->env = next_context->env;
+                XDEBUG(fprintf(stderr, "  interpret block env=%p", scope->env); print_env(scope->env));
+            }
             continue;
         }
         if (IS_WORD(value)) {
@@ -1081,9 +1133,12 @@ int_t compile() {
     int_t value;
     DEBUG(fprintf(stderr, "> compile data_top=%zu\n", data_top));
     size_t quote_top = data_top;  // save stack pointer for error recovery
+    if (next_context) {
+        XDEBUG(fprintf(stderr, "  compile cnt=%"PRIuPTR" ptr=%p env=%p\n",
+            next_context->cnt, next_context->ptr, next_context->env));
+    }
     int_t closure;
     if (!new_scope(&closure)) return panic("scope allocation failed");
-    int_t do_capture = FALSE;
     while (next_value(&value)) {
         DEBUG(print_detail("  compile (next)", value));
         if (get_block(value)) {
@@ -1106,26 +1161,7 @@ int_t compile() {
             DEBUG(fprintf(stderr, "< compile quote FAIL! data_top=%zu\n", data_top));
             return FALSE;
         }
-        if (IS_WORD(value)) {
-            DEBUG(print_detail("  compile (word)", value));
-            word_t *w = TO_PTR(value);
-            if (do_capture) {
-                DEBUG(fprintf(stderr, "  compile: do_capture(commit)\n"));
-                if (!add_variable(closure, value, UNDEFINED)) {
-                    data_top = quote_top;  // restore stack on failure
-                    DEBUG(fprintf(stderr, "< compile capture FAIL! data_top=%zu\n", data_top));
-                    return FALSE;
-                }
-                do_capture = FALSE;
-            //} else if (w->value == MK_PROC(prim_Bind)) {
-            } else if (strcmp(w->name, "=") == 0) {
-                do_capture = TRUE;
-                DEBUG(fprintf(stderr, "  compile: do_capture(prepare)\n"));
-            }
-        } else {
-            DEBUG(print_detail("  compile (value)", value));
-            do_capture = FALSE;
-        }
+        DEBUG(print_detail("  compile (value)", value));
     }
     if (data_top < quote_top) return stack_underflow();
     // construct block value from stack contents
@@ -1272,14 +1308,14 @@ int main(int argc, char const *argv[])
 
 #if 1
     printf("-- sanity check --\n");
-    print_detail("    panic", INT(panic));
-    print_detail("Undefined", INT(prim_Undefined));
-    print_detail("   CREATE", INT(prim_CREATE));
-    print_detail("     Bind", INT(prim_Bind));
-    print_detail("      SUB", INT(prim_SUB));
-    print_detail("      CMP", INT(prim_CMP));
-    print_detail("    Print", INT(prim_Print));
-    print_detail("     main", INT(main));
+    print_detail("    panic", MK_PROC(panic));
+    print_detail("Undefined", MK_PROC(prim_Undefined));
+    print_detail("   CREATE", MK_PROC(prim_CREATE));
+    print_detail("     Bind", MK_PROC(prim_Bind));
+    print_detail("      SUB", MK_PROC(prim_SUB));
+    print_detail("      CMP", MK_PROC(prim_CMP));
+    print_detail("    Print", MK_PROC(prim_Print));
+    print_detail("     main", MK_PROC(main));
 #endif
 #if 0
     // ensure that function pointer range checks will work...
