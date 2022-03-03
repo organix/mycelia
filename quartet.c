@@ -109,7 +109,20 @@ typedef struct block {
 } block_t;
 /* note: block.data[0] is usually a PROC defining the execution behavior */
 
-#define MAX_NAME_SZ (4 * sizeof(int_t))         // word buffer size
+typedef struct capture {
+    int_t       value;                  // bound value
+    int_t       word;                   // variable name
+} capture_t;
+
+typedef struct closure {
+    nat_t       len;                    // .len = block data length (2 * vars + 3)
+    int_t       proc;                   // .data[0] = execution behavior
+    int_t       block;                  // .data[1] = quoted words
+    nat_t       vars;                   // .data[2] = number of capture_t in var[]
+    capture_t   var[];                  // .data[3...] = addressable memory
+} closure_t;
+
+#define MAX_NAME_SZ (4 * sizeof(int_t)) // word buffer size
 typedef struct word {
     int_t       value;                  // bound value
     int_t       var[3];                 // bound variables
@@ -138,6 +151,11 @@ int_t error(char *reason) {
  * printing utilities
  */
 
+PROC_DECL(prim_Undefined) { return error("undefined procedure"); }
+#define UNDEFINED MK_PROC(prim_Undefined)
+
+static void print_block(int_t block);  // FORWARD DECLARATION
+
 void print_ascii(int_t code) {
     if ((code & 0x7F) == code) {  // code is in ascii range
         putchar(code);
@@ -155,14 +173,15 @@ void print_value(int_t value) {
         word_t *w = TO_PTR(value);
         printf("%s", w->name);
     } else if (IS_BLOCK(value)) {
-        block_t *blk = TO_PTR(value);
-        print_ascii('[');
-        print_ascii(' ');
-        for (size_t i = 0; i < blk->len; ++i) {
-            print_value(blk->data[i]);
-            print_ascii(' ');
+        closure_t *scope = TO_PTR(value);
+        if ((scope->len == 7) && IS_PROC(scope->proc)) {
+            print_block(scope->block);
+        } else {
+            print_ascii('^');
+            print_block(value);
         }
-        print_ascii(']');
+    } else if (value == UNDEFINED) {
+        printf("(UNDEFINED)");
     } else {
         printf("%p", TO_PTR(value));
     }
@@ -357,35 +376,8 @@ int_t data_roll(int n) {
 }
 
 /*
- * block storage
- */
-
-#define MAX_BLOCK_MEM (VMEM_PAGE_SZ / sizeof(int_t))
-int_t block_mem[MAX_BLOCK_MEM];
-size_t block_next = 0;
-
-int_t make_block(int_t *block_out, int_t *base, size_t len) {
-    size_t next = block_next + len + 1;
-    if (next > MAX_BLOCK_MEM) {
-        return panic("out of block memory");
-    }
-    block_t *blk = PTR(&block_mem[block_next]);
-    blk->len = NAT(len);
-    while (len-- > 0) {
-        blk->data[len] = base[len];
-    }
-    block_next = next;
-    *block_out = MK_BLOCK(blk);
-    XDEBUG(print_detail("  make_block", *block_out));
-    return TRUE;
-}
-
-/*
  * word dictionary
  */
-
-PROC_DECL(prim_Undefined);
-#define UNDEFINED MK_PROC(prim_Undefined)
 
 PROC_DECL(prim_CREATE);
 PROC_DECL(prim_SEND);
@@ -660,8 +652,6 @@ int_t compile();  // FORWARD DECLARATION
 int_t get_block(int_t value);  // FORWARD DECLARATION
 int_t exec_value(int_t value);  // FORWARD DECLARATION
 
-PROC_DECL(prim_Undefined) { return error("undefined procedure"); }
-
 PROC_DECL(prim_CREATE) { return panic("unimplemented CREATE"); }
 PROC_DECL(prim_SEND) { return panic("unimplemented SEND"); }
 PROC_DECL(prim_BECOME) { return panic("unimplemented BECOME"); }
@@ -761,8 +751,10 @@ PROC_DECL(prim_PICK) {
 }
 PROC_DECL(prim_ROLL) { POP1ARG(n); return data_roll(TO_INT(n)); }
 PROC_DECL(prim_DEPTH) { return data_push(MK_NUM(data_top)); }
+// [ DEPTH GT? WHILE [ DROP DEPTH GT? ] ] = CLEAR  # clear the stack
 //PROC_DECL(prim_INF) { return data_push(INF); }
-PROC_DECL(prim_NEG) { POP1PUSH1(n, NEG);}
+PROC_DECL(prim_NEG) { POP1PUSH1(n, NEG); }
+// [ DUP LT? IF [ NEG ] ] = ABS  # absolute value
 PROC_DECL(prim_ADD) { POP2PUSH1(n, m, ADD); }
 PROC_DECL(prim_SUB) { POP2PUSH1(n, m, SUB); }
 PROC_DECL(prim_MUL) { POP2PUSH1(n, m, MUL); }
@@ -789,7 +781,7 @@ PROC_DECL(prim_DIVMOD) {  // n = (m * q) + r
     if (!data_push(r)) return FALSE;
     return data_push(q);
 }
-// n m DIVMOD m FMA -- n  # EUCLID
+// n m DIVMOD m FMA -- n  # Check Euclidean Division
 PROC_DECL(prim_FMA) {
     POP1ARG(a);
     POP1ARG(b);
@@ -861,6 +853,147 @@ PROC_DECL(prim_Print) {
 }
 
 /*
+ * block storage
+ */
+
+#define MAX_BLOCK_MEM (VMEM_PAGE_SZ / sizeof(int_t))
+int_t block_mem[MAX_BLOCK_MEM];
+size_t block_next = 0;
+
+static void print_block(int_t block) {
+    block_t *blk = TO_PTR(block);
+    print_ascii('[');
+    print_ascii(' ');
+    for (nat_t n = 0; n < blk->len; ++n) {
+        print_value(blk->data[n]);
+        print_ascii(' ');
+    }
+    print_ascii(']');
+}
+
+static void print_closure(char *label, int_t block) {
+    closure_t *scope = TO_PTR(block);
+    fprintf(stderr, "%s:", label);
+    fprintf(stderr, " len=%"PRIuPTR"", scope->len);
+    fprintf(stderr, " proc=%p", TO_PTR(scope->proc));
+    fprintf(stderr, " block=%p", TO_PTR(scope->block));
+    fprintf(stderr, " vars=%"PRIuPTR"", scope->vars);
+    fprintf(stderr, "\n");
+    for (nat_t n = 0; n < scope->vars; ++n) {
+        capture_t *cap = &(scope->var[n]);
+        word_t *w = TO_PTR(cap->word);
+        fprintf(stderr, "    ");
+        print_detail(w->name, w->value);
+    }
+    fflush(stderr);
+    if (IS_BLOCK(scope->block)) {
+        printf("    ");
+        print_block(scope->block);
+        print_ascii('\n');
+        fflush(stdout);
+    }
+}
+
+int_t new_block(int_t *block_out, nat_t len) {
+    size_t next = block_next + len + 1;
+    if (next > MAX_BLOCK_MEM) {
+        return panic("out of block memory");
+    }
+    block_t *blk = PTR(&block_mem[block_next]);
+    blk->len = len;
+    block_next = next;
+    *block_out = MK_BLOCK(blk);
+    DEBUG(print_detail("  new_block", *block_out));
+    return TRUE;
+}
+
+int_t make_block(int_t *block_out, int_t *base, nat_t len) {
+    if (!new_block(block_out, len)) return FALSE;
+    block_t *blk = TO_PTR(*block_out);
+    while (len-- > 0) {
+        blk->data[len] = base[len];
+    }
+    DEBUG(print_detail("  make_block", *block_out));
+    return TRUE;
+}
+
+int_t exec_block(int_t block) {
+    if (!IS_BLOCK(block)) return error("block required");
+    XDEBUG(printf("exec_block: "); print_block(block); printf("\n"); fflush(stdout));
+
+    // save current value source
+    nat_t prev_value_cnt = next_value_cnt;
+    int_t *prev_value_ptr = next_value_ptr;
+
+    // find quoted words in block
+    block_t *blk = TO_PTR(block);
+
+    // use block as value source
+    next_value_cnt = blk->len;
+    next_value_ptr = blk->data;
+
+    // run nested interpreter, reading from block
+    int_t ok = interpret();
+
+    // restore previous value source
+    next_value_cnt = prev_value_cnt;
+    next_value_ptr = prev_value_ptr;
+    return ok;
+}
+
+PROC_DECL(prim_Closure) {
+    print_closure("  prim_Closure", self);
+    closure_t *scope = TO_PTR(self);
+    if (scope->proc != MK_PROC(prim_Closure)) return panic("block is not a closure");
+    int_t block = scope->block;
+    return exec_block(block);
+}
+
+// create a new scope for capturing variables
+int_t new_scope(int_t *block_out) {
+    if (!new_block(block_out, 7)) return FALSE;
+    closure_t *scope = TO_PTR(*block_out);
+    scope->proc = MK_PROC(prim_Closure);
+    scope->block = UNDEFINED;
+    scope->vars = 0;
+    return TRUE;
+}
+
+int_t find_variable(capture_t **cap_out, int_t closure, int_t word) {
+    word_t *k = TO_PTR(word);
+    closure_t *scope = TO_PTR(closure);
+    DEBUG(fprintf(stderr, "> find_variable: %s\n", k->name));
+    for (nat_t n = 0; n < scope->vars; ++n) {
+        capture_t *cap = &(scope->var[n]);
+        word_t *w = TO_PTR(cap->word);
+        if (strcmp(k->name, w->name) == 0) {
+            *cap_out = cap;
+            DEBUG(fprintf(stderr, "< find_variable = TRUE\n"));
+            return TRUE;
+        }
+    }
+    DEBUG(fprintf(stderr, "< find_variable = FALSE\n"));
+    return FALSE;
+}
+
+int_t add_variable(int_t closure, int_t word, int_t value) {
+    closure_t *scope = TO_PTR(closure);
+    capture_t *cap;
+    if (!find_variable(&cap, closure, word)) {
+        nat_t vars = scope->vars + 1;
+        nat_t len = 2 * vars + 3;
+        if (len > scope->len) return error("too many captured variables");
+        DEBUG(print_detail("  add_variable (key)", word));
+        cap = &(scope->var[scope->vars]);
+        cap->word = word;
+        scope->vars = vars;
+    }
+    DEBUG(print_detail("  add_variable (value)", value));
+    cap->value = value;
+    return TRUE;
+}
+
+/*
  * word interpreter/compiler
  */
 
@@ -879,20 +1012,8 @@ int_t exec_value(int_t value) {
     }
     // execute value
     if (IS_BLOCK(value)) {
-        // save current value source
-        nat_t prev_value_cnt = next_value_cnt;
-        int_t *prev_value_ptr = next_value_ptr;
-        // use block as value source
-        DEBUG(print_detail("  exec_value (block)", value));
-        block_t *blk = TO_PTR(value);
-        next_value_cnt = blk->len;
-        next_value_ptr = blk->data;
-        // run nested interpreter, reading from block
-        int_t ok = interpret();
-        // restore previous value source
-        next_value_cnt = prev_value_cnt;
-        next_value_ptr = prev_value_ptr;
-        return ok;
+        // FIXME: shoud call through scope->proc instead...
+        return prim_Closure(value);
     }
     if (IS_PROC(value)) {
         PROC_DECL((*proc)) = TO_PTR(value);
@@ -960,7 +1081,11 @@ int_t compile() {
     int_t value;
     DEBUG(fprintf(stderr, "> compile data_top=%zu\n", data_top));
     size_t quote_top = data_top;  // save stack pointer for error recovery
+    int_t closure;
+    if (!new_scope(&closure)) return panic("scope allocation failed");
+    int_t do_capture = FALSE;
     while (next_value(&value)) {
+        DEBUG(print_detail("  compile (next)", value));
         if (get_block(value)) {
             continue;  // nested block
         }
@@ -981,20 +1106,41 @@ int_t compile() {
             DEBUG(fprintf(stderr, "< compile quote FAIL! data_top=%zu\n", data_top));
             return FALSE;
         }
+        if (IS_WORD(value)) {
+            DEBUG(print_detail("  compile (word)", value));
+            word_t *w = TO_PTR(value);
+            if (do_capture) {
+                DEBUG(fprintf(stderr, "  compile: do_capture(commit)\n"));
+                if (!add_variable(closure, value, UNDEFINED)) {
+                    data_top = quote_top;  // restore stack on failure
+                    DEBUG(fprintf(stderr, "< compile capture FAIL! data_top=%zu\n", data_top));
+                    return FALSE;
+                }
+                do_capture = FALSE;
+            //} else if (w->value == MK_PROC(prim_Bind)) {
+            } else if (strcmp(w->name, "=") == 0) {
+                do_capture = TRUE;
+                DEBUG(fprintf(stderr, "  compile: do_capture(prepare)\n"));
+            }
+        } else {
+            DEBUG(print_detail("  compile (value)", value));
+            do_capture = FALSE;
+        }
     }
     if (data_top < quote_top) return stack_underflow();
     // construct block value from stack contents
     int_t *base = &data_stack[quote_top];
-    size_t len = (data_top - quote_top);
+    nat_t len = (data_top - quote_top);
     data_top = quote_top;  // restore stack top
+    closure_t *scope = TO_PTR(closure);
     int_t block;
-    if (!make_block(&block, base, len)) {
+    if (!make_block(&scope->block, base, len)) {
         DEBUG(fprintf(stderr, "< compile block FAIL! data_top=%zu\n", data_top));
         return FALSE;
     }
-    XDEBUG(fprintf(stderr, "  compile: "); print_value(block); print_ascii('\n'); fflush(stdout));
+    XDEBUG(print_closure("  compile", closure));
     DEBUG(fprintf(stderr, "< compile ok data_top=%zu\n", data_top));
-    return data_push(block);
+    return data_push(closure);
 }
 
 void print_platform_info() {
@@ -1129,6 +1275,7 @@ int main(int argc, char const *argv[])
     print_detail("    panic", INT(panic));
     print_detail("Undefined", INT(prim_Undefined));
     print_detail("   CREATE", INT(prim_CREATE));
+    print_detail("     Bind", INT(prim_Bind));
     print_detail("      SUB", INT(prim_SUB));
     print_detail("      CMP", INT(prim_CMP));
     print_detail("    Print", INT(prim_Print));
