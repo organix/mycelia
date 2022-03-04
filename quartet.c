@@ -208,7 +208,7 @@ void print_value(int_t value) {
 }
 
 static char *tag_label[] = { "NUM", "WORD", "BLOCK", "PROC" };
-static void debug_detail(char *label, int_t value) {
+static void debug_value(char *label, int_t value) {
     fprintf(stderr, "%s:", label);
     fprintf(stderr, " %"PRIXPTR"", value);
     fprintf(stderr, " t=%s", tag_label[value & TAG_MASK]);
@@ -572,7 +572,7 @@ int_t parse_value(int_t *value_out) {
     } else {
         *value_out = MK_WORD(w);
     }
-    DEBUG(debug_detail("  parse_value", *value_out));
+    DEBUG(debug_value("  parse_value", *value_out));
     return TRUE;
 }
 
@@ -585,7 +585,7 @@ int_t next_value(int_t *value_out) {
         if (next_context->cnt) {
             --next_context->cnt;
             *value_out = *next_context->ptr++;
-            DEBUG(debug_detail("  next_value", *value_out));
+            DEBUG(debug_value("  next_value", *value_out));
             return TRUE;
         }
         next_context->ptr = PTR(0);
@@ -672,7 +672,7 @@ int_t get_word_value(int_t *value_out, int_t word) {
         while (env) {
             if (env->word == word) {
                 *value_out = env->value;
-                DEBUG(debug_detail("  get_word_value (local)", *value_out));
+                DEBUG(debug_value("  get_word_value (local)", *value_out));
                 return TRUE;
             }
             env = env->env;  // follow environment chain
@@ -681,7 +681,7 @@ int_t get_word_value(int_t *value_out, int_t word) {
     // from global dictionary
     word_t *w = TO_PTR(word);
     *value_out = w->value;
-    DEBUG(debug_detail("  get_word_value (global)", *value_out));
+    DEBUG(debug_value("  get_word_value (global)", *value_out));
     return TRUE;
 }
 
@@ -706,12 +706,12 @@ int_t set_word_value(int_t word, int_t value) {
         // chain environments
         env->env = next_context->env;
         next_context->env = env;
-        DEBUG(debug_detail("  set_word_value (local)", value));
+        DEBUG(debug_value("  set_word_value (local)", value));
     } else {
         // bind word in global dictionary
         word_t *w = TO_PTR(word);
         w->value = value;
-        DEBUG(debug_detail("  set_word_value (global)", value));
+        DEBUG(debug_value("  set_word_value (global)", value));
     }
     return TRUE;
 }
@@ -786,9 +786,9 @@ PROC_DECL(prim_CloseUnquote) { return error("unexpected )"); }
 //PROC_DECL(prim_FALSE) { return data_push(FALSE); }
 PROC_DECL(prim_IF) {
     POP1ARG(cond);
-    DEBUG(debug_detail("  prim_IF (cond)", cond));
+    DEBUG(debug_value("  prim_IF (cond)", cond));
     GET_BLOCK(block);
-    DEBUG(debug_detail("  prim_IF (block)", block));
+    DEBUG(debug_value("  prim_IF (block)", block));
     if (cond) {
         if (!exec_value(block)) return FALSE;
     }
@@ -797,25 +797,25 @@ PROC_DECL(prim_IF) {
 // [ DUP EQ? IF-ELSE [ DROP ' = . ] [ DUP LT? IF [ ' < . ] GT? IF [ ' > . ] ] ] = CMP  # n CMP --
 PROC_DECL(prim_IF_ELSE) {
     POP1ARG(cond);
-    DEBUG(debug_detail("  prim_IF_ELSE (cond)", cond));
+    DEBUG(debug_value("  prim_IF_ELSE (cond)", cond));
     GET_BLOCK(cnsq);
-    DEBUG(debug_detail("  prim_IF_ELSE (cnsq)", cnsq));
+    DEBUG(debug_value("  prim_IF_ELSE (cnsq)", cnsq));
     GET_BLOCK(altn);
-    DEBUG(debug_detail("  prim_IF_ELSE (altn)", altn));
+    DEBUG(debug_value("  prim_IF_ELSE (altn)", altn));
     if (!exec_value(cond ? cnsq : altn)) return FALSE;
     return TRUE;
 }
 // 5 DUP GT? WHILE [ DUP . 1 SUB DUP GT? ] DROP
 PROC_DECL(prim_WHILE) {
     POP1ARG(cond);
-    DEBUG(debug_detail("  prim_WHILE (cond)", cond));
+    DEBUG(debug_value("  prim_WHILE (cond)", cond));
     GET_BLOCK(block);
-    DEBUG(debug_detail("  prim_WHILE (block)", block));
+    DEBUG(debug_value("  prim_WHILE (block)", block));
     while (cond) {
         if (!exec_value(block)) return FALSE;
         if (data_top < 1) return stack_underflow();
         cond = data_stack[--data_top];  // pop condition from stack
-        DEBUG(debug_detail("  prim_WHILE (cond...)", cond));
+        DEBUG(debug_value("  prim_WHILE (cond...)", cond));
     }
     return TRUE;
 }
@@ -932,7 +932,7 @@ PROC_DECL(prim_PrintDetail) {
     POP1ARG(value);
     print_value(value);
     fflush(stdout);
-    debug_detail(" ", value);
+    debug_value(" ", value);
     return TRUE;
 }
 PROC_DECL(prim_Print) {
@@ -986,7 +986,7 @@ static void debug_env(env_t *env) {
     while (env) {
         word_t *w = TO_PTR(env->word);
         fprintf(stderr, "    ");
-        debug_detail(w->name, env->value);
+        debug_value(w->name, env->value);
         env = env->env;  // follow environment chain
     }
 }
@@ -1033,8 +1033,8 @@ int_t exec_block(nat_t cnt, int_t *ptr, env_t *env) {
 PROC_DECL(prim_Block) {
     block_t *blk = TO_PTR(self);
     if (blk->proc != MK_PROC(prim_Block)) return panic("not a Block");
-    XDEBUG(debug_detail("  prim_Block", self));
-    XDEBUG(printf("    "); print_block(blk->len, blk->data); print_ascii('\n'); fflush(stdout));
+    DEBUG(debug_value("  prim_Block", self));
+    DEBUG(printf("    "); print_block(blk->len, blk->data); print_ascii('\n'); fflush(stdout));
     return exec_block(blk->len, blk->data, PTR(0));
 }
 
@@ -1049,7 +1049,7 @@ int_t new_block(int_t *block_out, nat_t cnt) {
     blk->len = cnt - 2;
     block_next = next;
     *block_out = MK_BLOCK(blk);
-    DEBUG(debug_detail("  new_block", *block_out));
+    DEBUG(debug_value("  new_block", *block_out));
     return TRUE;
 }
 
@@ -1060,14 +1060,14 @@ int_t make_block(int_t *block_out, int_t *base, nat_t len) {
     while (len-- > 0) {
         blk->data[len] = base[len];
     }
-    DEBUG(debug_detail("  make_block", *block_out));
+    DEBUG(debug_value("  make_block", *block_out));
     return TRUE;
 }
 
 PROC_DECL(prim_Closure) {
     closure_t *scope = TO_PTR(self);
     if (scope->proc != MK_PROC(prim_Closure)) return panic("not a Closure");
-    XDEBUG(debug_closure("  prim_Closure", self));
+    DEBUG(debug_closure("  prim_Closure", self));
     return exec_block(scope->cnt, scope->ptr, scope->env);
 }
 
@@ -1082,6 +1082,26 @@ int_t new_scope(int_t *block_out) {
     return TRUE;
 }
 
+// wrap _block_ in a _closure_ to capture current environment
+int_t make_closure(int_t *block_out, int_t block) {
+    block_t *blk = TO_PTR(block);
+    // FIXME: if !next_context, we _could_ just return the bare block...
+    if (blk->proc == MK_PROC(prim_Block)) {
+        int_t closure;
+        if (!new_scope(&closure)) return panic("scope allocation failed");
+        closure_t *scope = TO_PTR(closure);
+        scope->cnt = blk->len;
+        scope->ptr = blk->data;
+        if (next_context) {
+            scope->env = next_context->env;
+        }
+        block = closure;
+    }
+    *block_out = block;
+    DEBUG(debug_value("  make_closure", *block_out));
+    return TRUE;
+}
+
 /*
  * word interpreter/compiler
  */
@@ -1089,10 +1109,10 @@ int_t new_scope(int_t *block_out) {
 nat_t quote_depth = 0;  // count nested quoting levels
 
 int_t exec_value(int_t value) {
-    DEBUG(debug_detail("  exec_value (value)", value));
+    DEBUG(debug_value("  exec_value (value)", value));
     if (IS_WORD(value)) {
         if (!get_word_value(&value, value)) return FALSE;
-        DEBUG(debug_detail("  exec_value (def)", value));
+        DEBUG(debug_value("  exec_value (def)", value));
     }
     // execute value
     if (IS_BLOCK(value)) {
@@ -1130,31 +1150,15 @@ int_t interpret() {
     DEBUG(fprintf(stderr, "> interpret data_top=%zu\n", data_top));
     size_t exec_top = data_top;  // save stack pointer for error recovery
     if (next_context) {
-        XDEBUG(fprintf(stderr, "  interpret cnt=%"PRIuPTR" ptr=%p env=%p\n",
+        DEBUG(fprintf(stderr, "  interpret cnt=%"PRIuPTR" ptr=%p env=%p\n",
             next_context->cnt, next_context->ptr, next_context->env));
     }
     while (next_value(&value)) {
         if (get_block(value)) {
             if (!data_pop(&value)) return FALSE;  // pop block from stack
-            if (next_context) {
-                block_t *blk = TO_PTR(value);
-                if (blk->proc == MK_PROC(prim_Block)) {
-                    // wrap _block_ in a _closure_ to capture current environment...
-                    int_t closure;
-                    if (!new_scope(&closure)) return panic("scope allocation failed");
-                    closure_t *scope = TO_PTR(closure);
-                    scope->cnt = blk->len;
-                    scope->ptr = blk->data;
-                    scope->env = next_context->env;
-                    XDEBUG(fprintf(stderr, "  interpret Block env=%p\n", scope->env); debug_env(scope->env));
-                    value = MK_BLOCK(scope);
-                } else if (blk->proc == MK_PROC(prim_Closure)) {
-                    closure_t *scope = TO_PTR(value);
-                    XDEBUG(fprintf(stderr, "  interpret Closure env=%p\n", scope->env); debug_env(scope->env));
-                }
-            }
+            if (!make_closure(&value, value)) return FALSE;
             if (!data_push(value)) return FALSE;  // push block on stack
-            XDEBUG(debug_detail("  interpret (block)", value));
+            DEBUG(debug_value("  interpret (block)", value));
             continue;
         }
         if (IS_WORD(value)) {
@@ -1176,10 +1180,10 @@ int_t interpret() {
 }
 
 int_t quote_value(int_t value) {
-    DEBUG(debug_detail("  quote_value (value)", value));
+    DEBUG(debug_value("  quote_value (value)", value));
     if (IS_WORD(value)) {
         if (!get_ro_word(&value, value)) return FALSE;
-        DEBUG(debug_detail("  quote_value (word)", value));
+        DEBUG(debug_value("  quote_value (word)", value));
     }
     // push value on stack
     return data_push(value);
@@ -1190,11 +1194,11 @@ int_t compile() {
     DEBUG(fprintf(stderr, "> compile data_top=%zu\n", data_top));
     size_t quote_top = data_top;  // save stack pointer for error recovery
     if (next_context) {
-        XDEBUG(fprintf(stderr, "  compile cnt=%"PRIuPTR" ptr=%p env=%p\n",
+        DEBUG(fprintf(stderr, "  compile cnt=%"PRIuPTR" ptr=%p env=%p\n",
             next_context->cnt, next_context->ptr, next_context->env));
     }
     while (next_value(&value)) {
-        DEBUG(debug_detail("  compile (next)", value));
+        DEBUG(debug_value("  compile (next)", value));
         if (get_block(value)) {
             continue;  // nested block
         }
@@ -1215,7 +1219,7 @@ int_t compile() {
             DEBUG(fprintf(stderr, "< compile quote FAIL! data_top=%zu\n", data_top));
             return FALSE;
         }
-        DEBUG(debug_detail("  compile (value)", value));
+        DEBUG(debug_value("  compile (value)", value));
     }
     if (data_top < quote_top) return stack_underflow();
     // construct block value from stack contents
@@ -1227,7 +1231,7 @@ int_t compile() {
         DEBUG(fprintf(stderr, "< compile block FAIL! data_top=%zu\n", data_top));
         return FALSE;
     }
-    XDEBUG(debug_detail("  compile", block));
+    DEBUG(debug_value("  compile", block));
     DEBUG(fprintf(stderr, "< compile ok data_top=%zu\n", data_top));
     return data_push(block);
 }
@@ -1252,25 +1256,25 @@ void print_platform_info() {
 
 void smoke_test() {
     printf("-- smoke test --\n");
-    debug_detail("TRUE", TRUE);
-    debug_detail("FALSE", FALSE);
+    debug_value("TRUE", TRUE);
+    debug_value("FALSE", FALSE);
 
     int_t pos = MK_NUM(1);
     int_t zero = MK_NUM(0);
     int_t neg = MK_NUM(-1);
-    debug_detail("pos", pos);
-    debug_detail("zero", zero);
-    debug_detail("neg", neg);
+    debug_value("pos", pos);
+    debug_value("zero", zero);
+    debug_value("neg", neg);
 
-    debug_detail("pos NEG", NEG(pos));
-    debug_detail("neg NEG", NEG(neg));
-    debug_detail("neg 1 LSL", LSL(neg, pos));
-    debug_detail("neg 1 LSR", LSR(neg, pos));
-    debug_detail("neg 1 ASR", ASR(neg, pos));
-    debug_detail("neg 1 LSR 1 LSL", LSL(LSR(neg, pos), pos));
-    debug_detail("neg 1 LSR 1 LSL 1 ASR", ASR(LSL(LSR(neg, pos), pos), pos));
-    debug_detail("neg 1 LSR NOT", NOT(LSR(neg, pos)));
-    debug_detail("neg 1 LSL NOT", NOT(LSL(neg, pos)));
+    debug_value("pos NEG", NEG(pos));
+    debug_value("neg NEG", NEG(neg));
+    debug_value("neg 1 LSL", LSL(neg, pos));
+    debug_value("neg 1 LSR", LSR(neg, pos));
+    debug_value("neg 1 ASR", ASR(neg, pos));
+    debug_value("neg 1 LSR 1 LSL", LSL(LSR(neg, pos), pos));
+    debug_value("neg 1 LSR 1 LSL 1 ASR", ASR(LSL(LSR(neg, pos), pos), pos));
+    debug_value("neg 1 LSR NOT", NOT(LSR(neg, pos)));
+    debug_value("neg 1 LSL NOT", NOT(LSL(neg, pos)));
 
     printf("pos(x) LTZ = %"PRIdPTR" EQZ = %"PRIdPTR" GTZ = %"PRIdPTR"\n",
         LTZ(pos), EQZ(pos), GTZ(pos));
@@ -1361,16 +1365,16 @@ int main(int argc, char const *argv[])
 
 #if 1
     printf("-- sanity check --\n");
-    debug_detail("    panic", MK_PROC(panic));
-    debug_detail("Undefined", MK_PROC(prim_Undefined));
-    debug_detail("    Block", MK_PROC(prim_Block));
-    debug_detail("  Closure", MK_PROC(prim_Closure));
-    debug_detail("   CREATE", MK_PROC(prim_CREATE));
-    debug_detail("     Bind", MK_PROC(prim_Bind));
-    debug_detail("      SUB", MK_PROC(prim_SUB));
-    debug_detail("      CMP", MK_PROC(prim_CMP));
-    debug_detail("    Print", MK_PROC(prim_Print));
-    debug_detail("     main", MK_PROC(main));
+    debug_value("    panic", MK_PROC(panic));
+    debug_value("Undefined", MK_PROC(prim_Undefined));
+    debug_value("    Block", MK_PROC(prim_Block));
+    debug_value("  Closure", MK_PROC(prim_Closure));
+    debug_value("   CREATE", MK_PROC(prim_CREATE));
+    debug_value("     Bind", MK_PROC(prim_Bind));
+    debug_value("      SUB", MK_PROC(prim_SUB));
+    debug_value("      CMP", MK_PROC(prim_CMP));
+    debug_value("    Print", MK_PROC(prim_Print));
+    debug_value("     main", MK_PROC(main));
 #endif
 #if 0
     // ensure that function pointer range checks will work...
