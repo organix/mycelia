@@ -104,35 +104,35 @@ typedef void * ptr_t;
 #define ASR(n,m)    ((INT(n)>>TO_INT(m)) & ~TAG_MASK)
 
 typedef struct block {
+    int_t       proc;                   // execution behavior
     nat_t       len;                    // number of int_t in data[]
     int_t       data[];                 // addressable memory
 } block_t;
-/* note: block.data[0] is usually a PROC defining the execution behavior */
 
 typedef struct env {
-    nat_t       len;                    // .len = block data length (3)
+    int_t       proc;                   // execution behavior
     int_t       value;                  // .data[0] = bound value
     int_t       word;                   // .data[1] = variable name
     struct env *env;                    // .data[2] = parent environment
 } env_t;
 
 typedef struct closure {
-    nat_t       len;                    // .len = block data length (3)
-    int_t       proc;                   // .data[0] = execution behavior
-    int_t       block;                  // .data[1] = quoted words
-    struct env *env;                    // .data[2] = parent environment
+    int_t       proc;                   // execution behavior
+    nat_t       cnt;                    // .data[0] = number of words
+    int_t      *ptr;                    // .data[1] = word address in block
+    env_t      *env;                    // .data[2] = parent environment
 } closure_t;
 
 typedef struct context {
-    nat_t       len;                    // .len = block data length (3)
-    int_t      *ptr;                    // .data[0] = next_value_ptr
-    nat_t       cnt;                    // .data[1] = next_value_cnt
+    int_t       proc;                   // execution behavior
+    nat_t       cnt;                    // .data[0] = next_value_cnt
+    int_t      *ptr;                    // .data[1] = next_value_ptr
     env_t      *env;                    // .data[2] = dynamic environment
 } context_t;
 
 #define MAX_NAME_SZ (4 * sizeof(int_t)) // word buffer size
 typedef struct word {
-    nat_t       len;                    // .len = block data length (0/3/7)
+    int_t       proc;                   // execution behavior
     int_t       value;                  // .data[0] = bound value
     int_t       word;                   // .data[1] = variable name
     env_t      *env;                    // .data[2] = parent environment
@@ -161,16 +161,22 @@ int_t error(char *reason) {
  * printing utilities
  */
 
+PROC_DECL(prim_Block);  // FORWARD DECLARATION
+PROC_DECL(prim_Closure);  // FORWARD DECLARATION
+PROC_DECL(prim_Environment) { return panic("Environment can not be executed"); }
+PROC_DECL(prim_Context) { return panic("Context can not be executed"); }
+
 PROC_DECL(prim_Undefined) { return error("undefined procedure"); }
 #define UNDEFINED MK_PROC(prim_Undefined)
-
-static void print_block(int_t block);  // FORWARD DECLARATION
 
 void print_ascii(int_t code) {
     if ((code & 0x7F) == code) {  // code is in ascii range
         putchar(code);
     }
 }
+
+void print_block(nat_t len, int_t *data);  // FORWARD DECLARATION
+void print_closure(closure_t *scope);  // FORWARD DECLARATION
 
 void print_value(int_t value) {
     if (IS_NUM(value)) {
@@ -183,12 +189,13 @@ void print_value(int_t value) {
         word_t *w = TO_PTR(value);
         printf("%s", w->name);
     } else if (IS_BLOCK(value)) {
-        closure_t *scope = TO_PTR(value);
-        if ((scope->len == 3) && IS_PROC(scope->proc)) {
-            print_block(scope->block);
+        block_t *blk = TO_PTR(value);
+        if (blk->proc == MK_PROC(prim_Block)) {
+            print_block(blk->len, blk->data);
+        } else if (blk->proc == MK_PROC(prim_Closure)) {
+            print_closure(TO_PTR(value));
         } else {
-            print_ascii('^');
-            print_block(value);
+            printf("^%p[]", TO_PTR(blk->proc));
         }
     } else if (value == UNDEFINED) {
         printf("(UNDEFINED)");
@@ -207,7 +214,7 @@ static void print_detail(char *label, int_t value) {
     fprintf(stderr, " t=%s", tag_label[value & TAG_MASK]);
     fprintf(stderr, " i=%"PRIdPTR"", TO_INT(value));
     //fprintf(stderr, " n=%"PRIuPTR"", TO_NAT(value));
-    fprintf(stderr, " p=%p", TO_PTR(value));
+    //fprintf(stderr, " p=%p", TO_PTR(value));
     if (IS_WORD(value)) {
         word_t *w = TO_PTR(value);
         fprintf(stderr, " s=\"%s\"", w->name);
@@ -215,7 +222,14 @@ static void print_detail(char *label, int_t value) {
     }
     if (IS_BLOCK(value)) {
         block_t *blk = TO_PTR(value);
-        fprintf(stderr, " [%"PRIuPTR"]", blk->len);
+        if (blk->proc == MK_PROC(prim_Block)) {
+            fprintf(stderr, " [%"PRIuPTR"]", blk->len);
+        } else if (blk->proc == MK_PROC(prim_Closure)) {
+            closure_t *scope = TO_PTR(value);
+            fprintf(stderr, " [%"PRIuPTR"] env=%p", scope->cnt, scope->env);
+        } else {
+            fprintf(stderr, " ^%p[...]", TO_PTR(blk->proc));
+        }
     }
     fprintf(stderr, "\n");
     fflush(stderr);
@@ -333,19 +347,27 @@ static int_t stack_underflow() { return error("empty stack"); }
 static int_t index_out_of_bounds() { return panic("index out of bounds"); }
 
 int_t data_push(int_t value) {
-    if (data_top >= MAX_STACK) {
-        return stack_overflow();
+    if (data_top < MAX_STACK) {
+        data_stack[data_top++] = value;
+        return TRUE;
     }
-    data_stack[data_top++] = value;
-    return TRUE;
+    return stack_overflow();
 }
 
 int_t data_pop(int_t *value_out) {
-    if (data_top == 0) {
-        return stack_underflow();
+    if (data_top > 0) {
+        *value_out = data_stack[--data_top];
+        return TRUE;
     }
-    *value_out = data_stack[--data_top];
-    return TRUE;
+    return stack_underflow();
+}
+
+int_t data_peek(int_t *value_out) {
+    if (data_top > 0) {
+        *value_out = data_stack[data_top - 1];
+        return TRUE;
+    }
+    return stack_underflow();
 }
 
 int_t data_pick(int_t *value_out, int n) {
@@ -555,8 +577,6 @@ int_t parse_value(int_t *value_out) {
 }
 
 context_t *next_context = PTR(0);
-//int_t *next_value_ptr = PTR(0);
-//nat_t next_value_cnt = NAT(0);
 int_t next_value(int_t *value_out) {
     if (next_context) {
         DEBUG(fprintf(stderr, "  next_value cnt=%"PRIuPTR" ptr=%p env=%p\n",
@@ -678,8 +698,9 @@ int_t set_word_value(int_t word, int_t value) {
             next_context->cnt, next_context->ptr, next_context->env));
         // create local binding
         int_t block;
-        if (!new_block(&block, 3)) return FALSE;
+        if (!new_block(&block, 4)) return FALSE;
         env_t *env = TO_PTR(block);
+        env->proc = MK_PROC(prim_Environment);
         env->word = word;
         env->value = value;
         // chain environments
@@ -930,51 +951,125 @@ PROC_DECL(prim_Print) {
 int_t block_mem[MAX_BLOCK_MEM];
 size_t block_next = 0;
 
-static void print_block(int_t block) {
-    block_t *blk = TO_PTR(block);
+void print_block(nat_t len, int_t *data) {
     print_ascii('[');
     print_ascii(' ');
-    for (nat_t n = 0; n < blk->len; ++n) {
-        print_value(blk->data[n]);
+    for (nat_t n = 0; n < len; ++n) {
+        print_value(data[n]);
         print_ascii(' ');
     }
     print_ascii(']');
 }
 
-static void print_env(env_t *env) {
-    fprintf(stderr, "\n");
+void print_env(env_t *env) {
+    print_ascii('{');
+    while (env) {
+        word_t *w = TO_PTR(env->word);
+        printf("%s:", w->name);
+        print_value(env->value);
+        env = env->env;  // follow environment chain
+        if (env) print_ascii(',');
+    }
+    print_ascii('}');
+}
+
+void print_closure(closure_t *scope) {
+    print_env(scope->env);
+    if (scope->cnt && scope->ptr) {
+        print_block(scope->cnt, scope->ptr);
+    } else {
+        printf("[]");
+    }
+}
+
+static void debug_env(env_t *env) {
     while (env) {
         word_t *w = TO_PTR(env->word);
         fprintf(stderr, "    ");
         print_detail(w->name, env->value);
         env = env->env;  // follow environment chain
     }
-    fflush(stderr);
 }
 
-static void print_closure(char *label, int_t block) {
+static void debug_closure(char *label, int_t block) {
     closure_t *scope = TO_PTR(block);
     fprintf(stderr, "%s:", label);
-    fprintf(stderr, " len=%"PRIuPTR"", scope->len);
     fprintf(stderr, " proc=%p", TO_PTR(scope->proc));
-    fprintf(stderr, " block=%p", TO_PTR(scope->block));
+    fprintf(stderr, " cnt=%"PRIuPTR"", scope->cnt);
+    fprintf(stderr, " ptr=%p", TO_PTR(scope->ptr));
     fprintf(stderr, " env=%p", scope->env);
-    print_env(scope->env);
-    if (IS_BLOCK(scope->block)) {
+    fprintf(stderr, "\n");
+    debug_env(scope->env);
+    fflush(stderr);
+    if (scope->cnt && scope->ptr) {
         printf("    ");
-        print_block(scope->block);
+        print_block(scope->cnt, scope->ptr);
         print_ascii('\n');
         fflush(stdout);
     }
 }
 
-int_t new_block(int_t *block_out, nat_t len) {
-    size_t next = block_next + len + 1;
+int_t exec_block(nat_t cnt, int_t *ptr, env_t *env) {
+    // save current value source
+    context_t *prev_context = next_context;
+
+    // use block as value source
+    context_t scope_context = {
+        .proc = MK_PROC(prim_Context),
+        .cnt = cnt,
+        .ptr = ptr,
+        .env = env
+    };
+    next_context = &scope_context;
+
+    // run nested interpreter, reading from block
+    int_t ok = interpret();
+
+    // restore previous value source
+    next_context = prev_context;
+    return ok;
+}
+
+PROC_DECL(prim_Block) {
+    block_t *blk = TO_PTR(self);
+    if (blk->proc != MK_PROC(prim_Block)) return panic("not a Block");
+    print_detail("  prim_Block", self);
+    printf("    ");
+    print_block(blk->len, blk->data);
+    print_ascii('\n');
+    fflush(stdout);
+    return exec_block(blk->len, blk->data, PTR(0));
+/*
+    // save current value source
+    context_t *prev_context = next_context;
+
+    // use block as value source
+    context_t scope_context = {
+        .proc = MK_PROC(prim_Context),
+        .cnt = blk->len,
+        .ptr = blk->data,
+        .env = PTR(0)
+    };
+    next_context = &scope_context;
+
+    // run nested interpreter, reading from block
+    int_t ok = interpret();
+
+    // restore previous value source
+    next_context = prev_context;
+    return ok;
+*/
+}
+
+// allocate _cnt_ consecutive `int_t` slots
+int_t new_block(int_t *block_out, nat_t cnt) {
+    size_t next = block_next + cnt;
     if (next > MAX_BLOCK_MEM) {
         return panic("out of block memory");
     }
     block_t *blk = PTR(&block_mem[block_next]);
-    blk->len = len;
+    blk->proc = MK_PROC(prim_Block);
+    blk->len = cnt - 2;
     block_next = next;
     *block_out = MK_BLOCK(blk);
     DEBUG(print_detail("  new_block", *block_out));
@@ -982,8 +1077,9 @@ int_t new_block(int_t *block_out, nat_t len) {
 }
 
 int_t make_block(int_t *block_out, int_t *base, nat_t len) {
-    if (!new_block(block_out, len)) return FALSE;
+    if (!new_block(block_out, len + 2)) return FALSE;
     block_t *blk = TO_PTR(*block_out);
+    //blk->len = len;  // this is done in new_block()...
     while (len-- > 0) {
         blk->data[len] = base[len];
     }
@@ -991,52 +1087,40 @@ int_t make_block(int_t *block_out, int_t *base, nat_t len) {
     return TRUE;
 }
 
-int_t exec_block(int_t block, env_t *env) {
-    if (!IS_BLOCK(block)) return error("block required");
-    XDEBUG(printf("exec_block: "); print_block(block); printf("\n"); fflush(stdout));
-
+PROC_DECL(prim_Closure) {
+    closure_t *scope = TO_PTR(self);
+    if (scope->proc != MK_PROC(prim_Closure)) return panic("not a Closure");
+    debug_closure("  prim_Closure", self);
+    return exec_block(scope->cnt, scope->ptr, scope->env);
+/*
     // save current value source
     context_t *prev_context = next_context;
-    //nat_t prev_value_cnt = next_value_cnt;
-    //int_t *prev_value_ptr = next_value_ptr;
 
-    // find quoted words in block
-    block_t *blk = TO_PTR(block);
-
-    // use block as value source
-    context_t blk_context = {
-        .len = 3,
-        .ptr = blk->data,
-        .cnt = blk->len,
-        .env = env
+    // use closure as value source
+    context_t scope_context = {
+        .proc = MK_PROC(prim_Context),
+        .cnt = scope->cnt,
+        .ptr = scope->ptr,
+        .env = scope->env
     };
-    next_context = &blk_context;
-    //next_value_cnt = blk->len;
-    //next_value_ptr = blk->data;
+    next_context = &scope_context;
 
     // run nested interpreter, reading from block
     int_t ok = interpret();
 
     // restore previous value source
     next_context = prev_context;
-    //next_value_cnt = prev_value_cnt;
-    //next_value_ptr = prev_value_ptr;
     return ok;
-}
-
-PROC_DECL(prim_Closure) {
-    print_closure("  prim_Closure", self);
-    closure_t *scope = TO_PTR(self);
-    if (scope->proc != MK_PROC(prim_Closure)) return panic("block is not a closure");
-    return exec_block(scope->block, scope->env);
+*/
 }
 
 // create a new scope for capturing variables
 int_t new_scope(int_t *block_out) {
-    if (!new_block(block_out, 3)) return FALSE;
+    if (!new_block(block_out, 4)) return FALSE;
     closure_t *scope = TO_PTR(*block_out);
     scope->proc = MK_PROC(prim_Closure);
-    scope->block = UNDEFINED;
+    scope->cnt = NAT(0);
+    scope->ptr = PTR(0);
     scope->env = PTR(0);
     return TRUE;
 }
@@ -1055,8 +1139,9 @@ int_t exec_value(int_t value) {
     }
     // execute value
     if (IS_BLOCK(value)) {
-        // FIXME: shoud call through scope->proc instead...
-        return prim_Closure(value);
+        block_t *blk = TO_PTR(value);
+        PROC_DECL((*proc)) = TO_PTR(blk->proc);
+        return (*proc)(value);
     }
     if (IS_PROC(value)) {
         PROC_DECL((*proc)) = TO_PTR(value);
@@ -1093,12 +1178,26 @@ int_t interpret() {
     }
     while (next_value(&value)) {
         if (get_block(value)) {
-            // FIXME: wrap _block_ in a _closure_ to capture current environment...
+            if (!data_pop(&value)) return FALSE;  // pop block from stack
             if (next_context) {
-                closure_t *scope = TO_PTR(value);
-                scope->env = next_context->env;
-                XDEBUG(fprintf(stderr, "  interpret block env=%p", scope->env); print_env(scope->env));
+                block_t *blk = TO_PTR(value);
+                if (blk->proc == MK_PROC(prim_Block)) {
+                    // wrap _block_ in a _closure_ to capture current environment...
+                    int_t closure;
+                    if (!new_scope(&closure)) return panic("scope allocation failed");
+                    closure_t *scope = TO_PTR(closure);
+                    scope->cnt = blk->len;
+                    scope->ptr = blk->data;
+                    scope->env = next_context->env;
+                    XDEBUG(fprintf(stderr, "  interpret Block env=%p\n", scope->env); debug_env(scope->env));
+                    value = MK_BLOCK(scope);
+                } else if (blk->proc == MK_PROC(prim_Closure)) {
+                    closure_t *scope = TO_PTR(value);
+                    XDEBUG(fprintf(stderr, "  interpret Closure env=%p\n", scope->env); debug_env(scope->env));
+                }
             }
+            if (!data_push(value)) return FALSE;  // push block on stack
+            XDEBUG(print_detail("  interpret (block)", value));
             continue;
         }
         if (IS_WORD(value)) {
@@ -1137,8 +1236,8 @@ int_t compile() {
         XDEBUG(fprintf(stderr, "  compile cnt=%"PRIuPTR" ptr=%p env=%p\n",
             next_context->cnt, next_context->ptr, next_context->env));
     }
-    int_t closure;
-    if (!new_scope(&closure)) return panic("scope allocation failed");
+    //int_t closure;
+    //if (!new_scope(&closure)) return panic("scope allocation failed");
     while (next_value(&value)) {
         DEBUG(print_detail("  compile (next)", value));
         if (get_block(value)) {
@@ -1168,15 +1267,16 @@ int_t compile() {
     int_t *base = &data_stack[quote_top];
     nat_t len = (data_top - quote_top);
     data_top = quote_top;  // restore stack top
-    closure_t *scope = TO_PTR(closure);
+    //closure_t *scope = TO_PTR(closure);
     int_t block;
-    if (!make_block(&scope->block, base, len)) {
+    if (!make_block(&block, base, len)) {
         DEBUG(fprintf(stderr, "< compile block FAIL! data_top=%zu\n", data_top));
         return FALSE;
     }
-    XDEBUG(print_closure("  compile", closure));
+    //XDEBUG(debug_closure("  compile", closure));
+    XDEBUG(print_detail("  compile", block));
     DEBUG(fprintf(stderr, "< compile ok data_top=%zu\n", data_top));
-    return data_push(closure);
+    return data_push(block);
 }
 
 void print_platform_info() {
@@ -1310,6 +1410,8 @@ int main(int argc, char const *argv[])
     printf("-- sanity check --\n");
     print_detail("    panic", MK_PROC(panic));
     print_detail("Undefined", MK_PROC(prim_Undefined));
+    print_detail("    Block", MK_PROC(prim_Block));
+    print_detail("  Closure", MK_PROC(prim_Closure));
     print_detail("   CREATE", MK_PROC(prim_CREATE));
     print_detail("     Bind", MK_PROC(prim_Bind));
     print_detail("      SUB", MK_PROC(prim_SUB));
