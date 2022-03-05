@@ -37,7 +37,9 @@ See further [https://github.com/organix/mycelia/blob/master/quartet.md]
 #define DEBUG(x)   // include/exclude debug instrumentation
 #define XDEBUG(x) x // include/exclude extra debugging
 
-#define ALLOW_DMA 0  // define words for direct memory access
+#define INT_T_32B 0  // universal Integer is 32 bits wide
+#define INT_T_64B 1  // universal Integer is 64 bits wide
+#define ALLOW_DMA 1  // define words for direct memory access
 
 // universal Integer type (32/64-bit signed 2's-complement)
 typedef intptr_t int_t;
@@ -234,6 +236,32 @@ static void debug_value(char *label, int_t value) {
     fprintf(stderr, "\n");
     fflush(stderr);
 }
+
+#if INT_T_32B
+static void hexdump(char *label, int_t *addr, size_t cnt) {
+    fprintf(stderr, "%s: %04"PRIxPTR"..", label, (NAT(addr) >> 16));
+    for (nat_t n = 0; n < cnt; ++n) {
+        if ((n & 0x7) == 0x0) {
+            fprintf(stderr, "\n..%04"PRIxPTR":", (NAT(addr) & 0xFFFF));
+        }
+        fprintf(stderr, " %08"PRIXPTR"", NAT(*addr++) & 0xFFFFFFFF);
+    }
+    fprintf(stderr, "\n");
+}
+#endif // INT_T_32B
+
+#if INT_T_64B
+static void hexdump(char *label, int_t *addr, size_t cnt) {
+    fprintf(stderr, "%s: %08"PRIxPTR"..", label, (NAT(addr) >> 32));
+    for (nat_t n = 0; n < cnt; ++n) {
+        if ((n & 0x3) == 0x0) {
+            fprintf(stderr, "\n..%08"PRIxPTR":", (NAT(addr) & 0xFFFFFFFF));
+        }
+        fprintf(stderr, " %016"PRIXPTR"", NAT(*addr++));
+    }
+    fprintf(stderr, "\n");
+}
+#endif // INT_T_64B
 
 /*
  * parsing utilities
@@ -465,11 +493,12 @@ PROC_DECL(prim_Load);
 PROC_DECL(prim_Store);
 PROC_DECL(prim_LoadAtomic);
 PROC_DECL(prim_StoreAtomic);
+PROC_DECL(prim_DUMP);
 #endif
 PROC_DECL(prim_WORDS);
 PROC_DECL(prim_EMIT);
 PROC_DECL(prim_PrintStack);
-PROC_DECL(prim_PrintDetail);
+PROC_DECL(prim_PrintDebug);
 PROC_DECL(prim_Print);
 
 #define MAX_WORDS ((size_t)(128))
@@ -521,17 +550,18 @@ word_t word_list[MAX_WORDS] = {
     { .value = MK_PROC(prim_Store), .name = "!" },
     { .value = MK_PROC(prim_LoadAtomic), .name = "??" },
     { .value = MK_PROC(prim_StoreAtomic), .name = "!!" },
+    { .value = MK_PROC(prim_DUMP), .name = "DUMP" },
 #endif
     { .value = MK_PROC(prim_WORDS), .name = "WORDS" },
     { .value = MK_PROC(prim_EMIT), .name = "EMIT" },
     { .value = MK_PROC(prim_PrintStack), .name = "..." },
-    { .value = MK_PROC(prim_PrintDetail), .name = ".?" },
+    { .value = MK_PROC(prim_PrintDebug), .name = ".?" },
     { .value = MK_PROC(prim_Print), .name = "." },
     { .value = UNDEFINED, .name = "" }
 };
 #if ALLOW_DMA
-size_t ro_words = 51;  // limit of read-only words
-size_t rw_words = 51;  // limit of read/write words
+size_t ro_words = 52;  // limit of read-only words
+size_t rw_words = 52;  // limit of read/write words
 #else
 size_t ro_words = 47;  // limit of read-only words
 size_t rw_words = 47;  // limit of read/write words
@@ -540,7 +570,7 @@ size_t rw_words = 47;  // limit of read/write words
 static void debug_word(char *label, int_t word) {
     word_t *w = TO_PTR(word);
     fprintf(stderr, "%s:", label);
-    fprintf(stderr, " %p", w);
+    fprintf(stderr, " %p", PTR(w));
     fprintf(stderr, " value=%"PRIXPTR"", w->value);
     fprintf(stderr, " s=\"%s\"", w->name);
     fprintf(stderr, "\n");
@@ -893,10 +923,24 @@ PROC_DECL(prim_LSR) { POP2PUSH1(n, m, LSR); }
 PROC_DECL(prim_ASR) { POP2PUSH1(n, m, ASR); }
 // direct memory access
 #if ALLOW_DMA
-PROC_DECL(prim_Load) { POP1ARG(addr); return panic("unimplemented ?"); }
-PROC_DECL(prim_Store) { POP2ARG(value, addr); return panic("unimplemented !"); }
-PROC_DECL(prim_LoadAtomic) { POP1ARG(addr); return panic("unimplemented ??"); }
-PROC_DECL(prim_StoreAtomic) { POP2ARG(value, addr); return panic("unimplemented !!"); }
+PROC_DECL(prim_Load) {
+    POP1ARG(addr);
+    int_t *ptr = TO_PTR(TO_INT(addr));
+    return data_push(MK_NUM(*ptr));
+}
+PROC_DECL(prim_Store) {
+    POP2ARG(value, addr);
+    int_t *ptr = TO_PTR(TO_INT(addr));
+    *ptr = TO_INT(value);
+    return TRUE;
+}
+PROC_DECL(prim_LoadAtomic) { return prim_Load(self); }
+PROC_DECL(prim_StoreAtomic) { return prim_Store(self); }
+PROC_DECL(prim_DUMP) {
+    POP2ARG(addr, cnt);
+    hexdump("hexdump", TO_PTR(TO_INT(addr)), TO_NAT(cnt));
+    return TRUE;
+}
 #endif
 // interactive extentions
 PROC_DECL(prim_WORDS) {
@@ -928,7 +972,7 @@ PROC_DECL(prim_PrintStack) {
     fflush(stdout);
     return TRUE;
 }
-PROC_DECL(prim_PrintDetail) {
+PROC_DECL(prim_PrintDebug) {
     POP1ARG(value);
     print_value(value);
     fflush(stdout);
@@ -975,11 +1019,7 @@ void print_env(env_t *env) {
 
 void print_closure(closure_t *scope) {
     print_env(scope->env);
-    if (scope->cnt && scope->ptr) {
-        print_block(scope->cnt, scope->ptr);
-    } else {
-        printf("[]");
-    }
+    print_block(scope->cnt, scope->ptr);
 }
 
 static void debug_env(env_t *env) {

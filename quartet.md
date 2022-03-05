@@ -130,6 +130,7 @@ _address_            | `?`             | _value_                 | Load _value_ 
 _value_ _address_    | `!`             | &mdash;                 | Store _value_ into _address_
 _address_            | `??`            | _value_                 | Atomic load _value_ from volatile _address_
 _value_ _address_    | `!!`            | &mdash;                 | Atomic store _value_ into volatile _address_
+_address_ _count_    | `DUMP`          | &mdash;                 | Hex dump _count_ values from _address_
 
 
 ### Interactive Features
@@ -142,7 +143,40 @@ _code_               | `EMIT`          | &mdash;                 | Print ascii c
 _value_              | `.?`            | &mdash;                 | Print internal representation of _value_
 _value_              | `.`             | &mdash;                 | Print _value_
 
-## Example
+## Examples
+
+Print Countdown from 5 to 1
+```
+5 DUP GT? WHILE [ DUP . 1 SUB DUP GT? ] DROP
+```
+
+Clear the Stack
+```
+# ... CLEAR --
+[ DEPTH GT? WHILE [ DROP DEPTH GT? ] ] = CLEAR
+```
+
+Print Symbol Based on Sign
+```
+# n CMP --
+[ DUP EQ? IF-ELSE [ DROP ' = . ] [ DUP LT? IF [ ' < . ] GT? IF [ ' > . ] ] ] = CMP
+```
+
+Recursive Factorial
+```
+# n fact n!
+[ DUP ZERO? IF-ELSE [ DROP 1 ] [ DUP 1 SUB fact MUL ] ] = fact
+```
+
+Curried Function Constructor
+```
+# n \n+ block
+[ = n [ n ADD ] ] = \n+
++1 \n+ = 1+  # increment
+-1 \n+ = 1-  # decrement
+```
+
+### Serial-Port Echo Driver
 
 ```
 [ ] = sink_beh 
