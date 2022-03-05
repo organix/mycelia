@@ -39,8 +39,8 @@ but rather wrap around forming a ring,
 which may be interpreted as either signed or unsigned.
 The number of bits is not specified.
 
-The quartet program `TRUE 1 LSR DUP NOT . .`
-prints the minimum and maximum signed values.
+The quartet program `TRUE 1 LSR DUP NOT .? .?`
+prints the minimum and maximum signed value representations.
 
 ### Tagged Types
 
@@ -66,6 +66,8 @@ _block_              | `CREATE`        | _actor_                 | Create a new 
 _block_              | `BECOME`        | &mdash;                 | Replace current actor's behavior with _block_
 &mdash;              | `SELF`          | _actor_                 | Push the current actor's address on the data stack
 &mdash;              | `FAIL`          | &mdash;                 | Abort processing and revert to prior state
+&mdash;              | `STEP`          | _bool_                  | Dispatch an actor message, report success
+&mdash;              | `RUN`           | &mdash;                 | Dispatch all actor messages
 
 ### Dictionary and Quoting
 
@@ -145,35 +147,50 @@ _value_              | `.`             | &mdash;                 | Print _value_
 
 ## Examples
 
-Print Countdown from 5 to 1
+Print countdown from 5 to 1
 ```
 5 DUP GT? WHILE [ DUP . 1 SUB DUP GT? ] DROP
 ```
 
-Clear the Stack
+Clear the stack
 ```
 # ... CLEAR --
 [ DEPTH GT? WHILE [ DROP DEPTH GT? ] ] = CLEAR
 ```
 
-Print Symbol Based on Sign
+Print symbol based on numeric sign
 ```
 # n CMP --
 [ DUP EQ? IF-ELSE [ DROP ' = . ] [ DUP LT? IF [ ' < . ] GT? IF [ ' > . ] ] ] = CMP
 ```
 
-Recursive Factorial
+Recursive factorial
 ```
 # n fact n!
 [ DUP ZERO? IF-ELSE [ DROP 1 ] [ DUP 1 SUB fact MUL ] ] = fact
 ```
 
-Curried Function Constructor
+Mutually-recursive even/odd
+```
+# n even? bool
+[ DUP ZERO? IF-ELSE [ DROP TRUE ] [ 1 SUB odd? ] ] = even?
+# n odd? bool
+[ DUP ZERO? IF-ELSE [ DROP FALSE ] [ 1 SUB even? ] ] = odd?
+```
+
+Curried function constructor
 ```
 # n \n+ block
 [ = n [ n ADD ] ] = \n+
 +1 \n+ = 1+  # increment
 -1 \n+ = 1-  # decrement
+```
+
+An actor that displays any message it receives
+```
+[ ... 10 EMIT ] CREATE = println
+' Hello ' World println SEND
+STEP .
 ```
 
 ### Serial-Port Echo Driver

@@ -144,6 +144,13 @@ typedef struct word {
 #define CACHE_LINE_SZ (sizeof(word_t))  // bytes per idealized cache line
 #define VMEM_PAGE_SZ ((size_t)1 << 12)  // bytes per idealized memory page
 
+typedef struct actor {
+    int_t       proc;                   // execution behavior
+    int_t       beh;                    // .data[0] = behavior (block/closure)
+    //int_t      *ptr;                    // .data[1] = word address in block
+    //env_t      *env;                    // .data[2] = parent environment
+} actor_t;
+
 /*
  * error handling
  */
@@ -165,6 +172,7 @@ int_t error(char *reason) {
 
 PROC_DECL(prim_Block);  // FORWARD DECLARATION
 PROC_DECL(prim_Closure);  // FORWARD DECLARATION
+PROC_DECL(prim_Actor);  // FORWARD DECLARATION
 PROC_DECL(prim_Environment) { return panic("Environment can not be executed"); }
 PROC_DECL(prim_Context) { return panic("Context can not be executed"); }
 
@@ -179,6 +187,7 @@ void print_ascii(int_t code) {
 
 void print_block(nat_t len, int_t *data);  // FORWARD DECLARATION
 void print_closure(closure_t *scope);  // FORWARD DECLARATION
+void print_actor(actor_t *act);  // FORWARD DECLARATION
 
 void print_value(int_t value) {
     if (IS_NUM(value)) {
@@ -196,6 +205,8 @@ void print_value(int_t value) {
             print_block(blk->len, blk->data);
         } else if (blk->proc == MK_PROC(prim_Closure)) {
             print_closure(TO_PTR(value));
+        } else if (blk->proc == MK_PROC(prim_Actor)) {
+            print_actor(TO_PTR(value));
         } else {
             printf("^%p[]", TO_PTR(blk->proc));
         }
@@ -229,6 +240,9 @@ static void debug_value(char *label, int_t value) {
         } else if (blk->proc == MK_PROC(prim_Closure)) {
             closure_t *scope = TO_PTR(value);
             fprintf(stderr, " [%"PRIuPTR"] env=%p", scope->cnt, scope->env);
+        } else if (blk->proc == MK_PROC(prim_Actor)) {
+            actor_t *act = TO_PTR(value);
+            fprintf(stderr, " @[%"PRIXPTR"]", act->beh);
         } else {
             fprintf(stderr, " ^%p[...]", TO_PTR(blk->proc));
         }
@@ -451,6 +465,8 @@ PROC_DECL(prim_SEND);
 PROC_DECL(prim_BECOME);
 PROC_DECL(prim_SELF);
 PROC_DECL(prim_FAIL);
+PROC_DECL(prim_STEP);
+PROC_DECL(prim_RUN);
 PROC_DECL(prim_Bind);
 PROC_DECL(prim_Literal);
 PROC_DECL(prim_Lookup);
@@ -508,6 +524,8 @@ word_t word_list[MAX_WORDS] = {
     { .value = MK_PROC(prim_BECOME), .name = "BECOME" },
     { .value = MK_PROC(prim_SELF), .name = "SELF" },
     { .value = MK_PROC(prim_FAIL), .name = "FAIL" },
+    { .value = MK_PROC(prim_STEP), .name = "STEP" },
+    { .value = MK_PROC(prim_RUN), .name = "RUN" },
     { .value = MK_PROC(prim_Bind), .name = "=" },
     { .value = MK_PROC(prim_Literal), .name = "'" },
     { .value = MK_PROC(prim_Lookup), .name = "@" },
@@ -557,14 +575,13 @@ word_t word_list[MAX_WORDS] = {
     { .value = MK_PROC(prim_PrintStack), .name = "..." },
     { .value = MK_PROC(prim_PrintDebug), .name = ".?" },
     { .value = MK_PROC(prim_Print), .name = "." },
-    { .value = UNDEFINED, .name = "" }
 };
 #if ALLOW_DMA
-size_t ro_words = 52;  // limit of read-only words
-size_t rw_words = 52;  // limit of read/write words
+size_t ro_words = 54;  // limit of read-only words
+size_t rw_words = 54;  // limit of read/write words
 #else
-size_t ro_words = 47;  // limit of read-only words
-size_t rw_words = 47;  // limit of read/write words
+size_t ro_words = 49;  // limit of read-only words
+size_t rw_words = 49;  // limit of read/write words
 #endif
 
 static void debug_word(char *label, int_t word) {
@@ -780,11 +797,13 @@ int_t compile();  // FORWARD DECLARATION
 int_t get_block(int_t value);  // FORWARD DECLARATION
 int_t exec_value(int_t value);  // FORWARD DECLARATION
 
-PROC_DECL(prim_CREATE) { return panic("unimplemented CREATE"); }
-PROC_DECL(prim_SEND) { return panic("unimplemented SEND"); }
-PROC_DECL(prim_BECOME) { return panic("unimplemented BECOME"); }
-PROC_DECL(prim_SELF) { return panic("unimplemented SELF"); }
+//PROC_DECL(prim_CREATE) { return error("unimplemented CREATE"); }
+//PROC_DECL(prim_SEND) { return error("unimplemented SEND"); }
+//PROC_DECL(prim_BECOME) { return error("unimplemented BECOME"); }
+//PROC_DECL(prim_SELF) { return error("unimplemented SELF"); }
 PROC_DECL(prim_FAIL) { return error("FAIL"); }
+//PROC_DECL(prim_STEP) { return error("unimplemented STEP"); }
+//PROC_DECL(prim_RUN) { return error("unimplemented RUN"); }
 PROC_DECL(prim_Bind) {
     POP1ARG(value);
     int_t word;
@@ -832,8 +851,7 @@ PROC_DECL(prim_IF_ELSE) {
     DEBUG(debug_value("  prim_IF_ELSE (cnsq)", cnsq));
     GET_BLOCK(altn);
     DEBUG(debug_value("  prim_IF_ELSE (altn)", altn));
-    if (!exec_value(cond ? cnsq : altn)) return FALSE;
-    return TRUE;
+    return exec_value(cond ? cnsq : altn);
 }
 // 5 DUP GT? WHILE [ DUP . 1 SUB DUP GT? ] DROP
 PROC_DECL(prim_WHILE) {
@@ -1049,6 +1067,8 @@ static void debug_closure(char *label, int_t block) {
     }
 }
 
+nat_t quote_depth = 0;  // count nested quoting levels
+
 int_t exec_block(nat_t cnt, int_t *ptr, env_t *env) {
     // save current value source
     context_t *prev_context = next_context;
@@ -1063,7 +1083,9 @@ int_t exec_block(nat_t cnt, int_t *ptr, env_t *env) {
     next_context = &scope_context;
 
     // run nested interpreter, reading from block
-    int_t ok = interpret();
+    ++quote_depth;
+    int_t ok = interpret();  // FIXME: consider an exit_on_fail parameter?
+    --quote_depth;
 
     // restore previous value source
     next_context = prev_context;
@@ -1146,8 +1168,6 @@ int_t make_closure(int_t *block_out, int_t block) {
  * word interpreter/compiler
  */
 
-nat_t quote_depth = 0;  // count nested quoting levels
-
 int_t exec_value(int_t value) {
     DEBUG(debug_value("  exec_value (value)", value));
     if (IS_WORD(value)) {
@@ -1157,6 +1177,10 @@ int_t exec_value(int_t value) {
     // execute value
     if (IS_BLOCK(value)) {
         block_t *blk = TO_PTR(value);
+        if (blk->proc == MK_PROC(prim_Actor)) {
+            // special-case for actor references
+            return data_push(value);
+        }
         PROC_DECL((*proc)) = TO_PTR(blk->proc);
         return (*proc)(value);
     }
@@ -1208,6 +1232,7 @@ int_t interpret() {
             }
         }
         if (!exec_value(value)) {
+            DEBUG(fprintf(stderr, "  interpret FAIL! data_top=%zu\n", data_top));
             data_top = exec_top;  // restore stack on failure
             if (quote_depth > 0) {
                 DEBUG(fprintf(stderr, "< interpret exec FAIL! data_top=%zu\n", data_top));
@@ -1275,6 +1300,193 @@ int_t compile() {
     DEBUG(fprintf(stderr, "< compile ok data_top=%zu\n", data_top));
     return data_push(block);
 }
+
+/*
+ * actor runtime
+ */
+
+#define MAX_MSG_RING (VMEM_PAGE_SZ / sizeof(int_t))
+#define MASK_MSG_RING (MAX_MSG_RING - 1)
+int_t msg_ring[MAX_MSG_RING];  // ring buffer for messages in transit
+int_t msg_head = 0;
+int_t msg_tail = 0;
+
+int_t msg_put(int_t value) {
+    msg_ring[msg_tail++] = value;
+    msg_tail &= MASK_MSG_RING;  // wrap-around
+    if (msg_head == msg_tail) return error("message buffer overflow");
+    return TRUE;
+}
+
+int_t msg_take(int_t *value_out) {
+    if (msg_head == msg_tail) return error("message buffer underflow");
+    *value_out = msg_ring[msg_head++];
+    msg_head &= MASK_MSG_RING;  // wrap-around
+    return TRUE;
+}
+
+// move stack contents to message queue
+int_t msg_enqueue() {
+    // store message length (note: natural, not tagged)
+    if (!msg_put(INT(data_top))) return FALSE;
+    // copy from stack to message
+    for (nat_t n = 0; n < data_top; ++n) {
+        if (!msg_put(data_stack[n])) return FALSE;
+    }
+    // clear stack
+    data_top = 0;
+    // return success
+    return TRUE;
+}
+
+// move message contents to stack
+int_t msg_dequeue() {
+    int_t value;
+    // load message length (note: natural, not tagged)
+    if (!msg_take(&value)) return FALSE;
+    nat_t len = NAT(value);
+    // transfer message to stack
+    while (len--) {
+        if (!msg_take(&value)) return FALSE;
+        if (!data_push(value)) return FALSE;
+    }
+    // return success
+    return TRUE;
+}
+
+void print_actor(actor_t *act) {
+    printf("@%p", act);
+}
+
+static void debug_actor(char *label, int_t block) {
+    actor_t *act = TO_PTR(block);
+    fprintf(stderr, "%s:", label);
+    fprintf(stderr, " self=%p", act);
+    fprintf(stderr, " beh=%"PRIXPTR"", act->beh);
+    fflush(stderr);
+    print_ascii(' ');
+    print_value(act->beh);
+    fflush(stdout);
+    //fprintf(stderr, " ptr=%p", TO_PTR(scope->ptr));
+    //fprintf(stderr, " env=%p", scope->env);
+    fprintf(stderr, "\n");
+    fflush(stderr);
+}
+
+static int_t actor_self = UNDEFINED;
+int_t exec_actor(actor_t *act) {
+    XDEBUG(fprintf(stderr, "> exec_actor self=%p\n", act));
+    if (actor_self != UNDEFINED) return error("nested actor invocation");
+    actor_self = MK_BLOCK(act);
+    XDEBUG(debug_actor("  exec_actor (self)", actor_self));
+    int_t org_beh = act->beh;  // save actor behavior
+
+    // create recovery snapshot
+    XDEBUG(printf("  exec_actor (stack): "); print_stack(); print_ascii('\n'); fflush(stdout));
+    XDEBUG(fprintf(stderr, "  exec_actor (msg_head): %"PRIdPTR"\n", msg_head));
+    XDEBUG(fprintf(stderr, "  exec_actor (msg_tail): %"PRIdPTR"\n", msg_tail));
+    int_t org_tail = msg_tail;  // save message queue tail position
+    XDEBUG(fprintf(stderr, "  exec_actor (block_next): %zu\n", block_next));
+    size_t org_next = block_next;  // save block allocation offset
+
+    // execute actor behavior
+    int_t ok = exec_value(org_beh);
+
+    if (!ok) {
+        // restore recovery snapshot
+        XDEBUG(fprintf(stderr, "  exec_actor restore recovery snapshot...\n"));
+        act->beh = org_beh;  // restore actor behavior
+        msg_tail = org_tail;  // restore message queue tail position
+        block_next = org_next;  // restore block allocation offset
+    }
+    XDEBUG(fprintf(stderr, "  exec_actor (msg_head'): %"PRIdPTR"\n", msg_head));
+    XDEBUG(fprintf(stderr, "  exec_actor (msg_tail'): %"PRIdPTR"\n", msg_tail));
+    XDEBUG(fprintf(stderr, "  exec_actor (block_next'): %zu\n", block_next));
+    data_top = 0;  // clear the stack
+    actor_self = UNDEFINED;
+    XDEBUG(fprintf(stderr, "< exec_actor ok=%"PRIdPTR"\n", TO_INT(ok)));
+    return ok;
+}
+
+PROC_DECL(prim_SELF) { return data_push(actor_self); }
+
+PROC_DECL(prim_Actor) {
+    actor_t *act = TO_PTR(self);
+    if (act->proc != MK_PROC(prim_Actor)) return panic("not an Actor");
+    XDEBUG(debug_value("  prim_Actor", self));
+    return exec_actor(act);
+}
+
+// create a new actor with _behavior_
+int_t new_actor(int_t *actor_out, int_t behavior) {
+    if (!new_block(actor_out, 2)) return FALSE;
+    actor_t *act = TO_PTR(*actor_out);
+    act->proc = MK_PROC(prim_Actor);
+    act->beh = behavior;
+    XDEBUG(debug_actor("  new_actor", *actor_out));
+    return TRUE;
+}
+
+PROC_DECL(prim_CREATE) {
+    POP1ARG(beh);
+    int_t actor;
+    if (!new_actor(&actor, beh)) return FALSE;
+    return data_push(actor);
+}
+PROC_DECL(prim_BECOME) {
+    POP1ARG(beh);
+    if (actor_self == UNDEFINED) return error("unexpected BECOME");
+    actor_t *act = TO_PTR(actor_self);
+    act->beh = beh;
+    return TRUE;
+}
+
+int_t msg_send(int_t target) {
+    actor_t *act = TO_PTR(target);
+    if (!IS_BLOCK(target) || (act->proc != MK_PROC(prim_Actor))) {
+        return error("SEND to non-Actor");
+    }
+    int_t org_tail = msg_tail;  // recovery snapshot
+    if (msg_put(target)
+    &&  msg_enqueue()) {
+        return TRUE;
+    }
+    msg_tail = org_tail;  // restore snapshot on failure
+    return FALSE;
+}
+
+PROC_DECL(prim_SEND) {
+    POP1ARG(target);
+    return msg_send(target);
+}
+
+int_t msg_dispatch() {
+    data_top = 0;  // clear the stack
+    if (msg_head == msg_tail) return error("empty message queue");
+    int_t org_head = msg_head;  // recovery snapshot
+    int_t target;
+    if (msg_take(&target)
+    &&  msg_dequeue()) {
+        return exec_actor(TO_PTR(target));
+    }
+    msg_head = org_head;  // restore snapshot on failure
+    return FALSE;
+}
+
+PROC_DECL(prim_STEP) {
+    int_t ok = msg_dispatch();
+    return data_push(ok);
+}
+PROC_DECL(prim_RUN) {
+    while (msg_head != msg_tail) {
+        int_t ok = msg_dispatch();  // ignore failures...
+    }
+    return TRUE;
+}
+
+/*
+ * automated tests
+ */
 
 void print_platform_info() {
     printf("-- platform info --\n");
@@ -1404,17 +1616,25 @@ int main(int argc, char const *argv[])
     //smoke_test();
 
 #if 1
-    printf("-- sanity check --\n");
+    printf("-- procedures --\n");
     debug_value("    panic", MK_PROC(panic));
     debug_value("Undefined", MK_PROC(prim_Undefined));
     debug_value("    Block", MK_PROC(prim_Block));
     debug_value("  Closure", MK_PROC(prim_Closure));
+    debug_value("    Actor", MK_PROC(prim_Actor));
     debug_value("   CREATE", MK_PROC(prim_CREATE));
     debug_value("     Bind", MK_PROC(prim_Bind));
     debug_value("      SUB", MK_PROC(prim_SUB));
     debug_value("      CMP", MK_PROC(prim_CMP));
     debug_value("    Print", MK_PROC(prim_Print));
     debug_value("     main", MK_PROC(main));
+#endif
+#if 1
+    printf("-- data structures --\n");
+    printf(" word_list = %p\n", PTR(word_list));
+    printf("data_stack = %p\n", PTR(data_stack));
+    printf(" block_mem = %p\n", PTR(block_mem));
+    printf("  msg_ring = %p\n", PTR(msg_ring));
 #endif
 #if 0
     // ensure that function pointer range checks will work...
