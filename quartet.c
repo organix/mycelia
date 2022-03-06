@@ -517,6 +517,7 @@ PROC_DECL(prim_StoreAtomic);
 PROC_DECL(prim_DUMP);
 #endif
 PROC_DECL(prim_WORDS);
+PROC_DECL(prim_USAGE);
 PROC_DECL(prim_EMIT);
 PROC_DECL(prim_PrintStack);
 PROC_DECL(prim_PrintDebug);
@@ -576,17 +577,18 @@ word_t word_list[MAX_WORDS] = {
     { .value = MK_PROC(prim_DUMP), .name = "DUMP" },
 #endif
     { .value = MK_PROC(prim_WORDS), .name = "WORDS" },
+    { .value = MK_PROC(prim_USAGE), .name = "USAGE" },
     { .value = MK_PROC(prim_EMIT), .name = "EMIT" },
     { .value = MK_PROC(prim_PrintStack), .name = "..." },
     { .value = MK_PROC(prim_PrintDebug), .name = ".?" },
     { .value = MK_PROC(prim_Print), .name = "." },
 };
 #if ALLOW_DMA
-size_t ro_words = 54;  // limit of read-only words
-size_t rw_words = 54;  // limit of read/write words
+size_t ro_words = 55;  // limit of read-only words
+size_t rw_words = 55;  // limit of read/write words
 #else
-size_t ro_words = 49;  // limit of read-only words
-size_t rw_words = 49;  // limit of read/write words
+size_t ro_words = 50;  // limit of read-only words
+size_t rw_words = 50;  // limit of read/write words
 #endif
 
 static void debug_word(char *label, int_t word) {
@@ -1014,7 +1016,7 @@ PROC_DECL(prim_Print) {
  * block storage
  */
 
-#define MAX_BLOCK_MEM (VMEM_PAGE_SZ / sizeof(int_t))
+#define MAX_BLOCK_MEM (2 * VMEM_PAGE_SZ / sizeof(int_t))
 int_t block_mem[MAX_BLOCK_MEM];
 size_t block_next = 0;
 
@@ -1109,7 +1111,7 @@ PROC_DECL(prim_Block) {
 int_t new_block(int_t *block_out, nat_t cnt) {
     size_t next = block_next + cnt;
     if (next > MAX_BLOCK_MEM) {
-        return panic("out of block memory");
+        return panic("out of heap memory");
     }
     block_t *blk = PTR(&block_mem[block_next]);
     blk->proc = MK_PROC(prim_Block);
@@ -1315,12 +1317,12 @@ int_t msg_tail = 0;
 int_t msg_put(int_t value) {
     msg_ring[msg_tail++] = value;
     msg_tail &= MASK_MSG_RING;  // wrap-around
-    if (msg_head == msg_tail) return error("message buffer overflow");
+    if (msg_head == msg_tail) return error("message queue overflow");
     return TRUE;
 }
 
 int_t msg_take(int_t *value_out) {
-    if (msg_head == msg_tail) return error("message buffer underflow");
+    if (msg_head == msg_tail) return error("message queue underflow");
     *value_out = msg_ring[msg_head++];
     msg_head &= MASK_MSG_RING;  // wrap-around
     return TRUE;
@@ -1477,6 +1479,18 @@ PROC_DECL(prim_RUN) {
     while (msg_head != msg_tail) {
         int_t ok = msg_dispatch();  // ignore failures...
     }
+    return TRUE;
+}
+
+#define percent(n,m) (((100 * (n)) / (m)))
+PROC_DECL(prim_USAGE) {
+    printf("WORDS: %4"PRIdPTR" of %4"PRIdPTR"  (%"PRIdPTR"%%)\n",
+        INT(rw_words), INT(MAX_WORDS-1), INT(percent(rw_words, MAX_WORDS-1)));
+    printf("HEAP:  %4"PRIdPTR" of %4"PRIdPTR"  (%"PRIdPTR"%%)\n",
+        INT(block_next), INT(MAX_BLOCK_MEM), INT(percent(block_next, MAX_BLOCK_MEM)));
+    int_t msg_count = msg_tail - msg_head;
+    printf("MSG_Q: %4"PRIdPTR" of %4"PRIdPTR"  (%"PRIdPTR"%%)\n",
+        INT(msg_count), INT(MAX_MSG_RING-1), INT(percent(msg_count, MAX_MSG_RING-1)));
     return TRUE;
 }
 

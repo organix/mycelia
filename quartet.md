@@ -140,6 +140,7 @@ _address_ _count_    | `DUMP`          | &mdash;                 | Hex dump _cou
 Input                | Operation       | Output                  | Description
 ---------------------|-----------------|-------------------------|------------
 &mdash;              | `WORDS`         | &mdash;                 | Print list of defined words
+&mdash;              | `USAGE`         | &mdash;                 | Print resource usage report
 _code_               | `EMIT`          | &mdash;                 | Print ascii character _code_
 &mdash;              | `...`           | &mdash;                 | Print stack contents (non-destructive)
 _value_              | `.?`            | &mdash;                 | Print internal representation of _value_
