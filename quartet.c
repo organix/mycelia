@@ -176,6 +176,8 @@ PROC_DECL(prim_Actor);  // FORWARD DECLARATION
 PROC_DECL(prim_Environment) { return panic("Environment can not be executed"); }
 PROC_DECL(prim_Context) { return panic("Context can not be executed"); }
 
+#define IS_ACTOR(x) (IS_BLOCK(x) && (((block_t *)TO_PTR(x))->proc == MK_PROC(prim_Actor)))
+
 PROC_DECL(prim_Undefined) { return error("undefined procedure"); }
 #define UNDEFINED MK_PROC(prim_Undefined)
 
@@ -208,7 +210,7 @@ void print_value(int_t value) {
         } else if (blk->proc == MK_PROC(prim_Actor)) {
             print_actor(TO_PTR(value));
         } else {
-            printf("^%p[]", TO_PTR(blk->proc));
+            printf("^[%p]", TO_PTR(blk->proc));
         }
     } else if (value == UNDEFINED) {
         printf("(UNDEFINED)");
@@ -242,9 +244,12 @@ static void debug_value(char *label, int_t value) {
             fprintf(stderr, " [%"PRIuPTR"] env=%p", scope->cnt, scope->env);
         } else if (blk->proc == MK_PROC(prim_Actor)) {
             actor_t *act = TO_PTR(value);
-            fprintf(stderr, " @[%"PRIXPTR"]", act->beh);
+            fflush(stderr);
+            printf(" beh=");
+            print_value(act->beh);
+            fflush(stdout);
         } else {
-            fprintf(stderr, " ^%p[...]", TO_PTR(blk->proc));
+            fprintf(stderr, " [...]");
         }
     }
     fprintf(stderr, "\n");
@@ -1177,10 +1182,6 @@ int_t exec_value(int_t value) {
     // execute value
     if (IS_BLOCK(value)) {
         block_t *blk = TO_PTR(value);
-        if (blk->proc == MK_PROC(prim_Actor)) {
-            // special-case for actor references
-            return data_push(value);
-        }
         PROC_DECL((*proc)) = TO_PTR(blk->proc);
         return (*proc)(value);
     }
@@ -1355,7 +1356,7 @@ int_t msg_dequeue() {
 }
 
 void print_actor(actor_t *act) {
-    printf("@%p", act);
+    printf("^%p", act);
 }
 
 static void debug_actor(char *label, int_t block) {
@@ -1375,18 +1376,18 @@ static void debug_actor(char *label, int_t block) {
 
 static int_t actor_self = UNDEFINED;
 int_t exec_actor(actor_t *act) {
-    XDEBUG(fprintf(stderr, "> exec_actor self=%p\n", act));
+    DEBUG(fprintf(stderr, "> exec_actor self=%p\n", act));
     if (actor_self != UNDEFINED) return error("nested actor invocation");
     actor_self = MK_BLOCK(act);
-    XDEBUG(debug_actor("  exec_actor (self)", actor_self));
+    DEBUG(debug_actor("  exec_actor (self)", actor_self));
     int_t org_beh = act->beh;  // save actor behavior
 
     // create recovery snapshot
-    XDEBUG(printf("  exec_actor (stack): "); print_stack(); print_ascii('\n'); fflush(stdout));
-    XDEBUG(fprintf(stderr, "  exec_actor (msg_head): %"PRIdPTR"\n", msg_head));
-    XDEBUG(fprintf(stderr, "  exec_actor (msg_tail): %"PRIdPTR"\n", msg_tail));
+    DEBUG(printf("  exec_actor (stack): "); print_stack(); print_ascii('\n'); fflush(stdout));
+    DEBUG(fprintf(stderr, "  exec_actor (msg_head): %"PRIdPTR"\n", msg_head));
+    DEBUG(fprintf(stderr, "  exec_actor (msg_tail): %"PRIdPTR"\n", msg_tail));
+    DEBUG(fprintf(stderr, "  exec_actor (block_next): %zu\n", block_next));
     int_t org_tail = msg_tail;  // save message queue tail position
-    XDEBUG(fprintf(stderr, "  exec_actor (block_next): %zu\n", block_next));
     size_t org_next = block_next;  // save block allocation offset
 
     // execute actor behavior
@@ -1399,22 +1400,20 @@ int_t exec_actor(actor_t *act) {
         msg_tail = org_tail;  // restore message queue tail position
         block_next = org_next;  // restore block allocation offset
     }
-    XDEBUG(fprintf(stderr, "  exec_actor (msg_head'): %"PRIdPTR"\n", msg_head));
-    XDEBUG(fprintf(stderr, "  exec_actor (msg_tail'): %"PRIdPTR"\n", msg_tail));
-    XDEBUG(fprintf(stderr, "  exec_actor (block_next'): %zu\n", block_next));
+    DEBUG(fprintf(stderr, "  exec_actor (msg_head'): %"PRIdPTR"\n", msg_head));
+    DEBUG(fprintf(stderr, "  exec_actor (msg_tail'): %"PRIdPTR"\n", msg_tail));
+    DEBUG(fprintf(stderr, "  exec_actor (block_next'): %zu\n", block_next));
     data_top = 0;  // clear the stack
     actor_self = UNDEFINED;
-    XDEBUG(fprintf(stderr, "< exec_actor ok=%"PRIdPTR"\n", TO_INT(ok)));
+    DEBUG(fprintf(stderr, "< exec_actor ok=%"PRIdPTR"\n", TO_INT(ok)));
     return ok;
 }
 
 PROC_DECL(prim_SELF) { return data_push(actor_self); }
 
 PROC_DECL(prim_Actor) {
-    actor_t *act = TO_PTR(self);
-    if (act->proc != MK_PROC(prim_Actor)) return panic("not an Actor");
-    XDEBUG(debug_value("  prim_Actor", self));
-    return exec_actor(act);
+    DEBUG(debug_value("  prim_Actor", self));
+    return data_push(self);
 }
 
 // create a new actor with _behavior_
@@ -1423,7 +1422,7 @@ int_t new_actor(int_t *actor_out, int_t behavior) {
     actor_t *act = TO_PTR(*actor_out);
     act->proc = MK_PROC(prim_Actor);
     act->beh = behavior;
-    XDEBUG(debug_actor("  new_actor", *actor_out));
+    DEBUG(debug_actor("  new_actor", *actor_out));
     return TRUE;
 }
 
@@ -1442,10 +1441,7 @@ PROC_DECL(prim_BECOME) {
 }
 
 int_t msg_send(int_t target) {
-    actor_t *act = TO_PTR(target);
-    if (!IS_BLOCK(target) || (act->proc != MK_PROC(prim_Actor))) {
-        return error("SEND to non-Actor");
-    }
+    if (!IS_ACTOR(target)) return error("SEND to non-Actor");
     int_t org_tail = msg_tail;  // recovery snapshot
     if (msg_put(target)
     &&  msg_enqueue()) {

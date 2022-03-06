@@ -186,11 +186,21 @@ Curried function constructor
 -1 \n+ = 1-  # decrement
 ```
 
-An actor that displays any message it receives
+Actor that displays any message it receives
 ```
 [ ... 10 EMIT ] CREATE = println
 ' Hello ' World println SEND
 STEP .
+```
+
+Actor that prints the number of messages it receives
+```
+[ = n [ n 1 ADD DUP . count_beh BECOME ] ] = count_beh
+0 count_beh CREATE = counter
+counter SEND
+counter SEND
+counter SEND
+RUN
 ```
 
 ### Serial-Port Echo Driver
