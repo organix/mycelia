@@ -1151,19 +1151,17 @@ int_t new_scope(int_t *block_out) {
     return TRUE;
 }
 
-// wrap _block_ in a _closure_ to capture current environment
+// capture current environment (if any) is a _closure_
 int_t make_closure(int_t *block_out, int_t block) {
     block_t *blk = TO_PTR(block);
-    // FIXME: if !next_context, we _could_ just return the bare block...
-    if (blk->proc == MK_PROC(prim_Block)) {
+    if (next_context
+    &&  (blk->proc == MK_PROC(prim_Block))) {
         int_t closure;
         if (!new_scope(&closure)) return panic("scope allocation failed");
         closure_t *scope = TO_PTR(closure);
         scope->cnt = blk->len;
         scope->ptr = blk->data;
-        if (next_context) {
-            scope->env = next_context->env;
-        }
+        scope->env = next_context->env;
         block = closure;
     }
     *block_out = block;
