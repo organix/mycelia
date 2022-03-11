@@ -1618,10 +1618,72 @@ void smoke_test() {
         ok, token, num, num, num);
 }
 
+//static char *tag_label[] = { "NUM", "WORD", "BLOCK", "PROC" }; <-- borrowed from debug_value()
+static void trace_value(char *label, int_t value) {
+    fprintf(stderr, "%s:", label);
+    fprintf(stderr, " %"PRIXPTR"", value);
+    fprintf(stderr, " d=%"PRIdPTR"", value);
+    fprintf(stderr, " u=%"PRIuPTR"", NAT(value));
+    fprintf(stderr, " t=%s", tag_label[value & TAG_MASK]);
+    //fprintf(stderr, " i=%"PRIdPTR"", TO_INT(value));
+    //fprintf(stderr, " n=%"PRIuPTR"", TO_NAT(value));
+    //fprintf(stderr, " p=%p", TO_PTR(value));
+    fprintf(stderr, "\n");
+    fflush(stderr);
+}
+
+void tag_test(ptr_t main) {
+    printf("-- tag test --\n");
+    int_t value;
+
+    // check all bits
+    value = 0;
+    trace_value("    `0`", value);
+    value = -1;
+    trace_value("   `-1`", value);
+    value = TRUE;
+    trace_value("   TRUE", value);
+    value = FALSE;
+    trace_value("  FALSE", value);
+    value = INF;
+    trace_value("    INF", value);
+    value = MK_NUM(1);
+    trace_value(" NUM(1)", value);
+    value = MK_NUM(-1);
+    trace_value("NUM(-1)", value);
+    value = MK_NUM(0) | MK_NUM(1) | MK_NUM(2) | MK_NUM(4) | MK_NUM(-1) | MK_NUM(-2);
+    trace_value("   NUM*", value);
+
+    // check compiled code addresses
+    PROC_DECL((*proc)) = TO_PTR(MK_PROC(panic));
+    value = INT(proc);
+    trace_value("   proc", value);
+    value = INT(proc + 1);
+    trace_value(" proc+1", value);
+    value = INT(proc) | INT(proc + 1) | INT(proc + 2) | INT(proc + 4);
+    trace_value("  proc+", value);
+    value = INT(panic);
+    trace_value("  panic", value);
+    value = INT(main);
+    trace_value("   main", value);
+    value = INT(panic) | INT(prim_Undefined) | INT(prim_Actor) | INT(prim_Print) | INT(main);
+    trace_value("  proc*", value);
+
+    // check data addresses
+    int_t *ptr = data_stack;
+    value = INT(ptr);
+    trace_value("  stack", value);
+    value = INT(ptr + 1);
+    trace_value("stack+1", value);
+    value = INT(ptr) | INT(ptr + 1) | INT(ptr + 2) | INT(ptr + 4);
+    trace_value(" stack+", value);
+}
+
 int main(int argc, char const *argv[])
 {
     //print_platform_info();
     //smoke_test();
+    tag_test(PTR(main));
 
 #if 1
     printf("-- procedures --\n");
