@@ -67,8 +67,8 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
 #define IS_PTR(v)   (((v)&VAL_PTR) != 0)
 #define IS_GC(v)    (((v)&PTR_GC) == PTR_GC)
 
-#define TO_INT(v)   ((v) >> 2)
-#define TO_PTR(v)   ((v) & ~PTR_MASK)
+#define TO_INT(v)   (VAL(v) >> 2)
+#define TO_PTR(v)   (VAL(v) & ~PTR_MASK)
 
 #define MK_INT(n)   VAL((n) << 2)
 #define MK_CELL(p)  ((VAL(p) & ~PTR_MASK) | PTR_CELL)
@@ -203,6 +203,13 @@ i32 cdr(i32 v) {
 /*
  * unit tests
  */
+
+#define PROC_DECL(name)  i32 name(i32 self, i32 msg)
+PROC_DECL(dummy) {
+    fprintf(stderr, "dummy: self=%"PRIx32", msg=%"PRIx32"\n", self, msg);
+    return error("dummy dispatch");
+}
+
 i32 unit_tests() {
     i32 v, v0, v1, v2;
     i64 dv;
@@ -222,6 +229,15 @@ i32 unit_tests() {
     ASSERT(IS_CELL(v1));
 
     v2 = cell_free(v0);
+    ASSERT(v2 == NIL);
+
+    v2 = obj_new(TO_INT(dummy), v1);
+    ASSERT(IS_OBJ(v2));
+    ASSERT(!IS_CELL(v2));
+    ASSERT(!IS_IMM(v2));
+    ASSERT(TO_PTR(v2) == TO_PTR(v0));  // re-used cell?
+
+    v2 = cell_free(v2);
     ASSERT(v2 == NIL);
 
     dv = cell_usage();
