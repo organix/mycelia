@@ -257,12 +257,53 @@ next:   i += m;
 }
 
 /*
+ * actor primitives
+ */
+
+cell_t event_q = { .cons.car = NIL, .cons.cdr = NIL };
+
+i32 event_q_append(i32 events) {
+    if (events == NIL) return OK;  // nothing to add
+    if (!IS_CELL(events)) return UNDEF;
+    // find the end of events
+    i32 tail = events;
+    i32 ofs = TO_PTR(tail) >> 3;
+    while (cell[ofs].cons.cdr != NIL) {
+        tail = cell[ofs].cons.cdr;
+        ofs = TO_PTR(tail) >> 3;
+    }
+    // append events on event_q
+    if (event_q.cons.car == NIL) {
+        event_q.cons.car = events;
+    } else {
+        ofs = TO_PTR(event_q.cons.cdr) >> 3;
+        cell[ofs].cons.cdr = events;
+    }
+    event_q.cons.cdr = tail;
+    return OK;
+}
+
+i32 event_q_take() {
+    if (event_q.cons.car == NIL) return UNDEF; // event queue empty
+    i32 head = event_q.cons.car;
+    i32 ofs = TO_PTR(head) >> 3;
+    event_q.cons.car = cell[ofs].cons.cdr;
+    if (event_q.cons.car == NIL) {
+        event_q.cons.cdr = NIL;  // empty queue
+    }
+    i32 event = cell[ofs].cons.car;
+    cell_free(head);
+    return event;
+}
+
+/*
  * actor behaviors
  */
 
 PROC_DECL(sink_beh) {
+    i32 effect = cons(NIL, cons(NIL, NIL));  // empty effect
     DEBUG(fprintf(stderr, "sink_beh: self=%"PRIx32", msg=%"PRIx32"\n", self, msg));
-    return cons(NIL, cons(NIL, NIL));  // empty _effect_
+    return effect;
 }
 
 /*
