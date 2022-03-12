@@ -143,7 +143,7 @@ The Behavior is invoked with Actor as `self` and the Message as `args`.
 actor: --->[*|*]--->[*|*]---> data
             |        |
             v        v
-   MK_PROC(p_actor) beh(self, args)
+  MK_PROC(p_actor)  beh(self, args)
 ```
 
 Actor behaviors return a collection of _effects_.

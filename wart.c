@@ -83,6 +83,10 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
 
 #define MK_BOOL(z)  ((z) ? TRUE : FALSE)
 
+#define IMM_24T     VAL(0x000000FC)
+#define IMM_16T     VAL(0x0000FF00)
+#define IMM_8T      VAL(0x00FF0000)
+
 #define FALSE       VAL(0x0000FFFD)
 #define TRUE        VAL(0x0100FFFD)
 #define NIL         VAL(0x0200FFFD)
@@ -353,9 +357,9 @@ i32 effect_send(i32 effect, i32 new_event) {
     ASSERT(IS_CELL(new_event));
     ASSERT(IS_CELL(effect));
     i32 ofs = TO_PTR(effect) >> 3;
-    effect = cell[ofs].cons.cdr;
-    ASSERT(IS_CELL(effect));
-    ofs = TO_PTR(effect) >> 3;
+    i32 rest = cell[ofs].cons.cdr;
+    ASSERT(IS_CELL(rest));
+    ofs = TO_PTR(rest) >> 3;
     i32 sent = cons(new_event, cell[ofs].cons.car);
     if (!IS_CELL(sent)) return UNDEF;
     cell[ofs].cons.car = sent;
@@ -366,9 +370,9 @@ i32 effect_become(i32 effect, i32 new_beh) {
     ASSERT(IS_OBJ(new_beh));
     ASSERT(IS_CELL(effect));
     i32 ofs = TO_PTR(effect) >> 3;
-    effect = cell[ofs].cons.cdr;
-    ASSERT(IS_CELL(effect));
-    ofs = TO_PTR(effect) >> 3;
+    i32 rest = cell[ofs].cons.cdr;
+    ASSERT(IS_CELL(rest));
+    ofs = TO_PTR(rest) >> 3;
     if (cell[ofs].cons.cdr != NIL) return error("must only BECOME once");
     cell[ofs].cons.cdr = new_beh;
     return effect;
@@ -410,16 +414,9 @@ i32 event_q_take() {
     return event;
 }
 
-i32 event_dispatch() {
-    i32 event = event_q_take();
-    if (!IS_CELL(event)) return UNDEF;  // nothing to dispatch
-    i32 ofs = TO_PTR(event) >> 3;
-    i32 target = cell[ofs].cons.car;
-    i32 msg = cell[ofs].cons.cdr;
-    // invoke actor behavior
-    i32 effect = obj_call(target, msg);
-    if (!IS_CELL(effect)) return UNDEF;  // behavior failed
-    ofs = TO_PTR(effect) >> 3;
+i32 apply_effect(i32 self, i32 effect) {
+    if (!IS_CELL(effect)) return UNDEF;
+    i32 ofs = TO_PTR(effect) >> 3;
     if (cell[ofs].cons.car == FAIL) return effect;  // error thrown
     i32 actors = cell[ofs].cons.car;
     i32 rest = cell[ofs].cons.cdr;
@@ -435,10 +432,23 @@ i32 event_dispatch() {
     i32 beh = cell[ofs].cons.cdr;
     cell_free(rest);
     // update behavior
-    ofs = TO_PTR(target) >> 3;
-    cell[ofs].obj.data = beh;
+    if (IS_OBJ(beh) && is_actor(self)) {
+        ofs = TO_PTR(self) >> 3;
+        cell[ofs].obj.data = beh;
+    }
     // add events to dispatch queue
     return event_q_append(events);
+}
+
+i32 event_dispatch() {
+    i32 event = event_q_take();
+    if (!IS_CELL(event)) return UNDEF;  // nothing to dispatch
+    i32 ofs = TO_PTR(event) >> 3;
+    i32 target = cell[ofs].cons.car;
+    i32 msg = cell[ofs].cons.cdr;
+    // invoke actor behavior
+    i32 effect = obj_call(target, msg);
+    return apply_effect(target, effect);
 }
 
 i32 event_loop() {
@@ -457,17 +467,116 @@ PROC_DECL(sink_beh) {
     i32 effect = effect_new();
     DEBUG(fprintf(stderr, "sink_beh: self=%"PRIx32", args=%"PRIx32"\n", self, args));
     return effect;
+
+    return OK;
 }
 
 /*
  * unit tests
  */
 
+void newline() {
+    printf("\n");
+    fflush(stdout);
+}
+
+void debug_print(char *label, i32 value) {
+    fprintf(stderr, "%s:", label);
+    fprintf(stderr, " %08"PRIx32"", value);
+    if (IS_IMM(value)) {
+        fprintf(stderr, " IMM");
+        if (IS_INT(value)) {
+            fprintf(stderr, " int=%"PRIi32"", TO_INT(value));
+        } else {
+            i32 t24 = (value & IMM_24T);
+            if (t24 == IMM_24T) {
+                i32 t16 = (value & IMM_16T);
+                if (t16 == IMM_16T) {
+                    i32 t8 = (value & IMM_8T);
+                    fprintf(stderr, " t8=%"PRIi32"", (t8 >> 16));
+                    switch (value) {
+                        case FALSE: fprintf(stderr, " #f"); break;
+                        case TRUE: fprintf(stderr, " #t"); break;
+                        case NIL: fprintf(stderr, " '()"); break;
+                        case FAIL: fprintf(stderr, " #FAIL"); break;
+                        case UNDEF: fprintf(stderr, " #UNDEF"); break;
+                        default: fprintf(stderr, " %02"PRIx32"", (value >> 24) & 0xFF);
+                    }
+                } else {
+                    fprintf(stderr, " t16=%"PRIi32"", (t16 >> 8));
+                    fprintf(stderr, " %04"PRIx32"", (value >> 16) & 0xFFFF);
+                }
+            } else {
+                fprintf(stderr, " t24=%"PRIi32"", (t24 >> 2));
+                fprintf(stderr, " %06"PRIx32"", (value >> 8) & 0xFFFFFF);
+            }
+        }
+    }
+    if (IS_PTR(value)) {
+        fprintf(stderr, " PTR");
+        if (IS_GC(value)) fprintf(stderr, "+GC");
+        if (IS_CELL(value)) {
+            i32 ofs = TO_PTR(value) >> 3;
+            fprintf(stderr, " cell[%"PRIi32"]", ofs);
+            fprintf(stderr, " car=%"PRIx32" cdr=%"PRIx32"",
+                cell[ofs].cons.car, cell[ofs].cons.cdr);
+        }
+        if (IS_OBJ(value)) {
+            i32 ofs = TO_PTR(value) >> 3;
+            if (cell[ofs].obj.code == MK_PROC(p_actor)) {
+                fprintf(stderr, " actor[%"PRIi32"]", ofs);
+                i32 beh = cell[ofs].obj.data;
+                fprintf(stderr, " beh=%"PRIx32"", beh);
+                if (IS_OBJ(beh)) {
+                    ofs = TO_PTR(beh) >> 3;
+                    fprintf(stderr, "->[%"PRIi32"]", ofs);
+                    fprintf(stderr, " code=%"PRIx32" data=%"PRIx32"",
+                        cell[ofs].obj.code, cell[ofs].obj.data);
+                }
+            } else {
+                fprintf(stderr, " obj[%"PRIi32"]", ofs);
+                fprintf(stderr, " code=%"PRIx32" data=%"PRIx32"",
+                    cell[ofs].obj.code, cell[ofs].obj.data);
+            }
+        }
+    }
+    fprintf(stderr, "\n");
+}
+
+i32 test_actors() {
+    i32 effect = effect_new();
+    XDEBUG(debug_print("test_actors new effect", effect));
+    i32 b = actor_beh(MK_PROC(p_sink_beh), UNDEF);
+    XDEBUG(debug_print("test_actors b", b));
+    i32 a = actor_create(b);
+    XDEBUG(debug_print("test_actors a", a));
+    effect = effect_create(effect, a);
+    XDEBUG(debug_print("test_actors create effect", effect));
+    i32 e = actor_send(a, NIL);
+    XDEBUG(debug_print("test_actors e", e));
+    effect = effect_send(effect, e);
+    XDEBUG(debug_print("test_actors send effect", effect));
+    i32 x = apply_effect(UNDEF, effect);
+    XDEBUG(debug_print("test_actors apply effect", x));
+    i32 r = event_dispatch();
+    XDEBUG(debug_print("test_actors r", r));
+    return r;
+}
+
 i32 unit_tests() {
     i32 v, v0, v1, v2;
     i32 n;
     i64 dv;
     cell_t c;
+
+    XDEBUG(debug_print("unit_tests ZERO", ZERO));
+    XDEBUG(debug_print("unit_tests ONE", ONE));
+    XDEBUG(debug_print("unit_tests INF", INF));
+    XDEBUG(debug_print("unit_tests #f", FALSE));
+    XDEBUG(debug_print("unit_tests #t", TRUE));
+    XDEBUG(debug_print("unit_tests '()", NIL));
+    XDEBUG(debug_print("unit_tests #FAIL", FAIL));
+    XDEBUG(debug_print("unit_tests #UNDEF", UNDEF));
 
     v = cons(MK_INT(123), MK_INT(456));
     ASSERT(IS_CELL(v));
@@ -526,6 +635,8 @@ i32 unit_tests() {
 
     fprintf(stderr, "symbols: v0=%"PRIx32" v1=%"PRIx32" v2=%"PRIx32"\n", v0, v1, v2);
 
+    if (test_actors() != OK) return UNDEF;
+
     return OK;
 }
 
@@ -536,6 +647,6 @@ i32 unit_tests() {
 int main(int argc, char const *argv[])
 {
     i32 result = unit_tests();
-    fprintf(stderr, "result: %"PRIi32"\n", result);
+    XDEBUG(fprintf(stderr, "result: %"PRIi32"\n", result));
     return (result == OK ? 0 : 1);
 }
