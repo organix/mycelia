@@ -85,8 +85,9 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
       vvvv vvvv tttt tttt  1111 1111 1111 1101  (8-bit value, 8-bit type)
       0000 0000 0000 0000  1111 1111 1111 1101 = #f
       0000 0001 0000 0000  1111 1111 1111 1101 = #t
-      0000 0002 0000 0000  1111 1111 1111 1101 = '()
-      0000 000F 0000 0000  1111 1111 1111 1101 = ""
+      0000 0010 0000 0000  1111 1111 1111 1101 = '()
+      0000 1110 0000 0000  1111 1111 1111 1101 = #FAIL
+      0000 1111 0000 0000  1111 1111 1111 1101 = ""
       1111 1111 0000 0000  1111 1111 1111 1101 = #undefined
 2#10 = Pointer to Pair of boxed values addr=(x&~0x7) gc=(x&0x4)
   +-- aaaa aaaa aaaa aaaa  aaaa aaaa aaaa ag10
@@ -151,7 +152,7 @@ On succcess, this is:
 Failure: --->[*|*]---> error
               |
               v
-             UNDEF
+             FAIL
 ```
 
 On failure, a value describing the _error_ is returned.

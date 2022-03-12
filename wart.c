@@ -84,8 +84,9 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
 #define MK_BOOL(z)  ((z) ? TRUE : FALSE)
 
 #define FALSE       VAL(0x0000FFFD)
-#define TRUE        VAL(0x0001FFFD)
-#define NIL         VAL(0x0002FFFD)
+#define TRUE        VAL(0x0100FFFD)
+#define NIL         VAL(0x0200FFFD)
+#define FAIL        VAL(0x0E00FFFD)
 #define UNDEF       VAL(0xFF00FFFD)
 
 #define SYM         VAL(0x000000FD)
@@ -360,14 +361,23 @@ i32 event_dispatch() {
     i32 effect = obj_call(target, event);
     if (!IS_CELL(effect)) return UNDEF;  // behavior failed
     ofs = TO_PTR(effect) >> 3;
-    if (cell[ofs].cons.car == UNDEF) {
+    if (cell[ofs].cons.car == FAIL) {
         // error thrown
         return effect;
     }
     i32 actors = cell[ofs].cons.car;
-    ofs = TO_PTR(cell[ofs].cons.cdr) >> 3;
+    i32 rest = cell[ofs].cons.cdr;
+    cell_free(effect);
+    while (IS_CELL(actors)) {  // free list, but not actors
+        ofs = TO_PTR(actors) >> 3;
+        i32 next = cell[ofs].cons.cdr;
+        cell_free(actors);
+        actors = next;
+    }
+    ofs = TO_PTR(rest) >> 3;
     i32 events = cell[ofs].cons.car;
     i32 beh = cell[ofs].cons.cdr;
+    cell_free(rest);
     // update behavior
     ofs = TO_PTR(target) >> 3;
     cell[ofs].obj.data = beh;
