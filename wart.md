@@ -81,7 +81,7 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
       000c cccc cccc cccc  cccc cccc 0000 0001 = 21-bit Unicode code-point
       vvvv vvvv vvvv vvvv  tttt tttt 1111 1101  (16-bit value, 8-bit type)
       ssss ssss ssss ssss  0000 0000 1111 1101 = 16-bit interned symbol
-      pppp pppp pppp pppp  0000 0001 1111 1101 = 16-bit procedure number
+      pppp pppp pppp pppp  0000 0001 1111 1101 = 16-bit indexed procedure
       vvvv vvvv tttt tttt  1111 1111 1111 1101  (8-bit value, 8-bit type)
       0000 0000 0000 0000  1111 1111 1111 1101 = #f
       0000 0001 0000 0000  1111 1111 1111 1101 = #t
@@ -132,9 +132,18 @@ target.dispatch(target, (selector, arg*)) ==> result
            +---> ...
 ```
 
-## Actor Behaviors
+## Actor Structures
 
 Actor behaviors return a collection of _effects_.
+
+```
+Failure: --->[*|*]---> error
+              |
+              v
+             FAIL
+```
+
+On failure, a value describing the _error_ is returned.
 
 ```
 Success: --->[*|*]--->[*|*]---> beh
@@ -145,14 +154,34 @@ Success: --->[*|*]--->[*|*]---> beh
 
 On succcess, this is:
   * a set of newly created actors
-  * a set of message sent
+  * a set of new message events
   * an optional new behavior (or `'()`)
 
 ```
-Failure: --->[*|*]---> error
-              |
-              v
-             FAIL
+events
+ |
+ v
+[*|*]---> ... --->[*|/]
+ |                 |
+ v                 v
+[*|*]---> msg_1   [*|*]---> msg_n
+ |                 |
+ v                 v
+target_1          target_n
 ```
 
-On failure, a value describing the _error_ is returned.
+Each event consists of:
+  * a target actor
+  * message contents
+
+```
+           OBJ      OBJ(behavior)
+actor: --->[*|*]--->[*|*]---> data
+            |        |
+            v        v
+   MK_PROC(p_actor) code
+```
+
+Each Actor is an Object with `MK_PROC(p_actor)` as the `code` field.
+The `data` field contains a Behavior Object its own `code` and `data`.
+The Behavior is invoked with the dispatched Event as its `args`.
