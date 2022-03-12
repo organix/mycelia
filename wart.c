@@ -85,6 +85,11 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
 #define NIL         VAL(0x0002FFFD)
 #define UNDEF       VAL(0xFF00FFFD)
 
+#define SYM         VAL(0x000000FD)
+#define IS_SYM(v)   (((v) & 0x0000FFFF) == SYM)
+#define MK_SYM(s)   (((s) << 16) | SYM)
+#define TO_SYM(v)   (((v) >> 16) & 0xFFFF)
+
 #define ZERO        VAL(0x00000000)
 #define ONE         VAL(0x00000004)
 #define INF         VAL(0x80000000)
@@ -201,6 +206,52 @@ i32 cdr(i32 v) {
 }
 
 /*
+ * interned strings (symbols)
+ */
+
+#define INTERN_MAX (1024)
+char intern[INTERN_MAX] = {
+    5, 't', 'y', 'p', 'e', 'q',
+    4, 'e', 'v', 'a', 'l',
+    5, 'a', 'p', 'p', 'l', 'y',
+    2, 'i', 'f',
+    3, 'm', 'a', 'p',
+    6, 'r', 'e', 'd', 'u', 'c', 'e',
+    4, 'b', 'i', 'n', 'd',
+    6, 'l', 'o', 'o', 'k', 'u', 'p',
+    5, 'm', 'a', 't', 'c', 'h',
+    7, 'c', 'o', 'n', 't', 'e', 'n', 't',
+    0,  // end of interned strings
+};
+
+i32 symbol(char *s) {
+    i32 j;
+    i32 n = 0;
+    while (s[n]) ++n;  // compute c-string length
+    i32 i = 0;
+    while (intern[i]) {
+        i32 m = intern[i++];  // symbol length
+        if (n == m) {
+            for (j = 0; (j < n); ++j) {
+                if (s[j] != intern[i+j]) {
+                    goto next;
+                }
+            }
+            // found it!
+            return MK_SYM(i-1);
+        }
+next:   i += m;
+    }
+    // new symbol
+    intern[i++] = n;
+    for (j = 0; (j < n); ++j) {
+        intern[i+j] = s[j];
+    }
+    intern[i+j] = 0;
+    return MK_SYM(i-1);
+}
+
+/*
  * unit tests
  */
 
@@ -237,13 +288,38 @@ i32 unit_tests() {
     ASSERT(!IS_IMM(v2));
     ASSERT(TO_PTR(v2) == TO_PTR(v0));  // re-used cell?
 
+    v = cell_free(v);
     v2 = cell_free(v2);
     ASSERT(v2 == NIL);
 
     dv = cell_usage();
     c.raw = dv;
-    fprintf(stderr, "cell usage: %"PRIi32" free, %"PRIi32" total, %"PRIi32" max\n",
+    fprintf(stderr, "cell usage: free=%"PRIi32" total=%"PRIi32" max=%"PRIi32"\n",
         TO_INT(c.cons.car), TO_INT(c.cons.cdr), VAL(CELL_MAX));
+    ASSERT(c.cons.car == MK_INT(2));
+    ASSERT(c.cons.cdr == MK_INT(5));
+
+    v = symbol("eval");
+    ASSERT(IS_SYM(v));
+    ASSERT(IS_IMM(v));
+
+    v0 = symbol("eval");
+    ASSERT(IS_SYM(v0));
+    ASSERT(v == v0);
+    v0 = symbol("match");
+    ASSERT(IS_SYM(v0));
+    ASSERT(v != v0);
+
+    v1 = symbol("foo");
+    ASSERT(IS_SYM(v1));
+    v2 = symbol("bar");
+    ASSERT(IS_SYM(v2));
+    ASSERT(v1 != v2);
+    v = symbol("foo");
+    ASSERT(IS_SYM(v));
+    ASSERT(v1 == v);
+
+    fprintf(stderr, "symbols: v0=%"PRIx32" v1=%"PRIx32" v2=%"PRIx32"\n", v0, v1, v2);
 
     return OK;
 }
@@ -255,6 +331,6 @@ i32 unit_tests() {
 int main(int argc, char const *argv[])
 {
     i32 result = unit_tests();
-    fprintf(stderr, "result = %"PRIi32"\n", result);
+    fprintf(stderr, "result: %"PRIi32"\n", result);
     return (result == OK ? 0 : 1);
 }

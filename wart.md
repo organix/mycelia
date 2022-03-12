@@ -78,8 +78,9 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
       snnn nnnn nnnn nnnn  nnnn nnnn nnnn nn00
 2#01 = Immediate 24-bit value=(x>>8) type=((n>>2)&~0x1F)
       vvvv vvvv vvvv vvvv  vvvv vvvv tttt tt01  (24-bit value, 6-bit type)
-      000c cccc cccc cccc  cccc cccc 0000 tt01 = 21-bit Unicode code-point
+      000c cccc cccc cccc  cccc cccc 0000 0001 = 21-bit Unicode code-point
       vvvv vvvv vvvv vvvv  tttt tttt 1111 1101  (16-bit value, 8-bit type)
+      ssss ssss ssss ssss  0000 0000 1111 1101 = 16-bit interned symbol
       vvvv vvvv tttt tttt  1111 1111 1111 1101  (8-bit value, 8-bit type)
       0000 0000 0000 0000  1111 1111 1111 1101 = #f
       0000 0001 0000 0000  1111 1111 1111 1101 = #t
