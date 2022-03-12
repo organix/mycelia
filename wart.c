@@ -17,6 +17,9 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define DEBUG(x)   // include/exclude debug instrumentation
 #define XDEBUG(x) x // include/exclude extra debugging
 
+#define inline /*inline*/
+//#define inline __inline__
+
 typedef int32_t i32;
 typedef int64_t i64;
 
@@ -96,7 +99,7 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
 
 // procedure declaration
 
-#define PROC_DECL(name)  i32 name(i32 self, i32 msg)
+#define PROC_DECL(name)  i32 name(i32 self, i32 args)
 
 #define PROC        VAL(0x000001FD)
 #define IS_PROC(v)  (((v) & 0x0000FFFF) == PROC)
@@ -199,13 +202,13 @@ i32 cons(i32 car, i32 cdr) {
 }
 
 i32 car(i32 v) {
-    if (!IS_CELL(v)) return UNDEF;
+    ASSERT(IS_CELL(v));
     i32 ofs = TO_PTR(v) >> 3;
     return cell[ofs].cons.car;
 }
 
 i32 cdr(i32 v) {
-    if (!IS_CELL(v)) return UNDEF;
+    ASSERT(IS_CELL(v));
     i32 ofs = TO_PTR(v) >> 3;
     return cell[ofs].cons.cdr;
 }
@@ -257,14 +260,67 @@ next:   i += m;
 }
 
 /*
+ * procedures
+ */
+
+PROC_DECL(fail) {
+    XDEBUG(fprintf(stderr, "fail: self=%"PRIx32", args=%"PRIx32"\n", self, args));
+    return error("FAILED");
+}
+
+// FORWARD DECLARATIONS
+PROC_DECL(actor);
+PROC_DECL(sink_beh);
+
+#define PROC_MAX (1024)
+typedef PROC_DECL((*proc_ptr_t));
+proc_ptr_t proc[PROC_MAX] = {
+    fail,
+    actor,
+    sink_beh,
+    0
+};
+enum proc_idx {
+    p_fail,
+    p_actor,
+    p_sink_beh,
+    p_unused,
+} proc_idx_t;
+
+PROC_DECL(proc_call) {
+    ASSERT(IS_PROC(self));
+    i32 idx = TO_PROC(self);
+    return (proc[idx])(self, args);
+}
+
+PROC_DECL(obj_call) {
+    ASSERT(IS_OBJ(self));
+    i32 ofs = TO_PTR(self) >> 3;
+    i32 idx = TO_PROC(cell[ofs].obj.code);
+    return (proc[idx])(self, args);
+}
+
+/*
  * actor primitives
  */
+
+inline int is_actor(i32 v) {
+    return IS_OBJ(v) && (cell[TO_PTR(v) >> 3].obj.code == MK_PROC(p_actor));
+}
+
+PROC_DECL(actor) {
+    XDEBUG(fprintf(stderr, "actor: self=%"PRIx32", args=%"PRIx32"\n", self, args));
+    ASSERT(is_actor(self));
+    i32 ofs = TO_PTR(self) >> 3;
+    i32 beh = cell[ofs].obj.data;
+    return obj_call(beh, args);
+}
 
 cell_t event_q = { .cons.car = NIL, .cons.cdr = NIL };
 
 i32 event_q_append(i32 events) {
     if (events == NIL) return OK;  // nothing to add
-    if (!IS_CELL(events)) return UNDEF;
+    ASSERT(IS_CELL(events));
     // find the end of events
     i32 tail = events;
     i32 ofs = TO_PTR(tail) >> 3;
@@ -296,42 +352,50 @@ i32 event_q_take() {
     return event;
 }
 
+i32 event_dispatch() {
+    i32 event = event_q_take();
+    if (!IS_CELL(event)) return UNDEF;  // nothing to dispatch
+    i32 ofs = TO_PTR(event) >> 3;
+    i32 target = cell[ofs].cons.car;
+    i32 effect = obj_call(target, event);
+    if (!IS_CELL(effect)) return UNDEF;  // behavior failed
+    ofs = TO_PTR(effect) >> 3;
+    if (cell[ofs].cons.car == UNDEF) {
+        // error thrown
+        return effect;
+    }
+    i32 actors = cell[ofs].cons.car;
+    ofs = TO_PTR(cell[ofs].cons.cdr) >> 3;
+    i32 events = cell[ofs].cons.car;
+    i32 beh = cell[ofs].cons.cdr;
+    // update behavior
+    ofs = TO_PTR(target) >> 3;
+    cell[ofs].obj.data = beh;
+    // add events to dispatch queue
+    return event_q_append(events);
+}
+
+i32 event_loop() {
+    i32 result = OK;
+    while (result == OK) {
+        result = event_dispatch();
+    }
+    return result;
+}
+
 /*
  * actor behaviors
  */
 
 PROC_DECL(sink_beh) {
     i32 effect = cons(NIL, cons(NIL, NIL));  // empty effect
-    DEBUG(fprintf(stderr, "sink_beh: self=%"PRIx32", msg=%"PRIx32"\n", self, msg));
+    if (!IS_CELL(effect)) return UNDEF;  // allocation failure
+    DEBUG(fprintf(stderr, "sink_beh: self=%"PRIx32", args=%"PRIx32"\n", self, args));
+    i32 ofs = TO_PTR(args) >> 3;
+    i32 target = cell[ofs].cons.car;
+    i32 msg = cell[ofs].cons.cdr;
+    DEBUG(fprintf(stderr, "sink_beh: target=%"PRIx32", msg=%"PRIx32"\n", target, msg));
     return effect;
-}
-
-/*
- * procedures
- */
-
-PROC_DECL(fail) {
-    XDEBUG(fprintf(stderr, "fail: self=%"PRIx32", msg=%"PRIx32"\n", self, msg));
-    return error("FAILED");
-}
-
-#define PROC_MAX (1024)
-typedef PROC_DECL((*proc_ptr_t));
-proc_ptr_t proc[PROC_MAX] = {
-    fail,
-    sink_beh,
-    0
-};
-enum proc_idx {
-    p_fail,
-    p_sink_beh,
-    p_unused,
-} proc_idx_t;
-
-PROC_DECL(proc_call) {
-    if (!IS_PROC(self)) return UNDEF;
-    i32 idx = TO_PROC(self);
-    return (proc[idx])(self, msg);
 }
 
 /*

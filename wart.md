@@ -139,7 +139,7 @@ Actor behaviors return a collection of _effects_.
 Success: --->[*|*]--->[*|*]---> beh
               |        |
               v        v
-             actors   msgs
+             actors   events
 ```
 
 On succcess, this is:
