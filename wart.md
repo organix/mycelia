@@ -38,26 +38,24 @@ After a few allocations and frees the heap could look like this...
 
 ```
 [0] = 1024,5  root cell (1K cells available)
-[1] = ?,?     allocated cell
-[2] = ?,?     allocated cell
+[1] = _,_       allocated cell
+[2] = _,_       allocated cell
 [3] = 0,7     free cell [1]
-[4] = ?,?     allocated cell
+[4] = _,_       allocated cell
 [5] = 0,3     free cell [0]
-[6] = ?,?     allocated cell
+[6] = _,_       allocated cell
 [7] = 0,0     end of free-list (next available linear offset)
 ```
 
 ## Tagged Value (Boxed) Encoding
 
-+--------------+---------------+----------+
-| Encoding     | Components    | Dispatch |
-+==============+===============+==========+
-| Immediate    | Tag, Value    | Implicit |
-| Indirect     | Tag, ^Data    | Implicit |
-| Polymorphic  | Tag, ^Code    | Explicit |
-| Virtual      | Tag, ^Object  | Explicit |
-| Asynchronous | Tag, ^Actor   | Delayed  |
-+--------------+---------------+----------+
+Encoding     | Components    | Dispatch
+-------------|---------------|----------
+Immediate    | Tag, Value    | Implicit
+Indirect     | Tag, ^Data    | Implicit
+Polymorphic  | Tag, ^Code    | Explicit
+Virtual      | Tag, ^Object  | Explicit
+Asynchronous | Tag, ^Actor   | Delayed
 
 Values also have a storage class:
   * ROM   -- immutable pre-existing
