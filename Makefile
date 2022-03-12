@@ -58,6 +58,9 @@ kernel.img: loadmap $(KOBJS)
 quartet: quartet.c
 	cc $< -o $@
 
+wart: wart.c
+	cc $< -o $@
+
 clean:
 	rm -f *.o
 	rm -f *.bin
@@ -67,3 +70,4 @@ clean:
 	rm -f *.img
 	rm -f *~ core
 	rm -f quartet
+	rm -f wart
