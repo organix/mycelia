@@ -76,8 +76,8 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
 #define MK_INT(n)   VAL((n) << 2)
 #define MK_CELL(p)  ((VAL(p) & ~PTR_MASK) | PTR_CELL)
 #define MK_OBJ(p)   ((VAL(p) & ~PTR_MASK) | PTR_OBJ)
-#define SET_GC(v)   ((v) |= VAL_GC)
-#define CLR_GC(v)   ((v) &= ~VAL_GC)
+#define SET_GC(v)   ((v) | VAL_GC)
+#define CLR_GC(v)   ((v) & ~VAL_GC)
 
 // immediate values
 
@@ -194,7 +194,7 @@ i32 obj_new(i32 code, i32 data) {
     i32 ofs = TO_PTR(v) >> 3;
     cell[ofs].obj.code = code;
     cell[ofs].obj.data = data;
-    return MK_OBJ(v);
+    return SET_GC(MK_OBJ(v));
 }
 
 i32 cons(i32 car, i32 cdr) {
@@ -203,7 +203,7 @@ i32 cons(i32 car, i32 cdr) {
     i32 ofs = TO_PTR(v) >> 3;
     cell[ofs].cons.car = car;
     cell[ofs].cons.cdr = cdr;
-    return v;
+    return SET_GC(v);
 }
 
 i32 car(i32 v) {
@@ -582,6 +582,9 @@ i32 unit_tests() {
     ASSERT(IS_CELL(v));
     ASSERT(!IS_OBJ(v));
     ASSERT(!IS_IMM(v));
+    XDEBUG(debug_print("unit_tests cons v", v));
+    XDEBUG(debug_print("unit_tests cons car(v)", car(v)));
+    XDEBUG(debug_print("unit_tests cons cdr(v)", cdr(v)));
     ASSERT(TO_INT(car(v)) == 123);
     ASSERT(TO_INT(cdr(v)) == 456);
 
@@ -633,7 +636,9 @@ i32 unit_tests() {
     ASSERT(IS_SYM(v));
     ASSERT(v1 == v);
 
-    fprintf(stderr, "symbols: v0=%"PRIx32" v1=%"PRIx32" v2=%"PRIx32"\n", v0, v1, v2);
+    XDEBUG(debug_print("unit_tests symbol v0", v0));
+    XDEBUG(debug_print("unit_tests symbol v1", v1));
+    XDEBUG(debug_print("unit_tests symbol v2", v2));
 
     if (test_actors() != OK) return UNDEF;
 
