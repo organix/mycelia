@@ -305,8 +305,32 @@ PROC_DECL(obj_call) {
  * actor primitives
  */
 
+i32 actor_beh(i32 code, i32 data) {
+    ASSERT(IS_PROC(code));
+    return obj_new(code, data);
+}
+
+i32 effect_new() {
+    return cons(NIL, cons(NIL, NIL));  // empty effect
+}
+
 inline int is_actor(i32 v) {
     return IS_OBJ(v) && (cell[TO_PTR(v) >> 3].obj.code == MK_PROC(p_actor));
+}
+
+i32 actor_create(i32 beh) {
+    ASSERT(IS_OBJ(beh));
+    return obj_new(MK_PROC(p_actor), beh);
+}
+
+i32 effect_create(i32 effect, i32 new_actor) {
+    ASSERT(is_actor(new_actor));
+    ASSERT(IS_CELL(effect));
+    i32 ofs = TO_PTR(effect) >> 3;
+    i32 created = cons(new_actor, cell[ofs].cons.car);
+    if (!IS_CELL(created)) return UNDEF;
+    cell[ofs].cons.car = created;
+    return effect;
 }
 
 PROC_DECL(actor) {
@@ -318,6 +342,36 @@ PROC_DECL(actor) {
     ofs = TO_PTR(beh) >> 3;
     i32 idx = TO_PROC(cell[ofs].obj.code);
     return (proc[idx])(self, args);  // target actor, instead of beh, as `self`
+}
+
+i32 actor_send(i32 target, i32 msg) {
+    ASSERT(is_actor(target));
+    return cons(target, msg);
+}
+
+i32 effect_send(i32 effect, i32 new_event) {
+    ASSERT(IS_CELL(new_event));
+    ASSERT(IS_CELL(effect));
+    i32 ofs = TO_PTR(effect) >> 3;
+    effect = cell[ofs].cons.cdr;
+    ASSERT(IS_CELL(effect));
+    ofs = TO_PTR(effect) >> 3;
+    i32 sent = cons(new_event, cell[ofs].cons.car);
+    if (!IS_CELL(sent)) return UNDEF;
+    cell[ofs].cons.car = sent;
+    return effect;
+}
+
+i32 effect_become(i32 effect, i32 new_beh) {
+    ASSERT(IS_OBJ(new_beh));
+    ASSERT(IS_CELL(effect));
+    i32 ofs = TO_PTR(effect) >> 3;
+    effect = cell[ofs].cons.cdr;
+    ASSERT(IS_CELL(effect));
+    ofs = TO_PTR(effect) >> 3;
+    if (cell[ofs].cons.cdr != NIL) return error("must only BECOME once");
+    cell[ofs].cons.cdr = new_beh;
+    return effect;
 }
 
 cell_t event_q = { .cons.car = NIL, .cons.cdr = NIL };
@@ -362,13 +416,11 @@ i32 event_dispatch() {
     i32 ofs = TO_PTR(event) >> 3;
     i32 target = cell[ofs].cons.car;
     i32 msg = cell[ofs].cons.cdr;
-    i32 effect = obj_call(target, msg);  // invoke actor behavior
+    // invoke actor behavior
+    i32 effect = obj_call(target, msg);
     if (!IS_CELL(effect)) return UNDEF;  // behavior failed
     ofs = TO_PTR(effect) >> 3;
-    if (cell[ofs].cons.car == FAIL) {
-        // error thrown
-        return effect;
-    }
+    if (cell[ofs].cons.car == FAIL) return effect;  // error thrown
     i32 actors = cell[ofs].cons.car;
     i32 rest = cell[ofs].cons.cdr;
     cell_free(effect);
@@ -402,8 +454,7 @@ i32 event_loop() {
  */
 
 PROC_DECL(sink_beh) {
-    i32 effect = cons(NIL, cons(NIL, NIL));  // empty effect
-    if (!IS_CELL(effect)) return UNDEF;  // allocation failure
+    i32 effect = effect_new();
     DEBUG(fprintf(stderr, "sink_beh: self=%"PRIx32", args=%"PRIx32"\n", self, args));
     return effect;
 }
