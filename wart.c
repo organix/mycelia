@@ -76,7 +76,7 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
 #define SET_GC(v)   ((v) |= VAL_GC)
 #define CLR_GC(v)   ((v) &= ~VAL_GC)
 
-// Immediate Values
+// immediate values
 
 #define MK_BOOL(z)  ((z) ? TRUE : FALSE)
 
@@ -94,9 +94,14 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
 #define ONE         VAL(0x00000004)
 #define INF         VAL(0x80000000)
 
-// Procedure declaration
+// procedure declaration
 
 #define PROC_DECL(name)  i32 name(i32 self, i32 msg)
+
+#define PROC        VAL(0x000001FD)
+#define IS_PROC(v)  (((v) & 0x0000FFFF) == PROC)
+#define MK_PROC(n)  (((n) << 16) | PROC)
+#define TO_PROC(v)  (((v) >> 16) & 0xFFFF)
 
 /*
  * error handling
@@ -252,17 +257,49 @@ next:   i += m;
 }
 
 /*
+ * actor behaviors
+ */
+
+PROC_DECL(sink_beh) {
+    DEBUG(fprintf(stderr, "sink_beh: self=%"PRIx32", msg=%"PRIx32"\n", self, msg));
+    return cons(NIL, cons(NIL, NIL));  // empty _effect_
+}
+
+/*
+ * procedures
+ */
+
+PROC_DECL(fail) {
+    XDEBUG(fprintf(stderr, "fail: self=%"PRIx32", msg=%"PRIx32"\n", self, msg));
+    return error("FAILED");
+}
+
+#define PROC_MAX (1024)
+typedef PROC_DECL((*proc_ptr_t));
+proc_ptr_t proc[PROC_MAX] = {
+    fail,
+    sink_beh,
+    0
+};
+enum proc_idx {
+    p_fail,
+    p_sink_beh,
+    p_unused,
+} proc_idx_t;
+
+PROC_DECL(proc_call) {
+    if (!IS_PROC(self)) return UNDEF;
+    i32 idx = TO_PROC(self);
+    return (proc[idx])(self, msg);
+}
+
+/*
  * unit tests
  */
 
-#define PROC_DECL(name)  i32 name(i32 self, i32 msg)
-PROC_DECL(dummy) {
-    fprintf(stderr, "dummy: self=%"PRIx32", msg=%"PRIx32"\n", self, msg);
-    return error("dummy dispatch");
-}
-
 i32 unit_tests() {
     i32 v, v0, v1, v2;
+    i32 n;
     i64 dv;
     cell_t c;
 
@@ -282,11 +319,13 @@ i32 unit_tests() {
     v2 = cell_free(v0);
     ASSERT(v2 == NIL);
 
-    v2 = obj_new(TO_INT(dummy), v1);
+    v2 = obj_new(MK_PROC(p_fail), v1);
     ASSERT(IS_OBJ(v2));
     ASSERT(!IS_CELL(v2));
     ASSERT(!IS_IMM(v2));
     ASSERT(TO_PTR(v2) == TO_PTR(v0));  // re-used cell?
+    n = TO_PTR(v2) >> 3;
+    v1 = proc_call(cell[n].obj.code, cell[n].obj.data);
 
     v = cell_free(v);
     v2 = cell_free(v2);

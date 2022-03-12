@@ -81,6 +81,7 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
       000c cccc cccc cccc  cccc cccc 0000 0001 = 21-bit Unicode code-point
       vvvv vvvv vvvv vvvv  tttt tttt 1111 1101  (16-bit value, 8-bit type)
       ssss ssss ssss ssss  0000 0000 1111 1101 = 16-bit interned symbol
+      pppp pppp pppp pppp  0000 0001 1111 1101 = 16-bit procedure number
       vvvv vvvv tttt tttt  1111 1111 1111 1101  (8-bit value, 8-bit type)
       0000 0000 0000 0000  1111 1111 1111 1101 = #f
       0000 0001 0000 0000  1111 1111 1111 1101 = #t
@@ -93,7 +94,7 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
       xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xgtt = cdr
 2#11 = Pointer to Object (code+data) value addr=(x&~0x7) gc=(x&0x4)
   +-- aaaa aaaa aaaa aaaa  aaaa aaaa aaaa ag11
-  +-> xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xg00 = code
+  +-> xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xgtt = code
       xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xgtt = data
 ```
 
@@ -129,3 +130,28 @@ target.dispatch(target, (selector, arg*)) ==> result
            |
            +---> ...
 ```
+
+## Actor Behaviors
+
+Actor behaviors return a collection of _effects_.
+
+```
+Success: --->[*|*]--->[*|*]---> beh
+              |        |
+              v        v
+             actors   msgs
+```
+
+On succcess, this is:
+  * a set of newly created actors
+  * a set of message sent
+  * an optional new behavior (or `'()`)
+
+```
+Failure: --->[*|*]---> error
+              |
+              v
+             UNDEF
+```
+
+On failure, a value describing the _error_ is returned.
