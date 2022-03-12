@@ -314,7 +314,10 @@ PROC_DECL(actor) {
     ASSERT(is_actor(self));
     i32 ofs = TO_PTR(self) >> 3;
     i32 beh = cell[ofs].obj.data;
-    return obj_call(beh, args);
+    ASSERT(IS_OBJ(beh));
+    ofs = TO_PTR(beh) >> 3;
+    i32 idx = TO_PROC(cell[ofs].obj.code);
+    return (proc[idx])(self, args);  // target actor, instead of beh, as `self`
 }
 
 cell_t event_q = { .cons.car = NIL, .cons.cdr = NIL };
@@ -358,7 +361,8 @@ i32 event_dispatch() {
     if (!IS_CELL(event)) return UNDEF;  // nothing to dispatch
     i32 ofs = TO_PTR(event) >> 3;
     i32 target = cell[ofs].cons.car;
-    i32 effect = obj_call(target, event);
+    i32 msg = cell[ofs].cons.cdr;
+    i32 effect = obj_call(target, msg);  // invoke actor behavior
     if (!IS_CELL(effect)) return UNDEF;  // behavior failed
     ofs = TO_PTR(effect) >> 3;
     if (cell[ofs].cons.car == FAIL) {
@@ -401,10 +405,6 @@ PROC_DECL(sink_beh) {
     i32 effect = cons(NIL, cons(NIL, NIL));  // empty effect
     if (!IS_CELL(effect)) return UNDEF;  // allocation failure
     DEBUG(fprintf(stderr, "sink_beh: self=%"PRIx32", args=%"PRIx32"\n", self, args));
-    i32 ofs = TO_PTR(args) >> 3;
-    i32 target = cell[ofs].cons.car;
-    i32 msg = cell[ofs].cons.cdr;
-    DEBUG(fprintf(stderr, "sink_beh: target=%"PRIx32", msg=%"PRIx32"\n", target, msg));
     return effect;
 }
 

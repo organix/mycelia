@@ -134,6 +134,18 @@ target.dispatch(target, (selector, arg*)) ==> result
 
 ## Actor Structures
 
+Each Actor is an Object with `MK_PROC(p_actor)` in the `code` field.
+The `data` field contains a Behavior Object, with its own `code` and `data`.
+The Behavior is invoked with Actor as `self` and the Message as `args`.
+
+```
+           OBJ      OBJ
+actor: --->[*|*]--->[*|*]---> data
+            |        |
+            v        v
+   MK_PROC(p_actor) beh(self, args)
+```
+
 Actor behaviors return a collection of _effects_.
 
 ```
@@ -158,30 +170,15 @@ On succcess, this is:
   * an optional new behavior (or `'()`)
 
 ```
-events
- |
- v
-[*|*]---> ... --->[*|/]
- |                 |
- v                 v
-[*|*]---> msg_1   [*|*]---> msg_n
- |                 |
- v                 v
-target_1          target_n
+events: --->[*|*]---> ... --->[*|/]
+             |                 |
+             v                 v
+            [*|*]---> msg_1   [*|*]---> msg_n
+             |                 |
+             v                 v
+            target_1          target_n
 ```
 
 Each event consists of:
   * a target actor
   * message contents
-
-```
-           OBJ      OBJ(behavior)
-actor: --->[*|*]--->[*|*]---> data
-            |        |
-            v        v
-   MK_PROC(p_actor) code
-```
-
-Each Actor is an Object with `MK_PROC(p_actor)` as the `code` field.
-The `data` field contains a Behavior Object its own `code` and `data`.
-The Behavior is invoked with the dispatched Event as its `args`.
