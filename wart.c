@@ -114,6 +114,11 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
 #define MK_PROC(n)  (((n) << 16) | PROC)
 #define TO_PROC(v)  (((v) >> 16) & 0xFFFF)
 
+// FORWARD DECLARATIONS
+void newline();
+void print(i32 value);
+void debug_print(char *label, i32 value);
+
 /*
  * error handling
  */
@@ -209,6 +214,11 @@ i32 cons(i32 car, i32 cdr) {
     return SET_GC(v);
 }
 
+#define list_0  NIL
+#define list_1(v1)  cons((v1), NIL)
+#define list_2(v1,v2)  cons((v1), cons((v2), NIL))
+#define list_3(v1,v2,v3)  cons((v1), cons((v2), cons((v3), NIL)))
+
 i32 car(i32 v) {
     ASSERT(IS_CELL(v));
     i32 ofs = TO_PTR(v) >> 3;
@@ -221,18 +231,65 @@ i32 cdr(i32 v) {
     return cell[ofs].cons.cdr;
 }
 
+i32 set_car(i32 v, i32 a) {
+    if (!IS_CELL(v)) panic("set_car() on non-cell");
+    i32 ofs = TO_PTR(v) >> 3;
+    return (cell[ofs].cons.car = a);
+}
+
+i32 set_cdr(i32 v, i32 d) {
+    if (!IS_CELL(v)) panic("set_cdr() on non-cell");
+    i32 ofs = TO_PTR(v) >> 3;
+    return (cell[ofs].cons.cdr = d);
+}
+
+#define caar(v)  car(car(v))
+#define cadr(v)  car(cdr(v))
+#define cdar(v)  cdr(car(v))
+#define cddr(v)  cdr(car(v))
+
+#define ref_1(v)  car(v)
+#define ref_2(v)  car(cdr(v))
+#define ref_3(v)  car(cdr(cdr(v)))
+
+i32 get_code(i32 v) {
+    ASSERT(IS_OBJ(v));
+    i32 ofs = TO_PTR(v) >> 3;
+    return cell[ofs].obj.code;
+}
+
+i32 get_data(i32 v) {
+    ASSERT(IS_OBJ(v));
+    i32 ofs = TO_PTR(v) >> 3;
+    return cell[ofs].obj.data;
+}
+
+i32 set_code(i32 v, i32 code) {
+    if (!IS_OBJ(v)) panic("set_code() on non-object");
+    i32 ofs = TO_PTR(v) >> 3;
+    return (cell[ofs].obj.code = code);
+}
+
+i32 set_data(i32 v, i32 data) {
+    if (!IS_OBJ(v)) panic("set_data() on non-object");
+    i32 ofs = TO_PTR(v) >> 3;
+    return (cell[ofs].obj.data = data);
+}
+
 /*
  * interned strings (symbols)
  */
 
 #define INTERN_MAX (1024)
 char intern[INTERN_MAX] = {
+    5, 'q', 'u', 'o', 't', 'e',
     5, 't', 'y', 'p', 'e', 'q',
     4, 'e', 'v', 'a', 'l',
     5, 'a', 'p', 'p', 'l', 'y',
     2, 'i', 'f',
     3, 'm', 'a', 'p',
-    6, 'r', 'e', 'd', 'u', 'c', 'e',
+    4, 'f', 'o', 'l', 'd',
+    5, 'f', 'o', 'l', 'd', 'r',
     4, 'b', 'i', 'n', 'd',
     6, 'l', 'o', 'o', 'k', 'u', 'p',
     5, 'm', 'a', 't', 'c', 'h',
@@ -265,6 +322,30 @@ next:   i += m;
     }
     intern[i+j] = 0;
     return MK_SYM(i-1);
+}
+
+i32 sym_quote() {
+    static i32 sym = UNDEF;
+    if (sym == UNDEF) {
+        sym = symbol("quote");
+    }
+    return sym;
+}
+
+i32 sym_typeq() {
+    static i32 sym = UNDEF;
+    if (sym == UNDEF) {
+        sym = symbol("typeq");
+    }
+    return sym;
+}
+
+i32 sym_eval() {
+    static i32 sym = UNDEF;
+    if (sym == UNDEF) {
+        sym = symbol("eval");
+    }
+    return sym;
 }
 
 /*
@@ -303,8 +384,7 @@ PROC_DECL(proc_call) {
 
 PROC_DECL(obj_call) {
     ASSERT(IS_OBJ(self));
-    i32 ofs = TO_PTR(self) >> 3;
-    i32 idx = TO_PROC(cell[ofs].obj.code);
+    i32 idx = TO_PROC(get_code(self));
     return (proc[idx])(self, args);
 }
 
@@ -333,21 +413,19 @@ i32 actor_create(i32 beh) {
 i32 effect_create(i32 effect, i32 new_actor) {
     ASSERT(is_actor(new_actor));
     ASSERT(IS_CELL(effect));
-    i32 ofs = TO_PTR(effect) >> 3;
-    i32 created = cons(new_actor, cell[ofs].cons.car);
+    i32 created = cons(new_actor, car(effect));
     if (!IS_CELL(created)) return UNDEF;
-    cell[ofs].cons.car = created;
+    set_car(effect, created);
     return effect;
 }
 
 PROC_DECL(actor) {
-    XDEBUG(fprintf(stderr, "actor: self=%"PRIx32", args=%"PRIx32"\n", self, args));
+    XDEBUG(debug_print("actor self", self));
+    XDEBUG(debug_print("actor args", args));
     ASSERT(is_actor(self));
-    i32 ofs = TO_PTR(self) >> 3;
-    i32 beh = cell[ofs].obj.data;
+    i32 beh = get_data(self);
     ASSERT(IS_OBJ(beh));
-    ofs = TO_PTR(beh) >> 3;
-    i32 idx = TO_PROC(cell[ofs].obj.code);
+    i32 idx = TO_PROC(get_code(beh));
     return (proc[idx])(self, args);  // target actor, instead of beh, as `self`
 }
 
@@ -359,25 +437,21 @@ i32 actor_send(i32 target, i32 msg) {
 i32 effect_send(i32 effect, i32 new_event) {
     ASSERT(IS_CELL(new_event));
     ASSERT(IS_CELL(effect));
-    i32 ofs = TO_PTR(effect) >> 3;
-    i32 rest = cell[ofs].cons.cdr;
+    i32 rest = cdr(effect);
     ASSERT(IS_CELL(rest));
-    ofs = TO_PTR(rest) >> 3;
-    i32 sent = cons(new_event, cell[ofs].cons.car);
+    i32 sent = cons(new_event, car(rest));
     if (!IS_CELL(sent)) return UNDEF;
-    cell[ofs].cons.car = sent;
+    set_car(rest, sent);
     return effect;
 }
 
 i32 effect_become(i32 effect, i32 new_beh) {
     ASSERT(IS_OBJ(new_beh));
     ASSERT(IS_CELL(effect));
-    i32 ofs = TO_PTR(effect) >> 3;
-    i32 rest = cell[ofs].cons.cdr;
+    i32 rest = cdr(effect);
     ASSERT(IS_CELL(rest));
-    ofs = TO_PTR(rest) >> 3;
-    if (cell[ofs].cons.cdr != NIL) return error("must only BECOME once");
-    cell[ofs].cons.cdr = new_beh;
+    if (cdr(rest) != NIL) return error("must only BECOME once");
+    set_cdr(rest, new_beh);
     return effect;
 }
 
@@ -419,25 +493,21 @@ i32 event_q_take() {
 
 i32 apply_effect(i32 self, i32 effect) {
     if (!IS_CELL(effect)) return UNDEF;
-    i32 ofs = TO_PTR(effect) >> 3;
-    if (cell[ofs].cons.car == FAIL) return effect;  // error thrown
-    i32 actors = cell[ofs].cons.car;
-    i32 rest = cell[ofs].cons.cdr;
+    i32 actors = car(effect);
+    if (actors == FAIL) return effect;  // error thrown
+    i32 rest = cdr(effect);
     cell_free(effect);
     while (IS_CELL(actors)) {  // free list, but not actors
-        ofs = TO_PTR(actors) >> 3;
-        i32 next = cell[ofs].cons.cdr;
+        i32 next = cdr(actors);
         cell_free(actors);
         actors = next;
     }
-    ofs = TO_PTR(rest) >> 3;
-    i32 events = cell[ofs].cons.car;
-    i32 beh = cell[ofs].cons.cdr;
+    i32 events = car(rest);
+    i32 beh = cdr(rest);
     cell_free(rest);
     // update behavior
     if (IS_OBJ(beh) && is_actor(self)) {
-        ofs = TO_PTR(self) >> 3;
-        cell[ofs].obj.data = beh;
+        set_data(self, beh);
     }
     // add events to dispatch queue
     return event_q_append(events);
@@ -446,9 +516,9 @@ i32 apply_effect(i32 self, i32 effect) {
 i32 event_dispatch() {
     i32 event = event_q_take();
     if (!IS_CELL(event)) return UNDEF;  // nothing to dispatch
-    i32 ofs = TO_PTR(event) >> 3;
-    i32 target = cell[ofs].cons.car;
-    i32 msg = cell[ofs].cons.cdr;
+    i32 target = car(event);
+    i32 msg = cdr(event);
+    cell_free(event);
     // invoke actor behavior
     i32 effect = obj_call(target, msg);
     return apply_effect(target, effect);
@@ -468,10 +538,9 @@ i32 event_loop() {
 
 PROC_DECL(sink_beh) {
     i32 effect = effect_new();
-    DEBUG(fprintf(stderr, "sink_beh: self=%"PRIx32", args=%"PRIx32"\n", self, args));
+    XDEBUG(debug_print("sink_beh self", self));
+    XDEBUG(debug_print("sink_beh args", args));
     return effect;
-
-    return OK;
 }
 
 /*
@@ -486,7 +555,11 @@ void newline() {
 void print(i32 value) {
     if (IS_IMM(value)) {
         if (IS_INT(value)) {
-            printf("%"PRIi32"", TO_INT(value));
+            if (value == INF) {
+                printf("#inf");
+            } else {
+                printf("%"PRIi32"", TO_INT(value));
+            }
         } else {
             i32 t24 = (value & IMM_24T) >> 2;
             i32 v24 = (value >> 8) & 0xFFFFFF;
@@ -499,7 +572,7 @@ void print(i32 value) {
                     switch (value) {
                         case FALSE: printf("#f"); break;
                         case TRUE: printf("#t"); break;
-                        case NIL: printf("'()"); break;
+                        case NIL: printf("()"); break;
                         case UNIT: printf("#unit"); break;
                         case FAIL: printf("#fail"); break;
                         case UNDEF: printf("#undefined"); break;
@@ -536,27 +609,31 @@ void print(i32 value) {
             }
             printf(")");
         } else if (IS_OBJ(value)) {
-            i32 ofs = TO_PTR(value) >> 3;
-            if (cell[ofs].obj.code == MK_PROC(p_actor)) {
+            i32 code = get_code(value);
+            i32 data = get_data(value);
+            if (code == MK_PROC(p_actor)) {
+                i32 ofs = TO_PTR(value) >> 3;
                 printf("#actor-%"PRIi32"", ofs);
 #if PRINT_OBJ_DETAIL
                 printf("<");
-                i32 beh = cell[ofs].obj.data;
+                i32 beh = data;
                 if (IS_OBJ(beh)) {
-                    ofs = TO_PTR(beh) >> 3;
-                    print(cell[ofs].obj.code);
+                    code = get_code(beh);
+                    data = get_data(beh);
+                    print(code);
                     printf(",");
-                    print(cell[ofs].obj.data);
+                    print(data);
                 }
                 printf(">");
 #endif
             } else {
+                i32 ofs = TO_PTR(value) >> 3;
                 printf("#object-%"PRIi32"", ofs);
 #if PRINT_OBJ_DETAIL
                 printf("<");
-                print(cell[ofs].obj.code);
+                print(code);
                 printf(",");
-                print(cell[ofs].obj.data);
+                print(data);
                 printf(">");
 #endif
             }
@@ -628,21 +705,22 @@ void debug_print(char *label, i32 value) {
 
 i32 test_actors() {
     i32 effect = effect_new();
-    XDEBUG(debug_print("test_actors new effect", effect));
+    DEBUG(debug_print("test_actors new effect", effect));
     i32 b = actor_beh(MK_PROC(p_sink_beh), UNDEF);
-    XDEBUG(debug_print("test_actors b", b));
+    DEBUG(debug_print("test_actors b", b));
     i32 a = actor_create(b);
-    XDEBUG(debug_print("test_actors a", a));
+    DEBUG(debug_print("test_actors a", a));
     effect = effect_create(effect, a);
-    XDEBUG(debug_print("test_actors create effect", effect));
-    i32 e = actor_send(a, symbol("eval"));
-    XDEBUG(debug_print("test_actors e", e));
+    DEBUG(debug_print("test_actors create effect", effect));
+    i32 m = list_2(sym_eval(), NIL);
+    i32 e = actor_send(a, m);
+    DEBUG(debug_print("test_actors e", e));
     effect = effect_send(effect, e);
-    XDEBUG(debug_print("test_actors send effect", effect));
+    DEBUG(debug_print("test_actors send effect", effect));
     i32 x = apply_effect(UNDEF, effect);
-    XDEBUG(debug_print("test_actors apply effect", x));
+    DEBUG(debug_print("test_actors apply effect", x));
     i32 r = event_dispatch();
-    XDEBUG(debug_print("test_actors r", r));
+    DEBUG(debug_print("test_actors r", r));
     return r;
 }
 
@@ -704,7 +782,7 @@ i32 unit_tests() {
     ASSERT(IS_SYM(v));
     ASSERT(IS_IMM(v));
 
-    v0 = symbol("eval");
+    v0 = sym_eval();
     ASSERT(IS_SYM(v0));
     ASSERT(v == v0);
     v0 = symbol("match");
