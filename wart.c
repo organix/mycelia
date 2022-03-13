@@ -92,6 +92,7 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
 #define FALSE       VAL(0x0000FFFD)
 #define TRUE        VAL(0x0100FFFD)
 #define NIL         VAL(0x0200FFFD)
+#define UNIT        VAL(0x0300FFFD)
 #define FAIL        VAL(0x0E00FFFD)
 #define UNDEF       VAL(0xFF00FFFD)
 
@@ -499,6 +500,7 @@ void print(i32 value) {
                         case FALSE: printf("#f"); break;
                         case TRUE: printf("#t"); break;
                         case NIL: printf("'()"); break;
+                        case UNIT: printf("#unit"); break;
                         case FAIL: printf("#fail"); break;
                         case UNDEF: printf("#undefined"); break;
                         default: printf("#<%"PRIi32":%02"PRIx32">", t8, v8);
@@ -653,11 +655,12 @@ i32 unit_tests() {
     XDEBUG(debug_print("unit_tests ZERO", ZERO));
     XDEBUG(debug_print("unit_tests ONE", ONE));
     XDEBUG(debug_print("unit_tests INF", INF));
-    XDEBUG(debug_print("unit_tests #f", FALSE));
-    XDEBUG(debug_print("unit_tests #t", TRUE));
-    XDEBUG(debug_print("unit_tests '()", NIL));
-    XDEBUG(debug_print("unit_tests #FAIL", FAIL));
-    XDEBUG(debug_print("unit_tests #UNDEF", UNDEF));
+    XDEBUG(debug_print("unit_tests TRUE", FALSE));
+    XDEBUG(debug_print("unit_tests FALSE", TRUE));
+    XDEBUG(debug_print("unit_tests NIL", NIL));
+    XDEBUG(debug_print("unit_tests UNIT", UNIT));
+    XDEBUG(debug_print("unit_tests FAIL", FAIL));
+    XDEBUG(debug_print("unit_tests UNDEF", UNDEF));
 
     v = cons(MK_INT(123), MK_INT(456));
     ASSERT(IS_CELL(v));
@@ -733,6 +736,6 @@ i32 unit_tests() {
 int main(int argc, char const *argv[])
 {
     i32 result = unit_tests();
-    XDEBUG(fprintf(stderr, "result: %"PRIi32"\n", result));
+    XDEBUG(debug_print("result", result));
     return (result == OK ? 0 : 1);
 }
