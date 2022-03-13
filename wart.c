@@ -353,13 +353,17 @@ i32 sym_eval() {
  */
 
 PROC_DECL(fail) {
-    XDEBUG(fprintf(stderr, "fail: self=%"PRIx32", args=%"PRIx32"\n", self, args));
+    DEBUG(fprintf(stderr, "fail: self=%"PRIx32", args=%"PRIx32"\n", self, args));
+    XDEBUG(debug_print("fail self", self));
+    XDEBUG(debug_print("fail args", args));
     return error("FAILED");
 }
 
 // FORWARD DECLARATIONS
 PROC_DECL(actor);
 PROC_DECL(sink_beh);
+PROC_DECL(Unit);
+PROC_DECL(assert_beh);
 
 #define PROC_MAX (1024)
 typedef PROC_DECL((*proc_ptr_t));
@@ -367,12 +371,16 @@ proc_ptr_t proc[PROC_MAX] = {
     fail,
     actor,
     sink_beh,
+    Unit,
+    assert_beh,
     0
 };
 enum proc_idx {
     p_fail,
     p_actor,
     p_sink_beh,
+    p_Unit,
+    p_assert_beh,
     p_unused,
 } proc_idx_t;
 
@@ -536,11 +544,85 @@ i32 event_loop() {
  * actor behaviors
  */
 
+i32 get_locals(i32 self) {
+    ASSERT(is_actor(self));
+    i32 beh = get_data(self);
+    return get_data(beh);
+}
+
+#define local_1(self) ref_1(get_locals(self))
+#define local_2(self) ref_2(get_locals(self))
+#define local_3(self) ref_3(get_locals(self))
+
 PROC_DECL(sink_beh) {
     i32 effect = effect_new();
     XDEBUG(debug_print("sink_beh self", self));
     XDEBUG(debug_print("sink_beh args", args));
     return effect;
+}
+
+PROC_DECL(assert_beh) {
+    i32 effect = effect_new();
+    XDEBUG(debug_print("assert_beh self", self));
+    i32 expect = get_locals(self);
+    if (expect != args) {
+        XDEBUG(debug_print("assert_beh actual", args));
+        XDEBUG(debug_print("assert_beh expect", expect));
+        return panic("assert_beh expect != actual");
+    }
+    return effect;
+}
+
+/*
+ * higher-order actors
+ */
+
+i32 a_unit = UNDEF;
+
+// locals: (T)
+static PROC_DECL(Type) {
+    i32 cust = ref_1(args);
+    i32 req = ref_2(args);
+    if (req == sym_typeq()) {
+        i32 effect = effect_new();
+        i32 T = local_1(self);
+        if (T == ref_3(args)) {
+            effect = effect_send(effect, actor_send(cust, TRUE));
+        } else {
+            effect = effect_send(effect, actor_send(cust, FALSE));
+        }
+        return effect;
+    }
+    return UNDEF;
+}
+
+// locals: (T)
+static PROC_DECL(SeType) {
+    i32 cust = ref_1(args);
+    i32 req = ref_2(args);
+    if (req == sym_eval()) {
+        i32 effect = effect_new();
+        effect = effect_send(effect, actor_send(cust, self));
+        return effect;
+    }
+    return Type(self, args);  // delegate to Type
+}
+
+// locals: (T=Unit)
+PROC_DECL(Unit) {
+    return SeType(self, args);  // delegate to SeType
+}
+
+// construct higher-order actor environment
+i32 actor_bootstrap() {
+    i32 a, b, T;
+
+    T = MK_PROC(p_Unit);
+    b = actor_beh(T, list_1(T));
+    a = actor_create(b);
+    a_unit = CLR_GC(a);
+
+    return OK;
 }
 
 /*
@@ -657,14 +739,14 @@ void debug_print(char *label, i32 value) {
                 if (t16 == IMM_16T) {
                     i32 t8 = (value & IMM_8T);
                     fprintf(stderr, " t8=%"PRIi32"", (t8 >> 16));
-                    fprintf(stderr, " %02"PRIx32"", (value >> 24) & 0xFF);
+                    fprintf(stderr, ":%02"PRIx32"", (value >> 24) & 0xFF);
                 } else {
                     fprintf(stderr, " t16=%"PRIi32"", (t16 >> 8));
-                    fprintf(stderr, " %04"PRIx32"", (value >> 16) & 0xFFFF);
+                    fprintf(stderr, ":%04"PRIx32"", (value >> 16) & 0xFFFF);
                 }
             } else {
                 fprintf(stderr, " t24=%"PRIi32"", (t24 >> 2));
-                fprintf(stderr, " %06"PRIx32"", (value >> 8) & 0xFFFFFF);
+                fprintf(stderr, ":%06"PRIx32"", (value >> 8) & 0xFFFFFF);
             }
         }
     }
@@ -704,6 +786,8 @@ void debug_print(char *label, i32 value) {
 }
 
 i32 test_actors() {
+    ASSERT(actor_bootstrap() == OK);
+
     i32 effect = effect_new();
     DEBUG(debug_print("test_actors new effect", effect));
     i32 b = actor_beh(MK_PROC(p_sink_beh), UNDEF);
@@ -720,8 +804,29 @@ i32 test_actors() {
     i32 x = apply_effect(UNDEF, effect);
     DEBUG(debug_print("test_actors apply effect", x));
     i32 r = event_dispatch();
-    DEBUG(debug_print("test_actors r", r));
-    return r;
+    XDEBUG(debug_print("test_actors event_dispatch", r));
+
+    effect = effect_new();
+    // a_unit is self-evaluating
+    b = actor_beh(MK_PROC(p_assert_beh), a_unit);
+    a = actor_create(b);
+    effect = effect_create(effect, a);
+    m = list_3(a, sym_eval(), NIL);
+    e = actor_send(a_unit, m);
+    effect = effect_send(effect, e);
+    // a_unit has Unit type
+    b = actor_beh(MK_PROC(p_assert_beh), TRUE);
+    a = actor_create(b);
+    effect = effect_create(effect, a);
+    m = list_3(a, sym_typeq(), MK_PROC(p_Unit));
+    e = actor_send(a_unit, m);
+    effect = effect_send(effect, e);
+    // dispatch all pending events
+    ASSERT(apply_effect(UNDEF, effect) == OK);
+    r = event_loop();
+    XDEBUG(debug_print("test_actors event_loop", r));
+
+    return OK;
 }
 
 i32 unit_tests() {
@@ -751,21 +856,23 @@ i32 unit_tests() {
     ASSERT(TO_INT(cdr(v)) == 456);
 
     v0 = cons(v, NIL);
+    XDEBUG(debug_print("unit_tests cons v0", v0));
     ASSERT(IS_CELL(v0));
 
-    v1 = cons(1, cons(2, cons(3, NIL)));
+    v1 = list_3(MK_INT(1), MK_INT(2), MK_INT(3));
+    XDEBUG(debug_print("unit_tests cons v1", v1));
     ASSERT(IS_CELL(v1));
 
     v2 = cell_free(v0);
     ASSERT(v2 == NIL);
 
     v2 = obj_new(MK_PROC(p_fail), v1);
+    XDEBUG(debug_print("unit_tests obj_new v2", v2));
     ASSERT(IS_OBJ(v2));
     ASSERT(!IS_CELL(v2));
     ASSERT(!IS_IMM(v2));
     ASSERT(TO_PTR(v2) == TO_PTR(v0));  // re-used cell?
-    n = TO_PTR(v2) >> 3;
-    v1 = proc_call(cell[n].obj.code, cell[n].obj.data);
+    v1 = proc_call(get_code(v2), get_data(v2));
 
     v = cell_free(v);
     v2 = cell_free(v2);
@@ -803,6 +910,11 @@ i32 unit_tests() {
     XDEBUG(debug_print("unit_tests symbol v2", v2));
 
     if (test_actors() != OK) return UNDEF;
+
+    dv = cell_usage();
+    c.raw = dv;
+    fprintf(stderr, "cell usage: free=%"PRIi32" total=%"PRIi32" max=%"PRIi32"\n",
+        TO_INT(c.cons.car), TO_INT(c.cons.cdr), VAL(CELL_MAX));
 
     return OK;
 }
