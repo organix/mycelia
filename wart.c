@@ -17,6 +17,8 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define DEBUG(x)   // include/exclude debug instrumentation
 #define XDEBUG(x) x // include/exclude extra debugging
 
+#define PRINT_OBJ_DETAIL    0       // print code & data in objects
+
 #define inline /*inline*/
 //#define inline __inline__
 
@@ -480,13 +482,95 @@ void newline() {
     fflush(stdout);
 }
 
+void print(i32 value) {
+    if (IS_IMM(value)) {
+        if (IS_INT(value)) {
+            printf("%"PRIi32"", TO_INT(value));
+        } else {
+            i32 t24 = (value & IMM_24T) >> 2;
+            i32 v24 = (value >> 8) & 0xFFFFFF;
+            if (t24 == 0x3F) {
+                i32 t16 = (value & IMM_16T) >> 8;
+                i32 v16 = (value >> 16) & 0xFFFF;
+                if (t16 == 0xFF) {
+                    i32 t8 = (value & IMM_8T) >> 16;
+                    i32 v8 = (value >> 24) & 0xFF;
+                    switch (value) {
+                        case FALSE: printf("#f"); break;
+                        case TRUE: printf("#t"); break;
+                        case NIL: printf("'()"); break;
+                        case FAIL: printf("#fail"); break;
+                        case UNDEF: printf("#undefined"); break;
+                        default: printf("#<%"PRIi32":%02"PRIx32">", t8, v8);
+                    }
+                } else if (t16 == 0x00) {
+                    //printf("#sym-%"PRIi32"", v16);
+                    //printf(" ");
+                    char *p = intern + v16;
+                    printf("%.*s", (int)(*p), (p + 1));
+                } else if (t16 == 0x01) {
+                    printf("#proc-%"PRIi32"", v16);
+                } else {
+                    printf("#<%"PRIi32":%04"PRIx32">", t16, v16);
+                }
+            } else if (t24 == 0x00) {
+                printf("#U+%04"PRIX32"", v24);
+            } else {
+                printf("#<%"PRIi32":%06"PRIx32">", t24, v24);
+            }
+        }
+    } else if (IS_PTR(value)) {
+        if (IS_CELL(value)) {
+            char *s = "(";
+            while (IS_CELL(value)) {
+                printf("%s", s);
+                print(car(value));
+                s = " ";
+                value = cdr(value);
+            };
+            if (value != NIL) {
+                printf(" . ");
+                print(value);
+            }
+            printf(")");
+        } else if (IS_OBJ(value)) {
+            i32 ofs = TO_PTR(value) >> 3;
+            if (cell[ofs].obj.code == MK_PROC(p_actor)) {
+                printf("#actor-%"PRIi32"", ofs);
+#if PRINT_OBJ_DETAIL
+                printf("<");
+                i32 beh = cell[ofs].obj.data;
+                if (IS_OBJ(beh)) {
+                    ofs = TO_PTR(beh) >> 3;
+                    print(cell[ofs].obj.code);
+                    printf(",");
+                    print(cell[ofs].obj.data);
+                }
+                printf(">");
+#endif
+            } else {
+                printf("#object-%"PRIi32"", ofs);
+#if PRINT_OBJ_DETAIL
+                printf("<");
+                print(cell[ofs].obj.code);
+                printf(",");
+                print(cell[ofs].obj.data);
+                printf(">");
+#endif
+            }
+        }
+    } else {
+        printf("#<%08"PRIx32">", value);
+    }
+}
+
 void debug_print(char *label, i32 value) {
     fprintf(stderr, "%s:", label);
     fprintf(stderr, " %08"PRIx32"", value);
     if (IS_IMM(value)) {
         fprintf(stderr, " IMM");
         if (IS_INT(value)) {
-            fprintf(stderr, " int=%"PRIi32"", TO_INT(value));
+            fprintf(stderr, " INT");
         } else {
             i32 t24 = (value & IMM_24T);
             if (t24 == IMM_24T) {
@@ -494,14 +578,7 @@ void debug_print(char *label, i32 value) {
                 if (t16 == IMM_16T) {
                     i32 t8 = (value & IMM_8T);
                     fprintf(stderr, " t8=%"PRIi32"", (t8 >> 16));
-                    switch (value) {
-                        case FALSE: fprintf(stderr, " #f"); break;
-                        case TRUE: fprintf(stderr, " #t"); break;
-                        case NIL: fprintf(stderr, " '()"); break;
-                        case FAIL: fprintf(stderr, " #FAIL"); break;
-                        case UNDEF: fprintf(stderr, " #UNDEF"); break;
-                        default: fprintf(stderr, " %02"PRIx32"", (value >> 24) & 0xFF);
-                    }
+                    fprintf(stderr, " %02"PRIx32"", (value >> 24) & 0xFF);
                 } else {
                     fprintf(stderr, " t16=%"PRIi32"", (t16 >> 8));
                     fprintf(stderr, " %04"PRIx32"", (value >> 16) & 0xFFFF);
@@ -540,7 +617,11 @@ void debug_print(char *label, i32 value) {
             }
         }
     }
-    fprintf(stderr, "\n");
+    //fprintf(stderr, "\n");
+    fprintf(stderr, " ");
+    fflush(stderr);
+    print(value);
+    newline();
 }
 
 i32 test_actors() {
@@ -552,7 +633,7 @@ i32 test_actors() {
     XDEBUG(debug_print("test_actors a", a));
     effect = effect_create(effect, a);
     XDEBUG(debug_print("test_actors create effect", effect));
-    i32 e = actor_send(a, NIL);
+    i32 e = actor_send(a, symbol("eval"));
     XDEBUG(debug_print("test_actors e", e));
     effect = effect_send(effect, e);
     XDEBUG(debug_print("test_actors send effect", effect));
