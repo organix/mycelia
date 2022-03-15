@@ -37,20 +37,39 @@ typedef struct cell {
 
 typedef PROC_DECL((*proc_t));
 
+#define TAG_MASK    INT(0x3)
+#define TAG_FIXNUM  INT(0x0)
+#define TAG_PAIR    INT(0x1)
+#define TAG_SYMBOL  INT(0x2)
+#define TAG_ACTOR   INT(0x3)
+
+#define MK_NUM(n)   (INT(n)<<2)
+#define MK_PAIR(p)  (INT(p)|TAG_PAIR)
+#define MK_SYM(n)   (INT(n)<<2|TAG_SYMBOL)
+#define MK_ACTOR(p) (INT(p)|TAG_ACTOR)
+#define MK_BOOL(b)  ((b) ? TRUE : FALSE)
+
+#define IS_NUM(v)   ((v)&TAG_MASK==TAG_FIXNUM)
+#define IS_PAIR(v)  ((v)&TAG_MASK==TAG_PAIR)
+#define IS_SYM(v)   ((v)&TAG_MASK==TAG_SYMBOL)
+#define IS_ACTOR(v) ((v)&TAG_MASK==TAG_ACTOR)
+
+#define TO_INT(v)   (INT(v)>>2)
+#define TO_NAT(v)   (NAT(v)>>2)
+#define TO_PTR(v)   PTR((v)&~TAG_MASK)
+
 void newline() {  // DO NOT MOVE -- USED TO DEFINE is_proc()
     printf("\n");
     fflush(stdout);
 }
 
 #define OK          (0)
-#define UNDEF       INT(&a_undef)
-#define UNIT        INT(&a_unit)
-#define FALSE       INT(&a_false)
-#define TRUE        INT(&a_true)
-#define NIL         INT(&a_nil)
-#define FAIL        INT(&a_fail)
-
-#define MK_BOOL(b)  ((b) ? TRUE : FALSE)
+#define UNDEF       MK_ACTOR(&a_undef)
+#define UNIT        MK_ACTOR(&a_unit)
+#define FALSE       MK_ACTOR(&a_false)
+#define TRUE        MK_ACTOR(&a_true)
+#define NIL         MK_ACTOR(&a_nil)
+#define FAIL        MK_ACTOR(&a_fail)
 
 // FORWARD DECLARATIONS
 PROC_DECL(Undef);

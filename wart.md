@@ -25,7 +25,7 @@ there is never any fragmentation in the heap.
 Each cell contains a Pair of i32 values (car and cdr).
 The root cell is at offset 0.
 The car of the root cell holds the current allocation limit.
-The cdr of the root cell points to the free-cell chain.
+The cdr of the root cell is the offset of the free-cell chain.
 The cdr of each free cell is the offset of the next free cell.
 The cdr of last cell in the chain is 0.
 
@@ -46,6 +46,8 @@ After a few allocations and frees the heap could look like this...
 [6] = _,_       allocated cell
 [7] = 0,0     end of free-list (next available linear offset)
 ```
+
+Note: There are no pointers in the free-list, only offsets.
 
 ## Tagged Value (Boxed) Encoding
 
@@ -69,43 +71,34 @@ Pointers to i32 values are 4-byte aligned, making the 2 LSBs zero.
 
 ____  3322 2222 2222 1111  1111 1100 0000 0000
 i32:  1098 7654 3210 9876  5432 1098 7654 3210
-      xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xg00
-                                           ^^^-- Type
-                                           |+--- Indirect
-                                           +---- GC Trace
+      xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt
+                                            ^^-- Pointer
+                                            +--- Subtype
 
 2#00 = Immediate 30-bit signed Integer value=(x>>2)
       snnn nnnn nnnn nnnn  nnnn nnnn nnnn nn00
-2#01 = Immediate 24-bit value=(x>>8) type=((n>>2)&~0x1F)
-      vvvv vvvv vvvv vvvv  vvvv vvvv tttt tt01  (24-bit value, 6-bit type)
-      000c cccc cccc cccc  cccc cccc 0000 0001 = 21-bit Unicode code-point
-      vvvv vvvv vvvv vvvv  tttt tttt 1111 1101  (16-bit value, 8-bit type)
-      ssss ssss ssss ssss  0000 0000 1111 1101 = 16-bit interned symbol
-      pppp pppp pppp pppp  0000 0001 1111 1101 = 16-bit indexed procedure
-      vvvv vvvv tttt tttt  1111 1111 1111 1101  (8-bit value, 8-bit type)
-      0000 0000 0000 0000  1111 1111 1111 1101 = #f
-      0000 0001 0000 0000  1111 1111 1111 1101 = #t
-      0000 0010 0000 0000  1111 1111 1111 1101 = ()
-      0000 0011 0000 0000  1111 1111 1111 1101 = #unit
-      0000 1110 0000 0000  1111 1111 1111 1101 = #fail
-      0000 1111 0000 0000  1111 1111 1111 1101 = ""
-      1111 1111 0000 0000  1111 1111 1111 1101 = #undefined
-2#10 = Pointer to Pair of boxed values addr=(x&~0x7) gc=(x&0x4)
-  +-- aaaa aaaa aaaa aaaa  aaaa aaaa aaaa ag10
-  +-> xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xgtt = car
-      xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xgtt = cdr
-2#11 = Pointer to Object (code+data) value addr=(x&~0x7) gc=(x&0x4)
-  +-- aaaa aaaa aaaa aaaa  aaaa aaaa aaaa ag11
-  +-> xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xgtt = code
-      xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xgtt = data
+2#01 = Pointer to Pair of boxed values addr=(x&~3)
+  +-- aaaa aaaa aaaa aaaa  aaaa aaaa aaaa aa01
+  +-> xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt = car
+      xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt = cdr
+2#10 = Immediate 30-bit unsigned Index value=(x>>2)
+      iiii iiii iiii iiii  iiii iiii iiii ii10
+2#11 = Pointer to Object (code+data) value addr=(x&~3)
+  +-- aaaa aaaa aaaa aaaa  aaaa aaaa aaaa aa11
+  +-> xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt = proc
+      xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt = var
 ```
 
-The GC Trace bit is set (1) if the corresponding object
-should be included in GC liveness tracing.
-Immediate values, and pointers with GC Trace clear (0),
-are not candidates for GC reclaimation.
+### Disjoint Base Types
 
-## Object Method Invocations
+Tag  | Type   | Description
+-----|--------|------------
+2#00 | Fixnum | (x>>2) = 2's-complement integer
+2#01 | Pair   | (x&~3) = machine address of cell
+2#10 | Symbol | (x>>2) = index into symbol table
+2#11 | Actor  | (x&~3) = machine address of cell
+
+### Object Method Invocations
 
 ```
 object.method(arg*) ==> result
@@ -135,19 +128,19 @@ target.dispatch(target, (selector, arg*)) ==> result
 
 ## Actor Structures
 
-Each Actor is an Object with `MK_PROC(p_actor)` in the `code` field.
-The `data` field contains a Behavior Object, with its own `code` and `data`.
-The Behavior is invoked with Actor as `self` and the Message as `args`.
+Each Actor/Object defines its behavior
+with a code-address in the `proc` field
+and a data-address in the `var` field.
+The `proc` is invoked with Actor as `self` and the Message as `arg`.
 
 ```
-           OBJ      OBJ
-actor: --->[*|*]--->[*|*]---> data
-            |        |
-            v        v
-  MK_PROC(p_actor)  beh(self, args)
+actor: --->[*|*]---> var
+            |
+            v
+           proc(self, arg)
 ```
 
-Actor behaviors return a collection of _effects_.
+An Actor/Object returns a collection of _effects_.
 
 ```
 Failure: --->[*|*]---> error
@@ -157,6 +150,7 @@ Failure: --->[*|*]---> error
 ```
 
 On failure, a value describing the _error_ is returned.
+As a special-case, `UNDEF` is returned for internal errors.
 
 ```
 Success: --->[*|*]--->[*|*]---> beh
@@ -168,7 +162,8 @@ Success: --->[*|*]--->[*|*]---> beh
 On succcess, this is:
   * a set of newly created actors
   * a set of new message events
-  * an optional new behavior (or `'()`)
+  * an optional new behavior (or `()`)
+As a special-case, `()` is returned for no effect, to avoid allocation.
 
 ```
 events: --->[*|*]---> ... --->[*|/]
