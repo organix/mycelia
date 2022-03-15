@@ -17,124 +17,84 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define DEBUG(x)   // include/exclude debug instrumentation
 #define XDEBUG(x) x // include/exclude extra debugging
 
-#define PRINT_OBJ_DETAIL    0       // print code & data in objects
+#define INT_T_32B 0  // universal Integer is 32 bits wide
+#define INT_T_64B 1  // universal Integer is 64 bits wide
 
-#define inline /*inline*/
-//#define inline __inline__
+typedef intptr_t int_t;
+typedef uintptr_t nat_t;
+typedef void *ptr_t;
 
-typedef int32_t i32;
-typedef int64_t i64;
+#define INT(n) ((int_t)(n))
+#define NAT(n) ((nat_t)(n))
+#define PTR(n) ((ptr_t)(n))
 
-#define OK      ((i32)0)
-
-typedef union cell {
-    struct {
-        i32     car;
-        i32     cdr;
-    }       cons;
-    struct {
-        i32     code;
-        i32     data;
-    }       obj;
-    i64     raw;
-    void   *addr;
+typedef struct cell {
+    int_t       head;
+    int_t       tail;
 } cell_t;
 
-/*
-____  3322 2222 2222 1111  1111 1100 0000 0000
-i32:  1098 7654 3210 9876  5432 1098 7654 3210
-      xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xg00
-                                           ^^^-- Varient
-                                           |+--- Pointer
-                                           +---- GC Trace
-*/
-#define VAL(x)      ((i32)(x))
+#define PROC_DECL(name)  int_t name(int_t self, int_t args)
 
-#define VAL_VAR     VAL(1<<0)
-#define VAL_PTR     VAL(1<<1)
-#define VAL_GC      VAL(1<<2)
+typedef PROC_DECL((*proc_t));
 
-#define VAL_MASK    (VAL_PTR | VAL_VAR)
+void newline() {  // DO NOT MOVE -- USED TO DEFINE is_proc()
+    printf("\n");
+    fflush(stdout);
+}
 
-#define IMM_INT     VAL(0)
-#define IMM_VAL     (VAL_VAR)
-#define PTR_CELL    (VAL_PTR)
-#define PTR_OBJ     (VAL_PTR | VAL_VAR)
+#define OK          (0)
+#define UNDEF       INT(&a_undef)
+#define UNIT        INT(&a_unit)
+#define FALSE       INT(&a_false)
+#define TRUE        INT(&a_true)
+#define NIL         INT(&a_nil)
+#define FAIL        INT(&a_fail)
 
-#define PTR_MASK    (VAL_GC | VAL_PTR | VAL_VAR)
-#define PTR_GC      (VAL_GC | VAL_PTR)
-
-#define IS_INT(v)   (((v)&VAL_MASK) == IMM_INT)
-#define IS_CELL(v)  (((v)&VAL_MASK) == PTR_CELL)
-#define IS_OBJ(v)   (((v)&VAL_MASK) == PTR_OBJ)
-
-#define IS_IMM(v)   (((v)&VAL_PTR) == 0)
-#define IS_PTR(v)   (((v)&VAL_PTR) != 0)
-#define IS_GC(v)    (((v)&PTR_GC) == PTR_GC)
-
-#define TO_INT(v)   (VAL(v) >> 2)
-#define TO_PTR(v)   (VAL(v) & ~PTR_MASK)
-
-#define MK_INT(n)   VAL((n) << 2)
-#define MK_CELL(p)  ((VAL(p) & ~PTR_MASK) | PTR_CELL)
-#define MK_OBJ(p)   ((VAL(p) & ~PTR_MASK) | PTR_OBJ)
-#define SET_GC(v)   ((v) | VAL_GC)
-#define CLR_GC(v)   ((v) & ~VAL_GC)
-
-// immediate values
-
-#define MK_BOOL(z)  ((z) ? TRUE : FALSE)
-
-#define IMM_24T     VAL(0x000000FC)
-#define IMM_16T     VAL(0x0000FF00)
-#define IMM_8T      VAL(0x00FF0000)
-
-#define FALSE       VAL(0x0000FFFD)
-#define TRUE        VAL(0x0100FFFD)
-#define NIL         VAL(0x0200FFFD)
-#define UNIT        VAL(0x0300FFFD)
-#define FAIL        VAL(0x0E00FFFD)
-#define UNDEF       VAL(0xFF00FFFD)
-
-#define SYM         VAL(0x000000FD)
-#define IS_SYM(v)   (((v) & 0x0000FFFF) == SYM)
-#define MK_SYM(s)   (((s) << 16) | SYM)
-#define TO_SYM(v)   (((v) >> 16) & 0xFFFF)
-
-#define ZERO        VAL(0x00000000)
-#define ONE         VAL(0x00000004)
-#define INF         VAL(0x80000000)
-
-// procedure declaration
-
-#define PROC_DECL(name)  i32 name(i32 self, i32 args)
-
-#define PROC        VAL(0x000001FD)
-#define IS_PROC(v)  (((v) & 0x0000FFFF) == PROC)
-#define MK_PROC(n)  (((n) << 16) | PROC)
-#define TO_PROC(v)  (((v) >> 16) & 0xFFFF)
+#define MK_BOOL(b)  ((b) ? TRUE : FALSE)
 
 // FORWARD DECLARATIONS
-void newline();
-void print(i32 value);
-void debug_print(char *label, i32 value);
+PROC_DECL(Undef);
+PROC_DECL(Unit);
+PROC_DECL(Boolean);
+PROC_DECL(Null);
+PROC_DECL(Fail);
+
+int_t is_proc(int_t val);
+void print(int_t value);
+void debug_print(char *label, int_t value);
+static void hexdump(char *label, int_t *addr, size_t cnt);
+
+const cell_t a_undef = { .head = INT(Undef), .tail = UNDEF };
+const cell_t a_unit = { .head = INT(Unit), .tail = UNDEF };
+const cell_t a_false = { .head = INT(Boolean), .tail = 0 };
+const cell_t a_true = { .head = INT(Boolean), .tail = -1 };
+const cell_t a_nil = { .head = INT(Null), .tail = NIL };
+const cell_t a_fail = { .head = INT(Fail), .tail = UNDEF };
+
+int_t is_raw(int_t val) {
+    // FIXME: need to find a better way to handle non-pointer values
+    if (val < 1024) return TRUE;
+    // FIXME: symbols are only byte-aligned, so we'll get false-positives
+    if (val & 0x3) return TRUE;
+    return FALSE;
+}
 
 /*
  * error handling
  */
 
-i32 panic(char *reason) {
+int_t panic(char *reason) {
     fprintf(stderr, "\nPANIC! %s\n", reason);
     exit(-1);
     return UNDEF;  // not reached, but typed for easy swap with error()
 }
 
-i32 error(char *reason) {
+int_t error(char *reason) {
     fprintf(stderr, "\nERROR! %s\n", reason);
     return UNDEF;
 }
 
-i32 failure(char *_file_, int _line_) {
+int_t failure(char *_file_, int _line_) {
     fprintf(stderr, "\nASSERT FAILED! %s:%d\n", _file_, _line_);
     return UNDEF;
 }
@@ -147,133 +107,118 @@ i32 failure(char *_file_, int _line_) {
 
 #define CELL_MAX (1024)
 cell_t cell[CELL_MAX] = {
-    { .cons.car = CELL_MAX, .cons.cdr = 1 },  // root cell
-    { .cons.car = 0, .cons.cdr = 0 },  // end of free-list
+    { .head = CELL_MAX, .tail = 1 },  // root cell
+    { .head = 0, .tail = 0 },  // end of free-list
 };
+// note: free-list is linked by index, not with pointers
 
-static i64 cell_usage() {
-    i32 count = 0;
-    i32 prev = 0;
-    i32 next = cell[prev].cons.cdr;
-    while (cell[next].cons.cdr) {
-        ++count;
-        prev = next;
-        next = cell[prev].cons.cdr;
-    }
-    cell_t acc = {
-        .cons.car = MK_INT(count),      // free cells
-        .cons.cdr = MK_INT(next - 1),   // heap cells
-    };
-    return acc.raw;
+int_t in_heap(int_t val) {
+    return MK_BOOL(NAT(PTR(val) - PTR(cell)) < sizeof(cell));
 }
 
-i32 cell_new() {
-    i32 head = cell[0].cons.cdr;
-    i32 next = cell[head].cons.cdr;
+int_t cell_new() {
+    int_t head = cell[0].tail;
+    int_t next = cell[head].tail;
     if (next) {
         // use cell from free-list
-        cell[0].cons.cdr = next;
-        return MK_CELL(head << 3);
+        cell[0].tail = next;
+        return INT(&cell[head]);
     }
     next = head + 1;
-    if (next < CELL_MAX) {
+    if (next < cell[0].head) {
         // extend top of heap
-        cell[next].raw = 0;  // clear new end cell
-        cell[0].cons.cdr = next;
-        return MK_CELL(head << 3);
+        cell[next].head = 0;
+        cell[next].tail = 0;
+        cell[0].tail = next;
+        return INT(&cell[head]);
     }
-    return error("out of cell memory");
+    return panic("out of cell memory");
 }
 
-i32 cell_free(i32 v) {
-    if (IS_PTR(v)) {
-        i32 ofs = TO_PTR(v) >> 3;
-        cell[ofs].raw = 0;  // clear free cell
-        // link into free-list
-        cell[ofs].cons.cdr = cell[0].cons.cdr;
-        cell[0].cons.cdr = ofs;
-    }
+int_t cell_free(int_t val) {
+    if (in_heap(val) == FALSE) panic("free() of non-heap cell");
+    cell_t *p = PTR(val);
+    p->head = 0;
+    // link into free-list
+    p->tail = cell[0].tail;
+    cell[0].tail = INT(p - cell);
     return NIL;
 }
 
-i32 obj_new(i32 code, i32 data) {
-    i32 v = cell_new();
-    if (!IS_CELL(v)) return UNDEF;
-    i32 ofs = TO_PTR(v) >> 3;
-    cell[ofs].obj.code = code;
-    cell[ofs].obj.data = data;
-    return SET_GC(MK_OBJ(v));
-}
-
-i32 cons(i32 car, i32 cdr) {
-    i32 v = cell_new();
-    if (!IS_CELL(v)) return UNDEF;
-    i32 ofs = TO_PTR(v) >> 3;
-    cell[ofs].cons.car = car;
-    cell[ofs].cons.cdr = cdr;
-    return SET_GC(v);
+int_t cons(int_t head, int_t tail) {
+    int_t val = cell_new();
+    if (val != UNDEF) {
+        cell_t *p = PTR(val);
+        p->head = head;
+        p->tail = tail;
+    }
+    return val;
 }
 
 #define list_0  NIL
 #define list_1(v1)  cons((v1), NIL)
 #define list_2(v1,v2)  cons((v1), cons((v2), NIL))
 #define list_3(v1,v2,v3)  cons((v1), cons((v2), cons((v3), NIL)))
+#define list_4(v1,v2,v3,v4)  cons((v1), cons((v2), cons((v3), cons((v4), NIL))))
+#define list_5(v1,v2,v3,v4,v5)  cons((v1), cons((v2), cons((v3), cons((v4), cons((v5), NIL)))))
 
-i32 car(i32 v) {
-    ASSERT(IS_CELL(v));
-    i32 ofs = TO_PTR(v) >> 3;
-    return cell[ofs].cons.car;
+int_t car(int_t val) {
+    if (val == NIL) return error("car() of NIL");
+    if (val == UNDEF) return UNDEF;
+    // FIXME: need better type checking...
+    cell_t *p = PTR(val);
+    return p->head;
 }
 
-i32 cdr(i32 v) {
-    ASSERT(IS_CELL(v));
-    i32 ofs = TO_PTR(v) >> 3;
-    return cell[ofs].cons.cdr;
+int_t cdr(int_t val) {
+    if (val == NIL) return error("cdr() of NIL");
+    if (val == UNDEF) return UNDEF;
+    // FIXME: need better type checking...
+    cell_t *p = PTR(val);
+    return p->tail;
 }
 
-i32 set_car(i32 v, i32 a) {
-    if (!IS_CELL(v)) panic("set_car() on non-cell");
-    i32 ofs = TO_PTR(v) >> 3;
-    return (cell[ofs].cons.car = a);
+int_t set_car(int_t val, int_t head) {
+    if (in_heap(val) == FALSE) panic("set_car() of non-heap cell");
+    cell_t *p = PTR(val);
+    return p->head = head;
 }
 
-i32 set_cdr(i32 v, i32 d) {
-    if (!IS_CELL(v)) panic("set_cdr() on non-cell");
-    i32 ofs = TO_PTR(v) >> 3;
-    return (cell[ofs].cons.cdr = d);
+int_t set_cdr(int_t val, int_t tail) {
+    if (in_heap(val) == FALSE) panic("set_cdr() of non-heap cell");
+    cell_t *p = PTR(val);
+    return p->tail = tail;
 }
 
-#define caar(v)  car(car(v))
-#define cadr(v)  car(cdr(v))
-#define cdar(v)  cdr(car(v))
-#define cddr(v)  cdr(car(v))
-
-#define ref_1(v)  car(v)
-#define ref_2(v)  car(cdr(v))
-#define ref_3(v)  car(cdr(cdr(v)))
-
-i32 get_code(i32 v) {
-    ASSERT(IS_OBJ(v));
-    i32 ofs = TO_PTR(v) >> 3;
-    return cell[ofs].obj.code;
+static int_t get_head(int_t val) {  // car() without type-checks
+    cell_t *p = PTR(val);
+    return p->head;
 }
 
-i32 get_data(i32 v) {
-    ASSERT(IS_OBJ(v));
-    i32 ofs = TO_PTR(v) >> 3;
-    return cell[ofs].obj.data;
+static int_t get_tail(int_t val) {  // cdr() without type-checks
+    cell_t *p = PTR(val);
+    return p->tail;
 }
 
-i32 set_code(i32 v, i32 code) {
-    if (!IS_OBJ(v)) panic("set_code() on non-object");
-    i32 ofs = TO_PTR(v) >> 3;
-    return (cell[ofs].obj.code = code);
+PROC_DECL(obj_call) {
+    proc_t p = PTR(get_head(self));
+    if (is_proc(INT(p)) == FALSE) error("obj_call() requires a procedure");
+    return (p)(self, args);
 }
 
-i32 set_data(i32 v, i32 data) {
-    if (!IS_OBJ(v)) panic("set_data() on non-object");
-    i32 ofs = TO_PTR(v) >> 3;
-    return (cell[ofs].obj.data = data);
+int_t cell_usage() {
+    int_t count = 0;
+    int_t prev = 0;
+    int_t next = cell[prev].tail;
+    while (cell[next].tail) {
+        ++count;
+        prev = next;
+        next = cell[prev].tail;
+    }
+    XDEBUG(fprintf(stderr,
+        "cell usage: free=%"PRIdPTR" total=%"PRIdPTR" max=%"PRIdPTR"\n",
+        count, next-1, INT(CELL_MAX)));
+    return cons(count, next-1);  // cells (free, heap)
 }
 
 /*
@@ -282,28 +227,20 @@ i32 set_data(i32 v, i32 data) {
 
 #define INTERN_MAX (1024)
 char intern[INTERN_MAX] = {
-    5, 'q', 'u', 'o', 't', 'e',
-    5, 't', 'y', 'p', 'e', 'q',
-    4, 'e', 'v', 'a', 'l',
-    5, 'a', 'p', 'p', 'l', 'y',
-    2, 'i', 'f',
-    3, 'm', 'a', 'p',
-    4, 'f', 'o', 'l', 'd',
-    5, 'f', 'o', 'l', 'd', 'r',
-    4, 'b', 'i', 'n', 'd',
-    6, 'l', 'o', 'o', 'k', 'u', 'p',
-    5, 'm', 'a', 't', 'c', 'h',
-    7, 'c', 'o', 'n', 't', 'e', 'n', 't',
     0,  // end of interned strings
 };
 
-i32 symbol(char *s) {
-    i32 j;
-    i32 n = 0;
+int_t is_symbol(int_t val) {
+    return MK_BOOL(NAT(PTR(val) - PTR(intern)) < sizeof(intern));
+}
+
+int_t symbol(char *s) {
+    int_t j;
+    int_t n = 0;
     while (s[n]) ++n;  // compute c-string length
-    i32 i = 0;
+    int_t i = 0;
     while (intern[i]) {
-        i32 m = intern[i++];  // symbol length
+        int_t m = intern[i++];  // symbol length
         if (n == m) {
             for (j = 0; (j < n); ++j) {
                 if (s[j] != intern[i+j]) {
@@ -311,7 +248,7 @@ i32 symbol(char *s) {
                 }
             }
             // found it!
-            return MK_SYM(i-1);
+            return INT(&intern[i-1]);
         }
 next:   i += m;
     }
@@ -321,219 +258,165 @@ next:   i += m;
         intern[i+j] = s[j];
     }
     intern[i+j] = 0;
-    return MK_SYM(i-1);
+    return INT(&intern[i-1]);
 }
 
-i32 sym_quote() {
-    static i32 sym = UNDEF;
-    if (sym == UNDEF) {
-        sym = symbol("quote");
-    }
-    return sym;
-}
+int_t s_quote;
+int_t s_typeq;
+int_t s_eval;
+int_t s_apply;
+int_t s_if;
+int_t s_map;
+int_t s_fold;
+int_t s_foldr;
+int_t s_bind;
+int_t s_lookup;
+int_t s_match;
+int_t s_content;
 
-i32 sym_typeq() {
-    static i32 sym = UNDEF;
-    if (sym == UNDEF) {
-        sym = symbol("typeq");
-    }
-    return sym;
-}
-
-i32 sym_eval() {
-    static i32 sym = UNDEF;
-    if (sym == UNDEF) {
-        sym = symbol("eval");
-    }
-    return sym;
-}
-
-/*
- * procedures
- */
-
-PROC_DECL(fail) {
-    DEBUG(fprintf(stderr, "fail: self=%"PRIx32", args=%"PRIx32"\n", self, args));
-    XDEBUG(debug_print("fail self", self));
-    XDEBUG(debug_print("fail args", args));
-    return error("FAILED");
-}
-
-// FORWARD DECLARATIONS
-PROC_DECL(actor);
-PROC_DECL(sink_beh);
-PROC_DECL(Unit);
-PROC_DECL(assert_beh);
-
-#define PROC_MAX (1024)
-typedef PROC_DECL((*proc_ptr_t));
-proc_ptr_t proc[PROC_MAX] = {
-    fail,
-    actor,
-    sink_beh,
-    Unit,
-    assert_beh,
-    0
-};
-enum proc_idx {
-    p_fail,
-    p_actor,
-    p_sink_beh,
-    p_Unit,
-    p_assert_beh,
-    p_unused,
-} proc_idx_t;
-
-PROC_DECL(proc_call) {
-    ASSERT(IS_PROC(self));
-    i32 idx = TO_PROC(self);
-    return (proc[idx])(self, args);
-}
-
-PROC_DECL(obj_call) {
-    ASSERT(IS_OBJ(self));
-    i32 idx = TO_PROC(get_code(self));
-    return (proc[idx])(self, args);
+// runtime initialization
+int_t symbol_boot() {
+    s_quote = symbol("quote");
+    s_typeq = symbol("typeq");
+    s_eval = symbol("eval");
+    s_apply = symbol("apply");
+    s_if = symbol("if");
+    s_map = symbol("map");
+    s_fold = symbol("fold");
+    s_foldr = symbol("foldr");
+    s_bind = symbol("bind");
+    s_lookup = symbol("lookup");
+    s_match = symbol("match");
+    s_content = symbol("content");
+    return OK;
 }
 
 /*
  * actor primitives
  */
 
-i32 actor_beh(i32 code, i32 data) {
-    ASSERT(IS_PROC(code));
-    return obj_new(code, data);
+int_t is_actor(int_t val) {
+    if (is_raw(val) == TRUE) return FALSE;
+    if (val == UNDEF) return FALSE;  // FIXME: is UNDEF really an actor?
+    return is_proc(get_head(val));
 }
 
-i32 effect_new() {
+int_t effect_new() {
     return cons(NIL, cons(NIL, NIL));  // empty effect
 }
 
-inline int is_actor(i32 v) {
-    return IS_OBJ(v) && (cell[TO_PTR(v) >> 3].obj.code == MK_PROC(p_actor));
+int_t actor_create(int_t code, int_t data) {
+    return cons(code, data);
 }
 
-i32 actor_create(i32 beh) {
-    ASSERT(IS_OBJ(beh));
-    return obj_new(MK_PROC(p_actor), beh);
-}
-
-i32 effect_create(i32 effect, i32 new_actor) {
-    ASSERT(is_actor(new_actor));
-    ASSERT(IS_CELL(effect));
-    i32 created = cons(new_actor, car(effect));
-    if (!IS_CELL(created)) return UNDEF;
+int_t effect_create(int_t effect, int_t new_actor) {
+    ASSERT(in_heap(new_actor) == TRUE);
+    ASSERT(is_actor(new_actor) == TRUE);
+    int_t created = cons(new_actor, car(effect));
+    if (in_heap(created) == FALSE) return UNDEF;
     set_car(effect, created);
     return effect;
 }
 
-PROC_DECL(actor) {
-    XDEBUG(debug_print("actor self", self));
-    XDEBUG(debug_print("actor args", args));
-    ASSERT(is_actor(self));
-    i32 beh = get_data(self);
-    ASSERT(IS_OBJ(beh));
-    i32 idx = TO_PROC(get_code(beh));
-    return (proc[idx])(self, args);  // target actor, instead of beh, as `self`
-}
-
-i32 actor_send(i32 target, i32 msg) {
-    ASSERT(is_actor(target));
+int_t actor_send(int_t target, int_t msg) {
+    ASSERT(is_actor(target) == TRUE);
     return cons(target, msg);
 }
 
-i32 effect_send(i32 effect, i32 new_event) {
-    ASSERT(IS_CELL(new_event));
-    ASSERT(IS_CELL(effect));
-    i32 rest = cdr(effect);
-    ASSERT(IS_CELL(rest));
-    i32 sent = cons(new_event, car(rest));
-    if (!IS_CELL(sent)) return UNDEF;
+int_t effect_send(int_t effect, int_t new_event) {
+    ASSERT(in_heap(new_event) == TRUE);
+    int_t rest = cdr(effect);
+    int_t sent = cons(new_event, car(rest));
     set_car(rest, sent);
     return effect;
 }
 
-i32 effect_become(i32 effect, i32 new_beh) {
-    ASSERT(IS_OBJ(new_beh));
-    ASSERT(IS_CELL(effect));
-    i32 rest = cdr(effect);
-    ASSERT(IS_CELL(rest));
+int_t actor_become(int_t code, int_t data) {
+    return cons(code, data);
+}
+
+int_t effect_become(int_t effect, int_t new_beh) {
+    ASSERT(in_heap(new_beh) == TRUE);
+    int_t rest = cdr(effect);
     if (cdr(rest) != NIL) return error("must only BECOME once");
     set_cdr(rest, new_beh);
     return effect;
 }
 
-cell_t event_q = { .cons.car = NIL, .cons.cdr = NIL };
+/*
+ * actor event dispatch
+ */
 
-i32 event_q_append(i32 events) {
+static cell_t event_q = { .head = NIL, .tail = NIL };
+
+int_t event_q_append(int_t events) {
     if (events == NIL) return OK;  // nothing to add
-    ASSERT(IS_CELL(events));
+    ASSERT(in_heap(events) == TRUE);
     // find the end of events
-    i32 tail = events;
-    i32 ofs = TO_PTR(tail) >> 3;
-    while (cell[ofs].cons.cdr != NIL) {
-        tail = cell[ofs].cons.cdr;
-        ofs = TO_PTR(tail) >> 3;
+    int_t tail = events;
+    while (get_tail(tail) != NIL) {
+        tail = get_tail(tail);
     }
     // append events on event_q
-    if (event_q.cons.car == NIL) {
-        event_q.cons.car = events;
+    if (event_q.head == NIL) {
+        event_q.head = events;
     } else {
-        ofs = TO_PTR(event_q.cons.cdr) >> 3;
-        cell[ofs].cons.cdr = events;
+        set_cdr(event_q.tail, events);
     }
-    event_q.cons.cdr = tail;
+    event_q.tail = tail;
     return OK;
 }
 
-i32 event_q_take() {
-    if (event_q.cons.car == NIL) return UNDEF; // event queue empty
-    i32 head = event_q.cons.car;
-    i32 ofs = TO_PTR(head) >> 3;
-    event_q.cons.car = cell[ofs].cons.cdr;
-    if (event_q.cons.car == NIL) {
-        event_q.cons.cdr = NIL;  // empty queue
+int_t event_q_take() {
+    if (event_q.head == NIL) return UNDEF; // event queue empty
+    int_t head = event_q.head;
+    event_q.head = get_tail(head);
+    if (event_q.head == NIL) {
+        event_q.tail = NIL;  // empty queue
     }
-    i32 event = cell[ofs].cons.car;
-    cell_free(head);
+    int_t event = get_head(head);
+    head = cell_free(head);
     return event;
 }
 
-i32 apply_effect(i32 self, i32 effect) {
-    if (!IS_CELL(effect)) return UNDEF;
-    i32 actors = car(effect);
+int_t apply_effect(int_t self, int_t effect) {
+    if (effect == NIL) return OK;  // no effect
+    if (in_heap(effect) == FALSE) return UNDEF;
+    int_t actors = get_head(effect);
     if (actors == FAIL) return effect;  // error thrown
-    i32 rest = cdr(effect);
-    cell_free(effect);
-    while (IS_CELL(actors)) {  // free list, but not actors
-        i32 next = cdr(actors);
+    int_t rest = get_tail(effect);
+    effect = cell_free(effect);
+    while (in_heap(actors) == TRUE) {  // free list, but not actors
+        int_t next = get_tail(actors);
         cell_free(actors);
         actors = next;
     }
-    i32 events = car(rest);
-    i32 beh = cdr(rest);
-    cell_free(rest);
+    int_t events = get_head(rest);
+    int_t beh = get_tail(rest);
+    rest = cell_free(rest);
     // update behavior
-    if (IS_OBJ(beh) && is_actor(self)) {
-        set_data(self, beh);
+    if ((in_heap(beh) == TRUE) && (is_actor(self) == TRUE)) {
+        set_car(self, get_head(beh));
+        set_cdr(self, get_tail(beh));
+        beh = cell_free(beh);
     }
     // add events to dispatch queue
     return event_q_append(events);
 }
 
-i32 event_dispatch() {
-    i32 event = event_q_take();
-    if (!IS_CELL(event)) return UNDEF;  // nothing to dispatch
-    i32 target = car(event);
-    i32 msg = cdr(event);
-    cell_free(event);
+int_t event_dispatch() {
+    int_t event = event_q_take();
+    if (in_heap(event) == FALSE) return UNDEF;  // nothing to dispatch
+    int_t target = get_head(event);
+    int_t msg = get_tail(event);
+    event = cell_free(event);
     // invoke actor behavior
-    i32 effect = obj_call(target, msg);
+    int_t effect = obj_call(target, msg);
     return apply_effect(target, effect);
 }
 
-i32 event_loop() {
-    i32 result = OK;
+int_t event_loop() {
+    int_t result = OK;
     while (result == OK) {
         result = event_dispatch();
     }
@@ -544,239 +427,199 @@ i32 event_loop() {
  * actor behaviors
  */
 
-i32 get_locals(i32 self) {
-    ASSERT(is_actor(self));
-    i32 beh = get_data(self);
-    return get_data(beh);
-}
+#define GET_VARS()     int_t vars = get_tail(self)
+#define POP_VAR(name)  int_t name = car(vars); vars = cdr(vars)
 
-#define local_1(self) ref_1(get_locals(self))
-#define local_2(self) ref_2(get_locals(self))
-#define local_3(self) ref_3(get_locals(self))
+#define POP_ARG(name)  int_t name = car(args); args = cdr(args)
+#define END_ARGS()     if (args != NIL) return error("too many args")
 
 PROC_DECL(sink_beh) {
-    i32 effect = effect_new();
-    XDEBUG(debug_print("sink_beh self", self));
+    GET_VARS();
     XDEBUG(debug_print("sink_beh args", args));
-    return effect;
+    return vars;
 }
 
+const cell_t a_sink = { .head = INT(sink_beh), .tail = NIL };
+#define SINK  INT(&a_sink)
+
 PROC_DECL(assert_beh) {
-    i32 effect = effect_new();
+    GET_VARS();
     XDEBUG(debug_print("assert_beh self", self));
-    i32 expect = get_locals(self);
-    if (expect != args) {
+    if (args != vars) {
         XDEBUG(debug_print("assert_beh actual", args));
-        XDEBUG(debug_print("assert_beh expect", expect));
+        XDEBUG(debug_print("assert_beh expect", vars));
         return panic("assert_beh expect != actual");
     }
-    return effect;
+    return NIL;
 }
 
 /*
- * higher-order actors
+ * ground environment
  */
 
-i32 a_unit = UNDEF;
-
-// locals: (T)
 static PROC_DECL(Type) {
-    i32 cust = ref_1(args);
-    i32 req = ref_2(args);
-    if (req == sym_typeq()) {
-        i32 effect = effect_new();
-        i32 T = local_1(self);
-        if (T == ref_3(args)) {
-            effect = effect_send(effect, actor_send(cust, TRUE));
-        } else {
-            effect = effect_send(effect, actor_send(cust, FALSE));
-        }
+    DEBUG(debug_print("Type self", self));
+    DEBUG(debug_print("Type args", args));
+    int_t T = get_head(self);  // behavior proc serves as a "type" identifier
+    DEBUG(debug_print("Type T", T));
+    POP_ARG(cust);
+    POP_ARG(req);
+    if (req == s_typeq) {
+        POP_ARG(match_T);
+        DEBUG(debug_print("Type match_T", match_T));
+        END_ARGS();
+        int_t effect = effect_new();
+        int_t result = MK_BOOL(T == match_T);
+        DEBUG(debug_print("Type result", result));
+        effect = effect_send(effect, actor_send(cust, result));
         return effect;
     }
     return UNDEF;
 }
 
-// locals: (T)
 static PROC_DECL(SeType) {
-    i32 cust = ref_1(args);
-    i32 req = ref_2(args);
-    if (req == sym_eval()) {
-        i32 effect = effect_new();
+    DEBUG(debug_print("SeType self", self));
+    DEBUG(debug_print("SeType args", args));
+    int_t orig = args;
+    POP_ARG(cust);
+    POP_ARG(req);
+    if (req == s_eval) {
+        POP_ARG(_env);
+        END_ARGS();
+        int_t effect = effect_new();
         effect = effect_send(effect, actor_send(cust, self));
         return effect;
     }
-    return Type(self, args);  // delegate to Type
+    return Type(self, orig);  // delegate to Type
 }
 
-// locals: (T=Unit)
-PROC_DECL(Unit) {
+PROC_DECL(Undef) {
+    XDEBUG(debug_print("Undef self", self));
+    XDEBUG(debug_print("Undef args", args));
     return SeType(self, args);  // delegate to SeType
 }
 
-// construct higher-order actor environment
-i32 actor_bootstrap() {
-    i32 a, b, T;
+PROC_DECL(Unit) {
+    XDEBUG(debug_print("Unit self", self));
+    XDEBUG(debug_print("Unit args", args));
+    return SeType(self, args);  // delegate to SeType
+}
 
-    T = MK_PROC(p_Unit);
-    b = actor_beh(T, list_1(T));
-    a = actor_create(b);
-    a_unit = CLR_GC(a);
+PROC_DECL(Boolean) {
+    GET_VARS();
+    XDEBUG(debug_print("Boolean self", self));
+    XDEBUG(debug_print("Boolean vars", vars));
+    XDEBUG(debug_print("Boolean args", args));
+    int_t orig = args;
+    POP_ARG(cust);
+    POP_ARG(req);
+    if (req == s_if) {
+        POP_ARG(cnsq);
+        POP_ARG(altn);
+        POP_ARG(env);
+        END_ARGS();
+        int_t effect = effect_new();
+        effect = effect_send(
+            effect,
+            actor_send(
+                (vars ? cnsq : altn),
+                list_3(cust, s_eval, env)
+            )
+        );
+        return effect;
+    }
+    return SeType(self, orig);  // delegate to SeType
+}
 
-    return OK;
+PROC_DECL(Null) {
+    XDEBUG(debug_print("Null self", self));
+    XDEBUG(debug_print("Null args", args));
+    return SeType(self, args);  // delegate to SeType
+}
+
+PROC_DECL(Fail) {
+    XDEBUG(debug_print("Fail self", self));
+    XDEBUG(debug_print("Fail args", args));
+    return error("FAILED");
 }
 
 /*
- * unit tests
+ * display procedures
  */
 
-void newline() {
-    printf("\n");
-    fflush(stdout);
+int_t is_pair(int_t val) {
+    if (is_raw(val) == TRUE) return FALSE;
+    if (is_symbol(val) == TRUE) return FALSE;
+    if (is_proc(val) == TRUE) return FALSE;
+    if (is_actor(val) == TRUE) return FALSE;
+    if (val == UNDEF) return FALSE;
+    return in_heap(val);
 }
 
-void print(i32 value) {
-    if (IS_IMM(value)) {
-        if (IS_INT(value)) {
-            if (value == INF) {
-                printf("#inf");
-            } else {
-                printf("%"PRIi32"", TO_INT(value));
-            }
-        } else {
-            i32 t24 = (value & IMM_24T) >> 2;
-            i32 v24 = (value >> 8) & 0xFFFFFF;
-            if (t24 == 0x3F) {
-                i32 t16 = (value & IMM_16T) >> 8;
-                i32 v16 = (value >> 16) & 0xFFFF;
-                if (t16 == 0xFF) {
-                    i32 t8 = (value & IMM_8T) >> 16;
-                    i32 v8 = (value >> 24) & 0xFF;
-                    switch (value) {
-                        case FALSE: printf("#f"); break;
-                        case TRUE: printf("#t"); break;
-                        case NIL: printf("()"); break;
-                        case UNIT: printf("#unit"); break;
-                        case FAIL: printf("#fail"); break;
-                        case UNDEF: printf("#undefined"); break;
-                        default: printf("#<%"PRIi32":%02"PRIx32">", t8, v8);
-                    }
-                } else if (t16 == 0x00) {
-                    //printf("#sym-%"PRIi32"", v16);
-                    //printf(" ");
-                    char *p = intern + v16;
-                    printf("%.*s", (int)(*p), (p + 1));
-                } else if (t16 == 0x01) {
-                    printf("#proc-%"PRIi32"", v16);
-                } else {
-                    printf("#<%"PRIi32":%04"PRIx32">", t16, v16);
-                }
-            } else if (t24 == 0x00) {
-                printf("#U+%04"PRIX32"", v24);
-            } else {
-                printf("#<%"PRIi32":%06"PRIx32">", t24, v24);
-            }
+void print(int_t value) {
+    if (value == OK) {
+        printf("#ok");
+    } else if (is_symbol(value) == TRUE) {
+        char *s = PTR(value);
+        printf("%.*s", (int)(*s), (s + 1));
+    } else if (is_raw(value) == TRUE) {
+        printf("%+"PRIdPTR"", value);
+    } else if (is_proc(value) == TRUE) {
+        printf("#proc-%"PRIxPTR"", value);
+    } else if (value == UNDEF) {
+        printf("#undefined");
+    } else if (value == UNIT) {
+        printf("#unit");
+    } else if (value == FALSE) {
+        printf("#f");
+    } else if (value == TRUE) {
+        printf("#t");
+    } else if (value == NIL) {
+        printf("()");
+    } else if (value == FAIL) {
+        printf("#fail");
+    } else if (is_actor(value) == TRUE) {
+        printf("#actor-%"PRIxPTR"", value);
+    } else if (is_pair(value) == TRUE) {
+        char *s = "(";
+        while (is_pair(value) == TRUE) {
+            printf("%s", s);
+            XDEBUG(fflush(stdout));
+            print(car(value));
+            s = " ";
+            value = cdr(value);
+        };
+        if (value != NIL) {
+            printf(" . ");
+            XDEBUG(fflush(stdout));
+            print(value);
         }
-    } else if (IS_PTR(value)) {
-        if (IS_CELL(value)) {
-            char *s = "(";
-            while (IS_CELL(value)) {
-                printf("%s", s);
-                print(car(value));
-                s = " ";
-                value = cdr(value);
-            };
-            if (value != NIL) {
-                printf(" . ");
-                print(value);
-            }
-            printf(")");
-        } else if (IS_OBJ(value)) {
-            i32 code = get_code(value);
-            i32 data = get_data(value);
-            if (code == MK_PROC(p_actor)) {
-                i32 ofs = TO_PTR(value) >> 3;
-                printf("#actor-%"PRIi32"", ofs);
-#if PRINT_OBJ_DETAIL
-                printf("<");
-                i32 beh = data;
-                if (IS_OBJ(beh)) {
-                    code = get_code(beh);
-                    data = get_data(beh);
-                    print(code);
-                    printf(",");
-                    print(data);
-                }
-                printf(">");
-#endif
-            } else {
-                i32 ofs = TO_PTR(value) >> 3;
-                printf("#object-%"PRIi32"", ofs);
-#if PRINT_OBJ_DETAIL
-                printf("<");
-                print(code);
-                printf(",");
-                print(data);
-                printf(">");
-#endif
-            }
-        }
+        printf(")");
     } else {
-        printf("#<%08"PRIx32">", value);
+        printf("#unknown-%"PRIxPTR"", value);
     }
+    XDEBUG(fflush(stdout));
 }
 
-void debug_print(char *label, i32 value) {
+void debug_print(char *label, int_t value) {
     fprintf(stderr, "%s:", label);
-    fprintf(stderr, " %08"PRIx32"", value);
-    if (IS_IMM(value)) {
-        fprintf(stderr, " IMM");
-        if (IS_INT(value)) {
-            fprintf(stderr, " INT");
-        } else {
-            i32 t24 = (value & IMM_24T);
-            if (t24 == IMM_24T) {
-                i32 t16 = (value & IMM_16T);
-                if (t16 == IMM_16T) {
-                    i32 t8 = (value & IMM_8T);
-                    fprintf(stderr, " t8=%"PRIi32"", (t8 >> 16));
-                    fprintf(stderr, ":%02"PRIx32"", (value >> 24) & 0xFF);
-                } else {
-                    fprintf(stderr, " t16=%"PRIi32"", (t16 >> 8));
-                    fprintf(stderr, ":%04"PRIx32"", (value >> 16) & 0xFFFF);
-                }
-            } else {
-                fprintf(stderr, " t24=%"PRIi32"", (t24 >> 2));
-                fprintf(stderr, ":%06"PRIx32"", (value >> 8) & 0xFFFFFF);
-            }
-        }
+    fprintf(stderr, " 16#%"PRIxPTR"", value);
+    //fprintf(stderr, " %"PRIdPTR"", value);
+    if (is_raw(value) == TRUE) {
+        fprintf(stderr, " RAW");
     }
-    if (IS_PTR(value)) {
-        fprintf(stderr, " PTR");
-        if (IS_GC(value)) fprintf(stderr, "+GC");
-        if (IS_CELL(value)) {
-            i32 ofs = TO_PTR(value) >> 3;
-            fprintf(stderr, " cell[%"PRIi32"]", ofs);
-            fprintf(stderr, " car=%"PRIx32" cdr=%"PRIx32"",
-                cell[ofs].cons.car, cell[ofs].cons.cdr);
-        }
-        if (IS_OBJ(value)) {
-            i32 ofs = TO_PTR(value) >> 3;
-            if (cell[ofs].obj.code == MK_PROC(p_actor)) {
-                fprintf(stderr, " actor[%"PRIi32"]", ofs);
-                i32 beh = cell[ofs].obj.data;
-                fprintf(stderr, " beh=%"PRIx32"", beh);
-                if (IS_OBJ(beh)) {
-                    ofs = TO_PTR(beh) >> 3;
-                    fprintf(stderr, "->[%"PRIi32"]", ofs);
-                    fprintf(stderr, " code=%"PRIx32" data=%"PRIx32"",
-                        cell[ofs].obj.code, cell[ofs].obj.data);
-                }
-            } else {
-                fprintf(stderr, " obj[%"PRIi32"]", ofs);
-                fprintf(stderr, " code=%"PRIx32" data=%"PRIx32"",
-                    cell[ofs].obj.code, cell[ofs].obj.data);
-            }
-        }
+    if (is_symbol(value) == TRUE) {
+        fprintf(stderr, " SYM");
+    }
+    if (is_proc(value) == TRUE) {
+        fprintf(stderr, " PROC");
+    }
+    if (is_actor(value) == TRUE) {
+        fprintf(stderr, " ACTOR");
+    }
+    if (is_pair(value) == TRUE) {
+        fprintf(stderr, " <%"PRIxPTR",%"PRIxPTR">",
+            get_head(value), get_tail(value));
     }
     //fprintf(stderr, "\n");
     fprintf(stderr, " ");
@@ -785,137 +628,142 @@ void debug_print(char *label, i32 value) {
     newline();
 }
 
-i32 test_actors() {
-    ASSERT(actor_bootstrap() == OK);
+#if INT_T_32B
+static void hexdump(char *label, int_t *addr, size_t cnt) {
+    fprintf(stderr, "%s: %04"PRIxPTR"..", label, (NAT(addr) >> 16));
+    for (nat_t n = 0; n < cnt; ++n) {
+        if ((n & 0x7) == 0x0) {
+            fprintf(stderr, "\n..%04"PRIxPTR":", (NAT(addr) & 0xFFFF));
+        }
+        fprintf(stderr, " %08"PRIXPTR"", NAT(*addr++) & 0xFFFFFFFF);
+    }
+    fprintf(stderr, "\n");
+}
+#endif // INT_T_32B
 
-    i32 effect = effect_new();
-    DEBUG(debug_print("test_actors new effect", effect));
-    i32 b = actor_beh(MK_PROC(p_sink_beh), UNDEF);
-    DEBUG(debug_print("test_actors b", b));
-    i32 a = actor_create(b);
-    DEBUG(debug_print("test_actors a", a));
-    effect = effect_create(effect, a);
-    DEBUG(debug_print("test_actors create effect", effect));
-    i32 m = list_2(sym_eval(), NIL);
-    i32 e = actor_send(a, m);
-    DEBUG(debug_print("test_actors e", e));
-    effect = effect_send(effect, e);
-    DEBUG(debug_print("test_actors send effect", effect));
-    i32 x = apply_effect(UNDEF, effect);
-    DEBUG(debug_print("test_actors apply effect", x));
-    i32 r = event_dispatch();
-    XDEBUG(debug_print("test_actors event_dispatch", r));
+#if INT_T_64B
+static void hexdump(char *label, int_t *addr, size_t cnt) {
+    fprintf(stderr, "%s: %08"PRIxPTR"..", label, (NAT(addr) >> 32));
+    for (nat_t n = 0; n < cnt; ++n) {
+        if ((n & 0x3) == 0x0) {
+            fprintf(stderr, "\n..%08"PRIxPTR":", (NAT(addr) & 0xFFFFFFFF));
+        }
+        fprintf(stderr, " %016"PRIXPTR"", NAT(*addr++));
+    }
+    fprintf(stderr, "\n");
+}
+#endif // INT_T_64B
 
-    effect = effect_new();
-    // a_unit is self-evaluating
-    b = actor_beh(MK_PROC(p_assert_beh), a_unit);
-    a = actor_create(b);
-    effect = effect_create(effect, a);
-    m = list_3(a, sym_eval(), NIL);
-    e = actor_send(a_unit, m);
-    effect = effect_send(effect, e);
-    // a_unit has Unit type
-    b = actor_beh(MK_PROC(p_assert_beh), TRUE);
-    a = actor_create(b);
-    effect = effect_create(effect, a);
-    m = list_3(a, sym_typeq(), MK_PROC(p_Unit));
-    e = actor_send(a_unit, m);
-    effect = effect_send(effect, e);
-    // dispatch all pending events
-    ASSERT(apply_effect(UNDEF, effect) == OK);
-    r = event_loop();
-    XDEBUG(debug_print("test_actors event_loop", r));
+/*
+ * unit tests
+ */
 
+int_t test_values() {
+    XDEBUG(debug_print("test_values FALSE", FALSE));
+    XDEBUG(debug_print("test_values TRUE", TRUE));
+    XDEBUG(debug_print("test_values NIL", NIL));
+    XDEBUG(debug_print("test_values UNIT", UNIT));
+    XDEBUG(debug_print("test_values FAIL", FAIL));
+    XDEBUG(debug_print("test_values UNDEF", UNDEF));
+    XDEBUG(debug_print("test_values s_quote", s_quote));
+    XDEBUG(debug_print("test_values s_match", s_match));
     return OK;
 }
 
-i32 unit_tests() {
-    i32 v, v0, v1, v2;
-    i32 n;
-    i64 dv;
+int_t test_cells() {
+    int_t v, v0, v1, v2;
+    int_t n;
     cell_t c;
 
-    XDEBUG(debug_print("unit_tests ZERO", ZERO));
-    XDEBUG(debug_print("unit_tests ONE", ONE));
-    XDEBUG(debug_print("unit_tests INF", INF));
-    XDEBUG(debug_print("unit_tests TRUE", FALSE));
-    XDEBUG(debug_print("unit_tests FALSE", TRUE));
-    XDEBUG(debug_print("unit_tests NIL", NIL));
-    XDEBUG(debug_print("unit_tests UNIT", UNIT));
-    XDEBUG(debug_print("unit_tests FAIL", FAIL));
-    XDEBUG(debug_print("unit_tests UNDEF", UNDEF));
-
-    v = cons(MK_INT(123), MK_INT(456));
-    ASSERT(IS_CELL(v));
-    ASSERT(!IS_OBJ(v));
-    ASSERT(!IS_IMM(v));
-    XDEBUG(debug_print("unit_tests cons v", v));
-    XDEBUG(debug_print("unit_tests cons car(v)", car(v)));
-    XDEBUG(debug_print("unit_tests cons cdr(v)", cdr(v)));
-    ASSERT(TO_INT(car(v)) == 123);
-    ASSERT(TO_INT(cdr(v)) == 456);
+    v = cons(TRUE, FALSE);
+    ASSERT(in_heap(v) == TRUE);
+    XDEBUG(debug_print("test_cells cons v", v));
+    XDEBUG(debug_print("test_cells cons car(v)", car(v)));
+    XDEBUG(debug_print("test_cells cons cdr(v)", cdr(v)));
+    ASSERT(car(v) == TRUE);
+    ASSERT(cdr(v) == FALSE);
 
     v0 = cons(v, NIL);
-    XDEBUG(debug_print("unit_tests cons v0", v0));
-    ASSERT(IS_CELL(v0));
+    XDEBUG(debug_print("test_cells cons v0", v0));
+    ASSERT(in_heap(v0) == TRUE);
 
-    v1 = list_3(MK_INT(1), MK_INT(2), MK_INT(3));
-    XDEBUG(debug_print("unit_tests cons v1", v1));
-    ASSERT(IS_CELL(v1));
+    //v1 = list_3(-1, 2, 3);
+    v1 = list_3(s_quote, s_eval, s_apply);
+    XDEBUG(debug_print("test_cells cons v1", v1));
+    ASSERT(in_heap(v1) == TRUE);
 
     v2 = cell_free(v0);
+    XDEBUG(debug_print("test_cells free v0", v2));
     ASSERT(v2 == NIL);
 
-    v2 = obj_new(MK_PROC(p_fail), v1);
-    XDEBUG(debug_print("unit_tests obj_new v2", v2));
-    ASSERT(IS_OBJ(v2));
-    ASSERT(!IS_CELL(v2));
-    ASSERT(!IS_IMM(v2));
-    ASSERT(TO_PTR(v2) == TO_PTR(v0));  // re-used cell?
-    v1 = proc_call(get_code(v2), get_data(v2));
+    v2 = cons(INT(Fail), v1);
+    XDEBUG(debug_print("test_cells cons v2", v2));
+    ASSERT(in_heap(v2) == TRUE);
+    ASSERT(PTR(v2) == PTR(v0));  // re-used cell?
+    v1 = obj_call(v2, v);
 
     v = cell_free(v);
     v2 = cell_free(v2);
     ASSERT(v2 == NIL);
 
-    dv = cell_usage();
-    c.raw = dv;
-    fprintf(stderr, "cell usage: free=%"PRIi32" total=%"PRIi32" max=%"PRIi32"\n",
-        TO_INT(c.cons.car), TO_INT(c.cons.cdr), VAL(CELL_MAX));
-    ASSERT(c.cons.car == MK_INT(2));
-    ASSERT(c.cons.cdr == MK_INT(5));
+    XDEBUG(hexdump("cell", PTR(cell), 16));
+    int_t usage = cell_usage();
+    ASSERT(car(usage) == 2);
+    ASSERT(cdr(usage) == 5);
+    usage = cell_free(usage);
 
-    v = symbol("eval");
-    ASSERT(IS_SYM(v));
-    ASSERT(IS_IMM(v));
+    return OK;
+}
 
-    v0 = sym_eval();
-    ASSERT(IS_SYM(v0));
-    ASSERT(v == v0);
-    v0 = symbol("match");
-    ASSERT(IS_SYM(v0));
-    ASSERT(v != v0);
+int_t test_actors() {
+    int_t effect = effect_new();
+    DEBUG(debug_print("test_actors new effect", effect));
+    int_t a = actor_create(INT(sink_beh), NIL);
+    DEBUG(debug_print("test_actors a", a));
+    effect = effect_create(effect, a);
+    DEBUG(debug_print("test_actors create effect", effect));
+    int_t m = list_3(SINK, s_eval, NIL);
+    DEBUG(debug_print("test_actors m", m));
+    int_t e = actor_send(a, m);
+    DEBUG(debug_print("test_actors e", e));
+    effect = effect_send(effect, e);
+    DEBUG(debug_print("test_actors send effect", effect));
+    int_t x = apply_effect(UNDEF, effect);
+    DEBUG(debug_print("test_actors apply effect", x));
+    int_t r = event_dispatch();
+    XDEBUG(debug_print("test_actors event_dispatch", r));
 
-    v1 = symbol("foo");
-    ASSERT(IS_SYM(v1));
-    v2 = symbol("bar");
-    ASSERT(IS_SYM(v2));
-    ASSERT(v1 != v2);
-    v = symbol("foo");
-    ASSERT(IS_SYM(v));
-    ASSERT(v1 == v);
+#if 1
+    effect = effect_new();
+    // UNIT is self-evaluating
+    a = actor_create(INT(assert_beh), UNIT);
+    effect = effect_create(effect, a);
+    m = list_3(a, s_eval, NIL);
+    XDEBUG(debug_print("test_actors m_1", m));
+    e = actor_send(UNIT, m);
+    effect = effect_send(effect, e);
+    // UNIT has Unit type
+    a = actor_create(INT(assert_beh), TRUE);
+    effect = effect_create(effect, a);
+    m = list_3(a, s_typeq, INT(Unit));
+    XDEBUG(debug_print("test_actors m_2", m));
+    e = actor_send(UNIT, m);
+    effect = effect_send(effect, e);
+    // dispatch all pending events
+    ASSERT(apply_effect(UNDEF, effect) == OK);
+    r = event_loop();
+    XDEBUG(debug_print("test_actors event_loop", r));
+#endif
 
-    XDEBUG(debug_print("unit_tests symbol v0", v0));
-    XDEBUG(debug_print("unit_tests symbol v1", v1));
-    XDEBUG(debug_print("unit_tests symbol v2", v2));
+    return OK;
+}
 
+int_t unit_tests() {
+    if (test_values() != OK) return UNDEF;
+    if (test_cells() != OK) return UNDEF;
     if (test_actors() != OK) return UNDEF;
-
-    dv = cell_usage();
-    c.raw = dv;
-    fprintf(stderr, "cell usage: free=%"PRIi32" total=%"PRIi32" max=%"PRIi32"\n",
-        TO_INT(c.cons.car), TO_INT(c.cons.cdr), VAL(CELL_MAX));
-
+    int_t usage = cell_usage();
+    usage = cell_free(usage);
     return OK;
 }
 
@@ -923,9 +771,57 @@ i32 unit_tests() {
  * bootstrap
  */
 
+int_t actor_boot() {
+    if (symbol_boot() != OK) return UNDEF;
+    return OK;
+}
+
 int main(int argc, char const *argv[])
 {
-    i32 result = unit_tests();
+    int_t result = actor_boot();
+    if (result != OK) panic("actor_boot() failed");
+
+    fprintf(stderr, "newline = %"PRIxPTR"\n", INT(newline));
+    fprintf(stderr, "  Undef = %"PRIxPTR"\n", INT(Undef));
+    fprintf(stderr, "   Unit = %"PRIxPTR"\n", INT(Unit));
+    fprintf(stderr, "   main = %"PRIxPTR"\n", INT(main));
+    fprintf(stderr, "is_proc = %"PRIxPTR"\n", INT(is_proc));
+    fprintf(stderr, "  UNDEF = %"PRIxPTR"\n", UNDEF);
+    fprintf(stderr, "   UNIT = %"PRIxPTR"\n", UNIT);
+    ASSERT(INT(newline) < INT(main));
+
+    ASSERT(is_proc(INT(Undef)) == TRUE);
+    //ASSERT(is_actor(UNDEF) == TRUE);
+
+    ASSERT(is_proc(INT(Unit)) == TRUE);
+    ASSERT(is_raw(UNIT) == FALSE);
+    ASSERT(UNIT != UNDEF);
+    ASSERT(is_proc(car(UNIT)) == TRUE);
+    ASSERT(is_actor(UNIT) == TRUE);
+
+    fprintf(stderr, "   cell = %"PRIxPTR"x%"PRIxPTR"\n",
+        INT(cell), NAT(sizeof(cell)));
+    fprintf(stderr, " intern = %"PRIxPTR"x%"PRIxPTR"\n",
+        INT(intern), NAT(sizeof(intern)));
+    ASSERT((NAT(cell) & 0x7) == 0x0);
+
+    fprintf(stderr, "s_quote = %"PRIxPTR"\n", s_quote);
+    fprintf(stderr, "s_match = %"PRIxPTR"\n", s_match);
+    ASSERT(is_symbol(s_match) == TRUE);
+
+#if 1
+    result = unit_tests();
     XDEBUG(debug_print("result", result));
+#endif
+
+#if 0
+    cell_t *p = PTR(UNDEF);
+    p->tail = NIL;  // FIXME: should not be able to assign to `const`
+#endif
+
     return (result == OK ? 0 : 1);
+}
+
+int_t is_proc(int_t val) {
+    return MK_BOOL((val >= INT(newline)) && (val <= INT(main)));
 }
