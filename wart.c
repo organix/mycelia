@@ -43,20 +43,26 @@ typedef PROC_DECL((*proc_t));
 #define TAG_SYMBOL  INT(0x2)
 #define TAG_ACTOR   INT(0x3)
 
-#define MK_NUM(n)   (INT(n)<<2)
-#define MK_PAIR(p)  (INT(p)|TAG_PAIR)
-#define MK_SYM(n)   (INT(n)<<2|TAG_SYMBOL)
-#define MK_ACTOR(p) (INT(p)|TAG_ACTOR)
-#define MK_BOOL(b)  ((b) ? TRUE : FALSE)
+#define MK_NUM(n)   INT(NAT(n)<<2)
+#define MK_PAIR(p)  INT(NAT(p)|TAG_PAIR)
+#define MK_SYM(n)   INT((NAT(n)<<2)|TAG_SYMBOL)
+#define MK_ACTOR(p) INT(PTR(p)+TAG_ACTOR)
 
-#define IS_NUM(v)   ((v)&TAG_MASK==TAG_FIXNUM)
-#define IS_PAIR(v)  ((v)&TAG_MASK==TAG_PAIR)
-#define IS_SYM(v)   ((v)&TAG_MASK==TAG_SYMBOL)
-#define IS_ACTOR(v) ((v)&TAG_MASK==TAG_ACTOR)
+#define MK_BOOL(b)  ((b) ? TRUE : FALSE)
+#define MK_PROC(p)  MK_ACTOR(p)
+
+#define IS_ADDR(v)  ((v)&1)
+
+#define IS_NUM(v)   (((v)&TAG_MASK) == TAG_FIXNUM)
+#define IS_PAIR(v)  (((v)&TAG_MASK) == TAG_PAIR)
+#define IS_SYM(v)   (((v)&TAG_MASK) == TAG_SYMBOL)
+#define IS_ACTOR(v) (((v)&TAG_MASK) == TAG_ACTOR)
+
+#define IS_PROC(v)  is_proc(v)
 
 #define TO_INT(v)   (INT(v)>>2)
 #define TO_NAT(v)   (NAT(v)>>2)
-#define TO_PTR(v)   PTR((v)&~TAG_MASK)
+#define TO_PTR(v)   PTR(NAT(v)&~TAG_MASK)
 
 void newline() {  // DO NOT MOVE -- USED TO DEFINE is_proc()
     printf("\n");
@@ -64,6 +70,7 @@ void newline() {  // DO NOT MOVE -- USED TO DEFINE is_proc()
 }
 
 #define OK          (0)
+#define INF         MK_NUM(TO_INT(~(NAT(-1)>>1)))
 #define UNDEF       MK_ACTOR(&a_undef)
 #define UNIT        MK_ACTOR(&a_unit)
 #define FALSE       MK_ACTOR(&a_false)
@@ -78,25 +85,17 @@ PROC_DECL(Boolean);
 PROC_DECL(Null);
 PROC_DECL(Fail);
 
-int_t is_proc(int_t val);
+int is_proc(int_t val);
 void print(int_t value);
 void debug_print(char *label, int_t value);
 static void hexdump(char *label, int_t *addr, size_t cnt);
 
-const cell_t a_undef = { .head = INT(Undef), .tail = UNDEF };
-const cell_t a_unit = { .head = INT(Unit), .tail = UNDEF };
-const cell_t a_false = { .head = INT(Boolean), .tail = 0 };
-const cell_t a_true = { .head = INT(Boolean), .tail = -1 };
-const cell_t a_nil = { .head = INT(Null), .tail = NIL };
-const cell_t a_fail = { .head = INT(Fail), .tail = UNDEF };
-
-int_t is_raw(int_t val) {
-    // FIXME: need to find a better way to handle non-pointer values
-    if (val < 1024) return TRUE;
-    // FIXME: symbols are only byte-aligned, so we'll get false-positives
-    if (val & 0x3) return TRUE;
-    return FALSE;
-}
+const cell_t a_undef = { .head = MK_PROC(Undef), .tail = UNDEF };
+const cell_t a_unit = { .head = MK_PROC(Unit), .tail = UNDEF };
+const cell_t a_false = { .head = MK_PROC(Boolean), .tail = FALSE };
+const cell_t a_true = { .head = MK_PROC(Boolean), .tail = TRUE };
+const cell_t a_nil = { .head = MK_PROC(Null), .tail = NIL };
+const cell_t a_fail = { .head = MK_PROC(Fail), .tail = UNDEF };
 
 /*
  * error handling
@@ -131,17 +130,17 @@ cell_t cell[CELL_MAX] = {
 };
 // note: free-list is linked by index, not with pointers
 
-int_t in_heap(int_t val) {
-    return MK_BOOL(NAT(PTR(val) - PTR(cell)) < sizeof(cell));
+int in_heap(int_t val) {
+    return IS_ADDR(val) && (NAT(TO_PTR(val) - PTR(cell)) < sizeof(cell));
 }
 
-int_t cell_new() {
+static cell_t *cell_new() {
     int_t head = cell[0].tail;
     int_t next = cell[head].tail;
     if (next) {
         // use cell from free-list
         cell[0].tail = next;
-        return INT(&cell[head]);
+        return &cell[head];
     }
     next = head + 1;
     if (next < cell[0].head) {
@@ -149,14 +148,15 @@ int_t cell_new() {
         cell[next].head = 0;
         cell[next].tail = 0;
         cell[0].tail = next;
-        return INT(&cell[head]);
+        return &cell[head];
     }
-    return panic("out of cell memory");
+    panic("out of cell memory");
+    return PTR(0);  // NOT REACHED!
 }
 
 int_t cell_free(int_t val) {
-    if (in_heap(val) == FALSE) panic("free() of non-heap cell");
-    cell_t *p = PTR(val);
+    if (!in_heap(val)) panic("free() of non-heap cell");
+    cell_t *p = TO_PTR(val);
     p->head = 0;
     // link into free-list
     p->tail = cell[0].tail;
@@ -165,13 +165,10 @@ int_t cell_free(int_t val) {
 }
 
 int_t cons(int_t head, int_t tail) {
-    int_t val = cell_new();
-    if (val != UNDEF) {
-        cell_t *p = PTR(val);
-        p->head = head;
-        p->tail = tail;
-    }
-    return val;
+    cell_t *p = cell_new();
+    p->head = head;
+    p->tail = tail;
+    return MK_PAIR(p);
 }
 
 #define list_0  NIL
@@ -182,53 +179,52 @@ int_t cons(int_t head, int_t tail) {
 #define list_5(v1,v2,v3,v4,v5)  cons((v1), cons((v2), cons((v3), cons((v4), cons((v5), NIL)))))
 
 int_t car(int_t val) {
-    if (val == NIL) return error("car() of NIL");
-    if (val == UNDEF) return UNDEF;
-    // FIXME: need better type checking...
-    cell_t *p = PTR(val);
+    if (!IS_PAIR(val)) return error("car() of non-PAIR");
+    cell_t *p = TO_PTR(val);
     return p->head;
 }
 
 int_t cdr(int_t val) {
-    if (val == NIL) return error("cdr() of NIL");
-    if (val == UNDEF) return UNDEF;
-    // FIXME: need better type checking...
-    cell_t *p = PTR(val);
+    if (!IS_PAIR(val)) return error("cdr() of non-PAIR");
+    cell_t *p = TO_PTR(val);
     return p->tail;
 }
 
 int_t set_car(int_t val, int_t head) {
-    if (in_heap(val) == FALSE) panic("set_car() of non-heap cell");
-    cell_t *p = PTR(val);
+    if (!in_heap(val)) panic("set_car() of non-heap cell");
+    cell_t *p = TO_PTR(val);
     return p->head = head;
 }
 
 int_t set_cdr(int_t val, int_t tail) {
-    if (in_heap(val) == FALSE) panic("set_cdr() of non-heap cell");
-    cell_t *p = PTR(val);
+    if (!in_heap(val)) panic("set_cdr() of non-heap cell");
+    cell_t *p = TO_PTR(val);
     return p->tail = tail;
 }
 
-static int_t get_head(int_t val) {  // car() without type-checks
-    cell_t *p = PTR(val);
+int_t get_code(int_t val) {
+    if (!IS_ACTOR(val)) return error("car() of non-ACTOR");
+    cell_t *p = TO_PTR(val);
     return p->head;
 }
 
-static int_t get_tail(int_t val) {  // cdr() without type-checks
-    cell_t *p = PTR(val);
+int_t get_data(int_t val) {
+    if (!IS_ACTOR(val)) return error("cdr() of non-ACTOR");
+    cell_t *p = TO_PTR(val);
     return p->tail;
 }
 
 PROC_DECL(obj_call) {
-    proc_t p = PTR(get_head(self));
-    if (is_proc(INT(p)) == FALSE) error("obj_call() requires a procedure");
+    int_t code = get_code(self);
+    if (!IS_PROC(code)) return error("obj_call() requires a procedure");
+    proc_t p = TO_PTR(code);
     return (p)(self, args);
 }
 
 int_t cell_usage() {
     int_t count = 0;
     int_t prev = 0;
-    int_t next = cell[prev].tail;
+    int_t next = cell[0].tail;
     while (cell[next].tail) {
         ++count;
         prev = next;
@@ -249,8 +245,8 @@ char intern[INTERN_MAX] = {
     0,  // end of interned strings
 };
 
-int_t is_symbol(int_t val) {
-    return MK_BOOL(NAT(PTR(val) - PTR(intern)) < sizeof(intern));
+int is_symbol(int_t val) {
+    return IS_SYM(val) && (NAT(TO_PTR(val) - PTR(intern)) < sizeof(intern));
 }
 
 int_t symbol(char *s) {
@@ -267,7 +263,7 @@ int_t symbol(char *s) {
                 }
             }
             // found it!
-            return INT(&intern[i-1]);
+            return MK_SYM(i-1);
         }
 next:   i += m;
     }
@@ -277,7 +273,7 @@ next:   i += m;
         intern[i+j] = s[j];
     }
     intern[i+j] = 0;
-    return INT(&intern[i-1]);
+    return MK_SYM(i-1);
 }
 
 int_t s_quote;
@@ -314,39 +310,43 @@ int_t symbol_boot() {
  * actor primitives
  */
 
-int_t is_actor(int_t val) {
-    if (is_raw(val) == TRUE) return FALSE;
-    if (val == UNDEF) return FALSE;  // FIXME: is UNDEF really an actor?
-    return is_proc(get_head(val));
-}
-
 int_t effect_new() {
     return cons(NIL, cons(NIL, NIL));  // empty effect
 }
 
 int_t actor_create(int_t code, int_t data) {
-    return cons(code, data);
+    if (!IS_PROC(code)) return error("actor code must be a procedure");
+    cell_t *p = cell_new();
+    p->head = code;
+    p->tail = data;
+    return MK_ACTOR(p);
 }
 
 int_t effect_create(int_t effect, int_t new_actor) {
-    ASSERT(in_heap(new_actor) == TRUE);
-    ASSERT(is_actor(new_actor) == TRUE);
-    int_t created = cons(new_actor, car(effect));
-    if (in_heap(created) == FALSE) return UNDEF;
-    set_car(effect, created);
+    ASSERT(IS_ACTOR(new_actor));
+    ASSERT(in_heap(new_actor));
+    if (effect == NIL) effect = effect_new();  // lazy init
+    if (IS_PAIR(effect)) {
+        int_t created = cons(new_actor, car(effect));
+        if (!in_heap(created)) return UNDEF;
+        set_car(effect, created);
+    }
     return effect;
 }
 
 int_t actor_send(int_t target, int_t msg) {
-    ASSERT(is_actor(target) == TRUE);
+    ASSERT(IS_ACTOR(target));
     return cons(target, msg);
 }
 
 int_t effect_send(int_t effect, int_t new_event) {
-    ASSERT(in_heap(new_event) == TRUE);
-    int_t rest = cdr(effect);
-    int_t sent = cons(new_event, car(rest));
-    set_car(rest, sent);
+    ASSERT(in_heap(new_event));
+    if (effect == NIL) effect = effect_new();  // lazy init
+    if (IS_PAIR(effect)) {
+        int_t rest = cdr(effect);
+        int_t sent = cons(new_event, car(rest));
+        set_car(rest, sent);
+    }
     return effect;
 }
 
@@ -355,10 +355,13 @@ int_t actor_become(int_t code, int_t data) {
 }
 
 int_t effect_become(int_t effect, int_t new_beh) {
-    ASSERT(in_heap(new_beh) == TRUE);
-    int_t rest = cdr(effect);
-    if (cdr(rest) != NIL) return error("must only BECOME once");
-    set_cdr(rest, new_beh);
+    ASSERT(in_heap(new_beh));
+    if (effect == NIL) effect = effect_new();  // lazy init
+    if (IS_PAIR(effect)) {
+        int_t rest = cdr(effect);
+        if (cdr(rest) != NIL) return error("must only BECOME once");
+        set_cdr(rest, new_beh);
+    }
     return effect;
 }
 
@@ -370,11 +373,11 @@ static cell_t event_q = { .head = NIL, .tail = NIL };
 
 int_t event_q_append(int_t events) {
     if (events == NIL) return OK;  // nothing to add
-    ASSERT(in_heap(events) == TRUE);
+    ASSERT(in_heap(events));
     // find the end of events
     int_t tail = events;
-    while (get_tail(tail) != NIL) {
-        tail = get_tail(tail);
+    while (cdr(tail) != NIL) {
+        tail = cdr(tail);
     }
     // append events on event_q
     if (event_q.head == NIL) {
@@ -389,48 +392,64 @@ int_t event_q_append(int_t events) {
 int_t event_q_take() {
     if (event_q.head == NIL) return UNDEF; // event queue empty
     int_t head = event_q.head;
-    event_q.head = get_tail(head);
+    event_q.head = cdr(head);
     if (event_q.head == NIL) {
         event_q.tail = NIL;  // empty queue
     }
-    int_t event = get_head(head);
+    int_t event = car(head);
     head = cell_free(head);
     return event;
 }
 
 int_t apply_effect(int_t self, int_t effect) {
+    DEBUG(debug_print("apply_effect self", self));
+    DEBUG(debug_print("apply_effect effect", effect));
     if (effect == NIL) return OK;  // no effect
-    if (in_heap(effect) == FALSE) return UNDEF;
-    int_t actors = get_head(effect);
-    if (actors == FAIL) return effect;  // error thrown
-    int_t rest = get_tail(effect);
+    if (!IS_PAIR(effect)) {
+        XDEBUG(debug_print("apply_effect non-PAIR", effect));
+        return UNDEF;
+    }
+    int_t actors = car(effect);
+    if (actors == FAIL) {
+        XDEBUG(debug_print("apply_effect error", effect));
+        return effect;  // error thrown
+    }
+    // unchain actors
+    DEBUG(debug_print("apply_effect actors", actors));
+    int_t rest = cdr(effect);
     effect = cell_free(effect);
-    while (in_heap(actors) == TRUE) {  // free list, but not actors
-        int_t next = get_tail(actors);
+    while (IS_PAIR(actors)) {  // free list, but not actors
+        int_t next = cdr(actors);
         cell_free(actors);
         actors = next;
     }
-    int_t events = get_head(rest);
-    int_t beh = get_tail(rest);
+    int_t events = car(rest);
+    int_t beh = cdr(rest);
     rest = cell_free(rest);
     // update behavior
-    if ((in_heap(beh) == TRUE) && (is_actor(self) == TRUE)) {
-        set_car(self, get_head(beh));
-        set_cdr(self, get_tail(beh));
+    DEBUG(debug_print("apply_effect beh", beh));
+    if (IS_PAIR(beh) && IS_ACTOR(self)) {
+        cell_t *p = TO_PTR(self);
+        p->head = car(beh);
+        p->tail = cdr(beh);
         beh = cell_free(beh);
     }
     // add events to dispatch queue
+    DEBUG(debug_print("apply_effect events", events));
     return event_q_append(events);
 }
 
 int_t event_dispatch() {
     int_t event = event_q_take();
-    if (in_heap(event) == FALSE) return UNDEF;  // nothing to dispatch
-    int_t target = get_head(event);
-    int_t msg = get_tail(event);
+    if (!IS_PAIR(event)) return UNDEF;  // nothing to dispatch
+    int_t target = car(event);
+    DEBUG(debug_print("event_dispatch target", target));
+    int_t msg = cdr(event);
+    DEBUG(debug_print("event_dispatch msg", msg));
     event = cell_free(event);
     // invoke actor behavior
     int_t effect = obj_call(target, msg);
+    DEBUG(debug_print("event_dispatch effect", effect));
     return apply_effect(target, effect);
 }
 
@@ -446,7 +465,7 @@ int_t event_loop() {
  * actor behaviors
  */
 
-#define GET_VARS()     int_t vars = get_tail(self)
+#define GET_VARS()     int_t vars = get_data(self)
 #define POP_VAR(name)  int_t name = car(vars); vars = cdr(vars)
 
 #define POP_ARG(name)  int_t name = car(args); args = cdr(args)
@@ -457,9 +476,8 @@ PROC_DECL(sink_beh) {
     XDEBUG(debug_print("sink_beh args", args));
     return vars;
 }
-
-const cell_t a_sink = { .head = INT(sink_beh), .tail = NIL };
-#define SINK  INT(&a_sink)
+const cell_t a_sink = { .head = MK_PROC(sink_beh), .tail = NIL };
+#define SINK  MK_ACTOR(&a_sink)
 
 PROC_DECL(assert_beh) {
     GET_VARS();
@@ -479,15 +497,15 @@ PROC_DECL(assert_beh) {
 static PROC_DECL(Type) {
     DEBUG(debug_print("Type self", self));
     DEBUG(debug_print("Type args", args));
-    int_t T = get_head(self);  // behavior proc serves as a "type" identifier
+    int_t T = get_code(self);  // behavior proc serves as a "type" identifier
     DEBUG(debug_print("Type T", T));
     POP_ARG(cust);
     POP_ARG(req);
+    int_t effect = NIL;
     if (req == s_typeq) {
         POP_ARG(match_T);
         DEBUG(debug_print("Type match_T", match_T));
         END_ARGS();
-        int_t effect = effect_new();
         int_t result = MK_BOOL(T == match_T);
         DEBUG(debug_print("Type result", result));
         effect = effect_send(effect, actor_send(cust, result));
@@ -502,10 +520,10 @@ static PROC_DECL(SeType) {
     int_t orig = args;
     POP_ARG(cust);
     POP_ARG(req);
+    int_t effect = NIL;
     if (req == s_eval) {
         POP_ARG(_env);
         END_ARGS();
-        int_t effect = effect_new();
         effect = effect_send(effect, actor_send(cust, self));
         return effect;
     }
@@ -532,12 +550,12 @@ PROC_DECL(Boolean) {
     int_t orig = args;
     POP_ARG(cust);
     POP_ARG(req);
+    int_t effect = NIL;
     if (req == s_if) {
         POP_ARG(cnsq);
         POP_ARG(altn);
         POP_ARG(env);
         END_ARGS();
-        int_t effect = effect_new();
         effect = effect_send(
             effect,
             actor_send(
@@ -566,25 +584,15 @@ PROC_DECL(Fail) {
  * display procedures
  */
 
-int_t is_pair(int_t val) {
-    if (is_raw(val) == TRUE) return FALSE;
-    if (is_symbol(val) == TRUE) return FALSE;
-    if (is_proc(val) == TRUE) return FALSE;
-    if (is_actor(val) == TRUE) return FALSE;
-    if (val == UNDEF) return FALSE;
-    return in_heap(val);
-}
-
 void print(int_t value) {
-    if (value == OK) {
-        printf("#ok");
-    } else if (is_symbol(value) == TRUE) {
-        char *s = PTR(value);
+    if (IS_PROC(value)) {
+        proc_t p = TO_PTR(value);
+        printf("#proc-%"PRIxPTR"", NAT(p));
+    } else if (IS_NUM(value)) {
+        printf("%+"PRIdPTR"", TO_INT(value));
+    } else if (IS_SYM(value)) {
+        char *s = &intern[TO_NAT(value)];
         printf("%.*s", (int)(*s), (s + 1));
-    } else if (is_raw(value) == TRUE) {
-        printf("%+"PRIdPTR"", value);
-    } else if (is_proc(value) == TRUE) {
-        printf("#proc-%"PRIxPTR"", value);
     } else if (value == UNDEF) {
         printf("#undefined");
     } else if (value == UNIT) {
@@ -597,11 +605,12 @@ void print(int_t value) {
         printf("()");
     } else if (value == FAIL) {
         printf("#fail");
-    } else if (is_actor(value) == TRUE) {
-        printf("#actor-%"PRIxPTR"", value);
-    } else if (is_pair(value) == TRUE) {
+    } else if (IS_ACTOR(value)) {
+        cell_t *p = TO_PTR(value);
+        printf("#actor-%"PRIxPTR"", NAT(p));
+    } else if (IS_PAIR(value)) {
         char *s = "(";
-        while (is_pair(value) == TRUE) {
+        while (IS_PAIR(value)) {
             printf("%s", s);
             XDEBUG(fflush(stdout));
             print(car(value));
@@ -615,7 +624,7 @@ void print(int_t value) {
         }
         printf(")");
     } else {
-        printf("#unknown-%"PRIxPTR"", value);
+        printf("#unknown?-%"PRIxPTR"", value);
     }
     XDEBUG(fflush(stdout));
 }
@@ -624,21 +633,16 @@ void debug_print(char *label, int_t value) {
     fprintf(stderr, "%s:", label);
     fprintf(stderr, " 16#%"PRIxPTR"", value);
     //fprintf(stderr, " %"PRIdPTR"", value);
-    if (is_raw(value) == TRUE) {
-        fprintf(stderr, " RAW");
-    }
-    if (is_symbol(value) == TRUE) {
-        fprintf(stderr, " SYM");
-    }
-    if (is_proc(value) == TRUE) {
-        fprintf(stderr, " PROC");
-    }
-    if (is_actor(value) == TRUE) {
-        fprintf(stderr, " ACTOR");
-    }
-    if (is_pair(value) == TRUE) {
-        fprintf(stderr, " <%"PRIxPTR",%"PRIxPTR">",
-            get_head(value), get_tail(value));
+    if (in_heap(value)) fprintf(stderr, " HEAP");
+    //if (IS_ADDR(value)) fprintf(stderr, " ADDR");
+    if (IS_PROC(value)) fprintf(stderr, " PROC");
+    if (IS_NUM(value)) fprintf(stderr, " NUM");
+    if (IS_PAIR(value)) fprintf(stderr, " PAIR");
+    if (IS_SYM(value)) fprintf(stderr, " SYM");
+    if (IS_ACTOR(value)) fprintf(stderr, " ACTOR");
+    if (IS_ADDR(value) && !IS_PROC(value)) {
+        cell_t *p = TO_PTR(value);
+        fprintf(stderr, " <%"PRIxPTR",%"PRIxPTR">", p->head, p->tail);
     }
     //fprintf(stderr, "\n");
     fprintf(stderr, " ");
@@ -678,24 +682,28 @@ static void hexdump(char *label, int_t *addr, size_t cnt) {
  */
 
 int_t test_values() {
+    XDEBUG(fprintf(stderr, "--test_values--\n"));
+    XDEBUG(debug_print("test_values OK", OK));
+    XDEBUG(debug_print("test_values INF", INF));
     XDEBUG(debug_print("test_values FALSE", FALSE));
     XDEBUG(debug_print("test_values TRUE", TRUE));
     XDEBUG(debug_print("test_values NIL", NIL));
     XDEBUG(debug_print("test_values UNIT", UNIT));
     XDEBUG(debug_print("test_values FAIL", FAIL));
     XDEBUG(debug_print("test_values UNDEF", UNDEF));
+    XDEBUG(debug_print("test_values Undef", MK_PROC(Undef)));
     XDEBUG(debug_print("test_values s_quote", s_quote));
     XDEBUG(debug_print("test_values s_match", s_match));
+    XDEBUG(debug_print("test_values SINK", SINK));
     return OK;
 }
 
 int_t test_cells() {
+    XDEBUG(fprintf(stderr, "--test_cells--\n"));
     int_t v, v0, v1, v2;
-    int_t n;
-    cell_t c;
 
     v = cons(TRUE, FALSE);
-    ASSERT(in_heap(v) == TRUE);
+    ASSERT(in_heap(v));
     XDEBUG(debug_print("test_cells cons v", v));
     XDEBUG(debug_print("test_cells cons car(v)", car(v)));
     XDEBUG(debug_print("test_cells cons cdr(v)", cdr(v)));
@@ -704,21 +712,22 @@ int_t test_cells() {
 
     v0 = cons(v, NIL);
     XDEBUG(debug_print("test_cells cons v0", v0));
-    ASSERT(in_heap(v0) == TRUE);
+    ASSERT(in_heap(v0));
 
-    //v1 = list_3(-1, 2, 3);
-    v1 = list_3(s_quote, s_eval, s_apply);
+    v1 = list_3(MK_NUM(-1), MK_NUM(2), MK_NUM(3));
+    //v1 = list_3(s_quote, s_eval, s_apply);
     XDEBUG(debug_print("test_cells cons v1", v1));
-    ASSERT(in_heap(v1) == TRUE);
+    ASSERT(in_heap(v1));
 
     v2 = cell_free(v0);
     XDEBUG(debug_print("test_cells free v0", v2));
     ASSERT(v2 == NIL);
 
-    v2 = cons(INT(Fail), v1);
+    //v2 = actor_create(MK_PROC(Fail), v1);
+    v2 = actor_create(MK_PROC(sink_beh), v1);
     XDEBUG(debug_print("test_cells cons v2", v2));
-    ASSERT(in_heap(v2) == TRUE);
-    ASSERT(PTR(v2) == PTR(v0));  // re-used cell?
+    ASSERT(in_heap(v2));
+    ASSERT(TO_PTR(v2) == TO_PTR(v0));  // re-used cell?
     v1 = obj_call(v2, v);
 
     v = cell_free(v);
@@ -735,36 +744,38 @@ int_t test_cells() {
 }
 
 int_t test_actors() {
-    int_t effect = effect_new();
-    DEBUG(debug_print("test_actors new effect", effect));
-    int_t a = actor_create(INT(sink_beh), NIL);
-    DEBUG(debug_print("test_actors a", a));
+    XDEBUG(fprintf(stderr, "--test_actors--\n"));
+    int_t effect = NIL; //effect_new();
+    DEBUG(debug_print("test_actors effect", effect));
+    int_t a = actor_create(MK_PROC(sink_beh), NIL);
+    DEBUG(debug_print("test_actors actor_create", a));
     effect = effect_create(effect, a);
-    DEBUG(debug_print("test_actors create effect", effect));
+    DEBUG(debug_print("test_actors effect_create", effect));
     int_t m = list_3(SINK, s_eval, NIL);
-    DEBUG(debug_print("test_actors m", m));
+    DEBUG(debug_print("test_actors message", m));
     int_t e = actor_send(a, m);
-    DEBUG(debug_print("test_actors e", e));
+    DEBUG(debug_print("test_actors actor_send", e));
     effect = effect_send(effect, e);
-    DEBUG(debug_print("test_actors send effect", effect));
+    DEBUG(debug_print("test_actors effect_send", effect));
     int_t x = apply_effect(UNDEF, effect);
-    DEBUG(debug_print("test_actors apply effect", x));
+    DEBUG(debug_print("test_actors apply_effect", x));
     int_t r = event_dispatch();
     XDEBUG(debug_print("test_actors event_dispatch", r));
+    if (r != OK) return r;  // early exit on failure...
 
 #if 1
-    effect = effect_new();
+    effect = NIL; //effect_new();
     // UNIT is self-evaluating
-    a = actor_create(INT(assert_beh), UNIT);
+    a = actor_create(MK_PROC(assert_beh), UNIT);
     effect = effect_create(effect, a);
     m = list_3(a, s_eval, NIL);
     XDEBUG(debug_print("test_actors m_1", m));
     e = actor_send(UNIT, m);
     effect = effect_send(effect, e);
     // UNIT has Unit type
-    a = actor_create(INT(assert_beh), TRUE);
+    a = actor_create(MK_PROC(assert_beh), TRUE);
     effect = effect_create(effect, a);
-    m = list_3(a, s_typeq, INT(Unit));
+    m = list_3(a, s_typeq, MK_PROC(Unit));
     XDEBUG(debug_print("test_actors m_2", m));
     e = actor_send(UNIT, m);
     effect = effect_send(effect, e);
@@ -809,14 +820,12 @@ int main(int argc, char const *argv[])
     fprintf(stderr, "   UNIT = %"PRIxPTR"\n", UNIT);
     ASSERT(INT(newline) < INT(main));
 
-    ASSERT(is_proc(INT(Undef)) == TRUE);
-    //ASSERT(is_actor(UNDEF) == TRUE);
+    XDEBUG(hexdump("UNDEF", TO_PTR(UNDEF), 12));
+    ASSERT(IS_ACTOR(UNDEF));
 
-    ASSERT(is_proc(INT(Unit)) == TRUE);
-    ASSERT(is_raw(UNIT) == FALSE);
     ASSERT(UNIT != UNDEF);
-    ASSERT(is_proc(car(UNIT)) == TRUE);
-    ASSERT(is_actor(UNIT) == TRUE);
+    ASSERT(IS_ACTOR(UNIT));
+    ASSERT(IS_PROC(get_code(UNIT)));
 
     fprintf(stderr, "   cell = %"PRIxPTR"x%"PRIxPTR"\n",
         INT(cell), NAT(sizeof(cell)));
@@ -826,7 +835,7 @@ int main(int argc, char const *argv[])
 
     fprintf(stderr, "s_quote = %"PRIxPTR"\n", s_quote);
     fprintf(stderr, "s_match = %"PRIxPTR"\n", s_match);
-    ASSERT(is_symbol(s_match) == TRUE);
+    ASSERT(IS_SYM(s_match));
 
 #if 1
     result = unit_tests();
@@ -834,13 +843,13 @@ int main(int argc, char const *argv[])
 #endif
 
 #if 0
-    cell_t *p = PTR(UNDEF);
+    cell_t *p = TO_PTR(UNDEF);
     p->tail = NIL;  // FIXME: should not be able to assign to `const`
 #endif
 
     return (result == OK ? 0 : 1);
 }
 
-int_t is_proc(int_t val) {
-    return MK_BOOL((val >= INT(newline)) && (val <= INT(main)));
+int is_proc(int_t val) {
+    return IS_ACTOR(val) && (TO_PTR(val) >= PTR(newline)) && (TO_PTR(val) <= PTR(main));
 }
