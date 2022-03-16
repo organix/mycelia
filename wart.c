@@ -82,7 +82,12 @@ void newline() {  // DO NOT MOVE -- USED TO DEFINE is_proc()
 PROC_DECL(Undef);
 PROC_DECL(Unit);
 PROC_DECL(Boolean);
+//PROC_DECL(false_beh);
+//PROC_DECL(true_beh);
 PROC_DECL(Null);
+PROC_DECL(Pair);
+PROC_DECL(Symbol);
+PROC_DECL(Fixnum);
 PROC_DECL(Fail);
 
 int is_proc(int_t val);
@@ -214,8 +219,20 @@ int_t get_data(int_t val) {
     return p->tail;
 }
 
+// polymorphic dispatch procedure
 PROC_DECL(obj_call) {
-    int_t code = get_code(self);
+    int_t code = UNDEF;
+    if (IS_PROC(self)) {
+        code = self;
+    } else if (IS_PAIR(self)) {
+        code = MK_PROC(Pair);
+    } else if (IS_SYM(self)) {
+        code = MK_PROC(Symbol);
+    } else if (IS_NUM(self)) {
+        code = MK_PROC(Fixnum);
+    } else if (IS_ACTOR(self)) {
+        code = get_code(self);
+    }
     if (!IS_PROC(code)) return error("obj_call() requires a procedure");
     proc_t p = TO_PTR(code);
     return (p)(self, args);
@@ -335,7 +352,7 @@ int_t effect_create(int_t effect, int_t new_actor) {
 }
 
 int_t actor_send(int_t target, int_t msg) {
-    ASSERT(IS_ACTOR(target));
+    //ASSERT(IS_ACTOR(target)); -- obj_call() polymorphic dispatch works for _ANY_ value!
     return cons(target, msg);
 }
 
@@ -545,7 +562,7 @@ PROC_DECL(Unit) {
 PROC_DECL(Boolean) {
     GET_VARS();
     XDEBUG(debug_print("Boolean self", self));
-    XDEBUG(debug_print("Boolean vars", vars));
+    XDEBUG(debug_print("Boolean vars", vars)); // FIXME: should be #t/#f delegate
     XDEBUG(debug_print("Boolean args", args));
     int_t orig = args;
     POP_ARG(cust);
@@ -571,6 +588,24 @@ PROC_DECL(Boolean) {
 PROC_DECL(Null) {
     XDEBUG(debug_print("Null self", self));
     XDEBUG(debug_print("Null args", args));
+    return SeType(self, args);  // delegate to SeType
+}
+
+PROC_DECL(Pair) {
+    XDEBUG(debug_print("Symbol self", self));
+    XDEBUG(debug_print("Symbol args", args));
+    return Type(self, args);  // delegate to Type (not self-evaluating)
+}
+
+PROC_DECL(Symbol) {
+    XDEBUG(debug_print("Symbol self", self));
+    XDEBUG(debug_print("Symbol args", args));
+    return SeType(self, args);  // delegate to SeType
+}
+
+PROC_DECL(Fixnum) {
+    XDEBUG(debug_print("Fixnum self", self));
+    XDEBUG(debug_print("Fixnum args", args));
     return SeType(self, args);  // delegate to SeType
 }
 
