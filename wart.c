@@ -33,7 +33,7 @@ typedef struct cell {
     int_t       tail;
 } cell_t;
 
-#define PROC_DECL(name)  int_t name(int_t self, int_t args)
+#define PROC_DECL(name)  int_t name(int_t self, int_t arg)
 
 typedef PROC_DECL((*proc_t));
 
@@ -235,7 +235,7 @@ PROC_DECL(obj_call) {
     }
     if (!IS_PROC(code)) return error("obj_call() requires a procedure");
     proc_t p = TO_PTR(code);
-    return (p)(self, args);
+    return (p)(self, arg);
 }
 
 int_t cell_usage() {
@@ -485,20 +485,22 @@ int_t event_loop() {
 #define GET_VARS()     int_t vars = get_data(self)
 #define POP_VAR(name)  int_t name = car(vars); vars = cdr(vars)
 
+#define GET_ARGS()     int_t args = arg
 #define POP_ARG(name)  int_t name = car(args); args = cdr(args)
 #define END_ARGS()     if (args != NIL) return error("too many args")
 
 PROC_DECL(sink_beh) {
+    XDEBUG(debug_print("sink_beh arg", arg));
     GET_VARS();
-    XDEBUG(debug_print("sink_beh args", args));
     return vars;
 }
 const cell_t a_sink = { .head = MK_PROC(sink_beh), .tail = NIL };
 #define SINK  MK_ACTOR(&a_sink)
 
 PROC_DECL(assert_beh) {
-    GET_VARS();
     XDEBUG(debug_print("assert_beh self", self));
+    GET_VARS();
+    GET_ARGS();
     if (args != vars) {
         XDEBUG(debug_print("assert_beh actual", args));
         XDEBUG(debug_print("assert_beh expect", vars));
@@ -513,7 +515,8 @@ PROC_DECL(assert_beh) {
 
 static PROC_DECL(Type) {
     DEBUG(debug_print("Type self", self));
-    DEBUG(debug_print("Type args", args));
+    DEBUG(debug_print("Type arg", arg));
+    GET_ARGS();
     int_t T = get_code(self);  // behavior proc serves as a "type" identifier
     DEBUG(debug_print("Type T", T));
     POP_ARG(cust);
@@ -533,8 +536,8 @@ static PROC_DECL(Type) {
 
 static PROC_DECL(SeType) {
     DEBUG(debug_print("SeType self", self));
-    DEBUG(debug_print("SeType args", args));
-    int_t orig = args;
+    DEBUG(debug_print("SeType arg", arg));
+    GET_ARGS();
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -544,27 +547,27 @@ static PROC_DECL(SeType) {
         effect = effect_send(effect, actor_send(cust, self));
         return effect;
     }
-    return Type(self, orig);  // delegate to Type
+    return Type(self, arg);  // delegate to Type
 }
 
 PROC_DECL(Undef) {
     XDEBUG(debug_print("Undef self", self));
-    XDEBUG(debug_print("Undef args", args));
-    return SeType(self, args);  // delegate to SeType
+    XDEBUG(debug_print("Undef arg", arg));
+    return SeType(self, arg);  // delegate to SeType
 }
 
 PROC_DECL(Unit) {
     XDEBUG(debug_print("Unit self", self));
-    XDEBUG(debug_print("Unit args", args));
-    return SeType(self, args);  // delegate to SeType
+    XDEBUG(debug_print("Unit arg", arg));
+    return SeType(self, arg);  // delegate to SeType
 }
 
 PROC_DECL(Boolean) {
-    GET_VARS();
     XDEBUG(debug_print("Boolean self", self));
+    XDEBUG(debug_print("Boolean arg", arg));
+    GET_VARS();
     XDEBUG(debug_print("Boolean vars", vars)); // FIXME: should be #t/#f delegate
-    XDEBUG(debug_print("Boolean args", args));
-    int_t orig = args;
+    GET_ARGS();
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -582,36 +585,36 @@ PROC_DECL(Boolean) {
         );
         return effect;
     }
-    return SeType(self, orig);  // delegate to SeType
+    return SeType(self, arg);  // delegate to SeType
 }
 
 PROC_DECL(Null) {
     XDEBUG(debug_print("Null self", self));
-    XDEBUG(debug_print("Null args", args));
-    return SeType(self, args);  // delegate to SeType
+    XDEBUG(debug_print("Null arg", arg));
+    return SeType(self, arg);  // delegate to SeType
 }
 
 PROC_DECL(Pair) {
     XDEBUG(debug_print("Symbol self", self));
-    XDEBUG(debug_print("Symbol args", args));
-    return Type(self, args);  // delegate to Type (not self-evaluating)
+    XDEBUG(debug_print("Symbol arg", arg));
+    return Type(self, arg);  // delegate to Type (not self-evaluating)
 }
 
 PROC_DECL(Symbol) {
     XDEBUG(debug_print("Symbol self", self));
-    XDEBUG(debug_print("Symbol args", args));
-    return SeType(self, args);  // delegate to SeType
+    XDEBUG(debug_print("Symbol arg", arg));
+    return SeType(self, arg);  // delegate to SeType
 }
 
 PROC_DECL(Fixnum) {
     XDEBUG(debug_print("Fixnum self", self));
-    XDEBUG(debug_print("Fixnum args", args));
-    return SeType(self, args);  // delegate to SeType
+    XDEBUG(debug_print("Fixnum arg", arg));
+    return SeType(self, arg);  // delegate to SeType
 }
 
 PROC_DECL(Fail) {
     XDEBUG(debug_print("Fail self", self));
-    XDEBUG(debug_print("Fail args", args));
+    XDEBUG(debug_print("Fail arg", arg));
     return error("FAILED");
 }
 
