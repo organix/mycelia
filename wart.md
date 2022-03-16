@@ -98,10 +98,10 @@ Tag  | Type   | Description
 2#10 | Symbol | (x>>2) = index into symbol table
 2#11 | Actor  | (x&~3) = machine address of cell
 
-Since they are opaque values,
-_Procedures_ are encoded as _Actors_,
+_Procedures_ are encoded as _Actors_
+(since they are opaque values),
 using the raw code address.
-Some code performs additional checks
+Some code performs an additional check
 to disambiguate when needed.
 
 ### Object Method Invocations

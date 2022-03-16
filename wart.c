@@ -484,26 +484,155 @@ int_t event_loop() {
 
 #define GET_VARS()     int_t vars = get_data(self)
 #define POP_VAR(name)  int_t name = car(vars); vars = cdr(vars)
+#define TAIL_VAR(name) int_t name = vars
 
 #define GET_ARGS()     int_t args = arg
 #define POP_ARG(name)  int_t name = car(args); args = cdr(args)
+#define TAIL_ARG(name) int_t name = args
 #define END_ARGS()     if (args != NIL) return error("too many args")
 
 PROC_DECL(sink_beh) {
+    DEBUG(debug_print("sink_beh self", self));
     XDEBUG(debug_print("sink_beh arg", arg));
-    GET_VARS();
-    return vars;
+    GET_VARS();  // effect
+    DEBUG(debug_print("sink_beh vars", vars));
+    TAIL_VAR(effect);
+    return effect;
 }
 const cell_t a_sink = { .head = MK_PROC(sink_beh), .tail = NIL };
 #define SINK  MK_ACTOR(&a_sink)
 
+PROC_DECL(tag_beh) {
+    XDEBUG(debug_print("tag_beh self", self));
+    GET_VARS();  // cust
+    XDEBUG(debug_print("tag_beh vars", vars));
+    TAIL_VAR(cust);
+    GET_ARGS();  // msg
+    XDEBUG(debug_print("tag_beh args", args));
+    TAIL_ARG(msg);
+    int_t effect = NIL;
+
+    effect = effect_send(effect,
+        actor_send(cust, cons(self, msg)));
+
+    return effect;
+}
+
+static PROC_DECL(join_h_beh) {
+    XDEBUG(debug_print("join_h_beh self", self));
+    GET_VARS();  // (cust head . k_tail)
+    XDEBUG(debug_print("join_h_beh vars", vars));
+    POP_VAR(cust);
+    POP_VAR(head);
+    TAIL_VAR(k_tail);
+    GET_ARGS();  // (tag . tail)
+    XDEBUG(debug_print("join_h_beh args", args));
+    POP_ARG(tag);
+    TAIL_ARG(tail);
+    int_t effect = NIL;
+
+    if (tag == k_tail) {
+        effect = effect_send(effect,
+            actor_send(cust, cons(head, tail)));
+    } else {
+        effect = effect_send(effect,
+            actor_send(cust, error("unexpected join tag")));
+    }
+
+    return effect;
+}
+static PROC_DECL(join_t_beh) {
+    XDEBUG(debug_print("join_t_beh self", self));
+    GET_VARS();  // (cust k_head . tail)
+    XDEBUG(debug_print("join_t_beh vars", vars));
+    POP_VAR(cust);
+    POP_VAR(k_head);
+    TAIL_VAR(tail);
+    GET_ARGS();  // (tag . head)
+    XDEBUG(debug_print("join_t_beh args", args));
+    POP_ARG(tag);
+    TAIL_ARG(head);
+    int_t effect = NIL;
+
+    if (tag == k_head) {
+        effect = effect_send(effect,
+            actor_send(cust, cons(head, tail)));
+    } else {
+        effect = effect_send(effect,
+            actor_send(cust, error("unexpected join tag")));
+    }
+
+    return effect;
+}
+PROC_DECL(join_beh) {
+    XDEBUG(debug_print("join_beh self", self));
+    GET_VARS();  // (cust k_head . k_tail)
+    XDEBUG(debug_print("join_beh vars", vars));
+    POP_VAR(cust);
+    POP_VAR(k_head);
+    TAIL_VAR(k_tail);
+    GET_ARGS();  // (tag . value)
+    XDEBUG(debug_print("join_beh args", args));
+    POP_ARG(tag);
+    TAIL_ARG(value);
+    int_t effect = NIL;
+
+    if (tag == k_head) {
+        effect = effect_become(effect,
+            actor_become(MK_PROC(join_h_beh), cons(cust, cons(value, k_tail))));
+    } else if (tag == k_tail) {
+        effect = effect_become(effect,
+            actor_become(MK_PROC(join_t_beh), cons(cust, cons(k_head, value))));
+    } else {
+        effect = effect_send(effect,
+            actor_send(cust, error("unexpected join tag")));
+    }
+
+    return effect;
+}
+
+PROC_DECL(fork_beh) {
+    XDEBUG(debug_print("fork_beh self", self));
+    GET_VARS();  // (cust head . tail)
+    XDEBUG(debug_print("fork_beh vars", vars));
+    POP_VAR(cust);
+    POP_VAR(head);
+    TAIL_VAR(tail);
+    GET_ARGS();  // (h_req . t_req)
+    XDEBUG(debug_print("fork_beh args", args));
+    POP_ARG(h_req);
+    TAIL_ARG(t_req);
+    int_t effect = NIL;
+
+    int_t k_head = actor_create(MK_PROC(tag_beh), self);
+    effect = effect_create(effect, k_head);
+
+    int_t k_tail = actor_create(MK_PROC(tag_beh), self);
+    effect = effect_create(effect, k_tail);
+
+    effect = effect_send(effect,
+        actor_send(head, cons(k_head, h_req)));
+
+    effect = effect_send(effect,
+        actor_send(tail, cons(k_tail, t_req)));
+
+    effect = effect_become(effect,
+        actor_become(MK_PROC(join_beh), cons(cust, cons(k_head, k_tail))));
+
+    return effect;
+}
+
 PROC_DECL(assert_beh) {
     XDEBUG(debug_print("assert_beh self", self));
-    GET_VARS();
-    GET_ARGS();
-    if (args != vars) {
-        XDEBUG(debug_print("assert_beh actual", args));
-        XDEBUG(debug_print("assert_beh expect", vars));
+    GET_VARS();  // expect
+    DEBUG(debug_print("assert_beh vars", vars));
+    TAIL_VAR(expect);
+    GET_ARGS();  // actual
+    DEBUG(debug_print("assert_beh args", args));
+    TAIL_ARG(actual);
+    if (expect != actual) {
+        XDEBUG(debug_print("assert_beh expect", expect));
+        XDEBUG(debug_print("assert_beh actual", actual));
         return panic("assert_beh expect != actual");
     }
     return NIL;
@@ -515,35 +644,37 @@ PROC_DECL(assert_beh) {
 
 static PROC_DECL(Type) {
     DEBUG(debug_print("Type self", self));
-    DEBUG(debug_print("Type arg", arg));
-    GET_ARGS();
     int_t T = get_code(self);  // behavior proc serves as a "type" identifier
     DEBUG(debug_print("Type T", T));
+    GET_ARGS();
+    DEBUG(debug_print("Type args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
-    if (req == s_typeq) {
-        POP_ARG(match_T);
-        DEBUG(debug_print("Type match_T", match_T));
+    if (req == s_typeq) {  // (cust 'typeq T)
+        POP_ARG(Tq);
+        XDEBUG(debug_print("Type T?", Tq));
         END_ARGS();
-        int_t result = MK_BOOL(T == match_T);
-        DEBUG(debug_print("Type result", result));
-        effect = effect_send(effect, actor_send(cust, result));
+        int_t value = MK_BOOL(T == Tq);
+        XDEBUG(debug_print("Type value", value));
+        effect = effect_send(effect, actor_send(cust, value));
         return effect;
     }
-    return UNDEF;
+    XDEBUG(debug_print("Type NOT UNDERSTOOD", arg));
+    return effect_send(effect, actor_send(cust, UNDEF));
 }
 
 static PROC_DECL(SeType) {
     DEBUG(debug_print("SeType self", self));
-    DEBUG(debug_print("SeType arg", arg));
     GET_ARGS();
+    DEBUG(debug_print("SeType args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
-    if (req == s_eval) {
+    if (req == s_eval) {  // (cust 'eval env)
         POP_ARG(_env);
         END_ARGS();
+        XDEBUG(debug_print("SeType value", self));
         effect = effect_send(effect, actor_send(cust, self));
         return effect;
     }
@@ -552,37 +683,119 @@ static PROC_DECL(SeType) {
 
 PROC_DECL(Undef) {
     XDEBUG(debug_print("Undef self", self));
-    XDEBUG(debug_print("Undef arg", arg));
+    GET_ARGS();
+    XDEBUG(debug_print("Undef args", args));
     return SeType(self, arg);  // delegate to SeType
 }
 
 PROC_DECL(Unit) {
     XDEBUG(debug_print("Unit self", self));
-    XDEBUG(debug_print("Unit arg", arg));
+    GET_ARGS();
+    XDEBUG(debug_print("Unit args", args));
     return SeType(self, arg);  // delegate to SeType
 }
 
-PROC_DECL(Boolean) {
-    XDEBUG(debug_print("Boolean self", self));
-    XDEBUG(debug_print("Boolean arg", arg));
-    GET_VARS();
-    XDEBUG(debug_print("Boolean vars", vars)); // FIXME: should be #t/#f delegate
+static PROC_DECL(Appl_k_args) {
+    XDEBUG(debug_print("Appl_k_args self", self));
+    GET_VARS();  // (cust oper env)
+    XDEBUG(debug_print("Appl_k_args vars", vars));
+    POP_VAR(cust);
+    POP_VAR(oper);
+    POP_VAR(env);
+    GET_ARGS();  // opnd
+    XDEBUG(debug_print("Appl_k_args args", args));
+    TAIL_ARG(opnd);
+    int_t effect = NIL;
+    effect = effect_send(effect,
+        actor_send(oper, list_4(cust, s_apply, opnd, env)));
+    return effect;
+}
+PROC_DECL(Appl) {
+    XDEBUG(debug_print("Appl self", self));
+    GET_VARS();  // oper
+    XDEBUG(debug_print("Appl vars", vars));
+    TAIL_VAR(oper);
     GET_ARGS();
+    XDEBUG(debug_print("Appl args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
-    if (req == s_if) {
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        int_t k_args = actor_create(MK_PROC(Appl_k_args), list_3(cust, oper, env));
+        effect = effect_create(effect, k_args);
+        effect = effect_send(effect,
+            actor_send(opnd, list_4(k_args, s_map, s_eval, env)));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+
+PROC_DECL(Oper_list) {  // (list . values)
+    XDEBUG(debug_print("Oper_list self", self));
+    GET_ARGS();
+    XDEBUG(debug_print("Oper_list args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(_env);
+        END_ARGS();
+        XDEBUG(debug_print("Oper_list value", opnd));
+        effect = effect_send(effect, actor_send(cust, opnd));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t a_list = { .head = MK_PROC(Appl), .tail = MK_PROC(Oper_list) };
+
+PROC_DECL(Oper_quote) {  // (quote expr)
+    XDEBUG(debug_print("Oper_quote self", self));
+    GET_ARGS();
+    XDEBUG(debug_print("Oper_quote args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(_env);
+        END_ARGS();
+        int_t expr = car(opnd);
+        if (cdr(opnd) != NIL) {
+            effect = effect_send(effect,
+                actor_send(cust, error("expected 1 argument")));
+        } else {
+            XDEBUG(debug_print("Oper_quote value", expr));
+            effect = effect_send(effect, actor_send(cust, expr));
+        }
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t a_quote = { .head = MK_PROC(Oper_quote), .tail = UNDEF };
+
+PROC_DECL(Boolean) {
+    XDEBUG(debug_print("Boolean self", self));
+    GET_VARS();  // bval
+    XDEBUG(debug_print("Boolean vars", vars));
+    TAIL_VAR(bval); // FIXME: should be #t/#f delegate
+    GET_ARGS();
+    XDEBUG(debug_print("Boolean args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_if) {  // (cust 'if cnsq altn env)
         POP_ARG(cnsq);
         POP_ARG(altn);
         POP_ARG(env);
         END_ARGS();
-        effect = effect_send(
-            effect,
+        effect = effect_send(effect,
             actor_send(
-                (vars ? cnsq : altn),
-                list_3(cust, s_eval, env)
-            )
-        );
+                (bval ? cnsq : altn),
+                list_3(cust, s_eval, env)));
         return effect;
     }
     return SeType(self, arg);  // delegate to SeType
@@ -590,31 +803,63 @@ PROC_DECL(Boolean) {
 
 PROC_DECL(Null) {
     XDEBUG(debug_print("Null self", self));
-    XDEBUG(debug_print("Null arg", arg));
+    GET_ARGS();
+    XDEBUG(debug_print("Null args", args));
     return SeType(self, arg);  // delegate to SeType
 }
 
-PROC_DECL(Pair) {
-    XDEBUG(debug_print("Symbol self", self));
-    XDEBUG(debug_print("Symbol arg", arg));
+static PROC_DECL(Pair_k_apply) {
+    XDEBUG(debug_print("Pair_k_apply self", self));
+    GET_VARS();  // (cust opnd env)
+    XDEBUG(debug_print("Pair_k_apply vars", vars));
+    POP_VAR(cust);
+    POP_VAR(opnd);
+    POP_VAR(env);
+    GET_ARGS();  // oper
+    XDEBUG(debug_print("Pair_k_apply args", args));
+    TAIL_ARG(oper);
+    int_t effect = NIL;
+    effect = effect_send(effect,
+        actor_send(oper, list_4(cust, s_apply, opnd, env)));
+    return effect;
+}
+PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
+    XDEBUG(debug_print("Pair self", self));
+    GET_ARGS();
+    XDEBUG(debug_print("Pair args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_eval) {  // (cust 'eval env)
+        POP_ARG(env);
+        END_ARGS();
+        int_t k_apply = actor_create(MK_PROC(Pair_k_apply), list_3(cust, cdr(self), env));
+        effect = effect_create(effect, k_apply);
+        effect = effect_send(effect,
+            actor_send(car(self), list_3(k_apply, s_eval, env)));
+        return effect;
+    }
     return Type(self, arg);  // delegate to Type (not self-evaluating)
 }
 
-PROC_DECL(Symbol) {
+PROC_DECL(Symbol) {  // WARNING: behavior used directly in obj_call()
     XDEBUG(debug_print("Symbol self", self));
-    XDEBUG(debug_print("Symbol arg", arg));
-    return SeType(self, arg);  // delegate to SeType
+    GET_ARGS();
+    XDEBUG(debug_print("Symbol args", args));
+    return Type(self, arg);  // delegate to Type (not self-evaluating)
 }
 
-PROC_DECL(Fixnum) {
+PROC_DECL(Fixnum) {  // WARNING: behavior used directly in obj_call()
     XDEBUG(debug_print("Fixnum self", self));
-    XDEBUG(debug_print("Fixnum arg", arg));
+    GET_ARGS();
+    XDEBUG(debug_print("Fixnum args", args));
     return SeType(self, arg);  // delegate to SeType
 }
 
 PROC_DECL(Fail) {
     XDEBUG(debug_print("Fail self", self));
-    XDEBUG(debug_print("Fail arg", arg));
+    GET_ARGS();
+    XDEBUG(debug_print("Fail args", args));
     return error("FAILED");
 }
 
@@ -826,10 +1071,35 @@ int_t test_actors() {
     return OK;
 }
 
+int_t test_eval() {
+    XDEBUG(fprintf(stderr, "--test_eval--\n"));
+    int_t cust;
+    int_t expr;
+    int_t env = NIL;  // FIXME: should be the "empty" environment
+    int_t result;
+
+    int_t effect = NIL;
+    int_t s_foo = symbol("foo");
+    cust = actor_create(MK_PROC(assert_beh), s_foo);
+    effect = effect_create(effect, cust);
+    //expr = list_2(s_quote, s_foo);  // (quote foo)
+    expr = list_2(MK_ACTOR(&a_quote), s_foo);  // (<quote> foo)
+    effect = effect_send(effect,
+        actor_send(expr, list_3(cust, s_eval, env)));
+
+    // dispatch all pending events
+    ASSERT(apply_effect(UNDEF, effect) == OK);
+    result = event_loop();
+    XDEBUG(debug_print("test_eval event_loop", result));
+
+    return OK;
+}
+
 int_t unit_tests() {
     if (test_values() != OK) return UNDEF;
     if (test_cells() != OK) return UNDEF;
     if (test_actors() != OK) return UNDEF;
+    if (test_eval() != OK) return UNDEF;
     int_t usage = cell_usage();
     usage = cell_free(usage);
     return OK;

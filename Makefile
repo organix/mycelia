@@ -55,14 +55,21 @@ kernel.img: loadmap $(KOBJS)
 .c.o:
 	$(CC) -c -o $@ $<
 
+.c.i:
+	$(CC) -E -o $@ $<
+
 quartet: quartet.c
-	cc $< -o $@
+	cc -o $@ $<
 
 wart: wart.c
-	cc $< -o $@
+	cc -o $@ $<
+
+wart.i: wart.c
+	cc -E -o $@ $<
 
 clean:
 	rm -f *.o
+	rm -f *.i
 	rm -f *.bin
 	rm -f *.hex
 	rm -f *.elf
