@@ -14,8 +14,8 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #include <stdint.h>     // for intptr_t, uintptr_t, uint8_t, uint16_t, etc.
 #include <inttypes.h>   // for PRIiPTR, PRIuPTR, PRIXPTR, etc.
 
-#define DEBUG(x)        // include/exclude debug instrumentation
-#define XDEBUG(x) x     // include/exclude extra debugging
+#define DEBUG(x)    x   // include/exclude debug instrumentation
+#define XDEBUG(x)       // include/exclude extra debugging
 
 #define NO_CELL_FREE 0  // never release allocated cells
 
@@ -200,8 +200,8 @@ int_t cdr(int_t val) {
 }
 
 int equal(int_t x, int_t y) {
-    DEBUG(debug_print("equal x", x));
-    DEBUG(debug_print("equal y", y));
+    XDEBUG(debug_print("equal x", x));
+    XDEBUG(debug_print("equal y", y));
     return (x == y)
         || (IS_PAIR(x) && IS_PAIR(y) && equal(car(x), car(y)) && equal(cdr(x), cdr(y)));
 }
@@ -260,7 +260,7 @@ int_t cell_usage() {
         prev = next;
         next = cell[prev].tail;
     }
-    XDEBUG(fprintf(stderr,
+    DEBUG(fprintf(stderr,
         "cell usage: free=%"PRIdPTR" total=%"PRIdPTR" max=%"PRIdPTR"\n",
         count, next-1, INT(CELL_MAX)));
     return cons(count, next-1);  // cells (free, heap)
@@ -434,20 +434,20 @@ int_t event_q_take() {
 }
 
 int_t apply_effect(int_t self, int_t effect) {
-    DEBUG(debug_print("apply_effect self", self));
-    DEBUG(debug_print("apply_effect effect", effect));
+    XDEBUG(debug_print("apply_effect self", self));
+    XDEBUG(debug_print("apply_effect effect", effect));
     if (effect == NIL) return OK;  // no effect
     if (!IS_PAIR(effect)) {
-        XDEBUG(debug_print("apply_effect non-PAIR", effect));
+        DEBUG(debug_print("apply_effect non-PAIR", effect));
         return UNDEF;
     }
     int_t actors = car(effect);
     if (actors == FAIL) {
-        XDEBUG(debug_print("apply_effect error", effect));
+        DEBUG(debug_print("apply_effect error", effect));
         return effect;  // error thrown
     }
     // unchain actors
-    DEBUG(debug_print("apply_effect actors", actors));
+    XDEBUG(debug_print("apply_effect actors", actors));
     int_t rest = cdr(effect);
     effect = cell_free(effect);
     while (IS_PAIR(actors)) {  // free list, but not actors
@@ -459,7 +459,7 @@ int_t apply_effect(int_t self, int_t effect) {
     int_t beh = cdr(rest);
     rest = cell_free(rest);
     // update behavior
-    DEBUG(debug_print("apply_effect beh", beh));
+    XDEBUG(debug_print("apply_effect beh", beh));
     if (IS_PAIR(beh) && IS_ACTOR(self)) {
         cell_t *p = TO_PTR(self);
         p->head = car(beh);
@@ -467,7 +467,7 @@ int_t apply_effect(int_t self, int_t effect) {
         beh = cell_free(beh);
     }
     // add events to dispatch queue
-    DEBUG(debug_print("apply_effect events", events));
+    XDEBUG(debug_print("apply_effect events", events));
     return event_q_append(events);
 }
 
@@ -475,13 +475,13 @@ int_t event_dispatch() {
     int_t event = event_q_take();
     if (!IS_PAIR(event)) return UNDEF;  // nothing to dispatch
     int_t target = car(event);
-    DEBUG(debug_print("event_dispatch target", target));
+    XDEBUG(debug_print("event_dispatch target", target));
     int_t msg = cdr(event);
-    DEBUG(debug_print("event_dispatch msg", msg));
+    XDEBUG(debug_print("event_dispatch msg", msg));
     event = cell_free(event);
     // invoke actor behavior
     int_t effect = obj_call(target, msg);
-    DEBUG(debug_print("event_dispatch effect", effect));
+    XDEBUG(debug_print("event_dispatch effect", effect));
     return apply_effect(target, effect);
 }
 
@@ -507,10 +507,10 @@ int_t event_loop() {
 #define END_ARGS()     if (args != NIL) return error("too many args")
 
 PROC_DECL(sink_beh) {
-    DEBUG(debug_print("sink_beh self", self));
-    XDEBUG(debug_print("sink_beh arg", arg));
+    XDEBUG(debug_print("sink_beh self", self));
+    DEBUG(debug_print("sink_beh arg", arg));
     GET_VARS();  // effect
-    DEBUG(debug_print("sink_beh vars", vars));
+    XDEBUG(debug_print("sink_beh vars", vars));
     TAIL_VAR(effect);
     return effect;
 }
@@ -547,8 +547,10 @@ static PROC_DECL(join_h_beh) {
     int_t effect = NIL;
 
     if (tag == k_tail) {
+        int_t value = cons(head, tail);
+        DEBUG(debug_print("join_h_beh value", value));
         effect = effect_send(effect,
-            actor_send(cust, cons(head, tail)));
+            actor_send(cust, value));
     } else {
         effect = effect_send(effect,
             actor_send(cust, error("unexpected join tag")));
@@ -570,8 +572,10 @@ static PROC_DECL(join_t_beh) {
     int_t effect = NIL;
 
     if (tag == k_head) {
+        int_t value = cons(head, tail);
+        DEBUG(debug_print("join_t_beh value", value));
         effect = effect_send(effect,
-            actor_send(cust, cons(head, tail)));
+            actor_send(cust, value));
     } else {
         effect = effect_send(effect,
             actor_send(cust, error("unexpected join tag")));
@@ -639,19 +643,19 @@ PROC_DECL(fork_beh) {
 
 PROC_DECL(assert_beh) {
     int_t effect = NIL;
-    XDEBUG(debug_print("assert_beh self", self));
+    DEBUG(debug_print("assert_beh self", self));
     GET_VARS();  // expect
-    DEBUG(debug_print("assert_beh vars", vars));
+    XDEBUG(debug_print("assert_beh vars", vars));
     TAIL_VAR(expect);
     GET_ARGS();  // actual
-    DEBUG(debug_print("assert_beh args", args));
+    XDEBUG(debug_print("assert_beh args", args));
     TAIL_ARG(actual);
     if (!equal(expect, actual)) {
-        XDEBUG(debug_print("assert_beh expect", expect));
-        XDEBUG(debug_print("assert_beh actual", actual));
+        DEBUG(debug_print("assert_beh expect", expect));
+        DEBUG(debug_print("assert_beh actual", actual));
         return panic("assert_beh !equal(expect, actual)");
     }
-    DEBUG(debug_print("assert_beh effect", effect));
+    XDEBUG(debug_print("assert_beh effect", effect));
     return effect;
 }
 
@@ -662,36 +666,36 @@ PROC_DECL(assert_beh) {
 static PROC_DECL(Type) {
     XDEBUG(debug_print("Type self", self));
     int_t T = get_code(self);  // behavior proc serves as a "type" identifier
-    DEBUG(debug_print("Type T", T));
+    XDEBUG(debug_print("Type T", T));
     GET_ARGS();
-    DEBUG(debug_print("Type args", args));
+    XDEBUG(debug_print("Type args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
     if (req == s_typeq) {  // (cust 'typeq T)
         POP_ARG(Tq);
-        XDEBUG(debug_print("Type T?", Tq));
+        DEBUG(debug_print("Type T?", Tq));
         END_ARGS();
         int_t value = MK_BOOL(T == Tq);
-        XDEBUG(debug_print("Type value", value));
+        DEBUG(debug_print("Type value", value));
         effect = effect_send(effect, actor_send(cust, value));
         return effect;
     }
-    XDEBUG(debug_print("Type NOT UNDERSTOOD", arg));
+    DEBUG(debug_print("Type NOT UNDERSTOOD", arg));
     return effect_send(effect, actor_send(cust, UNDEF));
 }
 
 static PROC_DECL(SeType) {
     XDEBUG(debug_print("SeType self", self));
     GET_ARGS();
-    DEBUG(debug_print("SeType args", args));
+    XDEBUG(debug_print("SeType args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
     if (req == s_eval) {  // (cust 'eval env)
         POP_ARG(_env);
         END_ARGS();
-        XDEBUG(debug_print("SeType value", self));
+        DEBUG(debug_print("SeType value", self));
         effect = effect_send(effect, actor_send(cust, self));
         return effect;
     }
@@ -699,21 +703,21 @@ static PROC_DECL(SeType) {
 }
 
 PROC_DECL(Undef) {
-    XDEBUG(debug_print("Undef self", self));
+    DEBUG(debug_print("Undef self", self));
     GET_ARGS();
-    XDEBUG(debug_print("Undef args", args));
+    DEBUG(debug_print("Undef args", args));
     return SeType(self, arg);  // delegate to SeType
 }
 
 PROC_DECL(Unit) {
-    XDEBUG(debug_print("Unit self", self));
+    DEBUG(debug_print("Unit self", self));
     GET_ARGS();
     XDEBUG(debug_print("Unit args", args));
     return SeType(self, arg);  // delegate to SeType
 }
 
 static PROC_DECL(Appl_k_args) {
-    XDEBUG(debug_print("Appl_k_args self", self));
+    DEBUG(debug_print("Appl_k_args self", self));
     GET_VARS();  // (cust oper env)
     XDEBUG(debug_print("Appl_k_args vars", vars));
     POP_VAR(cust);
@@ -728,7 +732,7 @@ static PROC_DECL(Appl_k_args) {
     return effect;
 }
 PROC_DECL(Appl) {
-    XDEBUG(debug_print("Appl self", self));
+    DEBUG(debug_print("Appl self", self));
     GET_VARS();  // oper
     XDEBUG(debug_print("Appl vars", vars));
     TAIL_VAR(oper);
@@ -751,7 +755,7 @@ PROC_DECL(Appl) {
 }
 
 PROC_DECL(Oper_list) {  // (list . values)
-    XDEBUG(debug_print("Oper_list self", self));
+    DEBUG(debug_print("Oper_list self", self));
     GET_ARGS();
     XDEBUG(debug_print("Oper_list args", args));
     POP_ARG(cust);
@@ -761,7 +765,7 @@ PROC_DECL(Oper_list) {  // (list . values)
         POP_ARG(opnd);
         POP_ARG(_env);
         END_ARGS();
-        XDEBUG(debug_print("Oper_list value", opnd));
+        DEBUG(debug_print("Oper_list value", opnd));
         effect = effect_send(effect, actor_send(cust, opnd));
         return effect;
     }
@@ -770,7 +774,7 @@ PROC_DECL(Oper_list) {  // (list . values)
 const cell_t a_list = { .head = MK_PROC(Appl), .tail = MK_PROC(Oper_list) };
 
 PROC_DECL(Oper_quote) {  // (quote expr)
-    XDEBUG(debug_print("Oper_quote self", self));
+    DEBUG(debug_print("Oper_quote self", self));
     GET_ARGS();
     XDEBUG(debug_print("Oper_quote args", args));
     POP_ARG(cust);
@@ -785,7 +789,7 @@ PROC_DECL(Oper_quote) {  // (quote expr)
             effect = effect_send(effect,
                 actor_send(cust, error("expected 1 argument")));
         } else {
-            XDEBUG(debug_print("Oper_quote value", expr));
+            DEBUG(debug_print("Oper_quote value", expr));
             effect = effect_send(effect, actor_send(cust, expr));
         }
         return effect;
@@ -795,7 +799,7 @@ PROC_DECL(Oper_quote) {  // (quote expr)
 const cell_t a_quote = { .head = MK_PROC(Oper_quote), .tail = UNDEF };
 
 PROC_DECL(Boolean) {
-    XDEBUG(debug_print("Boolean self", self));
+    DEBUG(debug_print("Boolean self", self));
     GET_VARS();  // bval
     XDEBUG(debug_print("Boolean vars", vars));
     TAIL_VAR(bval); // FIXME: should be #t/#f delegate
@@ -819,7 +823,7 @@ PROC_DECL(Boolean) {
 }
 
 PROC_DECL(Null) {
-    XDEBUG(debug_print("Null self", self));
+    DEBUG(debug_print("Null self", self));
     GET_ARGS();
     XDEBUG(debug_print("Null args", args));
     POP_ARG(cust);
@@ -835,7 +839,7 @@ PROC_DECL(Null) {
 }
 
 static PROC_DECL(Pair_k_apply) {
-    XDEBUG(debug_print("Pair_k_apply self", self));
+    DEBUG(debug_print("Pair_k_apply self", self));
     GET_VARS();  // (cust opnd env)
     XDEBUG(debug_print("Pair_k_apply vars", vars));
     POP_VAR(cust);
@@ -850,7 +854,7 @@ static PROC_DECL(Pair_k_apply) {
     return effect;
 }
 PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
-    XDEBUG(debug_print("Pair self", self));
+    DEBUG(debug_print("Pair self", self));
     GET_ARGS();
     XDEBUG(debug_print("Pair args", args));
     POP_ARG(cust);
@@ -878,21 +882,21 @@ PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
 }
 
 PROC_DECL(Symbol) {  // WARNING: behavior used directly in obj_call()
-    XDEBUG(debug_print("Symbol self", self));
+    DEBUG(debug_print("Symbol self", self));
     GET_ARGS();
     XDEBUG(debug_print("Symbol args", args));
     return Type(self, arg);  // delegate to Type (not self-evaluating)
 }
 
 PROC_DECL(Fixnum) {  // WARNING: behavior used directly in obj_call()
-    XDEBUG(debug_print("Fixnum self", self));
+    DEBUG(debug_print("Fixnum self", self));
     GET_ARGS();
     XDEBUG(debug_print("Fixnum args", args));
     return SeType(self, arg);  // delegate to SeType
 }
 
 PROC_DECL(Fail) {
-    XDEBUG(debug_print("Fail self", self));
+    DEBUG(debug_print("Fail self", self));
     GET_ARGS();
     XDEBUG(debug_print("Fail args", args));
     return error("FAILED");
@@ -930,21 +934,21 @@ void print(int_t value) {
         char *s = "(";
         while (IS_PAIR(value)) {
             printf("%s", s);
-            XDEBUG(fflush(stdout));
+            DEBUG(fflush(stdout));
             print(car(value));
             s = " ";
             value = cdr(value);
         };
         if (value != NIL) {
             printf(" . ");
-            XDEBUG(fflush(stdout));
+            DEBUG(fflush(stdout));
             print(value);
         }
         printf(")");
     } else {
         printf("#unknown?-%"PRIxPTR"", value);
     }
-    XDEBUG(fflush(stdout));
+    DEBUG(fflush(stdout));
 }
 
 void debug_print(char *label, int_t value) {
@@ -1000,50 +1004,50 @@ static void hexdump(char *label, int_t *addr, size_t cnt) {
  */
 
 int_t test_values() {
-    XDEBUG(fprintf(stderr, "--test_values--\n"));
-    XDEBUG(debug_print("test_values OK", OK));
-    XDEBUG(debug_print("test_values INF", INF));
-    XDEBUG(debug_print("test_values FALSE", FALSE));
-    XDEBUG(debug_print("test_values TRUE", TRUE));
-    XDEBUG(debug_print("test_values NIL", NIL));
-    XDEBUG(debug_print("test_values UNIT", UNIT));
-    XDEBUG(debug_print("test_values FAIL", FAIL));
-    XDEBUG(debug_print("test_values UNDEF", UNDEF));
-    XDEBUG(debug_print("test_values Undef", MK_PROC(Undef)));
-    XDEBUG(debug_print("test_values s_quote", s_quote));
-    XDEBUG(debug_print("test_values s_match", s_match));
-    XDEBUG(debug_print("test_values SINK", SINK));
+    DEBUG(fprintf(stderr, "--test_values--\n"));
+    DEBUG(debug_print("test_values OK", OK));
+    DEBUG(debug_print("test_values INF", INF));
+    DEBUG(debug_print("test_values FALSE", FALSE));
+    DEBUG(debug_print("test_values TRUE", TRUE));
+    DEBUG(debug_print("test_values NIL", NIL));
+    DEBUG(debug_print("test_values UNIT", UNIT));
+    DEBUG(debug_print("test_values FAIL", FAIL));
+    DEBUG(debug_print("test_values UNDEF", UNDEF));
+    DEBUG(debug_print("test_values Undef", MK_PROC(Undef)));
+    DEBUG(debug_print("test_values s_quote", s_quote));
+    DEBUG(debug_print("test_values s_match", s_match));
+    DEBUG(debug_print("test_values SINK", SINK));
     return OK;
 }
 
 int_t test_cells() {
-    XDEBUG(fprintf(stderr, "--test_cells--\n"));
+    DEBUG(fprintf(stderr, "--test_cells--\n"));
     int_t v, v0, v1, v2;
 
     v = cons(TRUE, FALSE);
     ASSERT(in_heap(v));
-    XDEBUG(debug_print("test_cells cons v", v));
-    XDEBUG(debug_print("test_cells cons car(v)", car(v)));
-    XDEBUG(debug_print("test_cells cons cdr(v)", cdr(v)));
+    DEBUG(debug_print("test_cells cons v", v));
+    DEBUG(debug_print("test_cells cons car(v)", car(v)));
+    DEBUG(debug_print("test_cells cons cdr(v)", cdr(v)));
     ASSERT(car(v) == TRUE);
     ASSERT(cdr(v) == FALSE);
 
     v0 = cons(v, NIL);
-    XDEBUG(debug_print("test_cells cons v0", v0));
+    DEBUG(debug_print("test_cells cons v0", v0));
     ASSERT(in_heap(v0));
 
     v1 = list_3(MK_NUM(-1), MK_NUM(2), MK_NUM(3));
     //v1 = list_3(s_quote, s_eval, s_apply);
-    XDEBUG(debug_print("test_cells cons v1", v1));
+    DEBUG(debug_print("test_cells cons v1", v1));
     ASSERT(in_heap(v1));
 
     v2 = cell_free(v0);
-    XDEBUG(debug_print("test_cells free v0", v2));
+    DEBUG(debug_print("test_cells free v0", v2));
     ASSERT(v2 == NIL);
 
     //v2 = actor_create(MK_PROC(Fail), v1);
     v2 = actor_create(MK_PROC(sink_beh), v1);
-    XDEBUG(debug_print("test_cells cons v2", v2));
+    DEBUG(debug_print("test_cells cons v2", v2));
     ASSERT(in_heap(v2));
 #if !NO_CELL_FREE
     ASSERT(TO_PTR(v2) == TO_PTR(v0));  // re-used cell?
@@ -1054,7 +1058,7 @@ int_t test_cells() {
     v2 = cell_free(v2);
     ASSERT(v2 == NIL);
 
-    XDEBUG(hexdump("cell", PTR(cell), 16));
+    DEBUG(hexdump("cell", PTR(cell), 16));
     int_t usage = cell_usage();
 #if NO_CELL_FREE
     ASSERT(car(usage) == 0);
@@ -1069,23 +1073,23 @@ int_t test_cells() {
 }
 
 int_t test_actors() {
-    XDEBUG(fprintf(stderr, "--test_actors--\n"));
+    DEBUG(fprintf(stderr, "--test_actors--\n"));
     int_t effect = NIL; //effect_new();
-    DEBUG(debug_print("test_actors effect", effect));
+    XDEBUG(debug_print("test_actors effect", effect));
     int_t a = actor_create(MK_PROC(sink_beh), NIL);
-    DEBUG(debug_print("test_actors actor_create", a));
+    XDEBUG(debug_print("test_actors actor_create", a));
     effect = effect_create(effect, a);
-    DEBUG(debug_print("test_actors effect_create", effect));
+    XDEBUG(debug_print("test_actors effect_create", effect));
     int_t m = list_3(SINK, s_eval, NIL);
-    DEBUG(debug_print("test_actors message", m));
+    XDEBUG(debug_print("test_actors message", m));
     int_t e = actor_send(a, m);
-    DEBUG(debug_print("test_actors actor_send", e));
+    XDEBUG(debug_print("test_actors actor_send", e));
     effect = effect_send(effect, e);
-    DEBUG(debug_print("test_actors effect_send", effect));
+    XDEBUG(debug_print("test_actors effect_send", effect));
     int_t x = apply_effect(UNDEF, effect);
-    DEBUG(debug_print("test_actors apply_effect", x));
+    XDEBUG(debug_print("test_actors apply_effect", x));
     int_t r = event_dispatch();
-    XDEBUG(debug_print("test_actors event_dispatch", r));
+    DEBUG(debug_print("test_actors event_dispatch", r));
     if (r != OK) return r;  // early exit on failure...
 
 #if 1
@@ -1094,27 +1098,27 @@ int_t test_actors() {
     a = actor_create(MK_PROC(assert_beh), UNIT);
     effect = effect_create(effect, a);
     m = list_3(a, s_eval, NIL);
-    XDEBUG(debug_print("test_actors m_1", m));
+    DEBUG(debug_print("test_actors m_1", m));
     e = actor_send(UNIT, m);
     effect = effect_send(effect, e);
     // UNIT has Unit type
     a = actor_create(MK_PROC(assert_beh), TRUE);
     effect = effect_create(effect, a);
     m = list_3(a, s_typeq, MK_PROC(Unit));
-    XDEBUG(debug_print("test_actors m_2", m));
+    DEBUG(debug_print("test_actors m_2", m));
     e = actor_send(UNIT, m);
     effect = effect_send(effect, e);
     // dispatch all pending events
     ASSERT(apply_effect(UNDEF, effect) == OK);
     r = event_loop();
-    XDEBUG(debug_print("test_actors event_loop", r));
+    DEBUG(debug_print("test_actors event_loop", r));
 #endif
 
     return OK;
 }
 
 int_t test_eval() {
-    XDEBUG(fprintf(stderr, "--test_eval--\n"));
+    DEBUG(fprintf(stderr, "--test_eval--\n"));
     int_t effect;
     int_t cust;
     int_t expr;
@@ -1132,7 +1136,7 @@ int_t test_eval() {
     // dispatch all pending events
     ASSERT(apply_effect(UNDEF, effect) == OK);
     result = event_loop();
-    XDEBUG(debug_print("test_eval event_loop #1", result));
+    DEBUG(debug_print("test_eval event_loop #1", result));
 
     effect = NIL;
     //cust = actor_create(MK_PROC(assert_beh), NIL);
@@ -1148,7 +1152,7 @@ int_t test_eval() {
     // dispatch all pending events
     ASSERT(apply_effect(UNDEF, effect) == OK);
     result = event_loop();
-    XDEBUG(debug_print("test_eval event_loop #2", result));
+    DEBUG(debug_print("test_eval event_loop #2", result));
 
     return OK;
 }
@@ -1177,6 +1181,7 @@ int main(int argc, char const *argv[])
     int_t result = actor_boot();
     if (result != OK) panic("actor_boot() failed");
 
+#if 1
     fprintf(stderr, "newline = %"PRIxPTR"\n", INT(newline));
     fprintf(stderr, "  Undef = %"PRIxPTR"\n", INT(Undef));
     fprintf(stderr, "   Unit = %"PRIxPTR"\n", INT(Unit));
@@ -1186,7 +1191,7 @@ int main(int argc, char const *argv[])
     fprintf(stderr, "   UNIT = %"PRIxPTR"\n", UNIT);
     ASSERT(INT(newline) < INT(main));
 
-    XDEBUG(hexdump("UNDEF", TO_PTR(UNDEF), 12));
+    DEBUG(hexdump("UNDEF", TO_PTR(UNDEF), 12));
     ASSERT(IS_ACTOR(UNDEF));
 
     ASSERT(UNIT != UNDEF);
@@ -1202,10 +1207,11 @@ int main(int argc, char const *argv[])
     fprintf(stderr, "s_quote = %"PRIxPTR"\n", s_quote);
     fprintf(stderr, "s_match = %"PRIxPTR"\n", s_match);
     ASSERT(IS_SYM(s_match));
+#endif
 
 #if 1
     result = unit_tests();
-    XDEBUG(debug_print("result", result));
+    DEBUG(debug_print("result", result));
 #endif
 
 #if 0
@@ -1213,6 +1219,9 @@ int main(int argc, char const *argv[])
     p->tail = NIL;  // FIXME: should not be able to assign to `const`
 #endif
 
+    printf("result = ");
+    print(result);
+    newline();
     return (result == OK ? 0 : 1);
 }
 
