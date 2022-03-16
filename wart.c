@@ -11,14 +11,16 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <stdint.h>  // for intptr_t, uintptr_t, uint8_t, uint16_t, etc.
-#include <inttypes.h>  // for PRIiPTR, PRIuPTR, PRIXPTR, etc.
+#include <stdint.h>     // for intptr_t, uintptr_t, uint8_t, uint16_t, etc.
+#include <inttypes.h>   // for PRIiPTR, PRIuPTR, PRIXPTR, etc.
 
-#define DEBUG(x)   // include/exclude debug instrumentation
-#define XDEBUG(x) x // include/exclude extra debugging
+#define DEBUG(x)        // include/exclude debug instrumentation
+#define XDEBUG(x) x     // include/exclude extra debugging
 
-#define INT_T_32B 0  // universal Integer is 32 bits wide
-#define INT_T_64B 1  // universal Integer is 64 bits wide
+#define NO_CELL_FREE 0  // never release allocated cells
+
+#define INT_T_32B 0     // universal Integer is 32 bits wide
+#define INT_T_64B 1     // universal Integer is 64 bits wide
 
 typedef intptr_t int_t;
 typedef uintptr_t nat_t;
@@ -161,11 +163,13 @@ static cell_t *cell_new() {
 
 int_t cell_free(int_t val) {
     if (!in_heap(val)) panic("free() of non-heap cell");
+#if !NO_CELL_FREE
     cell_t *p = TO_PTR(val);
     p->head = 0;
     // link into free-list
     p->tail = cell[0].tail;
     cell[0].tail = INT(p - cell);
+#endif
     return NIL;
 }
 
@@ -195,6 +199,13 @@ int_t cdr(int_t val) {
     return p->tail;
 }
 
+int equal(int_t x, int_t y) {
+    DEBUG(debug_print("equal x", x));
+    DEBUG(debug_print("equal y", y));
+    return (x == y)
+        || (IS_PAIR(x) && IS_PAIR(y) && equal(car(x), car(y)) && equal(cdr(x), cdr(y)));
+}
+
 int_t set_car(int_t val, int_t head) {
     if (!in_heap(val)) panic("set_car() of non-heap cell");
     cell_t *p = TO_PTR(val);
@@ -208,31 +219,33 @@ int_t set_cdr(int_t val, int_t tail) {
 }
 
 int_t get_code(int_t val) {
-    if (!IS_ACTOR(val)) return error("car() of non-ACTOR");
-    cell_t *p = TO_PTR(val);
-    return p->head;
+    int_t code = UNDEF;  // polymorphic dispatch procedure
+    if (IS_PROC(val)) {
+        code = val;
+    } else if (IS_PAIR(val)) {
+        code = MK_PROC(Pair);
+    } else if (IS_SYM(val)) {
+        code = MK_PROC(Symbol);
+    } else if (IS_NUM(val)) {
+        code = MK_PROC(Fixnum);
+    } else if (IS_ACTOR(val)) {
+        cell_t *p = TO_PTR(val);
+        code = p->head;
+    }
+    return code;
 }
 
 int_t get_data(int_t val) {
-    if (!IS_ACTOR(val)) return error("cdr() of non-ACTOR");
-    cell_t *p = TO_PTR(val);
-    return p->tail;
+    int_t data = val;
+    if (!IS_PROC(val) && IS_ACTOR(val)) {
+        cell_t *p = TO_PTR(val);
+        data = p->tail;
+    }
+    return data;
 }
 
-// polymorphic dispatch procedure
 PROC_DECL(obj_call) {
-    int_t code = UNDEF;
-    if (IS_PROC(self)) {
-        code = self;
-    } else if (IS_PAIR(self)) {
-        code = MK_PROC(Pair);
-    } else if (IS_SYM(self)) {
-        code = MK_PROC(Symbol);
-    } else if (IS_NUM(self)) {
-        code = MK_PROC(Fixnum);
-    } else if (IS_ACTOR(self)) {
-        code = get_code(self);
-    }
+    int_t code = get_code(self);
     if (!IS_PROC(code)) return error("obj_call() requires a procedure");
     proc_t p = TO_PTR(code);
     return (p)(self, arg);
@@ -297,6 +310,7 @@ int_t s_quote;
 int_t s_typeq;
 int_t s_eval;
 int_t s_apply;
+int_t s_list;
 int_t s_if;
 int_t s_map;
 int_t s_fold;
@@ -312,6 +326,7 @@ int_t symbol_boot() {
     s_typeq = symbol("typeq");
     s_eval = symbol("eval");
     s_apply = symbol("apply");
+    s_list = symbol("list");
     s_if = symbol("if");
     s_map = symbol("map");
     s_fold = symbol("fold");
@@ -623,6 +638,7 @@ PROC_DECL(fork_beh) {
 }
 
 PROC_DECL(assert_beh) {
+    int_t effect = NIL;
     XDEBUG(debug_print("assert_beh self", self));
     GET_VARS();  // expect
     DEBUG(debug_print("assert_beh vars", vars));
@@ -630,12 +646,13 @@ PROC_DECL(assert_beh) {
     GET_ARGS();  // actual
     DEBUG(debug_print("assert_beh args", args));
     TAIL_ARG(actual);
-    if (expect != actual) {
+    if (!equal(expect, actual)) {
         XDEBUG(debug_print("assert_beh expect", expect));
         XDEBUG(debug_print("assert_beh actual", actual));
-        return panic("assert_beh expect != actual");
+        return panic("assert_beh !equal(expect, actual)");
     }
-    return NIL;
+    DEBUG(debug_print("assert_beh effect", effect));
+    return effect;
 }
 
 /*
@@ -643,7 +660,7 @@ PROC_DECL(assert_beh) {
  */
 
 static PROC_DECL(Type) {
-    DEBUG(debug_print("Type self", self));
+    XDEBUG(debug_print("Type self", self));
     int_t T = get_code(self);  // behavior proc serves as a "type" identifier
     DEBUG(debug_print("Type T", T));
     GET_ARGS();
@@ -665,7 +682,7 @@ static PROC_DECL(Type) {
 }
 
 static PROC_DECL(SeType) {
-    DEBUG(debug_print("SeType self", self));
+    XDEBUG(debug_print("SeType self", self));
     GET_ARGS();
     DEBUG(debug_print("SeType args", args));
     POP_ARG(cust);
@@ -805,6 +822,15 @@ PROC_DECL(Null) {
     XDEBUG(debug_print("Null self", self));
     GET_ARGS();
     XDEBUG(debug_print("Null args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_map) {  // (cust 'map . h_req)
+        TAIL_ARG(h_req);
+        effect = effect_send(effect,
+            actor_send(self, cons(cust, h_req)));
+        return effect;
+    }
     return SeType(self, arg);  // delegate to SeType
 }
 
@@ -837,6 +863,15 @@ PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
         effect = effect_create(effect, k_apply);
         effect = effect_send(effect,
             actor_send(car(self), list_3(k_apply, s_eval, env)));
+        return effect;
+    }
+    if (req == s_map) {  // (cust 'map . h_req)
+        TAIL_ARG(h_req);
+        int_t t_req = cdr(arg);  // re-use original arg
+        int_t fork = actor_create(MK_PROC(fork_beh), cons(cust, self));
+        effect = effect_create(effect, fork);
+        effect = effect_send(effect,
+            actor_send(fork, cons(h_req, t_req)));
         return effect;
     }
     return Type(self, arg);  // delegate to Type (not self-evaluating)
@@ -1010,7 +1045,9 @@ int_t test_cells() {
     v2 = actor_create(MK_PROC(sink_beh), v1);
     XDEBUG(debug_print("test_cells cons v2", v2));
     ASSERT(in_heap(v2));
+#if !NO_CELL_FREE
     ASSERT(TO_PTR(v2) == TO_PTR(v0));  // re-used cell?
+#endif
     v1 = obj_call(v2, v);
 
     v = cell_free(v);
@@ -1019,8 +1056,13 @@ int_t test_cells() {
 
     XDEBUG(hexdump("cell", PTR(cell), 16));
     int_t usage = cell_usage();
+#if NO_CELL_FREE
+    ASSERT(car(usage) == 0);
+    ASSERT(cdr(usage) == 6);
+#else
     ASSERT(car(usage) == 2);
     ASSERT(cdr(usage) == 5);
+#endif
     usage = cell_free(usage);
 
     return OK;
@@ -1073,24 +1115,40 @@ int_t test_actors() {
 
 int_t test_eval() {
     XDEBUG(fprintf(stderr, "--test_eval--\n"));
+    int_t effect;
     int_t cust;
     int_t expr;
     int_t env = NIL;  // FIXME: should be the "empty" environment
     int_t result;
 
-    int_t effect = NIL;
     int_t s_foo = symbol("foo");
+    effect = NIL;
     cust = actor_create(MK_PROC(assert_beh), s_foo);
     effect = effect_create(effect, cust);
     //expr = list_2(s_quote, s_foo);  // (quote foo)
     expr = list_2(MK_ACTOR(&a_quote), s_foo);  // (<quote> foo)
     effect = effect_send(effect,
         actor_send(expr, list_3(cust, s_eval, env)));
-
     // dispatch all pending events
     ASSERT(apply_effect(UNDEF, effect) == OK);
     result = event_loop();
-    XDEBUG(debug_print("test_eval event_loop", result));
+    XDEBUG(debug_print("test_eval event_loop #1", result));
+
+    effect = NIL;
+    //cust = actor_create(MK_PROC(assert_beh), NIL);
+    //cust = actor_create(MK_PROC(assert_beh), list_3(MK_NUM(-1), MK_NUM(2), MK_NUM(3)));
+    cust = actor_create(MK_PROC(assert_beh), list_3(MK_NUM(42), s_foo, TRUE));
+    effect = effect_create(effect, cust);
+    //expr = list_1(MK_ACTOR(&a_list));  // (<list>)
+    //expr = list_4(MK_ACTOR(&a_list), MK_NUM(-1), MK_NUM(2), MK_NUM(3));  // (<list> -1 2 3)
+    expr = list_4(MK_ACTOR(&a_list), MK_NUM(42), expr, TRUE);  // (list 42 (<quote> foo) #t)
+    //expr = list_4(s_list, MK_NUM(42), expr, TRUE);  // (list 42 (<quote> foo) #t)
+    effect = effect_send(effect,
+        actor_send(expr, list_3(cust, s_eval, env)));
+    // dispatch all pending events
+    ASSERT(apply_effect(UNDEF, effect) == OK);
+    result = event_loop();
+    XDEBUG(debug_print("test_eval event_loop #2", result));
 
     return OK;
 }
