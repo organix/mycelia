@@ -24,20 +24,20 @@ Since all allocations are the same size (one cell),
 there is never any fragmentation in the heap.
 Each cell contains a Pair of i32 values (car and cdr).
 The root cell is at offset 0.
-The car of the root cell holds the current allocation limit.
+The car of the root cell holds the next available linear offset.
 The cdr of the root cell is the offset of the free-cell chain.
 The cdr of each free cell is the offset of the next free cell.
 The cdr of last cell in the chain is 0.
 
 ```
-[0] = 1024,1  root cell (1K cells available)
+[0] = 1,1     root cell (limit,free)
 [1] = 0,0     end of free-list (next available linear offset)
 ```
 
 After a few allocations and frees the heap could look like this...
 
 ```
-[0] = 1024,5  root cell (1K cells available)
+[0] = 7,5     root cell (limit,free)
 [1] = _,_       allocated cell
 [2] = _,_       allocated cell
 [3] = 0,7     free cell [1]

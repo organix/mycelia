@@ -30,6 +30,10 @@ typedef void *ptr_t;
 #define NAT(n) ((nat_t)(n))
 #define PTR(n) ((ptr_t)(n))
 
+// WASM base types
+typedef int32_t i32;
+typedef int64_t i64;
+
 typedef struct cell {
     int_t       head;
     int_t       tail;
@@ -132,7 +136,7 @@ int_t failure(char *_file_, int _line_) {
 
 #define CELL_MAX (1024)
 cell_t cell[CELL_MAX] = {
-    { .head = CELL_MAX, .tail = 1 },  // root cell
+    { .head = 1, .tail = 1 },  // root cell (limit,free)
     { .head = 0, .tail = 0 },  // end of free-list
 };
 // note: free-list is linked by index, not with pointers
@@ -150,10 +154,11 @@ static cell_t *cell_new() {
         return &cell[head];
     }
     next = head + 1;
-    if (next < cell[0].head) {
+    if (next < CELL_MAX) {
         // extend top of heap
         cell[next].head = 0;
         cell[next].tail = 0;
+        cell[0].head = next;
         cell[0].tail = next;
         return &cell[head];
     }
@@ -251,7 +256,99 @@ PROC_DECL(obj_call) {
     return (p)(self, arg);
 }
 
+/*
+ * garbage collection (reclaiming the heap)
+ */
+
+#define GC_LO_BITS(ofs) ((ofs) & 0x1F)
+#define GC_HI_BITS(ofs) ((ofs) >> 5)
+
+#define GC_MAX_BITS GC_HI_BITS(CELL_MAX)
+
+i32 gc_bits[GC_MAX_BITS];
+
+i32 gc_clear() {  // clear all GC bits
+    DEBUG(fprintf(stderr, "> gc_clear\n"));
+    for (i32 i = 0; i < GC_MAX_BITS; ++i) {
+        gc_bits[i] = 0;
+    }
+    DEBUG(fprintf(stderr, "< gc_clear\n"));
+    return 0;
+}
+
+static i32 gc_get_mark(i32 ofs) {
+    return ((gc_bits[GC_HI_BITS(ofs)] & (1 << GC_LO_BITS(ofs))));
+}
+
+static void gc_set_mark(i32 ofs) {
+    DEBUG(fprintf(stderr, "  gc_set_mark(%d)\n", ofs));
+    gc_bits[GC_HI_BITS(ofs)] |= (1 << GC_LO_BITS(ofs));
+}
+
+i32 gc_mark_free() {  // mark cells in the free-list
+    DEBUG(fprintf(stderr, "> gc_mark_free\n"));
+    gc_set_mark(0);
+    i32 cnt = 1;
+    i32 ofs = cell[0].tail;
+    while (ofs) {
+        gc_set_mark(ofs);
+        ++cnt;
+        ofs = cell[ofs].tail;
+    }
+    DEBUG(fprintf(stderr, "< gc_mark_free (cnt=%d)\n", cnt));
+    return cnt;
+}
+
+i32 gc_mark_cell(int_t val) {  // mark cells reachable from `val`
+    DEBUG(fprintf(stderr, "> gc_mark_cell val=16#%"PRIxPTR"\n", val));
+    i32 cnt = 0;
+    while (in_heap(val)) {
+        cell_t *p = TO_PTR(val);
+        i32 ofs = INT(p - cell);
+        if (gc_get_mark(ofs)) {
+            break;  // cell already marked
+        }
+        gc_set_mark(ofs);
+        ++cnt;
+        cnt += gc_mark_cell(p->head);  // recurse on head
+        val = p->tail;  // iterate over tail
+    }
+    DEBUG(fprintf(stderr, "< gc_mark_cell (cnt=%d)\n", cnt));
+    //DEBUG(fprintf(stderr, "< gc_mark_cell val=16#%"PRIxPTR" (cnt=%d)\n", val, cnt));
+    return cnt;
+}
+
+i32 gc_sweep() {  // free unmarked cells
+    DEBUG(fprintf(stderr, "> gc_sweep\n"));
+    i32 cnt = 0;
+    if (!gc_get_mark(0)) panic("heap root not marked");
+    i32 next = cell[0].head;
+    if (!gc_get_mark(next)) panic("heap next not marked");
+    while (--next > 0) {
+        if (!gc_get_mark(next)) {
+            cell_free(MK_PAIR(&cell[next]));
+            ++cnt;
+        }
+    }
+    DEBUG(fprintf(stderr, "< gc_sweep (cnt=%d)\n", cnt));
+    return cnt;
+}
+
+void gc_mark_and_sweep(int_t root) {
+    DEBUG(debug_print("gc_mark_and_sweep root", root));
+    i32 n = gc_clear();
+    n = gc_mark_free();
+    DEBUG(printf("gc_mark_and_sweep: marked %d free cells\n", n));
+    n = gc_mark_cell(root);
+    DEBUG(printf("gc_mark_and_sweep: marked %d used cells\n", n));
+    n = gc_sweep();
+    DEBUG(printf("gc_mark_and_sweep: free'd %d dead cells\n", n));
+}
+
 int_t cell_usage() {
+    DEBUG(fprintf(stderr,
+        "> cell usage: limit=%"PRIdPTR" free=%"PRIdPTR" max=%"PRIdPTR"\n",
+        cell[0].head, cell[0].tail, INT(CELL_MAX)));
     int_t count = 0;
     int_t prev = 0;
     int_t next = cell[0].tail;
@@ -261,7 +358,7 @@ int_t cell_usage() {
         next = cell[prev].tail;
     }
     DEBUG(fprintf(stderr,
-        "cell usage: free=%"PRIdPTR" total=%"PRIdPTR" max=%"PRIdPTR"\n",
+        "< cell usage: free=%"PRIdPTR" total=%"PRIdPTR" max=%"PRIdPTR"\n",
         count, next-1, INT(CELL_MAX)));
     return cons(count, next-1);  // cells (free, heap)
 }
@@ -474,7 +571,12 @@ int_t apply_effect(int_t self, int_t effect) {
     }
     // add events to dispatch queue
     XDEBUG(debug_print("apply_effect events", events));
-    return event_q_append(events);
+    int_t ok = event_q_append(events);
+    // reclaim heap memory
+    if (ok == OK) {
+        gc_mark_and_sweep(event_q.head);
+    }
+    return ok;
 }
 
 int_t event_dispatch() {
