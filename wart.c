@@ -13,6 +13,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #include <stdio.h>
 #include <stdint.h>     // for intptr_t, uintptr_t, uint8_t, uint16_t, etc.
 #include <inttypes.h>   // for PRIiPTR, PRIuPTR, PRIXPTR, etc.
+#include <time.h>       // for clock_t, clock(), etc.
 
 #define ERROR(x)    x   // include/exclude error instrumentation
 #define WARN(x)     x   // include/exclude warning instrumentation
@@ -22,6 +23,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define NO_CELL_FREE 0  // never release allocated cells
 #define GC_CALL_DEPTH 0 // count recursion depth during garbage collection
 #define GC_TRACE_FREE 0 // trace free list during mark phase
+#define TIME_DISPATCH 1 // measure execution time for message dispatch
 
 #define INT_T_32B 0     // universal Integer is 32 bits wide
 #define INT_T_64B 1     // universal Integer is 64 bits wide
@@ -170,15 +172,18 @@ static cell_t *cell_new() {
     return PTR(0);  // NOT REACHED!
 }
 
-int_t cell_free(int_t val) {
-    if (!in_heap(val)) panic("free() of non-heap cell");
+static void cell_reclaim(cell_t *p) {
 #if !NO_CELL_FREE
-    cell_t *p = TO_PTR(val);
     p->head = 0;
     // link into free-list
     p->tail = cell[0].tail;
     cell[0].tail = INT(p - cell);
 #endif
+}
+
+int_t cell_free(int_t val) {
+    if (!in_heap(val)) panic("free() of non-heap cell");
+    cell_reclaim(TO_PTR(val));
     return NIL;
 }
 
@@ -350,7 +355,7 @@ i32 gc_sweep() {  // free unmarked cells
     if (!gc_get_mark(next)) panic("heap next not marked");
     while (--next > 0) {
         if (!gc_get_mark(next)) {
-            cell_free(MK_PAIR(&cell[next]));
+            cell_reclaim(&cell[next]);
             ++cnt;
         }
     }
@@ -602,14 +607,16 @@ int_t apply_effect(int_t self, int_t effect) {
     // add events to dispatch queue
     XDEBUG(debug_print("apply_effect events", events));
     int_t ok = event_q_append(events);
-    // reclaim heap memory
-    if (ok == OK) {
-        gc_mark_and_sweep(event_q.head);
-    }
     return ok;
 }
 
+i64 event_dispatch_count = 0;
+i64 event_dispatch_ticks = 0;
+
 int_t event_dispatch() {
+#if TIME_DISPATCH
+    clock_t t0 = clock();
+#endif
     int_t event = event_q_take();
     if (!IS_PAIR(event)) return UNDEF;  // nothing to dispatch
     int_t target = car(event);
@@ -620,14 +627,42 @@ int_t event_dispatch() {
     // invoke actor behavior
     int_t effect = obj_call(target, msg);
     XDEBUG(debug_print("event_dispatch effect", effect));
-    return apply_effect(target, effect);
+    int_t ok = apply_effect(target, effect);
+#if TIME_DISPATCH
+    clock_t t1 = clock();
+#endif
+    // reclaim heap memory
+    if (ok == OK) {
+        int freed = gc_mark_and_sweep(event_q.head);
+        DEBUG(printf("event_dispatch: gc reclaimed %d cells\n", freed));
+    }
+#if TIME_DISPATCH
+    clock_t t2 = clock();
+    ++event_dispatch_count;
+    //event_dispatch_ticks += (t1 - t0);  // exclude gc
+    event_dispatch_ticks += (t2 - t0);  // include gc
+    DEBUG(double dt = (double)(t1 - t0) / CLOCKS_PER_SEC;
+        printf("t0=%ld t1=%ld dt=%.6f (%ld CPS)\n", t0, t1, dt, (long)CLOCKS_PER_SEC));
+    DEBUG(double gc = (double)(t2 - t1) / CLOCKS_PER_SEC;
+        printf("t1=%ld t2=%ld gc=%.6f (%ld CPS)\n", t1, t2, gc, (long)CLOCKS_PER_SEC));
+#endif
+    return ok;
 }
 
 int_t event_loop() {
+#if TIME_DISPATCH
+    event_dispatch_count = 0;
+    event_dispatch_ticks = 0;
+#endif
     int_t result = OK;
     while (result == OK) {
         result = event_dispatch();
     }
+#if TIME_DISPATCH
+    double average = ((double)event_dispatch_ticks / (double)event_dispatch_count);
+    printf("event_loop: count=%"PRId64" ticks=%"PRId64" average=%.3f\n",
+        event_dispatch_count, event_dispatch_ticks, average);
+#endif
     return result;
 }
 
@@ -1364,6 +1399,11 @@ int_t actor_boot() {
 
 int main(int argc, char const *argv[])
 {
+    clock_t t0 = clock();
+    clock_t t1 = clock();
+    double dt = (double)(t1 - t0) / CLOCKS_PER_SEC;
+    printf("t0=%ld t1=%ld dt=%.9f (%ld CPS)\n", t0, t1, dt, (long)CLOCKS_PER_SEC);
+
     int_t result = actor_boot();
     if (result != OK) panic("actor_boot() failed");
 
