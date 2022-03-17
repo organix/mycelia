@@ -487,7 +487,7 @@ int_t effect_create(int_t effect, int_t new_actor) {
     if (effect == NIL) effect = effect_new();  // lazy init
     if (IS_PAIR(effect) && (car(effect) != FAIL)) {
         int_t created = cons(new_actor, car(effect));
-        if (!in_heap(created)) return UNDEF;
+        if (!IS_PAIR(created)) return UNDEF;
         set_car(effect, created);
     }
     return effect;
@@ -499,7 +499,7 @@ int_t actor_send(int_t target, int_t msg) {
 }
 
 int_t effect_send(int_t effect, int_t new_event) {
-    ASSERT(in_heap(new_event));
+    ASSERT(IS_PAIR(new_event));
     if (effect == NIL) effect = effect_new();  // lazy init
     if (IS_PAIR(effect) && (car(effect) != FAIL)) {
         int_t rest = cdr(effect);
@@ -514,7 +514,7 @@ int_t actor_become(int_t code, int_t data) {
 }
 
 int_t effect_become(int_t effect, int_t new_beh) {
-    ASSERT(in_heap(new_beh));
+    ASSERT(IS_PAIR(new_beh));
     if (effect == NIL) effect = effect_new();  // lazy init
     if (IS_PAIR(effect) && (car(effect) != FAIL)) {
         int_t rest = cdr(effect);
@@ -538,7 +538,7 @@ static cell_t event_q = { .head = NIL, .tail = NIL };
 
 int_t event_q_append(int_t events) {
     if (events == NIL) return OK;  // nothing to add
-    ASSERT(in_heap(events));
+    ASSERT(IS_PAIR(events));
     // find the end of events
     int_t tail = events;
     while (cdr(tail) != NIL) {
@@ -1203,7 +1203,7 @@ int_t test_cells() {
     int_t v, v0, v1, v2;
 
     v = cons(TRUE, FALSE);
-    ASSERT(in_heap(v));
+    ASSERT(IS_PAIR(v));
     DEBUG(debug_print("test_cells cons v", v));
     DEBUG(debug_print("test_cells cons car(v)", car(v)));
     DEBUG(debug_print("test_cells cons cdr(v)", cdr(v)));
@@ -1212,12 +1212,12 @@ int_t test_cells() {
 
     v0 = cons(v, NIL);
     DEBUG(debug_print("test_cells cons v0", v0));
-    ASSERT(in_heap(v0));
+    ASSERT(IS_PAIR(v0));
 
     v1 = list_3(MK_NUM(-1), MK_NUM(2), MK_NUM(3));
     //v1 = list_3(s_quote, s_eval, s_apply);
     DEBUG(debug_print("test_cells cons v1", v1));
-    ASSERT(in_heap(v1));
+    ASSERT(IS_PAIR(v1));
 
     v2 = cell_free(v0);
     DEBUG(debug_print("test_cells free v0", v2));
@@ -1401,7 +1401,8 @@ int main(int argc, char const *argv[])
 #endif
 
 #if 0
-    cell_t *p = TO_PTR(UNDEF);
+    ASSERT(IS_ACTOR(FAIL));
+    cell_t *p = TO_PTR(FAIL);
     p->tail = NIL;  // FIXME: should not be able to assign to `const`
 #endif
 
