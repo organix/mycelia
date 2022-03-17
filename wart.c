@@ -358,7 +358,7 @@ int_t effect_create(int_t effect, int_t new_actor) {
     ASSERT(IS_ACTOR(new_actor));
     ASSERT(in_heap(new_actor));
     if (effect == NIL) effect = effect_new();  // lazy init
-    if (IS_PAIR(effect)) {
+    if (IS_PAIR(effect) && (car(effect) != FAIL)) {
         int_t created = cons(new_actor, car(effect));
         if (!in_heap(created)) return UNDEF;
         set_car(effect, created);
@@ -374,7 +374,7 @@ int_t actor_send(int_t target, int_t msg) {
 int_t effect_send(int_t effect, int_t new_event) {
     ASSERT(in_heap(new_event));
     if (effect == NIL) effect = effect_new();  // lazy init
-    if (IS_PAIR(effect)) {
+    if (IS_PAIR(effect) && (car(effect) != FAIL)) {
         int_t rest = cdr(effect);
         int_t sent = cons(new_event, car(rest));
         set_car(rest, sent);
@@ -389,12 +389,18 @@ int_t actor_become(int_t code, int_t data) {
 int_t effect_become(int_t effect, int_t new_beh) {
     ASSERT(in_heap(new_beh));
     if (effect == NIL) effect = effect_new();  // lazy init
-    if (IS_PAIR(effect)) {
+    if (IS_PAIR(effect) && (car(effect) != FAIL)) {
         int_t rest = cdr(effect);
         if (cdr(rest) != NIL) return error("must only BECOME once");
         set_cdr(rest, new_beh);
     }
     return effect;
+}
+
+int_t effect_fail(int_t effect, int_t reason) {
+    // FIXME: free some, or all, of effect?
+    DEBUG(debug_print("effect_fail reason", reason));
+    return cons(FAIL, reason);
 }
 
 /*
@@ -548,7 +554,7 @@ static PROC_DECL(join_h_beh) {
 
     if (tag == k_tail) {
         int_t value = cons(head, tail);
-        DEBUG(debug_print("join_h_beh value", value));
+        XDEBUG(debug_print("join_h_beh value", value));
         effect = effect_send(effect,
             actor_send(cust, value));
     } else {
@@ -573,7 +579,7 @@ static PROC_DECL(join_t_beh) {
 
     if (tag == k_head) {
         int_t value = cons(head, tail);
-        DEBUG(debug_print("join_t_beh value", value));
+        XDEBUG(debug_print("join_t_beh value", value));
         effect = effect_send(effect,
             actor_send(cust, value));
     } else {
@@ -653,7 +659,8 @@ PROC_DECL(assert_beh) {
     if (!equal(expect, actual)) {
         DEBUG(debug_print("assert_beh expect", expect));
         DEBUG(debug_print("assert_beh actual", actual));
-        return panic("assert_beh !equal(expect, actual)");
+        effect = effect_fail(effect,
+            panic("assert_beh !equal(expect, actual)"));
     }
     XDEBUG(debug_print("assert_beh effect", effect));
     return effect;
@@ -682,7 +689,8 @@ static PROC_DECL(Type) {
         return effect;
     }
     DEBUG(debug_print("Type NOT UNDERSTOOD", arg));
-    return effect_send(effect, actor_send(cust, UNDEF));
+    return effect_send(effect,
+        actor_send(cust, error("NOT UNDERSTOOD")));
 }
 
 static PROC_DECL(SeType) {
@@ -710,14 +718,14 @@ PROC_DECL(Undef) {
 }
 
 PROC_DECL(Unit) {
-    DEBUG(debug_print("Unit self", self));
+    XDEBUG(debug_print("Unit self", self));
     GET_ARGS();
     XDEBUG(debug_print("Unit args", args));
     return SeType(self, arg);  // delegate to SeType
 }
 
 static PROC_DECL(Appl_k_args) {
-    DEBUG(debug_print("Appl_k_args self", self));
+    XDEBUG(debug_print("Appl_k_args self", self));
     GET_VARS();  // (cust oper env)
     XDEBUG(debug_print("Appl_k_args vars", vars));
     POP_VAR(cust);
@@ -799,7 +807,7 @@ PROC_DECL(Oper_quote) {  // (quote expr)
 const cell_t a_quote = { .head = MK_PROC(Oper_quote), .tail = UNDEF };
 
 PROC_DECL(Boolean) {
-    DEBUG(debug_print("Boolean self", self));
+    XDEBUG(debug_print("Boolean self", self));
     GET_VARS();  // bval
     XDEBUG(debug_print("Boolean vars", vars));
     TAIL_VAR(bval); // FIXME: should be #t/#f delegate
@@ -823,7 +831,7 @@ PROC_DECL(Boolean) {
 }
 
 PROC_DECL(Null) {
-    DEBUG(debug_print("Null self", self));
+    XDEBUG(debug_print("Null self", self));
     GET_ARGS();
     XDEBUG(debug_print("Null args", args));
     POP_ARG(cust);
@@ -839,7 +847,7 @@ PROC_DECL(Null) {
 }
 
 static PROC_DECL(Pair_k_apply) {
-    DEBUG(debug_print("Pair_k_apply self", self));
+    XDEBUG(debug_print("Pair_k_apply self", self));
     GET_VARS();  // (cust opnd env)
     XDEBUG(debug_print("Pair_k_apply vars", vars));
     POP_VAR(cust);
@@ -854,7 +862,7 @@ static PROC_DECL(Pair_k_apply) {
     return effect;
 }
 PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
-    DEBUG(debug_print("Pair self", self));
+    XDEBUG(debug_print("Pair self", self));
     GET_ARGS();
     XDEBUG(debug_print("Pair args", args));
     POP_ARG(cust);
@@ -885,11 +893,21 @@ PROC_DECL(Symbol) {  // WARNING: behavior used directly in obj_call()
     DEBUG(debug_print("Symbol self", self));
     GET_ARGS();
     XDEBUG(debug_print("Symbol args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_eval) {  // (cust 'eval env)
+        POP_ARG(env);
+        END_ARGS();
+        effect = effect_send(effect,
+            actor_send(env, list_3(cust, s_lookup, self)));
+        return effect;
+    }
     return Type(self, arg);  // delegate to Type (not self-evaluating)
 }
 
 PROC_DECL(Fixnum) {  // WARNING: behavior used directly in obj_call()
-    DEBUG(debug_print("Fixnum self", self));
+    XDEBUG(debug_print("Fixnum self", self));
     GET_ARGS();
     XDEBUG(debug_print("Fixnum args", args));
     return SeType(self, arg);  // delegate to SeType
@@ -901,6 +919,34 @@ PROC_DECL(Fail) {
     XDEBUG(debug_print("Fail args", args));
     return error("FAILED");
 }
+
+PROC_DECL(Environment) {
+    XDEBUG(debug_print("Environment self", self));
+    GET_ARGS();
+    XDEBUG(debug_print("Environment args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_lookup) {  // (cust 'lookup symbol)
+        POP_ARG(symbol);
+        END_ARGS();
+        int_t value = UNDEF;
+        if (symbol == s_quote) {
+            value = MK_ACTOR(&a_quote);
+        } else if (symbol == s_list) {
+            value = MK_ACTOR(&a_list);
+        } else {
+            DEBUG(debug_print("Environment not found", symbol));
+            value = error("undefined variable");
+        }
+        DEBUG(debug_print("Environment value", value));
+        effect = effect_send(effect,
+            actor_send(cust, value));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t a_ground_env = { .head = MK_PROC(Environment), .tail = NIL };
 
 /*
  * display procedures
@@ -1122,15 +1168,15 @@ int_t test_eval() {
     int_t effect;
     int_t cust;
     int_t expr;
-    int_t env = NIL;  // FIXME: should be the "empty" environment
+    int_t env = MK_ACTOR(&a_ground_env);
     int_t result;
 
     int_t s_foo = symbol("foo");
     effect = NIL;
     cust = actor_create(MK_PROC(assert_beh), s_foo);
     effect = effect_create(effect, cust);
-    //expr = list_2(s_quote, s_foo);  // (quote foo)
-    expr = list_2(MK_ACTOR(&a_quote), s_foo);  // (<quote> foo)
+    //expr = list_2(MK_ACTOR(&a_quote), s_foo);  // (<quote> foo)
+    expr = list_2(s_quote, s_foo);  // (quote foo)
     effect = effect_send(effect,
         actor_send(expr, list_3(cust, s_eval, env)));
     // dispatch all pending events
@@ -1141,12 +1187,18 @@ int_t test_eval() {
     effect = NIL;
     //cust = actor_create(MK_PROC(assert_beh), NIL);
     //cust = actor_create(MK_PROC(assert_beh), list_3(MK_NUM(-1), MK_NUM(2), MK_NUM(3)));
-    cust = actor_create(MK_PROC(assert_beh), list_3(MK_NUM(42), s_foo, TRUE));
+    //cust = actor_create(MK_PROC(assert_beh), list_3(MK_NUM(42), s_foo, TRUE));
+    cust = actor_create(MK_PROC(assert_beh),
+        list_3(list_3(UNIT, UNDEF, FAIL), list_2(OK, INF), NIL));
     effect = effect_create(effect, cust);
     //expr = list_1(MK_ACTOR(&a_list));  // (<list>)
     //expr = list_4(MK_ACTOR(&a_list), MK_NUM(-1), MK_NUM(2), MK_NUM(3));  // (<list> -1 2 3)
-    expr = list_4(MK_ACTOR(&a_list), MK_NUM(42), expr, TRUE);  // (list 42 (<quote> foo) #t)
-    //expr = list_4(s_list, MK_NUM(42), expr, TRUE);  // (list 42 (<quote> foo) #t)
+    //expr = list_4(MK_ACTOR(&a_list), MK_NUM(42), expr, TRUE);  // (<list> 42 (<quote> foo) #t)
+    //expr = list_4(s_list, MK_NUM(42), expr, TRUE);  // (list 42 (quote foo) #t)
+    expr = list_4(s_list,  // (list '(#unit #undef #fail) (list 0 INF) (list))
+        list_2(s_quote, list_3(UNIT, UNDEF, FAIL)),
+        list_3(s_list, OK, INF),
+        list_1(s_list));
     effect = effect_send(effect,
         actor_send(expr, list_3(cust, s_eval, env)));
     // dispatch all pending events
