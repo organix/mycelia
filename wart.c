@@ -14,7 +14,9 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #include <stdint.h>     // for intptr_t, uintptr_t, uint8_t, uint16_t, etc.
 #include <inttypes.h>   // for PRIiPTR, PRIuPTR, PRIXPTR, etc.
 
-#define DEBUG(x)    x   // include/exclude debug instrumentation
+#define ERROR(x)    x   // include/exclude error instrumentation
+#define WARN(x)     x   // include/exclude warning instrumentation
+#define DEBUG(x)        // include/exclude debug instrumentation
 #define XDEBUG(x)       // include/exclude extra debugging
 
 #define NO_CELL_FREE 0  // never release allocated cells
@@ -569,12 +571,12 @@ int_t apply_effect(int_t self, int_t effect) {
     XDEBUG(debug_print("apply_effect effect", effect));
     if (effect == NIL) return OK;  // no effect
     if (!IS_PAIR(effect)) {
-        DEBUG(debug_print("apply_effect non-PAIR", effect));
+        ERROR(debug_print("apply_effect non-PAIR", effect));
         return UNDEF;
     }
     int_t actors = car(effect);
     if (actors == FAIL) {
-        DEBUG(debug_print("apply_effect error", effect));
+        WARN(debug_print("apply_effect error", effect));
         return effect;  // error thrown
     }
     // unchain actors
@@ -787,8 +789,8 @@ PROC_DECL(assert_beh) {
     XDEBUG(debug_print("assert_beh args", args));
     TAIL_ARG(actual);
     if (!equal(expect, actual)) {
-        DEBUG(debug_print("assert_beh expect", expect));
-        DEBUG(debug_print("assert_beh actual", actual));
+        ERROR(debug_print("assert_beh expect", expect));
+        ERROR(debug_print("assert_beh actual", actual));
         effect = effect_fail(effect,
             panic("assert_beh !equal(expect, actual)"));
     }
@@ -818,7 +820,7 @@ static PROC_DECL(Type) {
         effect = effect_send(effect, actor_send(cust, value));
         return effect;
     }
-    DEBUG(debug_print("Type NOT UNDERSTOOD", arg));
+    WARN(debug_print("Type NOT UNDERSTOOD", arg));
     return effect_send(effect,
         actor_send(cust, error("NOT UNDERSTOOD")));
 }
@@ -1044,9 +1046,9 @@ PROC_DECL(Fixnum) {  // WARNING: behavior used directly in obj_call()
 }
 
 PROC_DECL(Fail) {
-    DEBUG(debug_print("Fail self", self));
+    WARN(debug_print("Fail self", self));
     GET_ARGS();
-    XDEBUG(debug_print("Fail args", args));
+    DEBUG(debug_print("Fail args", args));
     return error("FAILED");
 }
 
@@ -1066,7 +1068,7 @@ PROC_DECL(Environment) {
         } else if (symbol == s_list) {
             value = MK_ACTOR(&a_list);
         } else {
-            DEBUG(debug_print("Environment not found", symbol));
+            WARN(debug_print("Environment not found", symbol));
             value = error("undefined variable");
         }
         DEBUG(debug_print("Environment value", value));
@@ -1180,7 +1182,7 @@ static void hexdump(char *label, int_t *addr, size_t cnt) {
  */
 
 int_t test_values() {
-    DEBUG(fprintf(stderr, "--test_values--\n"));
+    WARN(fprintf(stderr, "--test_values--\n"));
     DEBUG(debug_print("test_values OK", OK));
     DEBUG(debug_print("test_values INF", INF));
     DEBUG(debug_print("test_values FALSE", FALSE));
@@ -1197,7 +1199,7 @@ int_t test_values() {
 }
 
 int_t test_cells() {
-    DEBUG(fprintf(stderr, "--test_cells--\n"));
+    WARN(fprintf(stderr, "--test_cells--\n"));
     int_t v, v0, v1, v2;
 
     v = cons(TRUE, FALSE);
@@ -1249,7 +1251,7 @@ int_t test_cells() {
 }
 
 int_t test_actors() {
-    DEBUG(fprintf(stderr, "--test_actors--\n"));
+    WARN(fprintf(stderr, "--test_actors--\n"));
     int_t effect = NIL; //effect_new();
     XDEBUG(debug_print("test_actors effect", effect));
     int_t a = actor_create(MK_PROC(sink_beh), NIL);
@@ -1296,7 +1298,7 @@ int_t test_actors() {
 }
 
 int_t test_eval() {
-    DEBUG(fprintf(stderr, "--test_eval--\n"));
+    WARN(fprintf(stderr, "--test_eval--\n"));
     int_t effect;
     int_t cust;
     int_t expr;
@@ -1395,7 +1397,7 @@ int main(int argc, char const *argv[])
 
 #if 1
     result = unit_tests();
-    DEBUG(debug_print("result", result));
+    WARN(debug_print("result", result));
 #endif
 
 #if 0
