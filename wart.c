@@ -18,6 +18,8 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define XDEBUG(x)       // include/exclude extra debugging
 
 #define NO_CELL_FREE 0  // never release allocated cells
+#define GC_CALL_DEPTH 0 // count recursion depth during garbage collection
+#define GC_TRACE_FREE 0 // trace free list during mark phase
 
 #define INT_T_32B 0     // universal Integer is 32 bits wide
 #define INT_T_64B 1     // universal Integer is 64 bits wide
@@ -268,11 +270,11 @@ PROC_DECL(obj_call) {
 i32 gc_bits[GC_MAX_BITS];
 
 i32 gc_clear() {  // clear all GC bits
-    DEBUG(fprintf(stderr, "> gc_clear\n"));
+    XDEBUG(fprintf(stderr, "> gc_clear\n"));
     for (i32 i = 0; i < GC_MAX_BITS; ++i) {
         gc_bits[i] = 0;
     }
-    DEBUG(fprintf(stderr, "< gc_clear\n"));
+    XDEBUG(fprintf(stderr, "< gc_clear\n"));
     return 0;
 }
 
@@ -281,26 +283,38 @@ static i32 gc_get_mark(i32 ofs) {
 }
 
 static void gc_set_mark(i32 ofs) {
-    DEBUG(fprintf(stderr, "  gc_set_mark(%d)\n", ofs));
+    XDEBUG(fprintf(stderr, "  gc_set_mark(%d)\n", ofs));
     gc_bits[GC_HI_BITS(ofs)] |= (1 << GC_LO_BITS(ofs));
 }
 
 i32 gc_mark_free() {  // mark cells in the free-list
-    DEBUG(fprintf(stderr, "> gc_mark_free\n"));
+    XDEBUG(fprintf(stderr, "> gc_mark_free\n"));
     gc_set_mark(0);
     i32 cnt = 1;
+#if GC_TRACE_FREE
     i32 ofs = cell[0].tail;
     while (ofs) {
         gc_set_mark(ofs);
         ++cnt;
         ofs = cell[ofs].tail;
     }
-    DEBUG(fprintf(stderr, "< gc_mark_free (cnt=%d)\n", cnt));
+#else
+    i32 ofs = cell[0].head;
+    gc_set_mark(ofs);
+    ++cnt;
+    cell[0].tail = ofs;  // empty free-list
+#endif
+    XDEBUG(fprintf(stderr, "< gc_mark_free (cnt=%d)\n", cnt));
     return cnt;
 }
 
-i32 gc_mark_cell(int_t val) {  // mark cells reachable from `val`
-    DEBUG(fprintf(stderr, "> gc_mark_cell val=16#%"PRIxPTR"\n", val));
+#if GC_CALL_DEPTH
+i32 gc_mark_cell(int_t val, i32 depth)
+#else
+i32 gc_mark_cell(int_t val)
+#endif
+{  // mark cells reachable from `val`
+    XDEBUG(fprintf(stderr, "> gc_mark_cell val=16#%"PRIxPTR"\n", val));
     i32 cnt = 0;
     while (in_heap(val)) {
         cell_t *p = TO_PTR(val);
@@ -310,16 +324,24 @@ i32 gc_mark_cell(int_t val) {  // mark cells reachable from `val`
         }
         gc_set_mark(ofs);
         ++cnt;
+#if GC_CALL_DEPTH
+        cnt += gc_mark_cell(p->head, ++depth);  // recurse on head
+#else
         cnt += gc_mark_cell(p->head);  // recurse on head
+#endif
         val = p->tail;  // iterate over tail
     }
-    DEBUG(fprintf(stderr, "< gc_mark_cell (cnt=%d)\n", cnt));
-    //DEBUG(fprintf(stderr, "< gc_mark_cell val=16#%"PRIxPTR" (cnt=%d)\n", val, cnt));
+#if GC_CALL_DEPTH
+    DEBUG(fprintf(stderr, "< gc_mark_cell depth=%d (cnt=%d)\n", depth, cnt));
+#else
+    XDEBUG(fprintf(stderr, "< gc_mark_cell (cnt=%d)\n", cnt));
+#endif
+    //XDEBUG(fprintf(stderr, "< gc_mark_cell val=16#%"PRIxPTR" (cnt=%d)\n", val, cnt));
     return cnt;
 }
 
 i32 gc_sweep() {  // free unmarked cells
-    DEBUG(fprintf(stderr, "> gc_sweep\n"));
+    XDEBUG(fprintf(stderr, "> gc_sweep\n"));
     i32 cnt = 0;
     if (!gc_get_mark(0)) panic("heap root not marked");
     i32 next = cell[0].head;
@@ -330,35 +352,41 @@ i32 gc_sweep() {  // free unmarked cells
             ++cnt;
         }
     }
-    DEBUG(fprintf(stderr, "< gc_sweep (cnt=%d)\n", cnt));
+    XDEBUG(fprintf(stderr, "< gc_sweep (cnt=%d)\n", cnt));
     return cnt;
 }
 
-void gc_mark_and_sweep(int_t root) {
-    DEBUG(debug_print("gc_mark_and_sweep root", root));
+i32 gc_mark_and_sweep(int_t root) {
+    XDEBUG(debug_print("gc_mark_and_sweep root", root));
     i32 n = gc_clear();
     n = gc_mark_free();
-    DEBUG(printf("gc_mark_and_sweep: marked %d free cells\n", n));
+    XDEBUG(printf("gc_mark_and_sweep: marked %d free cells\n", n));
+#if GC_CALL_DEPTH
+    n = gc_mark_cell(root, 0);
+#else
     n = gc_mark_cell(root);
-    DEBUG(printf("gc_mark_and_sweep: marked %d used cells\n", n));
+#endif
+    XDEBUG(printf("gc_mark_and_sweep: marked %d used cells\n", n));
     n = gc_sweep();
-    DEBUG(printf("gc_mark_and_sweep: free'd %d dead cells\n", n));
+    XDEBUG(printf("gc_mark_and_sweep: free'd %d dead cells\n", n));
+    return n;
 }
 
 int_t cell_usage() {
     DEBUG(fprintf(stderr,
-        "> cell usage: limit=%"PRIdPTR" free=%"PRIdPTR" max=%"PRIdPTR"\n",
+        "> cell_usage: limit=%"PRIdPTR" free=%"PRIdPTR" max=%"PRIdPTR"\n",
         cell[0].head, cell[0].tail, INT(CELL_MAX)));
     int_t count = 0;
     int_t prev = 0;
     int_t next = cell[0].tail;
     while (cell[next].tail) {
+        XDEBUG(fprintf(stderr, "  cell_usage: trace %"PRIdPTR"\n", next));
         ++count;
         prev = next;
         next = cell[prev].tail;
     }
     DEBUG(fprintf(stderr,
-        "< cell usage: free=%"PRIdPTR" total=%"PRIdPTR" max=%"PRIdPTR"\n",
+        "< cell_usage: free=%"PRIdPTR" total=%"PRIdPTR" max=%"PRIdPTR"\n",
         count, next-1, INT(CELL_MAX)));
     return cons(count, next-1);  // cells (free, heap)
 }
@@ -1262,6 +1290,8 @@ int_t test_actors() {
     DEBUG(debug_print("test_actors event_loop", r));
 #endif
 
+    int_t usage = cell_usage();
+    usage = cell_free(usage);
     return OK;
 }
 
@@ -1308,6 +1338,8 @@ int_t test_eval() {
     result = event_loop();
     DEBUG(debug_print("test_eval event_loop #2", result));
 
+    int_t usage = cell_usage();
+    usage = cell_free(usage);
     return OK;
 }
 
@@ -1316,8 +1348,6 @@ int_t unit_tests() {
     if (test_cells() != OK) return UNDEF;
     if (test_actors() != OK) return UNDEF;
     if (test_eval() != OK) return UNDEF;
-    int_t usage = cell_usage();
-    usage = cell_free(usage);
     return OK;
 }
 
