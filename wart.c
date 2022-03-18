@@ -22,7 +22,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 
 #define NO_CELL_FREE  0 // never release allocated cells
 #define GC_CALL_DEPTH 0 // count recursion depth during garbage collection
-#define GC_TRACE_FREE 0 // trace free list during mark phase
+#define GC_TRACE_FREE 1 // trace free list during mark phase
 #define CONCURRENT_GC 1 // interleave garbage collection with event dispatch
 #define MULTIPHASE_GC 0 // perform gc mark and sweep separately
 #define TIME_DISPATCH 1 // measure execution time for message dispatch
@@ -921,8 +921,14 @@ PROC_DECL(gc_sweep_beh) {
 }
 
 PROC_DECL(gc_mark_and_sweep_beh) {  // perform all GC steps together
-    int_t effect = NIL;
     XDEBUG(debug_print("gc_mark_and_sweep_beh self", self));
+    GET_VARS();  // limit
+    XDEBUG(debug_print("gc_mark_and_sweep_beh vars", vars));
+    TAIL_VAR(limit);
+    GET_ARGS();  // count
+    XDEBUG(debug_print("gc_mark_and_sweep_beh args", args));
+    TAIL_ARG(count);
+    int_t effect = NIL;
 
     if (event_q.head == NIL) {
         // if event queue is empty, stop concurrent gc
@@ -930,10 +936,20 @@ PROC_DECL(gc_mark_and_sweep_beh) {  // perform all GC steps together
         return effect;
     }
 
+    int_t n = TO_INT(count);
+    int_t m = TO_INT(limit);
+    if (n < m) {
+        // skip `limit` gc cycles
+        DEBUG(printf("gc_mark_and_sweep_beh: count(%"PRIdPTR") < limit(%"PRIdPTR")\n", n, m));
+        effect = effect_send(effect,
+            actor_send(self, MK_NUM(++n)));
+        return effect;
+    }
+
     int freed = gc_mark_and_sweep(event_q.head);
-    XDEBUG(printf("gc_mark_and_sweep_beh: gc reclaimed %d cells\n", freed));
+    WARN(printf("gc_mark_and_sweep_beh: gc reclaimed %d cells\n", freed));
     effect = effect_send(effect,
-        actor_send(self, arg));
+        actor_send(self, MK_NUM(0)));
 
     XDEBUG(debug_print("gc_mark_and_sweep_beh effect", effect));
     return effect;
@@ -947,13 +963,12 @@ PROC_DECL(gc_mark_and_sweep_beh) {  // perform all GC steps together
 #else
     .head = MK_PROC(gc_mark_and_sweep_beh),
 #endif
-    .tail = UNDEF,
+    .tail = MK_NUM(3),
 };
-//    effect = effect_send(effect, actor_send(MK_ACTOR(&a_concurrent_gc), NIL));  // start gc
+//    effect = effect_send(effect, actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));  // start gc
 #endif // CONCURRENT_GC
 
 PROC_DECL(assert_beh) {
-    int_t effect = NIL;
     DEBUG(debug_print("assert_beh self", self));
     GET_VARS();  // expect
     XDEBUG(debug_print("assert_beh vars", vars));
@@ -961,6 +976,7 @@ PROC_DECL(assert_beh) {
     GET_ARGS();  // actual
     XDEBUG(debug_print("assert_beh args", args));
     TAIL_ARG(actual);
+    int_t effect = NIL;
     if (!equal(expect, actual)) {
         ERROR(debug_print("assert_beh expect", expect));
         ERROR(debug_print("assert_beh actual", actual));
@@ -1487,7 +1503,7 @@ int_t test_eval() {
     effect = effect_send(effect,
         actor_send(expr, list_3(cust, s_eval, env)));
 #if CONCURRENT_GC
-    effect = effect_send(effect, actor_send(MK_ACTOR(&a_concurrent_gc), NIL));
+    effect = effect_send(effect, actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));
 #endif
     // dispatch all pending events
     ASSERT(apply_effect(UNDEF, effect) == OK);
@@ -1513,7 +1529,7 @@ int_t test_eval() {
     effect = effect_send(effect,
         actor_send(expr, list_3(cust, s_eval, env)));
 #if CONCURRENT_GC
-    effect = effect_send(effect, actor_send(MK_ACTOR(&a_concurrent_gc), NIL));
+    effect = effect_send(effect, actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));
 #endif
     // dispatch all pending events
     ASSERT(apply_effect(UNDEF, effect) == OK);
