@@ -25,8 +25,9 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define GC_TRACE_FREE 0 // trace free list during mark phase
 #define TIME_DISPATCH 1 // measure execution time for message dispatch
 
-#define INT_T_32B 0     // universal Integer is 32 bits wide
-#define INT_T_64B 1     // universal Integer is 64 bits wide
+#ifndef __SIZEOF_POINTER__
+#error "need __SIZEOF_POINTER__ for hexdump()"
+#endif
 
 typedef intptr_t int_t;
 typedef uintptr_t nat_t;
@@ -1186,7 +1187,7 @@ void debug_print(char *label, int_t value) {
     newline();
 }
 
-#if INT_T_32B
+#if (__SIZEOF_POINTER__ == 4)
 static void hexdump(char *label, int_t *addr, size_t cnt) {
     fprintf(stderr, "%s: %04"PRIxPTR"..", label, (NAT(addr) >> 16));
     for (nat_t n = 0; n < cnt; ++n) {
@@ -1197,9 +1198,9 @@ static void hexdump(char *label, int_t *addr, size_t cnt) {
     }
     fprintf(stderr, "\n");
 }
-#endif // INT_T_32B
+#endif
 
-#if INT_T_64B
+#if (__SIZEOF_POINTER__ == 8)
 static void hexdump(char *label, int_t *addr, size_t cnt) {
     fprintf(stderr, "%s: %08"PRIxPTR"..", label, (NAT(addr) >> 32));
     for (nat_t n = 0; n < cnt; ++n) {
@@ -1210,7 +1211,7 @@ static void hexdump(char *label, int_t *addr, size_t cnt) {
     }
     fprintf(stderr, "\n");
 }
-#endif // INT_T_64B
+#endif
 
 /*
  * unit tests
@@ -1428,7 +1429,8 @@ int main(int argc, char const *argv[])
         INT(cell), NAT(sizeof(cell)));
     fprintf(stderr, " intern = %"PRIxPTR"x%"PRIxPTR"\n",
         INT(intern), NAT(sizeof(intern)));
-    ASSERT((NAT(cell) & 0x7) == 0x0);
+    //ASSERT((NAT(cell) & 0x7) == 0x0);
+    ASSERT((NAT(cell) & TAG_MASK) == 0x0);
 
     fprintf(stderr, "s_quote = %"PRIxPTR"\n", s_quote);
     fprintf(stderr, "s_match = %"PRIxPTR"\n", s_match);
