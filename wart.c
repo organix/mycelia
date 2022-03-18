@@ -17,14 +17,15 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 
 #define ERROR(x)    x   // include/exclude error instrumentation
 #define WARN(x)     x   // include/exclude warning instrumentation
-#define DEBUG(x)    x   // include/exclude debug instrumentation
+#define DEBUG(x)        // include/exclude debug instrumentation
 #define XDEBUG(x)       // include/exclude extra debugging
 
 #define NO_CELL_FREE  0 // never release allocated cells
 #define GC_CALL_DEPTH 0 // count recursion depth during garbage collection
 #define GC_TRACE_FREE 0 // trace free list during mark phase
-#define CONCURRENT_GC 0 // interleave garbage collection with event dispatch
-#define TIME_DISPATCH 0 // measure execution time for message dispatch
+#define CONCURRENT_GC 1 // interleave garbage collection with event dispatch
+#define MULTIPHASE_GC 0 // perform gc mark and sweep separately
+#define TIME_DISPATCH 1 // measure execution time for message dispatch
 
 #ifndef __SIZEOF_POINTER__
 #error "need __SIZEOF_POINTER__ for hexdump()"
@@ -199,7 +200,7 @@ static void cell_reclaim(cell_t *p) {
     // link into free-list
     p->tail = cell[0].tail;
     int_t ofs = INT(p - cell);
-    DEBUG(fprintf(stderr, "cell_reclaim: ofs=%"PRIdPTR"\n", ofs));
+    XDEBUG(fprintf(stderr, "cell_reclaim: ofs=%"PRIdPTR"\n", ofs));
     cell[0].tail = ofs;
 #endif
 }
@@ -214,7 +215,7 @@ int_t cell_free(int_t val) {
 #if CONCURRENT_GC
     if (gc_running) {
         int_t ofs = INT(p - cell);
-        DEBUG(fprintf(stderr, "cell_free: *running* ofs=%"PRIdPTR"\n", ofs));
+        XDEBUG(fprintf(stderr, "cell_free: *running* ofs=%"PRIdPTR"\n", ofs));
         gc_clr_mark(ofs);
         return NIL;
     }
@@ -313,11 +314,11 @@ PROC_DECL(obj_call) {
 i32 gc_bits[GC_MAX_BITS];
 
 i32 gc_clear() {  // clear all GC bits
-    DEBUG(fprintf(stderr, "> gc_clear\n"));
+    XDEBUG(fprintf(stderr, "> gc_clear\n"));
     for (i32 i = 0; i < GC_MAX_BITS; ++i) {
         gc_bits[i] = 0;
     }
-    DEBUG(fprintf(stderr, "< gc_clear\n"));
+    XDEBUG(fprintf(stderr, "< gc_clear\n"));
     return 0;
 }
 
@@ -326,18 +327,17 @@ static i32 gc_get_mark(i32 ofs) {
 }
 
 static void gc_set_mark(i32 ofs) {
-    DEBUG(fprintf(stderr, "  gc_set_mark(%d)\n", ofs));
+    XDEBUG(fprintf(stderr, "  gc_set_mark(%d)\n", ofs));
     gc_bits[GC_HI_BITS(ofs)] |= (1 << GC_LO_BITS(ofs));
 }
 
 static void gc_clr_mark(i32 ofs) {
-    DEBUG(fprintf(stderr, "  gc_clr_mark(%d)\n", ofs));
+    XDEBUG(fprintf(stderr, "  gc_clr_mark(%d)\n", ofs));
     gc_bits[GC_HI_BITS(ofs)] &= ~(1 << GC_LO_BITS(ofs));
 }
 
 i32 gc_mark_free() {  // mark cells in the free-list
-    DEBUG(fprintf(stderr, "> gc_mark_free\n"));
-    gc_running = 1;  // enter unsafe gc phase
+    XDEBUG(fprintf(stderr, "> gc_mark_free\n"));
     //gc_set_mark(0);
     i32 cnt = 0;
 #if GC_TRACE_FREE
@@ -353,7 +353,7 @@ i32 gc_mark_free() {  // mark cells in the free-list
     //gc_set_mark(ofs);
     cell[0].tail = ofs;  // empty free-list
 #endif
-    DEBUG(fprintf(stderr, "< gc_mark_free (cnt=%d)\n", cnt));
+    XDEBUG(fprintf(stderr, "< gc_mark_free (cnt=%d)\n", cnt));
     return cnt;
 }
 
@@ -364,7 +364,7 @@ i32 gc_mark_cell(int_t val)
 #endif
 {  // mark cells reachable from `val`
     //DEBUG(fprintf(stderr, "> gc_mark_cell val=16#%"PRIxPTR"\n", val));
-    DEBUG(debug_print("> gc_mark_cell", val));
+    XDEBUG(debug_print("> gc_mark_cell", val));
     i32 cnt = 0;
     while (in_heap(val)) {
         cell_t *p = TO_PTR(val);
@@ -382,16 +382,16 @@ i32 gc_mark_cell(int_t val)
         val = p->tail;  // iterate over tail
     }
 #if GC_CALL_DEPTH
-    DEBUG(fprintf(stderr, "< gc_mark_cell depth=%d (cnt=%d)\n", depth, cnt));
+    XDEBUG(fprintf(stderr, "< gc_mark_cell depth=%d (cnt=%d)\n", depth, cnt));
 #else
-    DEBUG(fprintf(stderr, "< gc_mark_cell (cnt=%d)\n", cnt));
+    XDEBUG(fprintf(stderr, "< gc_mark_cell (cnt=%d)\n", cnt));
 #endif
     //XDEBUG(fprintf(stderr, "< gc_mark_cell val=16#%"PRIxPTR" (cnt=%d)\n", val, cnt));
     return cnt;
 }
 
 i32 gc_sweep() {  // free unmarked cells
-    DEBUG(fprintf(stderr, "> gc_sweep\n"));
+    XDEBUG(fprintf(stderr, "> gc_sweep\n"));
     i32 cnt = 0;
     //if (!gc_get_mark(0)) panic("heap root not marked");
     i32 next = cell[0].head;
@@ -403,12 +403,10 @@ i32 gc_sweep() {  // free unmarked cells
             ++cnt;
         }
     }
-    gc_running = 0;  // leave unsafe gc phase
-    DEBUG(fprintf(stderr, "< gc_sweep (cnt=%d)\n", cnt));
+    XDEBUG(fprintf(stderr, "< gc_sweep (cnt=%d)\n", cnt));
     return cnt;
 }
 
-//#if !CONCURRENT_GC
 i32 gc_mark_and_sweep(int_t root) {
     XDEBUG(debug_print("gc_mark_and_sweep root", root));
     i32 n = gc_clear();
@@ -424,10 +422,9 @@ i32 gc_mark_and_sweep(int_t root) {
     XDEBUG(printf("gc_mark_and_sweep: free'd %d dead cells\n", n));
     return n;
 }
-//#endif
 
 int_t cell_usage() {
-    DEBUG(fprintf(stderr,
+    WARN(fprintf(stderr,
         "> cell_usage: limit=%"PRIdPTR" free=%"PRIdPTR" max=%"PRIdPTR"\n",
         cell[0].head, cell[0].tail, INT(CELL_MAX)));
     int_t count = 0;
@@ -439,7 +436,7 @@ int_t cell_usage() {
         prev = next;
         next = cell[prev].tail;
     }
-    DEBUG(fprintf(stderr,
+    WARN(fprintf(stderr,
         "< cell_usage: free=%"PRIdPTR" total=%"PRIdPTR" max=%"PRIdPTR"\n",
         count, next-1, INT(CELL_MAX)));
     return cons(MK_NUM(count), MK_NUM(next-1));  // cells (free, heap)
@@ -619,8 +616,8 @@ int_t event_q_take() {
 }
 
 int_t apply_effect(int_t self, int_t effect) {
-    DEBUG(debug_print("apply_effect self", self));
-    DEBUG(debug_print("apply_effect effect", effect));
+    XDEBUG(debug_print("apply_effect self", self));
+    XDEBUG(debug_print("apply_effect effect", effect));
     if (effect == NIL) return OK;  // no effect
     if (!IS_PAIR(effect)) {
         ERROR(debug_print("apply_effect non-PAIR", effect));
@@ -632,7 +629,7 @@ int_t apply_effect(int_t self, int_t effect) {
         return effect;  // error thrown
     }
     // unchain actors
-    DEBUG(debug_print("apply_effect actors", actors));
+    XDEBUG(debug_print("apply_effect actors", actors));
     int_t rest = cdr(effect);
     effect = cell_free(effect);
     while (IS_PAIR(actors)) {  // free list, but not actors
@@ -644,7 +641,7 @@ int_t apply_effect(int_t self, int_t effect) {
     int_t beh = cdr(rest);
     rest = cell_free(rest);
     // update behavior
-    DEBUG(debug_print("apply_effect beh", beh));
+    XDEBUG(debug_print("apply_effect beh", beh));
     if (IS_PAIR(beh) && IS_ACTOR(self)) {
         cell_t *p = TO_PTR(self);
         p->head = car(beh);  // code
@@ -652,7 +649,7 @@ int_t apply_effect(int_t self, int_t effect) {
         beh = cell_free(beh);
     }
     // add events to dispatch queue
-    DEBUG(debug_print("apply_effect events", events));
+    XDEBUG(debug_print("apply_effect events", events));
     int_t ok = event_q_append(events);
     return ok;
 }
@@ -667,13 +664,13 @@ int_t event_dispatch() {
     int_t event = event_q_take();
     if (!IS_PAIR(event)) return UNDEF;  // nothing to dispatch
     int_t target = car(event);
-    DEBUG(debug_print("event_dispatch target", target));
+    XDEBUG(debug_print("event_dispatch target", target));
     int_t msg = cdr(event);
-    DEBUG(debug_print("event_dispatch msg", msg));
+    XDEBUG(debug_print("event_dispatch msg", msg));
     event = cell_free(event);
     // invoke actor behavior
     int_t effect = obj_call(target, msg);
-    DEBUG(debug_print("event_dispatch effect", effect));
+    XDEBUG(debug_print("event_dispatch effect", effect));
     int_t ok = apply_effect(target, effect);
     // gather statistics
 #if TIME_DISPATCH
@@ -869,103 +866,87 @@ PROC_DECL(fork_beh) {
 }
 
 #if CONCURRENT_GC
-// FORWARD DECLARATIONS
-PROC_DECL(gc_clear_beh);
-PROC_DECL(gc_mark_free_beh);
-PROC_DECL(gc_mark_root_beh);
-PROC_DECL(gc_sweep_beh);
+PROC_DECL(gc_sweep_beh);  // FORWARD DECLARATION
 
-PROC_DECL(gc_clear_beh) {
+PROC_DECL(gc_mark_beh) {
+    XDEBUG(debug_print("gc_mark_beh self", self));
     int_t effect = NIL;
-    DEBUG(debug_print("gc_clear_beh self", self));
 
-    if (event_q.head == NIL) {
+    int_t root = event_q.head;  // everything is reachable from the event queue
+    if (root == NIL) {
         // if event queue is empty, stop concurrent gc
-        WARN(printf("gc_clear_beh: STOP CONCURRENT GC\n"));
+        DEBUG(printf("gc_mark_beh: STOP CONCURRENT GC\n"));
         return effect;
     }
 
-    int n = gc_clear();
-    DEBUG(printf("gc_clear_beh: marks set to %d\n", n));
-    effect = effect_become(effect,
-        actor_become(MK_PROC(gc_mark_free_beh), UNDEF));
-    effect = effect_send(effect,
-        actor_send(self, arg));
-
-    DEBUG(debug_print("gc_clear_beh effect", effect));
-    return effect;
-}
-PROC_DECL(gc_mark_free_beh) {
-    int_t effect = NIL;
-    DEBUG(debug_print("gc_mark_free_beh self", self));
+    gc_clear();
+    XDEBUG(printf("gc_mark_beh: gc marks cleared\n"));
 
     int n = gc_mark_free();
-    WARN(printf("gc_mark_free_beh: marked %d free cells\n", n));
-    effect = effect_become(effect,
-        actor_become(MK_PROC(gc_mark_root_beh), UNDEF));
-    effect = effect_send(effect,
-        actor_send(self, arg));
+    XDEBUG(printf("gc_mark_beh: marked %d free cells\n", n));
 
-    DEBUG(debug_print("gc_mark_free_beh effect", effect));
-    return effect;
-}
-PROC_DECL(gc_mark_root_beh) {
-    int_t effect = NIL;
-    DEBUG(debug_print("gc_mark_root_beh self", self));
-
-    int_t root = event_q.head;  // everything is reachable from the event queue
 #if GC_CALL_DEPTH
-    int n = gc_mark_cell(root, 0);
+    int m = gc_mark_cell(root, 0);
 #else
-    int n = gc_mark_cell(root);
+    int m = gc_mark_cell(root);
 #endif
-    WARN(printf("gc_mark_root_beh: marked %d used cells\n", n));
+    XDEBUG(printf("gc_mark_beh: marked %d used cells\n", m));
+
+    gc_running = 1;  // enter unsafe gc phase
+
     effect = effect_become(effect,
         actor_become(MK_PROC(gc_sweep_beh), UNDEF));
     effect = effect_send(effect,
         actor_send(self, arg));
 
-    DEBUG(debug_print("gc_mark_root_beh effect", effect));
+    XDEBUG(debug_print("gc_mark_beh effect", effect));
     return effect;
 }
 PROC_DECL(gc_sweep_beh) {
+    XDEBUG(debug_print("gc_sweep_beh self", self));
     int_t effect = NIL;
-    DEBUG(debug_print("gc_sweep_beh self", self));
 
     int n = gc_sweep();
-    WARN(printf("gc_sweep_beh: free'd %d dead cells\n", n));
+    XDEBUG(printf("gc_sweep_beh: free'd %d dead cells\n", n));
+
+    gc_running = 0;  // leave unsafe gc phase
+
     effect = effect_become(effect,
-        actor_become(MK_PROC(gc_clear_beh), UNDEF));
+        actor_become(MK_PROC(gc_mark_beh), UNDEF));
     effect = effect_send(effect,
         actor_send(self, arg));
 
-    DEBUG(debug_print("gc_sweep_beh effect", effect));
+    XDEBUG(debug_print("gc_sweep_beh effect", effect));
     return effect;
 }
 
 PROC_DECL(gc_mark_and_sweep_beh) {  // perform all GC steps together
     int_t effect = NIL;
-    DEBUG(debug_print("gc_mark_and_sweep_beh self", self));
+    XDEBUG(debug_print("gc_mark_and_sweep_beh self", self));
 
     if (event_q.head == NIL) {
         // if event queue is empty, stop concurrent gc
-        WARN(printf("gc_mark_and_sweep_beh: STOP CONCURRENT GC\n"));
+        DEBUG(printf("gc_mark_and_sweep_beh: STOP CONCURRENT GC\n"));
         return effect;
     }
 
     int freed = gc_mark_and_sweep(event_q.head);
-    WARN(printf("gc_mark_and_sweep_beh: gc reclaimed %d cells\n", freed));
+    XDEBUG(printf("gc_mark_and_sweep_beh: gc reclaimed %d cells\n", freed));
     effect = effect_send(effect,
         actor_send(self, arg));
 
-    DEBUG(debug_print("gc_mark_and_sweep_beh effect", effect));
+    XDEBUG(debug_print("gc_mark_and_sweep_beh effect", effect));
     return effect;
 }
 
-// note: `a_concurrent_gc` can not be `const` because it mutates during gc!
+// Note: `a_concurrent_gc` can not be `const` because it mutates during gc!
+// WARNING! gc does not traverse static actors, so they can't point to the heap.
 /*const*/ cell_t a_concurrent_gc = {
-    .head = MK_PROC(gc_clear_beh),
-    //.head = MK_PROC(gc_mark_and_sweep_beh),
+#if MULTIPHASE_GC
+    .head = MK_PROC(gc_mark_beh),
+#else
+    .head = MK_PROC(gc_mark_and_sweep_beh),
+#endif
     .tail = UNDEF,
 };
 //    effect = effect_send(effect, actor_send(MK_ACTOR(&a_concurrent_gc), NIL));  // start gc
@@ -1513,7 +1494,7 @@ int_t test_eval() {
     result = event_loop();
     DEBUG(debug_print("test_eval event_loop #1", result));
 
-#if 0
+#if 1
     effect = NIL;
     //cust = actor_create(MK_PROC(assert_beh), NIL);
     //cust = actor_create(MK_PROC(assert_beh), list_3(MK_NUM(-1), MK_NUM(2), MK_NUM(3)));
