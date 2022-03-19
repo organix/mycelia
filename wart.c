@@ -1377,6 +1377,245 @@ static void hexdump(char *label, int_t *addr, size_t cnt) {
 #endif
 
 /*
+ * read-eval-print-loop (REPL)
+ */
+
+#define NSTR_MAX (256)
+
+i32 cstr_to_nstr(char *cstr, char *nstr, i32 max) {
+    char ch;
+    i32 len = 0;
+    while ((ch = cstr[len]) != 0) {
+        ++len;
+        if (len >= max) return -1;  // overflow
+        nstr[len] = ch;
+    }
+    nstr[0] = len;
+    return len;
+}
+
+typedef struct input input_t;
+struct input {
+    i32       (*get)(input_t *self, i32 ofs);
+};
+
+typedef struct nstr_in {
+    input_t     input;
+    char       *nstr;
+} nstr_in_t;
+i32 nstr_get(input_t *self, i32 ofs) {
+    nstr_in_t *in = (nstr_in_t *)self;
+    if (ofs < 0) return -1;  // illegal offset
+    char *s = in->nstr;
+    i32 len = *s++;
+    i32 ch = s[ofs];
+    XDEBUG(fprintf(stderr, "  nstr_get (ch=%d)\n", ch));
+    if (ofs < len) return ch;  // return char at ofs
+    return -1;  // out of bounds
+}
+i32 nstr_init(nstr_in_t *in, char *nstr) {
+    in->input.get = nstr_get;
+    in->nstr = nstr;
+    return 0;  // success
+}
+
+typedef struct file_in {
+    input_t     input;
+    FILE       *file;
+    nstr_in_t   nstr_in;
+    i32         ofs;
+    char        buffer[NSTR_MAX];
+} file_in_t;
+i32 file_get(input_t *self, i32 ofs) {
+    file_in_t *in = (file_in_t *)self;
+retry:
+    if (ofs < in->ofs) return -1;  // illegal offset
+    input_t *nstr_in = &in->nstr_in.input;
+    i32 ch = (nstr_in->get)(nstr_in, (ofs - in->ofs));  // get from nstr
+    XDEBUG(fprintf(stderr, "  file_get (ch=%d)\n", ch));
+    if (ch >= 0) return ch;  // return char at ofs
+    // refill line buffer
+    in->ofs += in->buffer[0];  // advance base buffer offset
+    XDEBUG(fprintf(stderr, "  file_get refill ofs=%d\n", in->ofs));
+    if (!fgets(&in->buffer[1], (sizeof(in->buffer) - 1), in->file)) {
+        // error or EOF
+        in->buffer[0] = 0;  // empty nstr
+        return -1;
+    }
+    i32 len = cstr_to_nstr(&in->buffer[1], &in->buffer[0], sizeof(in->buffer) - 1);
+    XDEBUG(fprintf(stderr, "  file_get len=%d\n", len));
+    if (len < 0) return -1;  // error
+    in->buffer[len+1] = '\0';  // belt-and-suspenders
+    XDEBUG(fprintf(stderr, "  file_get str=\"%s\"\n", &in->buffer[1]));
+    goto retry;
+}
+i32 file_init(file_in_t *in, FILE *file) {
+    in->input.get = file_get;
+    in->file = file;
+    in->ofs = 0;
+    in->buffer[0] = 0;  // zero-length nstr
+    return nstr_init(&in->nstr_in, &in->buffer[0]);
+}
+
+static int is_delim(i32 ch) {
+    switch (ch) {
+        case '(':   return 1;
+        case ')':   return 1;
+        case ';':   return 1;
+        case '\'':  return 1;
+        case '"':   return 1;
+        case '`':   return 1;
+        case ',':   return 1;
+        case '[':   return 1;
+        case ']':   return 1;
+        case '{':   return 1;
+        case '}':   return 1;
+        case '|':   return 1;
+    }
+    return 0;
+}
+static int is_blank(i32 ch) {
+    return (ch <= ' ');
+}
+static int cstr_eq(char *s, char *t) {
+    if (s == t) return 1;
+    if (!s) return 0;
+    while (*s != '\0') {
+        if (*s++ != *t++) return 0;
+    }
+    return (*t == '\0');
+}
+
+static i32 read_ofs = 0;
+static int_t skip_space(input_t *in) {  // skip whitespace and comments
+    i32 ch;
+    while ((ch = (in->get)(in, read_ofs)) >= 0) {
+        // FIXME: check for comments...
+        if (!is_blank(ch)) break;
+        ++read_ofs;
+    }
+    return ch;
+}
+static char token[256];
+int_t read_sexpr(input_t *in) {
+    XDEBUG(fprintf(stderr, "> read_sexpr (ofs=%d)\n", read_ofs));
+    int_t sexpr = FAIL;
+    i32 ch;
+    i32 n = 0;
+    i32 i = 0;
+    char *p = token;
+
+    ch = skip_space(in);
+    if (ch < 0) return FAIL;  // error or EOF
+    if (ch == '(') {
+        ++read_ofs;
+        ch = skip_space(in);
+        if (ch == ')') {
+            ch = (in->get)(in, ++read_ofs);
+            sexpr = NIL;  // empty sexpr
+            XDEBUG(debug_print("< read_sexpr NIL", sexpr));
+            return sexpr;
+        }
+        int_t x = read_sexpr(in);
+        if (x == FAIL) return FAIL;  // error or EOF
+        x = cons(x, UNDEF);
+        sexpr = x;
+        while (1) {
+            ch = skip_space(in);
+            if (ch == ')') {
+                ch = (in->get)(in, ++read_ofs);
+                set_cdr(x, NIL);
+                XDEBUG(debug_print("< read_sexpr list", sexpr));
+                return sexpr;  // NIL tail
+            } else if (ch == '.') {
+                ++read_ofs;
+                int_t y = read_sexpr(in);
+                if (y == FAIL) return FAIL;  // error or EOF
+                ch = skip_space(in);
+                if (ch != ')') return FAIL;  // missing ')'
+                ++read_ofs;
+                set_cdr(x, y);
+                XDEBUG(debug_print("< read_sexpr dotted", sexpr));
+                return sexpr;  // dotted tail
+            } else {
+                int_t y = read_sexpr(in);
+                if (y == FAIL) return FAIL;  // error or EOF
+                y = cons(y, UNDEF);
+                set_cdr(x, y);
+                x = y;
+            }
+        }
+    }
+    if (ch == '\'') {
+        ++read_ofs;
+        int_t x = read_sexpr(in);
+        XDEBUG(debug_print("  read_sexpr quoted", x));
+        if (x == FAIL) return FAIL;  // error or EOF
+        sexpr = list_2(s_quote, x);
+        XDEBUG(debug_print("< read_sexpr quote", sexpr));
+        return sexpr;
+    }
+    if (is_delim(ch)) {
+        return FAIL;  // illegal character
+    }
+    if ((ch == '-') || ((ch >= '0') && (ch <= '9'))) {
+        i32 neg = 0;
+        if (ch == '-') {
+            neg = 1;
+            if (i >= sizeof(token)) return FAIL;  // overflow
+            token[i++] = ch;
+            ch = (in->get)(in, ++read_ofs);
+        }
+        while ((ch >= '0') && (ch <= '9')) {
+            n = (n * 10) + (ch - '0');
+            if (i >= sizeof(token)) return FAIL;  // overflow
+            token[i++] = ch;
+            ch = (in->get)(in, ++read_ofs);
+            if ((ch < 0) || is_blank(ch) || is_delim(ch)) {
+                // parsed a number
+                sexpr = MK_NUM(neg ? -n : n);
+                XDEBUG(debug_print("< read_sexpr num", sexpr));
+                return sexpr;
+            }
+        }
+    }
+    while (!is_blank(ch) && !is_delim(ch)) {
+        if (i >= sizeof(token)) return FAIL;  // overflow
+        token[i++] = ch;
+        ch = (in->get)(in, ++read_ofs);
+    }
+    // parsed a symbol
+    if (i >= sizeof(token)) return FAIL;  // overflow
+    token[i] = '\0';  // terminate token cstr
+    if (token[0] == '#') {
+        // check for special values
+        if (cstr_eq(token, "#t")) return TRUE;
+        if (cstr_eq(token, "#f")) return FALSE;
+        if (cstr_eq(token, "#unit")) return UNIT;
+        if (cstr_eq(token, "#undefined")) return UNDEF;
+    }
+    sexpr = symbol(token);
+    XDEBUG(debug_print("< read_sexpr num", sexpr));
+    return sexpr;
+}
+
+int_t read_eval_print_loop(input_t *in) {
+    WARN(fprintf(stderr, "--REPL--\n"));
+    while (1) {
+        fprintf(stdout, "wart> ");  // REPL prompt
+        fflush(stdout);
+        int_t sexpr = read_sexpr(in);
+        if (sexpr == FAIL) break;
+        DEBUG(debug_print("  REPL sexpr", sexpr));
+        print(sexpr);
+        newline();
+        fflush(stdout);
+    }
+    newline();
+    return OK;
+}
+
+/*
  * unit tests
  */
 
@@ -1537,7 +1776,7 @@ int_t test_eval() {
 
     ASSERT(list_3(UNIT, s_foo, s_bar) != list_3(UNIT, s_foo, s_bar));
     ASSERT(equal(list_3(UNIT, s_foo, s_bar), list_3(UNIT, s_foo, s_bar)));
-#if 1
+
     eval_testcase(
         // (<list>)
         list_1(MK_ACTOR(&a_list)),
@@ -1567,6 +1806,16 @@ int_t test_eval() {
             list_4(UNIT, s_foo, s_bar, s_baz),
             list_2(TRUE, FALSE),
             s_list));
+
+#if 0
+    eval_testcase(
+        // (list (car (cons 1 2)) (cdr (cons 3 4)) (cdr (list 5 6)))
+        list_4(s_list,
+            list_2(s_car, list_3(s_cons, MK_NUM(1), MK_NUM(2))),
+            list_2(s_cdr, list_3(s_cons, MK_NUM(3), MK_NUM(4))),
+            list_2(s_cdr, list_3(s_list, MK_NUM(5), MK_NUM(6))));
+        // ==> (1 4 (6))
+        list_3(MK_NUM(1), MK_NUM(4), list_1(MK_NUM(6))));
 #endif
 
     int_t usage = cell_usage();
@@ -1634,15 +1883,20 @@ int main(int argc, char const *argv[])
     WARN(debug_print("result", result));
 #endif
 
+    printf("result = ");
+    print(result);
+    newline();
+
 #if 0
     ASSERT(IS_ACTOR(FAIL));
     cell_t *p = TO_PTR(FAIL);
     p->tail = NIL;  // FIXME: should not be able to assign to `const`
 #endif
 
-    printf("result = ");
-    print(result);
-    newline();
+    file_in_t std_in;
+    ASSERT(file_init(&std_in, stdin) == 0);
+    result = read_eval_print_loop(&std_in.input);
+
     return (result == OK ? 0 : 1);
 }
 
