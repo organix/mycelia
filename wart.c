@@ -947,7 +947,7 @@ PROC_DECL(gc_mark_and_sweep_beh) {  // perform all GC steps together
     }
 
     int freed = gc_mark_and_sweep(event_q.head);
-    WARN(printf("gc_mark_and_sweep_beh: gc reclaimed %d cells\n", freed));
+    DEBUG(printf("gc_mark_and_sweep_beh: gc reclaimed %d cells\n", freed));
     effect = effect_send(effect,
         actor_send(self, MK_NUM(0)));
 
@@ -963,7 +963,7 @@ PROC_DECL(gc_mark_and_sweep_beh) {  // perform all GC steps together
 #else
     .head = MK_PROC(gc_mark_and_sweep_beh),
 #endif
-    .tail = MK_NUM(3),
+    .tail = MK_NUM(5),
 };
 //    effect = effect_send(effect, actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));  // start gc
 #endif // CONCURRENT_GC
@@ -1486,6 +1486,29 @@ int_t test_actors() {
     return OK;
 }
 
+int_t eval_testcase(int_t expr, int_t expect) {
+    int_t effect = NIL;
+
+    int_t cust = actor_create(MK_PROC(assert_beh), expect);
+    effect = effect_create(effect, cust);
+
+    int_t env = MK_ACTOR(&a_ground_env);
+    effect = effect_send(effect,
+        actor_send(expr, list_3(cust, s_eval, env)));
+
+#if CONCURRENT_GC
+    effect = effect_send(effect,
+        actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));
+#endif
+
+    // dispatch all pending events
+    ASSERT(apply_effect(UNDEF, effect) == OK);
+    int_t result = event_loop();
+    DEBUG(debug_print("eval_testcase event_loop", result));
+
+    return OK;
+}
+
 int_t test_eval() {
     WARN(fprintf(stderr, "--test_eval--\n"));
     int_t effect;
@@ -1493,8 +1516,10 @@ int_t test_eval() {
     int_t expr;
     int_t env = MK_ACTOR(&a_ground_env);
     int_t result;
-
     int_t s_foo = symbol("foo");
+    int_t s_bar = symbol("bar");
+    int_t s_baz = symbol("baz");
+
     effect = NIL;
     cust = actor_create(MK_PROC(assert_beh), s_foo);
     effect = effect_create(effect, cust);
@@ -1508,33 +1533,40 @@ int_t test_eval() {
     // dispatch all pending events
     ASSERT(apply_effect(UNDEF, effect) == OK);
     result = event_loop();
-    DEBUG(debug_print("test_eval event_loop #1", result));
+    DEBUG(debug_print("test_eval event_loop", result));
 
+    ASSERT(list_3(UNIT, s_foo, s_bar) != list_3(UNIT, s_foo, s_bar));
+    ASSERT(equal(list_3(UNIT, s_foo, s_bar), list_3(UNIT, s_foo, s_bar)));
 #if 1
-    effect = NIL;
-    //cust = actor_create(MK_PROC(assert_beh), NIL);
-    //cust = actor_create(MK_PROC(assert_beh), list_3(MK_NUM(-1), MK_NUM(2), MK_NUM(3)));
-    //cust = actor_create(MK_PROC(assert_beh), list_3(MK_NUM(42), s_foo, TRUE));
-    cust = actor_create(MK_PROC(assert_beh),
-        list_3(list_3(UNIT, UNDEF, FAIL), list_2(OK, INF), NIL));
-    effect = effect_create(effect, cust);
-    //expr = list_1(MK_ACTOR(&a_list));  // (<list>)
-    //expr = list_4(MK_ACTOR(&a_list), MK_NUM(-1), MK_NUM(2), MK_NUM(3));  // (<list> -1 2 3)
-    //expr = list_4(MK_ACTOR(&a_list), MK_NUM(42), expr, TRUE);  // (<list> 42 (<quote> foo) #t)
-    //expr = list_4(s_list, MK_NUM(42), expr, TRUE);  // (list 42 (quote foo) #t)
-    expr = list_4(s_list,  // (list '(#unit #undef #fail) (list 0 INF) (list))
-        list_2(s_quote, list_3(UNIT, UNDEF, FAIL)),
-        list_3(s_list, OK, INF),
-        list_1(s_list));
-    effect = effect_send(effect,
-        actor_send(expr, list_3(cust, s_eval, env)));
-#if CONCURRENT_GC
-    effect = effect_send(effect, actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));
-#endif
-    // dispatch all pending events
-    ASSERT(apply_effect(UNDEF, effect) == OK);
-    result = event_loop();
-    DEBUG(debug_print("test_eval event_loop #2", result));
+    eval_testcase(
+        // (<list>)
+        list_1(MK_ACTOR(&a_list)),
+        // ==> ()
+        NIL);
+
+    eval_testcase(
+        // (list)
+        list_1(s_list),
+        // ==> ()
+        NIL);
+
+    eval_testcase(
+        // (list -1 2 3)
+        list_4(s_list, MK_NUM(-1), MK_NUM(2), MK_NUM(3)),
+        // ==> (-1 2 3)
+        list_3(MK_NUM(-1), MK_NUM(2), MK_NUM(3)));
+
+    eval_testcase(
+        // (list '(#unit foo bar baz) (list #t #f) 'list)
+        list_4(s_list,
+            list_2(s_quote, list_4(UNIT, s_foo, s_bar, s_baz)),
+            list_3(s_list, TRUE, FALSE),
+            list_2(s_quote, s_list)),
+        // ==> ((#unit foo bar baz) (#t #f) list)
+        list_3(
+            list_4(UNIT, s_foo, s_bar, s_baz),
+            list_2(TRUE, FALSE),
+            s_list));
 #endif
 
     int_t usage = cell_usage();
