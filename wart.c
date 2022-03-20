@@ -1182,27 +1182,73 @@ PROC_DECL(Oper_quote) {  // (quote expr)
 }
 const cell_t a_quote = { .head = MK_PROC(Oper_quote), .tail = UNDEF };
 
+static PROC_DECL(If_k_pred) {
+    XDEBUG(debug_print("If_k_pred self", self));
+    GET_VARS();  // (cust cnsq altn env)
+    XDEBUG(debug_print("If_k_pred vars", vars));
+    POP_VAR(cust);
+    POP_VAR(cnsq);
+    POP_VAR(altn);
+    POP_VAR(env);
+    GET_ARGS();  // pred
+    DEBUG(debug_print("If_k_pred args", args));
+    TAIL_ARG(pred);
+    int_t effect = NIL;
+    if (pred == UNDEF) {  // short-circuit for #undef
+        effect = effect_send(effect, actor_send(cust, UNDEF));
+    } else {
+        effect = effect_send(effect,
+            actor_send(
+                ((pred == TRUE) ? cnsq : altn),
+                list_3(cust, s_eval, env)));
+    }
+    return effect;
+}
+PROC_DECL(Oper_if) {  // (if pred cnsq altn)
+    DEBUG(debug_print("Oper_if self", self));
+    GET_ARGS();
+    XDEBUG(debug_print("Oper_if args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        if (IS_PAIR(opnd)) {
+            int_t pred = car(opnd);
+            opnd = cdr(opnd);
+            if (IS_PAIR(opnd)) {
+                int_t cnsq = car(opnd);
+                opnd = cdr(opnd);
+                if (IS_PAIR(opnd)) {
+                    int_t altn = car(opnd);
+                    if (cdr(opnd) == NIL) {
+                        int_t k_pred = actor_create(MK_PROC(If_k_pred),
+                            list_4(cust, cnsq, altn, env));
+                        effect = effect_create(effect, k_pred);
+                        effect = effect_send(effect,
+                            actor_send(pred, list_3(k_pred, s_eval, env)));
+                        return effect;
+                    }
+                }
+            }
+        }
+        effect = effect_send(effect,
+            actor_send(cust, error("if expected 3 operands")));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t a_if = { .head = MK_PROC(Oper_if), .tail = UNDEF };
+
 PROC_DECL(Boolean) {
     XDEBUG(debug_print("Boolean self", self));
     GET_VARS();  // bval
     XDEBUG(debug_print("Boolean vars", vars));
-    TAIL_VAR(bval); // FIXME: should be #t/#f delegate
+    TAIL_VAR(bval);
     GET_ARGS();
     XDEBUG(debug_print("Boolean args", args));
-    POP_ARG(cust);
-    POP_ARG(req);
-    int_t effect = NIL;
-    if (req == s_if) {  // (cust 'if cnsq altn env)
-        POP_ARG(cnsq);
-        POP_ARG(altn);
-        POP_ARG(env);
-        END_ARGS();
-        effect = effect_send(effect,
-            actor_send(
-                (bval ? cnsq : altn),
-                list_3(cust, s_eval, env)));
-        return effect;
-    }
     return SeType(self, arg);  // delegate to SeType
 }
 
@@ -1317,6 +1363,8 @@ PROC_DECL(Environment) {
             value = MK_ACTOR(&a_car);
         } else if (symbol == s_cdr) {
             value = MK_ACTOR(&a_cdr);
+        } else if (symbol == s_if) {
+            value = MK_ACTOR(&a_if);
         } else {
             WARN(debug_print("Environment lookup failed", symbol));
             value = error("undefined variable");
@@ -1936,6 +1984,16 @@ int_t test_eval() {
     eval_test_cstr(
         "(list (car (cons 1 2)) (cdr (cons 3 4)) (cdr (list 5 6)))",
         "(1 4 (6))"
+    );
+
+    eval_test_cstr(
+        "(if #t #unit -unevaluated-)",
+        "#unit"
+    );
+
+    eval_test_cstr(
+        "(if #f -unevaluated- #unit)",
+        "#unit"
     );
 
     int_t usage = cell_usage();
