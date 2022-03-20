@@ -1272,7 +1272,7 @@ PROC_DECL(Environment) {
         } else if (symbol == s_list) {
             value = MK_ACTOR(&a_list);
         } else {
-            WARN(debug_print("Environment not found", symbol));
+            WARN(debug_print("Environment lookup failed", symbol));
             value = error("undefined variable");
         }
         DEBUG(debug_print("Environment value", value));
@@ -1411,61 +1411,82 @@ i32 cstr_to_nstr(char *cstr, char *nstr, i32 max) {
 
 typedef struct input input_t;
 struct input {
-    i32       (*get)(input_t *self, i32 ofs);
+    i32       (*get)(input_t *self);
+    i32       (*next)(input_t *self, i32 ofs);
 };
 
 typedef struct nstr_in {
     input_t     input;
     char       *nstr;
+    i32         ofs;
 } nstr_in_t;
-i32 nstr_get(input_t *self, i32 ofs) {
+i32 nstr_get(input_t *self) {
     nstr_in_t *in = (nstr_in_t *)self;
-    if (ofs < 0) return -1;  // illegal offset
+    DEBUG(fprintf(stderr, "  nstr_get ofs=%d\n", in->ofs));
+    if (in->ofs < 0) return -1;  // illegal offset
     char *s = in->nstr;
     i32 len = *s++;
-    i32 ch = s[ofs];
-    XDEBUG(fprintf(stderr, "  nstr_get (ch=%d)\n", ch));
-    if (ofs < len) return ch;  // return char at ofs
+    if (in->ofs < len) {
+        i32 ch = s[in->ofs];
+        DEBUG(fprintf(stderr, "  nstr_get (ch=%d)\n", ch));
+        return ch;  // return char at ofs
+    }
     return -1;  // out of bounds
+}
+i32 nstr_next(input_t *self, i32 ofs) {
+    nstr_in_t *in = (nstr_in_t *)self;
+    in->ofs += ofs;
+    return in->ofs;
 }
 i32 nstr_init(nstr_in_t *in, char *nstr) {
     in->input.get = nstr_get;
+    in->input.next = nstr_next;
     in->nstr = nstr;
+    in->ofs = 0;
     return 0;  // success
 }
 
 typedef struct file_in {
     input_t     input;
     FILE       *file;
-    nstr_in_t   nstr_in;
     i32         ofs;
+    nstr_in_t   nstr_in;
     char        buffer[NSTR_MAX];
 } file_in_t;
-i32 file_get(input_t *self, i32 ofs) {
+i32 file_get(input_t *self) {
+    i32 ch;
     file_in_t *in = (file_in_t *)self;
-retry:
-    if (ofs < in->ofs) return -1;  // illegal offset
     input_t *nstr_in = &in->nstr_in.input;
-    i32 ch = (nstr_in->get)(nstr_in, (ofs - in->ofs));  // get from nstr
-    XDEBUG(fprintf(stderr, "  file_get (ch=%d)\n", ch));
+retry:
+    ch = (nstr_in->get)(nstr_in);  // get from nstr
+    DEBUG(fprintf(stderr, "  file_get (ch=%d)\n", ch));
     if (ch >= 0) return ch;  // return char at ofs
+
     // refill line buffer
     in->ofs += in->buffer[0];  // advance base buffer offset
-    XDEBUG(fprintf(stderr, "  file_get refill ofs=%d\n", in->ofs));
+    DEBUG(fprintf(stderr, "  file_get refill ofs=%d\n", in->ofs));
     if (!fgets(&in->buffer[1], (sizeof(in->buffer) - 1), in->file)) {
         // error or EOF
         in->buffer[0] = 0;  // empty nstr
         return -1;
     }
     i32 len = cstr_to_nstr(&in->buffer[1], &in->buffer[0], sizeof(in->buffer) - 1);
-    XDEBUG(fprintf(stderr, "  file_get len=%d\n", len));
+    DEBUG(fprintf(stderr, "  file_get len=%d\n", len));
     if (len < 0) return -1;  // error
     in->buffer[len+1] = '\0';  // belt-and-suspenders
-    XDEBUG(fprintf(stderr, "  file_get str=\"%s\"\n", &in->buffer[1]));
+    DEBUG(fprintf(stderr, "  file_get str=\"%s\"\n", &in->buffer[1]));
+    if (nstr_init(&in->nstr_in, &in->buffer[0]) != 0) return -1;  // refill failed
     goto retry;
+}
+i32 file_next(input_t *self, i32 ofs) {
+    file_in_t *in = (file_in_t *)self;
+    input_t *nstr_in = &in->nstr_in.input;
+    i32 pos = in->ofs + (nstr_in->next)(nstr_in, ofs);  // pass to nstr
+    return pos;
 }
 i32 file_init(file_in_t *in, FILE *file) {
     in->input.get = file_get;
+    in->input.next = file_next;
     in->file = file;
     in->ofs = 0;
     in->buffer[0] = 0;  // zero-length nstr
@@ -1501,19 +1522,18 @@ static int cstr_eq(char *s, char *t) {
     return (*t == '\0');
 }
 
-static i32 read_ofs = 0;
 static int_t skip_space(input_t *in) {  // skip whitespace and comments
     i32 ch;
-    while ((ch = (in->get)(in, read_ofs)) >= 0) {
+    while ((ch = (in->get)(in)) >= 0) {
         // FIXME: check for comments...
         if (!is_blank(ch)) break;
-        ++read_ofs;
+        (in->next)(in, 1);
     }
     return ch;
 }
 static char token[256];
 int_t read_sexpr(input_t *in) {
-    XDEBUG(fprintf(stderr, "> read_sexpr (ofs=%d)\n", read_ofs));
+    XDEBUG(fprintf(stderr, "> read_sexpr\n"));
     int_t sexpr = FAIL;
     i32 ch;
     i32 n = 0;
@@ -1523,10 +1543,11 @@ int_t read_sexpr(input_t *in) {
     ch = skip_space(in);
     if (ch < 0) return FAIL;  // error or EOF
     if (ch == '(') {
-        ++read_ofs;
+        (in->next)(in, 1);
         ch = skip_space(in);
         if (ch == ')') {
-            ch = (in->get)(in, ++read_ofs);
+            (in->next)(in, 1);
+            ch = (in->get)(in);
             sexpr = NIL;  // empty sexpr
             XDEBUG(debug_print("< read_sexpr NIL", sexpr));
             return sexpr;
@@ -1538,17 +1559,17 @@ int_t read_sexpr(input_t *in) {
         while (1) {
             ch = skip_space(in);
             if (ch == ')') {
-                ch = (in->get)(in, ++read_ofs);
+                (in->next)(in, 1);
                 set_cdr(x, NIL);
                 XDEBUG(debug_print("< read_sexpr list", sexpr));
                 return sexpr;  // NIL tail
             } else if (ch == '.') {
-                ++read_ofs;
+                (in->next)(in, 1);
                 int_t y = read_sexpr(in);
                 if (y == FAIL) return FAIL;  // error or EOF
                 ch = skip_space(in);
                 if (ch != ')') return FAIL;  // missing ')'
-                ++read_ofs;
+                (in->next)(in, 1);
                 set_cdr(x, y);
                 XDEBUG(debug_print("< read_sexpr dotted", sexpr));
                 return sexpr;  // dotted tail
@@ -1562,7 +1583,7 @@ int_t read_sexpr(input_t *in) {
         }
     }
     if (ch == '\'') {
-        ++read_ofs;
+        (in->next)(in, 1);
         int_t x = read_sexpr(in);
         XDEBUG(debug_print("  read_sexpr quoted", x));
         if (x == FAIL) return FAIL;  // error or EOF
@@ -1579,13 +1600,15 @@ int_t read_sexpr(input_t *in) {
             neg = 1;
             if (i >= sizeof(token)) return FAIL;  // overflow
             token[i++] = ch;
-            ch = (in->get)(in, ++read_ofs);
+            (in->next)(in, 1);
+            ch = (in->get)(in);
         }
         while ((ch >= '0') && (ch <= '9')) {
             n = (n * 10) + (ch - '0');
             if (i >= sizeof(token)) return FAIL;  // overflow
             token[i++] = ch;
-            ch = (in->get)(in, ++read_ofs);
+            (in->next)(in, 1);
+            ch = (in->get)(in);
             if ((ch < 0) || is_blank(ch) || is_delim(ch)) {
                 // parsed a number
                 sexpr = MK_NUM(neg ? -n : n);
@@ -1597,7 +1620,8 @@ int_t read_sexpr(input_t *in) {
     while (!is_blank(ch) && !is_delim(ch)) {
         if (i >= sizeof(token)) return FAIL;  // overflow
         token[i++] = ch;
-        ch = (in->get)(in, ++read_ofs);
+        (in->next)(in, 1);
+        ch = (in->get)(in);
     }
     // parsed a symbol
     if (i >= sizeof(token)) return FAIL;  // overflow
@@ -1785,14 +1809,12 @@ int_t eval_test_cstr(char *cstr, char *result) {
 
     cstr_to_nstr(cstr, nstr_buf, sizeof(nstr_buf));
     ASSERT(nstr_init(&str_in, nstr_buf) == 0);
-    read_ofs = 0;  // FIXME: should be part of input structure
     int_t expr = read_sexpr(&str_in.input);
     if (expr == FAIL) error("eval_test_cstr: read expr failed");
     DEBUG(debug_print("  expr", expr));
 
     cstr_to_nstr(result, nstr_buf, sizeof(nstr_buf));
     ASSERT(nstr_init(&str_in, nstr_buf) == 0);
-    read_ofs = 0;  // FIXME: should be part of input structure
     int_t expect = read_sexpr(&str_in.input);
     if (expect == FAIL) error("eval_test_cstr: read expect failed");
     DEBUG(debug_print("  expect", expect));
@@ -1953,7 +1975,6 @@ int main(int argc, char const *argv[])
 
     file_in_t std_in;
     ASSERT(file_init(&std_in, stdin) == 0);
-    read_ofs = 0;  // FIXME: should be part of input structure
     result = read_eval_print_loop(&std_in.input);
 
     return (result == OK ? 0 : 1);
