@@ -298,8 +298,8 @@ int_t get_data(int_t val) {
 PROC_DECL(obj_call) {
     int_t code = get_code(self);
     if (!IS_PROC(code)) return error("obj_call() requires a procedure");
-    proc_t p = TO_PTR(code);
-    return (p)(self, arg);
+    proc_t proc = TO_PTR(code);
+    return (*proc)(self, arg);
 }
 
 /*
@@ -1071,8 +1071,16 @@ static PROC_DECL(Appl_k_args) {
     XDEBUG(debug_print("Appl_k_args args", args));
     TAIL_ARG(opnd);
     int_t effect = NIL;
+#if 1
+    ASSERT(IS_PROC(oper));
+    proc_t prim = TO_PTR(oper);
+    int_t value = (*prim)(opnd, env);  // delegate to primitive proc
+    DEBUG(debug_print("Appl_k_args value", value));
+    effect = effect_send(effect, actor_send(cust, value));
+#else
     effect = effect_send(effect,
         actor_send(oper, list_4(cust, s_apply, opnd, env)));
+#endif
     return effect;
 }
 PROC_DECL(Appl) {
@@ -1098,24 +1106,12 @@ PROC_DECL(Appl) {
     return SeType(self, arg);  // delegate to SeType
 }
 
-PROC_DECL(Oper_list) {  // (list . values)
-    DEBUG(debug_print("Oper_list self", self));
-    GET_ARGS();
-    XDEBUG(debug_print("Oper_list args", args));
-    POP_ARG(cust);
-    POP_ARG(req);
-    int_t effect = NIL;
-    if (req == s_apply) {  // (cust 'apply opnd env)
-        POP_ARG(opnd);
-        POP_ARG(_env);
-        END_ARGS();
-        DEBUG(debug_print("Oper_list value", opnd));
-        effect = effect_send(effect, actor_send(cust, opnd));
-        return effect;
-    }
-    return SeType(self, arg);  // delegate to SeType
+static PROC_DECL(prim_list) {  // (list . values)
+    int_t opnd = self;
+    //int_t env = arg;
+    return opnd;
 }
-const cell_t a_list = { .head = MK_PROC(Appl), .tail = MK_PROC(Oper_list) };
+const cell_t a_list = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_list) };
 
 PROC_DECL(Oper_quote) {  // (quote expr)
     DEBUG(debug_print("Oper_quote self", self));
