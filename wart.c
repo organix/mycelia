@@ -487,6 +487,9 @@ int_t s_typeq;
 int_t s_eval;
 int_t s_apply;
 int_t s_list;
+int_t s_cons;
+int_t s_car;
+int_t s_cdr;
 int_t s_if;
 int_t s_map;
 int_t s_fold;
@@ -503,6 +506,9 @@ int_t symbol_boot() {
     s_eval = symbol("eval");
     s_apply = symbol("apply");
     s_list = symbol("list");
+    s_cons = symbol("cons");
+    s_car = symbol("car");
+    s_cdr = symbol("cdr");
     s_if = symbol("if");
     s_map = symbol("map");
     s_fold = symbol("fold");
@@ -1068,19 +1074,14 @@ static PROC_DECL(Appl_k_args) {
     POP_VAR(oper);
     POP_VAR(env);
     GET_ARGS();  // opnd
-    XDEBUG(debug_print("Appl_k_args args", args));
+    DEBUG(debug_print("Appl_k_args args", args));
     TAIL_ARG(opnd);
     int_t effect = NIL;
-#if 1
     ASSERT(IS_PROC(oper));
     proc_t prim = TO_PTR(oper);
     int_t value = (*prim)(opnd, env);  // delegate to primitive proc
     DEBUG(debug_print("Appl_k_args value", value));
     effect = effect_send(effect, actor_send(cust, value));
-#else
-    effect = effect_send(effect,
-        actor_send(oper, list_4(cust, s_apply, opnd, env)));
-#endif
     return effect;
 }
 PROC_DECL(Appl) {
@@ -1113,6 +1114,49 @@ static PROC_DECL(prim_list) {  // (list . values)
 }
 const cell_t a_list = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_list) };
 
+static PROC_DECL(prim_cons) {  // (cons x y)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        opnd = cdr(opnd);
+        if (IS_PAIR(opnd)) {
+            int_t y = car(opnd);
+            if (cdr(opnd) == NIL) {
+                return cons(x, y);
+            }
+        }
+    }
+    return error("cons expected 2 arguments");
+}
+const cell_t a_cons = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_cons) };
+
+static PROC_DECL(prim_car) {  // (car x)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (cdr(opnd) == NIL) {
+            return car(x);
+        }
+    }
+    return error("car expected 1 argument");
+}
+const cell_t a_car = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_car) };
+
+static PROC_DECL(prim_cdr) {  // (cdr x)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (cdr(opnd) == NIL) {
+            return cdr(x);
+        }
+    }
+    return error("cdr expected 1 argument");
+}
+const cell_t a_cdr = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_cdr) };
+
 PROC_DECL(Oper_quote) {  // (quote expr)
     DEBUG(debug_print("Oper_quote self", self));
     GET_ARGS();
@@ -1127,7 +1171,7 @@ PROC_DECL(Oper_quote) {  // (quote expr)
         int_t expr = car(opnd);
         if (cdr(opnd) != NIL) {
             effect = effect_send(effect,
-                actor_send(cust, error("expected 1 argument")));
+                actor_send(cust, error("quote expected 1 argument")));
         } else {
             DEBUG(debug_print("Oper_quote value", expr));
             effect = effect_send(effect, actor_send(cust, expr));
@@ -1267,6 +1311,12 @@ PROC_DECL(Environment) {
             value = MK_ACTOR(&a_quote);
         } else if (symbol == s_list) {
             value = MK_ACTOR(&a_list);
+        } else if (symbol == s_cons) {
+            value = MK_ACTOR(&a_cons);
+        } else if (symbol == s_car) {
+            value = MK_ACTOR(&a_car);
+        } else if (symbol == s_cdr) {
+            value = MK_ACTOR(&a_cdr);
         } else {
             WARN(debug_print("Environment lookup failed", symbol));
             value = error("undefined variable");
@@ -1878,20 +1928,14 @@ int_t test_eval() {
             list_2(TRUE, FALSE),
             s_list));
 
-#if 0
-    eval_test_expr(
-        // (list (car (cons 1 2)) (cdr (cons 3 4)) (cdr (list 5 6)))
-        list_4(s_list,
-            list_2(s_car, list_3(s_cons, MK_NUM(1), MK_NUM(2))),
-            list_2(s_cdr, list_3(s_cons, MK_NUM(3), MK_NUM(4))),
-            list_2(s_cdr, list_3(s_list, MK_NUM(5), MK_NUM(6))));
-        // ==> (1 4 (6))
-        list_3(MK_NUM(1), MK_NUM(4), list_1(MK_NUM(6))));
-#endif
-
     eval_test_cstr(
         "(list '(foo bar baz #undefined) (list 13 -8) 'quote)",
         "((foo bar baz #undefined) (13 -8) quote)"
+    );
+
+    eval_test_cstr(
+        "(list (car (cons 1 2)) (cdr (cons 3 4)) (cdr (list 5 6)))",
+        "(1 4 (6))"
     );
 
     int_t usage = cell_usage();
