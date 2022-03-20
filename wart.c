@@ -741,6 +741,21 @@ PROC_DECL(sink_beh) {
 const cell_t a_sink = { .head = MK_PROC(sink_beh), .tail = NIL };
 #define SINK  MK_ACTOR(&a_sink)
 
+PROC_DECL(println_beh) {
+    DEBUG(debug_print("println_beh self", self));
+    GET_ARGS();  // value
+    XDEBUG(debug_print("println_beh args", args));
+    TAIL_ARG(value);
+    int_t effect = NIL;
+
+    print(value);
+    newline();
+    fflush(stdout);
+
+    return effect;
+}
+const cell_t a_println = { .head = MK_PROC(println_beh), .tail = UNDEF };
+
 PROC_DECL(tag_beh) {
     XDEBUG(debug_print("tag_beh self", self));
     GET_VARS();  // cust
@@ -1602,14 +1617,30 @@ int_t read_sexpr(input_t *in) {
 int_t read_eval_print_loop(input_t *in) {
     WARN(fprintf(stderr, "--REPL--\n"));
     while (1) {
+        int_t effect = NIL;
+
         fprintf(stdout, "wart> ");  // REPL prompt
         fflush(stdout);
-        int_t sexpr = read_sexpr(in);
-        if (sexpr == FAIL) break;
-        DEBUG(debug_print("  REPL sexpr", sexpr));
-        print(sexpr);
-        newline();
-        fflush(stdout);
+
+        // read expr to evaluate
+        int_t expr = read_sexpr(in);
+        if (expr == FAIL) break;
+        WARN(debug_print("  REPL expr", expr));
+
+        // evalute expr and print result
+        int_t cust = MK_ACTOR(&a_println);
+        int_t env = MK_ACTOR(&a_ground_env);
+        effect = effect_send(effect,
+            actor_send(expr, list_3(cust, s_eval, env)));
+
+#if CONCURRENT_GC
+        effect = effect_send(effect,
+            actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));
+#endif
+
+        // dispatch all pending events
+        ASSERT(apply_effect(UNDEF, effect) == OK);
+        event_loop();
     }
     newline();
     return OK;
@@ -1725,7 +1756,7 @@ int_t test_actors() {
     return OK;
 }
 
-int_t eval_testcase(int_t expr, int_t expect) {
+int_t eval_test_expr(int_t expr, int_t expect) {
     int_t effect = NIL;
 
     int_t cust = actor_create(MK_PROC(assert_beh), expect);
@@ -1743,8 +1774,30 @@ int_t eval_testcase(int_t expr, int_t expect) {
     // dispatch all pending events
     ASSERT(apply_effect(UNDEF, effect) == OK);
     int_t result = event_loop();
-    DEBUG(debug_print("eval_testcase event_loop", result));
+    DEBUG(debug_print("eval_test_expr event_loop", result));
 
+    return OK;
+}
+
+static char nstr_buf[256];
+int_t eval_test_cstr(char *cstr, char *result) {
+    nstr_in_t str_in;
+
+    cstr_to_nstr(cstr, nstr_buf, sizeof(nstr_buf));
+    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
+    read_ofs = 0;  // FIXME: should be part of input structure
+    int_t expr = read_sexpr(&str_in.input);
+    if (expr == FAIL) error("eval_test_cstr: read expr failed");
+    DEBUG(debug_print("  expr", expr));
+
+    cstr_to_nstr(result, nstr_buf, sizeof(nstr_buf));
+    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
+    read_ofs = 0;  // FIXME: should be part of input structure
+    int_t expect = read_sexpr(&str_in.input);
+    if (expect == FAIL) error("eval_test_cstr: read expect failed");
+    DEBUG(debug_print("  expect", expect));
+
+    eval_test_expr(expr, expect);
     return OK;
 }
 
@@ -1777,25 +1830,25 @@ int_t test_eval() {
     ASSERT(list_3(UNIT, s_foo, s_bar) != list_3(UNIT, s_foo, s_bar));
     ASSERT(equal(list_3(UNIT, s_foo, s_bar), list_3(UNIT, s_foo, s_bar)));
 
-    eval_testcase(
+    eval_test_expr(
         // (<list>)
         list_1(MK_ACTOR(&a_list)),
         // ==> ()
         NIL);
 
-    eval_testcase(
+    eval_test_expr(
         // (list)
         list_1(s_list),
         // ==> ()
         NIL);
 
-    eval_testcase(
+    eval_test_expr(
         // (list -1 2 3)
         list_4(s_list, MK_NUM(-1), MK_NUM(2), MK_NUM(3)),
         // ==> (-1 2 3)
         list_3(MK_NUM(-1), MK_NUM(2), MK_NUM(3)));
 
-    eval_testcase(
+    eval_test_expr(
         // (list '(#unit foo bar baz) (list #t #f) 'list)
         list_4(s_list,
             list_2(s_quote, list_4(UNIT, s_foo, s_bar, s_baz)),
@@ -1808,7 +1861,7 @@ int_t test_eval() {
             s_list));
 
 #if 0
-    eval_testcase(
+    eval_test_expr(
         // (list (car (cons 1 2)) (cdr (cons 3 4)) (cdr (list 5 6)))
         list_4(s_list,
             list_2(s_car, list_3(s_cons, MK_NUM(1), MK_NUM(2))),
@@ -1817,6 +1870,11 @@ int_t test_eval() {
         // ==> (1 4 (6))
         list_3(MK_NUM(1), MK_NUM(4), list_1(MK_NUM(6))));
 #endif
+
+    eval_test_cstr(
+        "(list '(foo bar baz #undefined) (list 13 -8) 'quote)",
+        "((foo bar baz #undefined) (13 -8) quote)"
+    );
 
     int_t usage = cell_usage();
     return OK;
@@ -1895,6 +1953,7 @@ int main(int argc, char const *argv[])
 
     file_in_t std_in;
     ASSERT(file_init(&std_in, stdin) == 0);
+    read_ofs = 0;  // FIXME: should be part of input structure
     result = read_eval_print_loop(&std_in.input);
 
     return (result == OK ? 0 : 1);
