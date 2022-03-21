@@ -17,6 +17,31 @@ i64:  3210 9876 5432 1098  7654 3210 9876 5432  1098 7654 3210 9876  5432 1098 7
 WASM has no pointers, only 0-based indexing into collections.
 Linear memory (Heap) is addressed by offset from zero.
 
+### Disjoint Base Types
+
+Tag  | Type   | Description
+-----|--------|------------
+2#00 | Fixnum | (x>>2) = 2's-complement integer
+2#01 | Pair   | (x&~3) = machine address of cell
+2#10 | Symbol | (x>>2) = index into symbol table
+2#11 | Actor  | (x&~3) = machine address of cell
+
+_Procedures_ are encoded as _Actors_
+(since they are opaque values),
+using the raw code address.
+Some code performs an additional check
+to disambiguate when needed.
+
+## Ground Environment
+
+The following procedures are defined in the ground environment:
+  * `(quote `_expression_`)`
+  * `(list . `_objects_`)`
+  * `(cons `_head_` `_tail_`)`
+  * `(car `_pair_`)`
+  * `(cdr `_pair_`)`
+  * `(if `_predicate_` `_consequent_` `_alternative_`)`
+
 ## Garbage Collected Heap
 
 The GC Heap is composed of i64 cells.
@@ -88,21 +113,6 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
   +-> xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt = proc
       xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt = var
 ```
-
-### Disjoint Base Types
-
-Tag  | Type   | Description
------|--------|------------
-2#00 | Fixnum | (x>>2) = 2's-complement integer
-2#01 | Pair   | (x&~3) = machine address of cell
-2#10 | Symbol | (x>>2) = index into symbol table
-2#11 | Actor  | (x&~3) = machine address of cell
-
-_Procedures_ are encoded as _Actors_
-(since they are opaque values),
-using the raw code address.
-Some code performs an additional check
-to disambiguate when needed.
 
 ### Object Method Invocations
 
