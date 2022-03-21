@@ -482,6 +482,7 @@ next:   i += m;
     return MK_SYM(i-1);
 }
 
+int_t s_ignore;
 int_t s_quote;
 int_t s_typeq;
 int_t s_eval;
@@ -491,6 +492,8 @@ int_t s_cons;
 int_t s_car;
 int_t s_cdr;
 int_t s_if;
+int_t s_eqp;
+int_t s_equalp;
 int_t s_map;
 int_t s_fold;
 int_t s_foldr;
@@ -501,6 +504,7 @@ int_t s_content;
 
 // runtime initialization
 int_t symbol_boot() {
+    s_ignore = symbol("_");
     s_quote = symbol("quote");
     s_typeq = symbol("typeq");
     s_eval = symbol("eval");
@@ -510,6 +514,8 @@ int_t symbol_boot() {
     s_car = symbol("car");
     s_cdr = symbol("cdr");
     s_if = symbol("if");
+    s_eqp = symbol("eq?");
+    s_equalp = symbol("equal?");
     s_map = symbol("map");
     s_fold = symbol("fold");
     s_foldr = symbol("foldr");
@@ -1107,14 +1113,14 @@ PROC_DECL(Appl) {
     return SeType(self, arg);  // delegate to SeType
 }
 
-static PROC_DECL(prim_list) {  // (list . values)
+static PROC_DECL(prim_list) {  // (list . objects)
     int_t opnd = self;
     //int_t env = arg;
     return opnd;
 }
 const cell_t a_list = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_list) };
 
-static PROC_DECL(prim_cons) {  // (cons x y)
+static PROC_DECL(prim_cons) {  // (cons head tail)
     int_t opnd = self;
     //int_t env = arg;
     if (IS_PAIR(opnd)) {
@@ -1131,7 +1137,7 @@ static PROC_DECL(prim_cons) {  // (cons x y)
 }
 const cell_t a_cons = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_cons) };
 
-static PROC_DECL(prim_car) {  // (car x)
+static PROC_DECL(prim_car) {  // (car pair)
     int_t opnd = self;
     //int_t env = arg;
     if (IS_PAIR(opnd)) {
@@ -1144,7 +1150,7 @@ static PROC_DECL(prim_car) {  // (car x)
 }
 const cell_t a_car = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_car) };
 
-static PROC_DECL(prim_cdr) {  // (cdr x)
+static PROC_DECL(prim_cdr) {  // (cdr pair)
     int_t opnd = self;
     //int_t env = arg;
     if (IS_PAIR(opnd)) {
@@ -1241,6 +1247,48 @@ PROC_DECL(Oper_if) {  // (if pred cnsq altn)
     return SeType(self, arg);  // delegate to SeType
 }
 const cell_t a_if = { .head = MK_PROC(Oper_if), .tail = UNDEF };
+
+static PROC_DECL(prim_eqp) {  // (eq? . objects)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        opnd = cdr(opnd);
+        while (IS_PAIR(opnd)) {
+            int_t y = car(opnd);
+            if (x != y) {
+                return FALSE;
+            }
+            opnd = cdr(opnd);
+        }
+    }
+    if (opnd != NIL) {
+        return error("eq? requires a proper list");
+    }
+    return TRUE;
+}
+const cell_t a_eqp = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_eqp) };
+
+static PROC_DECL(prim_equalp) {  // (equal? . objects)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        opnd = cdr(opnd);
+        while (IS_PAIR(opnd)) {
+            int_t y = car(opnd);
+            if (!equal(x, y)) {
+                FALSE;
+            }
+            opnd = cdr(opnd);
+        }
+    }
+    if (opnd != NIL) {
+        return error("equal? requires a proper list");
+    }
+    return TRUE;
+}
+const cell_t a_equalp = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_equalp) };
 
 PROC_DECL(Boolean) {
     XDEBUG(debug_print("Boolean self", self));
@@ -1365,6 +1413,10 @@ PROC_DECL(Environment) {
             value = MK_ACTOR(&a_cdr);
         } else if (symbol == s_if) {
             value = MK_ACTOR(&a_if);
+        } else if (symbol == s_eqp) {
+            value = MK_ACTOR(&a_eqp);
+        } else if (symbol == s_equalp) {
+            value = MK_ACTOR(&a_equalp);
         } else {
             WARN(debug_print("Environment lookup failed", symbol));
             value = error("undefined variable");
@@ -1688,10 +1740,10 @@ int_t read_sexpr(input_t *in) {
     if (is_delim(ch)) {
         return FAIL;  // illegal character
     }
-    if ((ch == '-') || ((ch >= '0') && (ch <= '9'))) {
+    if ((ch == '-') || (ch == '+') || ((ch >= '0') && (ch <= '9'))) {
         i32 neg = 0;
-        if (ch == '-') {
-            neg = 1;
+        if ((ch == '-') || (ch == '+')) {  // leading sign
+            neg = (ch == '-');
             if (i >= sizeof(token)) return FAIL;  // overflow
             token[i++] = ch;
             (in->next)(in, 1);
@@ -1994,6 +2046,26 @@ int_t test_eval() {
     eval_test_cstr(
         "(if #f -unevaluated- #unit)",
         "#unit"
+    );
+
+    eval_test_cstr(
+        "(eq? 'foo 'foo)",
+        "#t"
+    );
+
+    eval_test_cstr(
+        "(eq? 1 1 1)",
+        "#t"
+    );
+
+    eval_test_cstr(
+        "(eq? '(1 2) '(1 2))",
+        "#f"
+    );
+
+    eval_test_cstr(
+        "(equal? '(1 2) (list 1 2) (cons 1 (cons 2 '())))",
+        "#t"
     );
 
     int_t usage = cell_usage();
