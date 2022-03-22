@@ -391,6 +391,22 @@ i32 gc_mark_cell(int_t val)
     return cnt;
 }
 
+static cell_t event_q;
+static cell_t a_ground_env;
+i32 gc_mark_roots() {  // mark cells reachable from the root-set
+    XDEBUG(fprintf(stderr, "> gc_mark_roots\n"));
+    i32 n = 0;
+#if GC_CALL_DEPTH
+    n += gc_mark_cell(event_q.head, 0);
+    n += gc_mark_cell(a_ground_env.tail, 0);
+#else
+    n += gc_mark_cell(event_q.head);
+    n += gc_mark_cell(a_ground_env.tail);
+#endif
+    XDEBUG(fprintf(stderr, "< gc_mark_roots (n=%d)\n", n));
+    return n;
+}
+
 i32 gc_sweep() {  // free unmarked cells
     XDEBUG(fprintf(stderr, "> gc_sweep\n"));
     i32 cnt = 0;
@@ -408,16 +424,11 @@ i32 gc_sweep() {  // free unmarked cells
     return cnt;
 }
 
-i32 gc_mark_and_sweep(int_t root) {
-    XDEBUG(debug_print("gc_mark_and_sweep root", root));
+i32 gc_mark_and_sweep() {
     i32 n = gc_clear();
     n = gc_mark_free();
     XDEBUG(printf("gc_mark_and_sweep: marked %d free cells\n", n));
-#if GC_CALL_DEPTH
-    n = gc_mark_cell(root, 0);
-#else
-    n = gc_mark_cell(root);
-#endif
+    n = gc_mark_roots();
     XDEBUG(printf("gc_mark_and_sweep: marked %d used cells\n", n));
     n = gc_sweep();
     XDEBUG(printf("gc_mark_and_sweep: free'd %d dead cells\n", n));
@@ -496,6 +507,7 @@ int_t s_if;
 int_t s_eqp;
 int_t s_equalp;
 int_t s_lambda;
+int_t s_define;
 int_t s_map;
 int_t s_fold;
 int_t s_foldr;
@@ -519,6 +531,7 @@ int_t symbol_boot() {
     s_eqp = symbol("eq?");
     s_equalp = symbol("equal?");
     s_lambda = symbol("lambda");
+    s_define = symbol("define");
     s_map = symbol("map");
     s_fold = symbol("fold");
     s_foldr = symbol("foldr");
@@ -700,7 +713,7 @@ int_t event_dispatch() {
 #endif
 #else // !CONCURRENT_GC
     if (ok == OK) {
-        int freed = gc_mark_and_sweep(event_q.head);
+        int freed = gc_mark_and_sweep();
         DEBUG(printf("event_dispatch: gc reclaimed %d cells\n", freed));
     }
 #if TIME_DISPATCH
@@ -970,13 +983,13 @@ PROC_DECL(gc_mark_and_sweep_beh) {  // perform all GC steps together
     int_t m = TO_INT(limit);
     if (n < m) {
         // skip `limit` gc cycles
-        DEBUG(printf("gc_mark_and_sweep_beh: count(%"PRIdPTR") < limit(%"PRIdPTR")\n", n, m));
+        XDEBUG(printf("gc_mark_and_sweep_beh: count(%"PRIdPTR") < limit(%"PRIdPTR")\n", n, m));
         effect = effect_send(effect,
             actor_send(self, MK_NUM(++n)));
         return effect;
     }
 
-    int freed = gc_mark_and_sweep(event_q.head);
+    int freed = gc_mark_and_sweep();
     DEBUG(printf("gc_mark_and_sweep_beh: gc reclaimed %d cells\n", freed));
     effect = effect_send(effect,
         actor_send(self, MK_NUM(0)));
@@ -1181,6 +1194,7 @@ PROC_DECL(Scope) {
         }
         return effect;
     }
+    // FIXME: Scope should handle s_bind requests!
     return SeType(self, arg);  // delegate to SeType
 }
 static PROC_DECL(fold_last) {
@@ -1209,7 +1223,7 @@ PROC_DECL(Closure) {
         int_t assoc = match_pattern(ptrn, opnd, NIL);
         if (assoc == UNDEF) {
             effect = effect_send(effect,
-                actor_send(cust, error("argument pattern mismatch")));
+                actor_send(cust, error("lambda pattern mismatch")));
             return effect;
         }
         int_t xenv = actor_create(MK_PROC(Scope), list_2(assoc, lenv));
@@ -1249,6 +1263,59 @@ PROC_DECL(Oper_lambda) {  // (lambda pattern . objects)
     return SeType(self, arg);  // delegate to SeType
 }
 const cell_t a_lambda = { .head = MK_PROC(Oper_lambda), .tail = UNDEF };
+
+static PROC_DECL(Define_k_bind) {
+    XDEBUG(debug_print("Define_k_bind self", self));
+    GET_VARS();  // (cust ptrn env)
+    XDEBUG(debug_print("Define_k_bind vars", vars));
+    POP_VAR(cust);
+    POP_VAR(ptrn);
+    POP_VAR(env);
+    GET_ARGS();  // value
+    XDEBUG(debug_print("Define_k_bind args", args));
+    TAIL_ARG(value);
+    int_t effect = NIL;
+    int_t assoc = match_pattern(ptrn, value, NIL);
+    if (assoc == UNDEF) {
+        effect = effect_send(effect,
+            actor_send(cust, error("define pattern mismatch")));
+    } else {
+        effect = effect_send(effect,
+            actor_send(env, list_3(cust, s_bind, assoc)));
+    }
+    return effect;
+}
+PROC_DECL(Oper_define) {  // (define pattern expression)
+    XDEBUG(debug_print("Oper_define self", self));
+    GET_ARGS();
+    XDEBUG(debug_print("Oper_define args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        if (IS_PAIR(opnd)) {
+            int_t ptrn = car(opnd);
+            opnd = cdr(opnd);
+            if (IS_PAIR(opnd)) {
+                int_t expr = car(opnd);
+                int_t k_bind = actor_create(MK_PROC(Define_k_bind), list_3(cust, ptrn, env));
+                effect = effect_create(effect, k_bind);
+                effect = effect_send(effect,
+                    actor_send(expr, list_3(k_bind, s_eval, env)));
+                return effect;
+            }
+            return effect;
+        }
+        effect = effect_send(effect,
+            actor_send(cust, error("define expected 2 operands")));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t a_define = { .head = MK_PROC(Oper_define), .tail = UNDEF };
 
 static PROC_DECL(prim_list) {  // (list . objects)
     int_t opnd = self;
@@ -1575,6 +1642,9 @@ PROC_DECL(Fail) {
 
 PROC_DECL(Environment) {
     XDEBUG(debug_print("Environment self", self));
+    GET_VARS();  // locals
+    XDEBUG(debug_print("Environment vars", vars));
+    TAIL_VAR(locals);
     GET_ARGS();
     XDEBUG(debug_print("Environment args", args));
     POP_ARG(cust);
@@ -1584,7 +1654,10 @@ PROC_DECL(Environment) {
         POP_ARG(symbol);
         END_ARGS();
         int_t value = UNDEF;
-        if (symbol == s_quote) {
+        int_t binding = assoc_find(locals, symbol);
+        if (IS_PAIR(binding)) {
+            value = cdr(binding);
+        } else if (symbol == s_quote) {
             value = MK_ACTOR(&a_quote);
         } else if (symbol == s_list) {
             value = MK_ACTOR(&a_list);
@@ -1602,6 +1675,8 @@ PROC_DECL(Environment) {
             value = MK_ACTOR(&a_equalp);
         } else if (symbol == s_lambda) {
             value = MK_ACTOR(&a_lambda);
+        } else if (symbol == s_define) {
+            value = MK_ACTOR(&a_define);
         } else {
             WARN(debug_print("Environment lookup failed", symbol));
             value = error("undefined variable");
@@ -1611,9 +1686,37 @@ PROC_DECL(Environment) {
             actor_send(cust, value));
         return effect;
     }
+    if (req == s_bind) {  // (cust 'bind assoc)
+        POP_ARG(assoc);
+        XDEBUG(debug_print("Environment assoc", assoc));
+        END_ARGS();
+        while (IS_PAIR(assoc)) {
+            int_t new_binding = car(assoc);
+            if (IS_PAIR(new_binding)) {
+                int_t key = car(new_binding);
+                int_t value = cdr(new_binding);
+                int_t old_binding = assoc_find(locals, key);
+                if (IS_PAIR(old_binding)) {
+                    set_cdr(old_binding, value);  // update in-place
+                } else {
+                    locals = cons(new_binding, locals);  // new binding
+                }
+            }
+            assoc = cdr(assoc);
+        }
+        XDEBUG(debug_print("Environment locals", locals));
+        effect = effect_become(effect,
+            actor_become(MK_PROC(Environment), locals));
+        effect = effect_send(effect,
+            actor_send(cust, UNIT));
+        return effect;
+    }
     return SeType(self, arg);  // delegate to SeType
 }
-const cell_t a_ground_env = { .head = MK_PROC(Environment), .tail = NIL };
+// Note: `a_ground_env` can not be `const` because `locals` is mutable
+// WARNING! a_ground_env.tail must be part of the gc root set!
+static cell_t a_ground_env = { .head = MK_PROC(Environment), .tail = NIL };
+// FIXME: consider stacking a mutable Scope on top of the immutable ground env?
 
 /*
  * display procedures
@@ -2298,7 +2401,7 @@ int_t test_eval() {
     DEBUG(debug_print("test_eval match 5", result));
     ASSERT(equal(result, assoc));
 
-    int freed = gc_mark_and_sweep(event_q.head);
+    int freed = gc_mark_and_sweep();
     WARN(printf("test_eval: gc reclaimed %d cells\n", freed));
     int_t usage = cell_usage();
     return OK;
