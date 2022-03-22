@@ -97,8 +97,6 @@ void newline() {  // DO NOT MOVE -- USED TO DEFINE is_proc()
 PROC_DECL(Undef);
 PROC_DECL(Unit);
 PROC_DECL(Boolean);
-//PROC_DECL(false_beh);
-//PROC_DECL(true_beh);
 PROC_DECL(Null);
 PROC_DECL(Pair);
 PROC_DECL(Symbol);
@@ -508,6 +506,11 @@ int_t s_eqp;
 int_t s_equalp;
 int_t s_lambda;
 int_t s_define;
+int_t s_booleanp;
+int_t s_nullp;
+int_t s_pairp;
+int_t s_symbolp;
+int_t s_numberp;
 int_t s_map;
 int_t s_fold;
 int_t s_foldr;
@@ -532,6 +535,11 @@ int_t symbol_boot() {
     s_equalp = symbol("equal?");
     s_lambda = symbol("lambda");
     s_define = symbol("define");
+    s_booleanp = symbol("boolean?");
+    s_nullp = symbol("null?");
+    s_pairp = symbol("pair?");
+    s_symbolp = symbol("symbol?");
+    s_numberp = symbol("number?");
     s_map = symbol("map");
     s_fold = symbol("fold");
     s_foldr = symbol("foldr");
@@ -1496,6 +1504,35 @@ static PROC_DECL(prim_equalp) {  // (equal? . objects)
 }
 const cell_t a_equalp = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_equalp) };
 
+static PROC_DECL(fold_and) {
+    int_t zero = self;
+    XDEBUG(debug_print("fold_and zero", zero));
+    int_t one = arg;
+    XDEBUG(debug_print("fold_and one", one));
+    if (one == FALSE) return FALSE;
+    return one;
+}
+PROC_DECL(Oper_typep) {
+    XDEBUG(debug_print("Oper_typep self", self));
+    GET_VARS();  // type
+    XDEBUG(debug_print("Oper_typep vars", vars));
+    TAIL_VAR(type);
+    GET_ARGS();
+    XDEBUG(debug_print("Oper_typep args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(_env);
+        END_ARGS();
+        effect = effect_send(effect,
+            actor_send(opnd, list_6(cust, s_fold, TRUE, MK_PROC(fold_and), s_typeq, type)));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+
 PROC_DECL(Boolean) {
     XDEBUG(debug_print("Boolean self", self));
     GET_VARS();  // bval
@@ -1505,6 +1542,8 @@ PROC_DECL(Boolean) {
     XDEBUG(debug_print("Boolean args", args));
     return SeType(self, arg);  // delegate to SeType
 }
+const cell_t oper_booleanp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Boolean) };
+const cell_t a_booleanp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_booleanp) };
 
 PROC_DECL(Null) {
     XDEBUG(debug_print("Null self", self));
@@ -1529,6 +1568,8 @@ PROC_DECL(Null) {
     }
     return SeType(self, arg);  // delegate to SeType
 }
+const cell_t oper_nullp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Null) };
+const cell_t a_nullp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_nullp) };
 
 static PROC_DECL(Pair_k_fold) {
     XDEBUG(debug_print("Pair_k_fold self", self));
@@ -1608,6 +1649,8 @@ PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
     }
     return Type(self, arg);  // delegate to Type (not self-evaluating)
 }
+const cell_t oper_pairp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Pair) };
+const cell_t a_pairp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_pairp) };
 
 PROC_DECL(Symbol) {  // WARNING: behavior used directly in obj_call()
     DEBUG(debug_print("Symbol self", self));
@@ -1625,6 +1668,8 @@ PROC_DECL(Symbol) {  // WARNING: behavior used directly in obj_call()
     }
     return Type(self, arg);  // delegate to Type (not self-evaluating)
 }
+const cell_t oper_symbolp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Symbol) };
+const cell_t a_symbolp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_symbolp) };
 
 PROC_DECL(Fixnum) {  // WARNING: behavior used directly in obj_call()
     XDEBUG(debug_print("Fixnum self", self));
@@ -1632,6 +1677,8 @@ PROC_DECL(Fixnum) {  // WARNING: behavior used directly in obj_call()
     XDEBUG(debug_print("Fixnum args", args));
     return SeType(self, arg);  // delegate to SeType
 }
+const cell_t oper_numberp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Fixnum) };
+const cell_t a_numberp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_numberp) };
 
 PROC_DECL(Fail) {
     WARN(debug_print("Fail self", self));
@@ -1677,6 +1724,16 @@ PROC_DECL(Environment) {
             value = MK_ACTOR(&a_lambda);
         } else if (symbol == s_define) {
             value = MK_ACTOR(&a_define);
+        } else if (symbol == s_booleanp) {
+            value = MK_ACTOR(&a_booleanp);
+        } else if (symbol == s_nullp) {
+            value = MK_ACTOR(&a_nullp);
+        } else if (symbol == s_pairp) {
+            value = MK_ACTOR(&a_pairp);
+        } else if (symbol == s_symbolp) {
+            value = MK_ACTOR(&a_symbolp);
+        } else if (symbol == s_numberp) {
+            value = MK_ACTOR(&a_numberp);
         } else {
             WARN(debug_print("Environment lookup failed", symbol));
             value = error("undefined variable");

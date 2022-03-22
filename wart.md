@@ -45,6 +45,11 @@ The following procedures are defined in the ground environment:
   * `(equal? . `_objects_`)`
   * `(lambda `_pattern_` . `_objects_`)`
   * `(define `_pattern_` `_expression_`)`
+  * `(boolean? . `_objects_`)`
+  * `(null? . `_objects_`)`
+  * `(pair? . `_objects_`)`
+  * `(symbol? . `_objects_`)`
+  * `(number? . `_objects_`)`
 
 ## Garbage Collected Heap
 
