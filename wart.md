@@ -43,6 +43,7 @@ The following procedures are defined in the ground environment:
   * `(if `_predicate_` `_consequent_` `_alternative_`)`
   * `(eq? . `_objects_`)`
   * `(equal? . `_objects_`)`
+  * `(lambda `_pattern_` . `_objects_`)`
 
 ## Garbage Collected Heap
 

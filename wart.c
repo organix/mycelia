@@ -237,6 +237,7 @@ int_t cons(int_t head, int_t tail) {
 #define list_3(v1,v2,v3)  cons((v1), cons((v2), cons((v3), NIL)))
 #define list_4(v1,v2,v3,v4)  cons((v1), cons((v2), cons((v3), cons((v4), NIL))))
 #define list_5(v1,v2,v3,v4,v5)  cons((v1), cons((v2), cons((v3), cons((v4), cons((v5), NIL)))))
+#define list_6(v1,v2,v3,v4,v5,v6)  cons((v1), cons((v2), cons((v3), cons((v4), cons((v5), cons((v6), NIL))))))
 
 int_t car(int_t val) {
     if (!IS_PAIR(val)) return error("car() of non-PAIR");
@@ -494,6 +495,7 @@ int_t s_cdr;
 int_t s_if;
 int_t s_eqp;
 int_t s_equalp;
+int_t s_lambda;
 int_t s_map;
 int_t s_fold;
 int_t s_foldr;
@@ -516,6 +518,7 @@ int_t symbol_boot() {
     s_if = symbol("if");
     s_eqp = symbol("eq?");
     s_equalp = symbol("equal?");
+    s_lambda = symbol("lambda");
     s_map = symbol("map");
     s_fold = symbol("fold");
     s_foldr = symbol("foldr");
@@ -1083,11 +1086,15 @@ static PROC_DECL(Appl_k_args) {
     DEBUG(debug_print("Appl_k_args args", args));
     TAIL_ARG(opnd);
     int_t effect = NIL;
-    ASSERT(IS_PROC(oper));
-    proc_t prim = TO_PTR(oper);
-    int_t value = (*prim)(opnd, env);  // delegate to primitive proc
-    DEBUG(debug_print("Appl_k_args value", value));
-    effect = effect_send(effect, actor_send(cust, value));
+    if (IS_PROC(oper)) {
+        proc_t prim = TO_PTR(oper);
+        int_t value = (*prim)(opnd, env);  // delegate to primitive proc
+        DEBUG(debug_print("Appl_k_args value", value));
+        effect = effect_send(effect, actor_send(cust, value));
+    } else {
+        effect = effect_send(effect,
+            actor_send(oper, list_4(cust, s_apply, opnd, env)));
+    }
     return effect;
 }
 PROC_DECL(Appl) {
@@ -1112,6 +1119,136 @@ PROC_DECL(Appl) {
     }
     return SeType(self, arg);  // delegate to SeType
 }
+
+int_t match_pattern(int_t ptrn, int_t opnd, int_t assoc) {
+    XDEBUG(debug_print("match_pattern ptrn", ptrn));
+    XDEBUG(debug_print("match_pattern opnd", opnd));
+    while (IS_PAIR(ptrn)) {
+        if (car(ptrn) == s_quote) {
+            ptrn = car(cdr(ptrn));
+            if (!equal(ptrn, opnd)) return UNDEF;  // wrong literal
+            XDEBUG(debug_print("match_pattern quote", assoc));
+            return assoc;  // success
+        }
+        if (!IS_PAIR(opnd)) return UNDEF;  // wrong structure
+        assoc = match_pattern(car(ptrn), car(opnd), assoc);
+        if (assoc == UNDEF) return UNDEF;  // nested failure
+        ptrn = cdr(ptrn);
+        opnd = cdr(opnd);
+    }
+    if (IS_SYM(ptrn)) {
+        if (ptrn != s_ignore) {
+            assoc = cons(cons(ptrn, opnd), assoc);
+        }
+    } else {
+        if (!equal(ptrn, opnd)) return UNDEF;  // wrong constant
+    }
+    XDEBUG(debug_print("match_pattern assoc", assoc));
+    return assoc;  // success
+}
+int_t assoc_find(int_t assoc, int_t key) {
+    while (IS_PAIR(assoc)) {
+        int_t entry = car(assoc);
+        if (!IS_PAIR(entry)) return UNDEF;  // invalid assoc list
+        if (car(entry) == key) return entry;  // found!
+        assoc = cdr(assoc);
+    }
+    return UNDEF;  // not found
+}
+PROC_DECL(Scope) {
+    XDEBUG(debug_print("Scope self", self));
+    GET_VARS();  // (assoc env)
+    XDEBUG(debug_print("Scope vars", vars));
+    POP_VAR(assoc);  // local bindings
+    POP_VAR(penv);  // parent environment
+    GET_ARGS();
+    XDEBUG(debug_print("Scope args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_lookup) {  // (cust 'lookup symbol)
+        POP_ARG(symbol);
+        END_ARGS();
+        int_t binding = assoc_find(assoc, symbol);
+        if (IS_PAIR(binding)) {
+            int_t value = cdr(binding);
+            DEBUG(debug_print("Scope value", value));
+            effect = effect_send(effect,
+                actor_send(cust, value)); // send value to cust
+        } else {
+            effect = effect_send(effect,
+                actor_send(penv, arg)); // delegate to parent
+        }
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+static PROC_DECL(fold_last) {
+    int_t zero = self;
+    XDEBUG(debug_print("fold_last zero", zero));
+    int_t one = arg;
+    XDEBUG(debug_print("fold_last one", one));
+    return one;
+}
+PROC_DECL(Closure) {
+    XDEBUG(debug_print("Closure self", self));
+    GET_VARS();  // (ptrn body lenv)
+    XDEBUG(debug_print("Closure vars", vars));
+    POP_VAR(ptrn);
+    POP_VAR(body);
+    POP_VAR(lenv);  // lexical (captured) environment
+    GET_ARGS();
+    XDEBUG(debug_print("Closure args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd denv)
+        POP_ARG(opnd);
+        POP_ARG(denv);  // dynamic (caller) environment
+        END_ARGS();
+        int_t assoc = match_pattern(ptrn, opnd, NIL);
+        if (assoc == UNDEF) {
+            effect = effect_send(effect,
+                actor_send(cust, error("argument pattern mismatch")));
+            return effect;
+        }
+        int_t xenv = actor_create(MK_PROC(Scope), list_2(assoc, lenv));
+        effect = effect_create(effect, xenv);
+        effect = effect_send(effect,
+            actor_send(body, list_6(cust, s_fold, UNIT, MK_PROC(fold_last), s_eval, xenv)));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+PROC_DECL(Oper_lambda) {  // (lambda pattern . objects)
+    XDEBUG(debug_print("Oper_lambda self", self));
+    GET_ARGS();
+    XDEBUG(debug_print("Oper_lambda args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        if (IS_PAIR(opnd)) {
+            int_t ptrn = car(opnd);
+            int_t body = cdr(opnd);
+            int_t closure = actor_create(
+                MK_PROC(Closure), list_3(ptrn, body, env));
+            effect = effect_create(effect, closure);
+            int_t appl = actor_create(MK_PROC(Appl), closure);
+            effect = effect_create(effect, appl);
+            effect = effect_send(effect, actor_send(cust, appl));
+            return effect;
+        }
+        effect = effect_send(effect,
+            actor_send(cust, error("lambda expected pattern . body")));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t a_lambda = { .head = MK_PROC(Oper_lambda), .tail = UNDEF };
 
 static PROC_DECL(prim_list) {  // (list . objects)
     int_t opnd = self;
@@ -1164,7 +1301,7 @@ static PROC_DECL(prim_cdr) {  // (cdr pair)
 const cell_t a_cdr = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_cdr) };
 
 PROC_DECL(Oper_quote) {  // (quote expr)
-    DEBUG(debug_print("Oper_quote self", self));
+    XDEBUG(debug_print("Oper_quote self", self));
     GET_ARGS();
     XDEBUG(debug_print("Oper_quote args", args));
     POP_ARG(cust);
@@ -1174,14 +1311,16 @@ PROC_DECL(Oper_quote) {  // (quote expr)
         POP_ARG(opnd);
         POP_ARG(_env);
         END_ARGS();
-        int_t expr = car(opnd);
-        if (cdr(opnd) != NIL) {
-            effect = effect_send(effect,
-                actor_send(cust, error("quote expected 1 argument")));
-        } else {
-            DEBUG(debug_print("Oper_quote value", expr));
-            effect = effect_send(effect, actor_send(cust, expr));
+        if (IS_PAIR(opnd)) {
+            int_t expr = car(opnd);
+            if (cdr(opnd) == NIL) {
+                DEBUG(debug_print("Oper_quote value", expr));
+                effect = effect_send(effect, actor_send(cust, expr));
+                return effect;
+            }
         }
+        effect = effect_send(effect,
+            actor_send(cust, error("quote expected 1 operand")));
         return effect;
     }
     return SeType(self, arg);  // delegate to SeType
@@ -1197,7 +1336,7 @@ static PROC_DECL(If_k_pred) {
     POP_VAR(altn);
     POP_VAR(env);
     GET_ARGS();  // pred
-    DEBUG(debug_print("If_k_pred args", args));
+    XDEBUG(debug_print("If_k_pred args", args));
     TAIL_ARG(pred);
     int_t effect = NIL;
     if (pred == UNDEF) {  // short-circuit for #undef
@@ -1211,7 +1350,7 @@ static PROC_DECL(If_k_pred) {
     return effect;
 }
 PROC_DECL(Oper_if) {  // (if pred cnsq altn)
-    DEBUG(debug_print("Oper_if self", self));
+    XDEBUG(debug_print("Oper_if self", self));
     GET_ARGS();
     XDEBUG(debug_print("Oper_if args", args));
     POP_ARG(cust);
@@ -1313,9 +1452,38 @@ PROC_DECL(Null) {
             actor_send(self, cons(cust, h_req)));
         return effect;
     }
+    if (req == s_fold) {  // (cust 'fold zero oplus . req)
+        POP_ARG(zero);
+        //POP_ARG(oplus);
+        //TAIL_ARG(req);
+        effect = effect_send(effect,
+            actor_send(cust, zero));
+        return effect;
+    }
     return SeType(self, arg);  // delegate to SeType
 }
 
+static PROC_DECL(Pair_k_fold) {
+    XDEBUG(debug_print("Pair_k_fold self", self));
+    GET_VARS();  // (cust tail zero oplus . req)
+    XDEBUG(debug_print("Pair_k_fold vars", vars));
+    POP_VAR(cust);
+    POP_VAR(tail);
+    POP_VAR(zero);
+    POP_VAR(oplus);
+    TAIL_VAR(req);
+    GET_ARGS();  // one
+    XDEBUG(debug_print("Pair_k_fold args", args));
+    TAIL_ARG(one);
+    int_t effect = NIL;
+    ASSERT(IS_PROC(oplus));
+    proc_t proc = TO_PTR(oplus);
+    zero = (*proc)(zero, one);  // update accumulator
+    DEBUG(debug_print("Pair_k_fold accum", zero));
+    effect = effect_send(effect,
+        actor_send(tail, cons(cust, cons(s_fold, cons(zero, cons(oplus, req))))));
+    return effect;
+}
 static PROC_DECL(Pair_k_apply) {
     XDEBUG(debug_print("Pair_k_apply self", self));
     GET_VARS();  // (cust opnd env)
@@ -1341,7 +1509,8 @@ PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
     if (req == s_eval) {  // (cust 'eval env)
         POP_ARG(env);
         END_ARGS();
-        int_t k_apply = actor_create(MK_PROC(Pair_k_apply), list_3(cust, cdr(self), env));
+        int_t k_apply = actor_create(MK_PROC(Pair_k_apply),
+            list_3(cust, cdr(self), env));
         effect = effect_create(effect, k_apply);
         effect = effect_send(effect,
             actor_send(car(self), list_3(k_apply, s_eval, env)));
@@ -1354,6 +1523,20 @@ PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
         effect = effect_create(effect, fork);
         effect = effect_send(effect,
             actor_send(fork, cons(h_req, t_req)));
+        return effect;
+    }
+    if (req == s_fold) {  // (cust 'fold zero oplus . req)
+        int_t rest = args;  // re-use args
+        POP_ARG(zero);
+        POP_ARG(oplus);
+        TAIL_ARG(req);
+        int_t head = car(self);
+        int_t tail = cdr(self);
+        int_t k_fold = actor_create(MK_PROC(Pair_k_fold),
+            cons(cust, cons(tail, rest)));
+        effect = effect_create(effect, k_fold);
+        effect = effect_send(effect,
+            actor_send(head, cons(k_fold, req)));
         return effect;
     }
     return Type(self, arg);  // delegate to Type (not self-evaluating)
@@ -1417,6 +1600,8 @@ PROC_DECL(Environment) {
             value = MK_ACTOR(&a_eqp);
         } else if (symbol == s_equalp) {
             value = MK_ACTOR(&a_equalp);
+        } else if (symbol == s_lambda) {
+            value = MK_ACTOR(&a_lambda);
         } else {
             WARN(debug_print("Environment lookup failed", symbol));
             value = error("undefined variable");
@@ -1568,13 +1753,13 @@ typedef struct nstr_in {
 } nstr_in_t;
 i32 nstr_get(input_t *self) {
     nstr_in_t *in = (nstr_in_t *)self;
-    DEBUG(fprintf(stderr, "  nstr_get ofs=%d\n", in->ofs));
+    XDEBUG(fprintf(stderr, "  nstr_get ofs=%d\n", in->ofs));
     if (in->ofs < 0) return -1;  // illegal offset
     char *s = in->nstr;
     i32 len = *s++;
     if (in->ofs < len) {
         i32 ch = s[in->ofs];
-        DEBUG(fprintf(stderr, "  nstr_get (ch=%d)\n", ch));
+        XDEBUG(fprintf(stderr, "  nstr_get (ch=%d)\n", ch));
         return ch;  // return char at ofs
     }
     return -1;  // out of bounds
@@ -1605,22 +1790,22 @@ i32 file_get(input_t *self) {
     input_t *nstr_in = &in->nstr_in.input;
 retry:
     ch = (nstr_in->get)(nstr_in);  // get from nstr
-    DEBUG(fprintf(stderr, "  file_get (ch=%d)\n", ch));
+    XDEBUG(fprintf(stderr, "  file_get (ch=%d)\n", ch));
     if (ch >= 0) return ch;  // return char at ofs
 
     // refill line buffer
     in->ofs += in->buffer[0];  // advance base buffer offset
-    DEBUG(fprintf(stderr, "  file_get refill ofs=%d\n", in->ofs));
+    XDEBUG(fprintf(stderr, "  file_get refill ofs=%d\n", in->ofs));
     if (!fgets(&in->buffer[1], (sizeof(in->buffer) - 1), in->file)) {
         // error or EOF
         in->buffer[0] = 0;  // empty nstr
         return -1;
     }
     i32 len = cstr_to_nstr(&in->buffer[1], &in->buffer[0], sizeof(in->buffer) - 1);
-    DEBUG(fprintf(stderr, "  file_get len=%d\n", len));
+    XDEBUG(fprintf(stderr, "  file_get len=%d\n", len));
     if (len < 0) return -1;  // error
     in->buffer[len+1] = '\0';  // belt-and-suspenders
-    DEBUG(fprintf(stderr, "  file_get str=\"%s\"\n", &in->buffer[1]));
+    XDEBUG(fprintf(stderr, "  file_get str=\"%s\"\n", &in->buffer[1]));
     if (nstr_init(&in->nstr_in, &in->buffer[0]) != 0) return -1;  // refill failed
     goto retry;
 }
@@ -2068,6 +2253,53 @@ int_t test_eval() {
         "#t"
     );
 
+    eval_test_cstr(
+        "((lambda (x) x) 42)",
+        "42"
+    );
+
+    eval_test_cstr(
+        "((lambda ('x #t y 2 . z) (list z y)) 'x #t 1 2 3 4)",
+        "((3 4) 1)"
+    );
+
+    int_t assoc = list_3(cons(s_foo, MK_NUM(1)), cons(s_bar, MK_NUM(2)), cons(s_baz, MK_NUM(3)));
+    DEBUG(debug_print("test_eval assoc", assoc));
+    ASSERT(cdr(assoc_find(assoc, s_foo)) == MK_NUM(1));
+    ASSERT(cdr(assoc_find(assoc, s_bar)) == MK_NUM(2));
+    ASSERT(cdr(assoc_find(assoc, s_baz)) == MK_NUM(3));
+    ASSERT(assoc_find(assoc, NIL) == UNDEF);
+
+    result = match_pattern(NIL, NIL, assoc);
+    DEBUG(debug_print("test_eval match 1", result));
+    ASSERT(result == assoc);
+
+    int_t opnd = list_3(MK_NUM(3), MK_NUM(2), MK_NUM(1));
+    result = match_pattern(s_foo, opnd, NIL);
+    ASSERT(equal(result, list_1(cons(s_foo, opnd))));
+    DEBUG(debug_print("test_eval match 2", result));
+
+    int_t ptrn = list_3(s_baz, s_bar, s_foo);
+    result = match_pattern(ptrn, opnd, NIL);
+    DEBUG(debug_print("test_eval match 3", result));
+    ASSERT(equal(result, assoc));
+
+    ptrn = list_2(s_foo, s_ignore);
+    opnd = list_2(MK_NUM(1), MK_NUM(3));
+    result = match_pattern(ptrn, opnd, list_1(cons(s_bar, MK_NUM(2))));
+    assoc = list_2(cons(s_foo, MK_NUM(1)), cons(s_bar, MK_NUM(2)));
+    DEBUG(debug_print("test_eval match 4", result));
+    ASSERT(equal(result, assoc));
+
+    ptrn = list_2(list_2(s_quote, s_foo), s_bar);
+    opnd = list_2(s_foo, MK_NUM(2));
+    result = match_pattern(ptrn, opnd, NIL);
+    assoc = list_1(cons(s_bar, MK_NUM(2)));
+    DEBUG(debug_print("test_eval match 5", result));
+    ASSERT(equal(result, assoc));
+
+    int freed = gc_mark_and_sweep(event_q.head);
+    WARN(printf("test_eval: gc reclaimed %d cells\n", freed));
     int_t usage = cell_usage();
     return OK;
 }
