@@ -1460,7 +1460,7 @@ static PROC_DECL(If_k_pred) {
     } else {
         effect = effect_send(effect,
             actor_send(
-                ((pred == TRUE) ? cnsq : altn),
+                ((pred == FALSE) ? altn : cnsq),
                 list_3(cust, s_eval, env)));
     }
     return effect;
@@ -2236,7 +2236,13 @@ static int cstr_eq(char *s, char *t) {
 static int_t skip_space(input_t *in) {  // skip whitespace and comments
     i32 ch;
     while ((ch = (in->get)(in)) >= 0) {
-        // FIXME: check for comments...
+        if (ch == ';') {
+            // comment to end-of-line
+            while (ch != '\n') {
+                (in->next)(in, 1);
+                ch = (in->get)(in);
+            }
+        }
         if (!is_blank(ch)) break;
         (in->next)(in, 1);
     }
