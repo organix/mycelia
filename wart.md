@@ -51,6 +51,7 @@ The following procedures are defined in the ground environment:
   * `(symbol? . `_objects_`)`
   * `(number? . `_objects_`)`
   * `(+ . `_numbers_`)`
+  * `(- . `_numbers_`)`
   * `(* . `_numbers_`)`
 
 ## Garbage Collected Heap

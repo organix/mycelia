@@ -512,6 +512,7 @@ int_t s_pairp;
 int_t s_symbolp;
 int_t s_numberp;
 int_t s_add;
+int_t s_sub;
 int_t s_mul;
 int_t s_map;
 int_t s_fold;
@@ -543,6 +544,7 @@ int_t symbol_boot() {
     s_symbolp = symbol("symbol?");
     s_numberp = symbol("number?");
     s_add = symbol("+");
+    s_sub = symbol("-");
     s_mul = symbol("*");
     s_map = symbol("map");
     s_fold = symbol("fold");
@@ -1705,7 +1707,7 @@ PROC_DECL(Fixnum_fold) {
     }
     return SeType(self, arg);  // delegate to SeType
 }
-static PROC_DECL(fold_add) {
+static PROC_DECL(fold_add) {  // (+ . numbers)
     int_t zero = self;
     XDEBUG(debug_print("fold_add zero", zero));
     if (!IS_NUM(zero)) return UNDEF;
@@ -1717,7 +1719,7 @@ static PROC_DECL(fold_add) {
 const cell_t add_oplus = { .head = MK_PROC(fold_add), .tail = NIL };
 const cell_t add_zero = { .head = MK_NUM(0), .tail = MK_PAIR(&add_oplus) };
 const cell_t a_add = { .head = MK_PROC(Fixnum_fold), .tail = MK_PAIR(&add_zero) };
-static PROC_DECL(fold_mul) {
+static PROC_DECL(fold_mul) {  // (* . numbers)
     int_t zero = self;
     XDEBUG(debug_print("fold_mul zero", zero));
     if (!IS_NUM(zero)) return UNDEF;
@@ -1729,6 +1731,29 @@ static PROC_DECL(fold_mul) {
 const cell_t mul_oplus = { .head = MK_PROC(fold_mul), .tail = NIL };
 const cell_t mul_zero = { .head = MK_NUM(1), .tail = MK_PAIR(&mul_oplus) };
 const cell_t a_mul = { .head = MK_PROC(Fixnum_fold), .tail = MK_PAIR(&mul_zero) };
+static PROC_DECL(prim_sub) {  // (- number . numbers)
+    int_t n = 0;
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (!IS_NUM(x)) return UNDEF;
+        n = TO_INT(x);
+        opnd = cdr(opnd);
+        if (opnd == NIL) return MK_NUM(-n);
+        while (IS_PAIR(opnd)) {
+            int_t y = car(opnd);
+            if (!IS_NUM(y)) return UNDEF;
+            n -= TO_INT(y);
+            opnd = cdr(opnd);
+        }
+    }
+    if (opnd != NIL) {
+        return error("- requires a proper list");
+    }
+    return MK_NUM(n);
+}
+const cell_t a_sub = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_sub) };
 
 PROC_DECL(Fail) {
     WARN(debug_print("Fail self", self));
@@ -1786,6 +1811,8 @@ PROC_DECL(Environment) {
             value = MK_ACTOR(&a_numberp);
         } else if (symbol == s_add) {
             value = MK_ACTOR(&a_add);
+        } else if (symbol == s_sub) {
+            value = MK_ACTOR(&a_sub);
         } else if (symbol == s_mul) {
             value = MK_ACTOR(&a_mul);
         } else {
@@ -1854,6 +1881,8 @@ void print(int_t value) {
         printf("#t");
     } else if (value == NIL) {
         printf("()");
+    } else if (value == INF) {
+        printf("#inf");
     } else if (value == FAIL) {
         printf("#fail");
     } else if (IS_ACTOR(value)) {
@@ -2177,6 +2206,7 @@ int_t read_sexpr(input_t *in) {
         if (cstr_eq(token, "#f")) return FALSE;
         if (cstr_eq(token, "#unit")) return UNIT;
         if (cstr_eq(token, "#undefined")) return UNDEF;
+        if (cstr_eq(token, "#inf")) return INF;
     }
     sexpr = symbol(token);
     XDEBUG(debug_print("< read_sexpr num", sexpr));
