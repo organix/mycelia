@@ -41,6 +41,8 @@ The following procedures are defined in the ground environment:
   * `(car `_pair_`)`
   * `(cdr `_pair_`)`
   * `(if `_predicate_` `_consequent_` `_alternative_`)`
+  * `(and . `_expressions_`)`
+  * `(or . `_expressions_`)`
   * `(eq? . `_objects_`)`
   * `(equal? . `_objects_`)`
   * `(lambda `_pattern_` . `_objects_`)`

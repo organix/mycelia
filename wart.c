@@ -513,6 +513,8 @@ int_t s_cons;
 int_t s_car;
 int_t s_cdr;
 int_t s_if;
+int_t s_and;
+int_t s_or;
 int_t s_eqp;
 int_t s_equalp;
 int_t s_lambda;
@@ -550,6 +552,8 @@ int_t symbol_boot() {
     s_car = symbol("car");
     s_cdr = symbol("cdr");
     s_if = symbol("if");
+    s_and = symbol("and");
+    s_or = symbol("or");
     s_eqp = symbol("eq?");
     s_equalp = symbol("equal?");
     s_lambda = symbol("lambda");
@@ -1529,7 +1533,7 @@ static PROC_DECL(prim_eqp) {  // (eq? . objects)
         }
     }
     if (opnd != NIL) {
-        return error("eq? requires a proper list");
+        return error("proper list required");
     }
     return TRUE;
 }
@@ -1550,7 +1554,7 @@ static PROC_DECL(prim_equalp) {  // (equal? . objects)
         }
     }
     if (opnd != NIL) {
-        return error("equal? requires a proper list");
+        return error("proper list required");
     }
     return TRUE;
 }
@@ -1596,6 +1600,101 @@ PROC_DECL(Boolean) {
 }
 const cell_t oper_booleanp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Boolean) };
 const cell_t a_booleanp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_booleanp) };
+
+static PROC_DECL(And_k_rest) {
+    XDEBUG(debug_print("And_k_rest self", self));
+    GET_VARS();  // (cust rest env)
+    XDEBUG(debug_print("And_k_rest vars", vars));
+    POP_VAR(cust);
+    POP_VAR(rest);
+    POP_VAR(env);
+    GET_ARGS();  // value
+    XDEBUG(debug_print("And_k_rest args", args));
+    TAIL_ARG(value);
+    int_t effect = NIL;
+    if ((value == UNDEF) || (value == FALSE)) {
+        effect = effect_send(effect,
+            actor_send(cust, value));
+    } else if (IS_PAIR(rest)) {
+        int_t expr = car(rest);
+        rest = cdr(rest);
+        effect = effect_become(effect,
+            actor_become(MK_PROC(And_k_rest), list_3(cust, rest, env)));
+        effect = effect_send(effect,
+            actor_send(expr, list_3(self, s_eval, env)));
+    } else if (rest == NIL) {
+        effect = effect_send(effect,
+            actor_send(cust, TRUE));
+    } else {
+        effect = effect_send(effect,
+            actor_send(cust, error("proper list required")));
+    }
+    return effect;
+}
+static PROC_DECL(Or_k_rest) {
+    XDEBUG(debug_print("Or_k_rest self", self));
+    GET_VARS();  // (cust rest env)
+    XDEBUG(debug_print("Or_k_rest vars", vars));
+    POP_VAR(cust);
+    POP_VAR(rest);
+    POP_VAR(env);
+    GET_ARGS();  // value
+    XDEBUG(debug_print("Or_k_rest args", args));
+    TAIL_ARG(value);
+    int_t effect = NIL;
+    if ((value == UNDEF) || (value != FALSE)) {
+        effect = effect_send(effect,
+            actor_send(cust, value));
+    } else if (IS_PAIR(rest)) {
+        int_t expr = car(rest);
+        rest = cdr(rest);
+        effect = effect_become(effect,
+            actor_become(MK_PROC(Or_k_rest), list_3(cust, rest, env)));
+        effect = effect_send(effect,
+            actor_send(expr, list_3(self, s_eval, env)));
+    } else if (rest == NIL) {
+        effect = effect_send(effect,
+            actor_send(cust, FALSE));
+    } else {
+        effect = effect_send(effect,
+            actor_send(cust, error("proper list required")));
+    }
+    return effect;
+}
+PROC_DECL(Oper_seq) {  // (and . exprs)
+    XDEBUG(debug_print("Oper_seq self", self));
+    GET_VARS();  // (proc . dflt)
+    XDEBUG(debug_print("Oper_seq vars", vars));
+    POP_VAR(proc);
+    TAIL_VAR(dflt);
+    GET_ARGS();
+    XDEBUG(debug_print("Oper_seq args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        if (IS_PAIR(opnd)) {
+            int_t expr = car(opnd);
+            int_t rest = cdr(opnd);
+            int_t k_rest = actor_create(proc, list_3(cust, rest, env));
+            effect = effect_create(effect, k_rest);
+            effect = effect_send(effect,
+                actor_send(expr, list_3(k_rest, s_eval, env)));
+            return effect;
+        }
+        effect = effect_send(effect,
+            actor_send(cust, dflt));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t and_rest = { .head = MK_PROC(And_k_rest), .tail = TRUE };
+const cell_t a_and = { .head = MK_PROC(Oper_seq), .tail = MK_PAIR(&and_rest) };
+const cell_t or_rest = { .head = MK_PROC(Or_k_rest), .tail = FALSE };
+const cell_t a_or = { .head = MK_PROC(Oper_seq), .tail = MK_PAIR(&or_rest) };
 
 PROC_DECL(Null) {
     XDEBUG(debug_print("Null self", self));
@@ -1952,6 +2051,10 @@ PROC_DECL(Global) {
             value = MK_ACTOR(&a_cdr);
         } else if (symbol == s_if) {
             value = MK_ACTOR(&a_if);
+        } else if (symbol == s_and) {
+            value = MK_ACTOR(&a_and);
+        } else if (symbol == s_or) {
+            value = MK_ACTOR(&a_or);
         } else if (symbol == s_eqp) {
             value = MK_ACTOR(&a_eqp);
         } else if (symbol == s_equalp) {
