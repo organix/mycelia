@@ -53,6 +53,11 @@ The following procedures are defined in the ground environment:
   * `(+ . `_numbers_`)`
   * `(- . `_numbers_`)`
   * `(* . `_numbers_`)`
+  * `(< . `_numbers_`)`
+  * `(<= . `_numbers_`)`
+  * `(= . `_numbers_`)`
+  * `(>= . `_numbers_`)`
+  * `(> . `_numbers_`)`
 
 ## Garbage Collected Heap
 

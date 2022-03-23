@@ -514,6 +514,11 @@ int_t s_numberp;
 int_t s_add;
 int_t s_sub;
 int_t s_mul;
+int_t s_lt;
+int_t s_le;
+int_t s_eqn;
+int_t s_ge;
+int_t s_gt;
 int_t s_map;
 int_t s_fold;
 int_t s_foldr;
@@ -546,6 +551,11 @@ int_t symbol_boot() {
     s_add = symbol("+");
     s_sub = symbol("-");
     s_mul = symbol("*");
+    s_lt = symbol("<");
+    s_le = symbol("<=");
+    s_eqn = symbol("=");
+    s_ge = symbol(">=");
+    s_gt = symbol(">");
     s_map = symbol("map");
     s_fold = symbol("fold");
     s_foldr = symbol("foldr");
@@ -1731,7 +1741,7 @@ static PROC_DECL(fold_mul) {  // (* . numbers)
 const cell_t mul_oplus = { .head = MK_PROC(fold_mul), .tail = NIL };
 const cell_t mul_zero = { .head = MK_NUM(1), .tail = MK_PAIR(&mul_oplus) };
 const cell_t a_mul = { .head = MK_PROC(Fixnum_fold), .tail = MK_PAIR(&mul_zero) };
-static PROC_DECL(prim_sub) {  // (- number . numbers)
+static PROC_DECL(prim_sub) {  // (- . numbers)
     int_t n = 0;
     int_t opnd = self;
     //int_t env = arg;
@@ -1754,6 +1764,121 @@ static PROC_DECL(prim_sub) {  // (- number . numbers)
     return MK_NUM(n);
 }
 const cell_t a_sub = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_sub) };
+static PROC_DECL(prim_lt) {  // (< . numbers)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (!IS_NUM(x)) return UNDEF;
+        int_t n = TO_INT(x);
+        opnd = cdr(opnd);
+        while (IS_PAIR(opnd)) {
+            int_t y = car(opnd);
+            if (!IS_NUM(y)) return UNDEF;
+            int_t m = TO_INT(y);
+            if (!(n < m)) return FALSE;
+            n = m;
+            opnd = cdr(opnd);
+        }
+    }
+    if (opnd != NIL) {
+        return error("< requires a proper list");
+    }
+    return TRUE;
+}
+const cell_t a_lt = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_lt) };
+static PROC_DECL(prim_le) {  // (<= . numbers)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (!IS_NUM(x)) return UNDEF;
+        int_t n = TO_INT(x);
+        opnd = cdr(opnd);
+        while (IS_PAIR(opnd)) {
+            int_t y = car(opnd);
+            if (!IS_NUM(y)) return UNDEF;
+            int_t m = TO_INT(y);
+            if (!(n <= m)) return FALSE;
+            n = m;
+            opnd = cdr(opnd);
+        }
+    }
+    if (opnd != NIL) {
+        return error("<= requires a proper list");
+    }
+    return TRUE;
+}
+const cell_t a_le = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_le) };
+static PROC_DECL(prim_eqn) {  // (= . numbers)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (!IS_NUM(x)) return UNDEF;
+        int_t n = TO_INT(x);
+        opnd = cdr(opnd);
+        while (IS_PAIR(opnd)) {
+            int_t y = car(opnd);
+            if (!IS_NUM(y)) return UNDEF;
+            int_t m = TO_INT(y);
+            if (!(n == m)) return FALSE;
+            n = m;
+            opnd = cdr(opnd);
+        }
+    }
+    if (opnd != NIL) {
+        return error("= requires a proper list");
+    }
+    return TRUE;
+}
+const cell_t a_eqn = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_eqn) };
+static PROC_DECL(prim_ge) {  // (>= . numbers)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (!IS_NUM(x)) return UNDEF;
+        int_t n = TO_INT(x);
+        opnd = cdr(opnd);
+        while (IS_PAIR(opnd)) {
+            int_t y = car(opnd);
+            if (!IS_NUM(y)) return UNDEF;
+            int_t m = TO_INT(y);
+            if (!(n >= m)) return FALSE;
+            n = m;
+            opnd = cdr(opnd);
+        }
+    }
+    if (opnd != NIL) {
+        return error(">= requires a proper list");
+    }
+    return TRUE;
+}
+const cell_t a_ge = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_ge) };
+static PROC_DECL(prim_gt) {  // (> . numbers)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (!IS_NUM(x)) return UNDEF;
+        int_t n = TO_INT(x);
+        opnd = cdr(opnd);
+        while (IS_PAIR(opnd)) {
+            int_t y = car(opnd);
+            if (!IS_NUM(y)) return UNDEF;
+            int_t m = TO_INT(y);
+            if (!(n > m)) return FALSE;
+            n = m;
+            opnd = cdr(opnd);
+        }
+    }
+    if (opnd != NIL) {
+        return error("> requires a proper list");
+    }
+    return TRUE;
+}
+const cell_t a_gt = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_gt) };
 
 PROC_DECL(Fail) {
     WARN(debug_print("Fail self", self));
@@ -1815,6 +1940,16 @@ PROC_DECL(Environment) {
             value = MK_ACTOR(&a_sub);
         } else if (symbol == s_mul) {
             value = MK_ACTOR(&a_mul);
+        } else if (symbol == s_lt) {
+            value = MK_ACTOR(&a_lt);
+        } else if (symbol == s_le) {
+            value = MK_ACTOR(&a_le);
+        } else if (symbol == s_eqn) {
+            value = MK_ACTOR(&a_eqn);
+        } else if (symbol == s_ge) {
+            value = MK_ACTOR(&a_ge);
+        } else if (symbol == s_gt) {
+            value = MK_ACTOR(&a_gt);
         } else {
             WARN(debug_print("Environment lookup failed", symbol));
             value = error("undefined variable");
