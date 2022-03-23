@@ -59,7 +59,7 @@ typedef PROC_DECL((*proc_t));
 #define TAG_ACTOR   INT(0x3)
 
 #define MK_NUM(n)   INT(NAT(n)<<2)
-#define MK_PAIR(p)  INT(NAT(p)|TAG_PAIR)
+#define MK_PAIR(p)  INT(PTR(p)+TAG_PAIR)
 #define MK_SYM(n)   INT((NAT(n)<<2)|TAG_SYMBOL)
 #define MK_ACTOR(p) INT(PTR(p)+TAG_ACTOR)
 
@@ -511,6 +511,8 @@ int_t s_nullp;
 int_t s_pairp;
 int_t s_symbolp;
 int_t s_numberp;
+int_t s_add;
+int_t s_mul;
 int_t s_map;
 int_t s_fold;
 int_t s_foldr;
@@ -540,6 +542,8 @@ int_t symbol_boot() {
     s_pairp = symbol("pair?");
     s_symbolp = symbol("symbol?");
     s_numberp = symbol("number?");
+    s_add = symbol("+");
+    s_mul = symbol("*");
     s_map = symbol("map");
     s_fold = symbol("fold");
     s_foldr = symbol("foldr");
@@ -1680,6 +1684,52 @@ PROC_DECL(Fixnum) {  // WARNING: behavior used directly in obj_call()
 const cell_t oper_numberp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Fixnum) };
 const cell_t a_numberp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_numberp) };
 
+PROC_DECL(Fixnum_fold) {
+    XDEBUG(debug_print("Fixnum_fold self", self));
+    GET_VARS();  // (zero oplus)
+    XDEBUG(debug_print("Fixnum_fold vars", vars));
+    POP_VAR(zero);
+    POP_VAR(oplus);
+    GET_ARGS();
+    XDEBUG(debug_print("Fixnum_fold args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        effect = effect_send(effect,
+            actor_send(opnd, list_6(cust, s_fold, zero, oplus, s_eval, env)));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+static PROC_DECL(fold_add) {
+    int_t zero = self;
+    XDEBUG(debug_print("fold_add zero", zero));
+    if (!IS_NUM(zero)) return UNDEF;
+    int_t one = arg;
+    XDEBUG(debug_print("fold_add one", one));
+    if (!IS_NUM(one)) return UNDEF;
+    return MK_NUM(TO_INT(zero) + TO_INT(one));
+}
+const cell_t add_oplus = { .head = MK_PROC(fold_add), .tail = NIL };
+const cell_t add_zero = { .head = MK_NUM(0), .tail = MK_PAIR(&add_oplus) };
+const cell_t a_add = { .head = MK_PROC(Fixnum_fold), .tail = MK_PAIR(&add_zero) };
+static PROC_DECL(fold_mul) {
+    int_t zero = self;
+    XDEBUG(debug_print("fold_mul zero", zero));
+    if (!IS_NUM(zero)) return UNDEF;
+    int_t one = arg;
+    XDEBUG(debug_print("fold_mul one", one));
+    if (!IS_NUM(one)) return UNDEF;
+    return MK_NUM(TO_INT(zero) * TO_INT(one));
+}
+const cell_t mul_oplus = { .head = MK_PROC(fold_mul), .tail = NIL };
+const cell_t mul_zero = { .head = MK_NUM(1), .tail = MK_PAIR(&mul_oplus) };
+const cell_t a_mul = { .head = MK_PROC(Fixnum_fold), .tail = MK_PAIR(&mul_zero) };
+
 PROC_DECL(Fail) {
     WARN(debug_print("Fail self", self));
     GET_ARGS();
@@ -1734,6 +1784,10 @@ PROC_DECL(Environment) {
             value = MK_ACTOR(&a_symbolp);
         } else if (symbol == s_numberp) {
             value = MK_ACTOR(&a_numberp);
+        } else if (symbol == s_add) {
+            value = MK_ACTOR(&a_add);
+        } else if (symbol == s_mul) {
+            value = MK_ACTOR(&a_mul);
         } else {
             WARN(debug_print("Environment lookup failed", symbol));
             value = error("undefined variable");
