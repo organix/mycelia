@@ -252,8 +252,19 @@ int_t cdr(int_t val) {
 int equal(int_t x, int_t y) {
     XDEBUG(debug_print("equal x", x));
     XDEBUG(debug_print("equal y", y));
+#if 0
     return (x == y)
         || (IS_PAIR(x) && IS_PAIR(y) && equal(car(x), car(y)) && equal(cdr(x), cdr(y)));
+#else
+    if (x == y) return 1;
+    while (IS_PAIR(x) && IS_PAIR(y)) {
+        if (!equal(car(x), car(y))) break;
+        x = cdr(x);
+        y = cdr(y);
+        if (x == y) return 1;
+    }
+    return 0;
+#endif
 }
 
 int_t set_car(int_t val, int_t head) {
