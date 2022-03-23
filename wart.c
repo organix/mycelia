@@ -109,11 +109,11 @@ void debug_print(char *label, int_t value);
 static void hexdump(char *label, int_t *addr, size_t cnt);
 
 const cell_t a_undef = { .head = MK_PROC(Undef), .tail = UNDEF };
-const cell_t a_unit = { .head = MK_PROC(Unit), .tail = UNDEF };
+const cell_t a_unit = { .head = MK_PROC(Unit), .tail = UNIT };
 const cell_t a_false = { .head = MK_PROC(Boolean), .tail = FALSE };
 const cell_t a_true = { .head = MK_PROC(Boolean), .tail = TRUE };
 const cell_t a_nil = { .head = MK_PROC(Null), .tail = NIL };
-const cell_t a_fail = { .head = MK_PROC(Fail), .tail = UNDEF };
+const cell_t a_fail = { .head = MK_PROC(Fail), .tail = FAIL };
 
 /*
  * error handling
@@ -390,16 +390,16 @@ i32 gc_mark_cell(int_t val)
 }
 
 static cell_t event_q;
-static cell_t a_ground_env;
+static cell_t gnd_locals;
 i32 gc_mark_roots() {  // mark cells reachable from the root-set
     XDEBUG(fprintf(stderr, "> gc_mark_roots\n"));
     i32 n = 0;
 #if GC_CALL_DEPTH
     n += gc_mark_cell(event_q.head, 0);
-    n += gc_mark_cell(a_ground_env.tail, 0);
+    n += gc_mark_cell(gnd_locals.head, 0);
 #else
     n += gc_mark_cell(event_q.head);
-    n += gc_mark_cell(a_ground_env.tail);
+    n += gc_mark_cell(gnd_locals.head);
 #endif
     XDEBUG(fprintf(stderr, "< gc_mark_roots (n=%d)\n", n));
     return n;
@@ -1194,9 +1194,9 @@ int_t assoc_find(int_t assoc, int_t key) {
 }
 PROC_DECL(Scope) {
     XDEBUG(debug_print("Scope self", self));
-    GET_VARS();  // (assoc env)
+    GET_VARS();  // (locals env)
     XDEBUG(debug_print("Scope vars", vars));
-    POP_VAR(assoc);  // local bindings
+    POP_VAR(locals);  // local bindings
     POP_VAR(penv);  // parent environment
     GET_ARGS();
     XDEBUG(debug_print("Scope args", args));
@@ -1206,7 +1206,7 @@ PROC_DECL(Scope) {
     if (req == s_lookup) {  // (cust 'lookup symbol)
         POP_ARG(symbol);
         END_ARGS();
-        int_t binding = assoc_find(assoc, symbol);
+        int_t binding = assoc_find(locals, symbol);
         if (IS_PAIR(binding)) {
             int_t value = cdr(binding);
             DEBUG(debug_print("Scope value", value));
@@ -1218,7 +1218,32 @@ PROC_DECL(Scope) {
         }
         return effect;
     }
-    // FIXME: Scope should handle s_bind requests!
+    if (req == s_bind) {  // (cust 'bind assoc)
+        POP_ARG(assoc);
+        XDEBUG(debug_print("Scope assoc", assoc));
+        END_ARGS();
+        while (IS_PAIR(assoc)) {
+            int_t new_binding = car(assoc);
+            if (IS_PAIR(new_binding)) {
+                int_t key = car(new_binding);
+                int_t value = cdr(new_binding);
+                int_t old_binding = assoc_find(locals, key);
+                if (IS_PAIR(old_binding)) {
+                    set_cdr(old_binding, value);  // update in-place
+                } else {
+                    locals = cons(new_binding, locals);  // new binding
+                }
+            }
+            assoc = cdr(assoc);
+        }
+        effect = effect_send(effect,
+            actor_send(cust, UNIT));
+        // surgically replace `locals` (WARNING! this is a non-transactional BECOME)
+        XDEBUG(debug_print("Scope locals", locals));
+        cell_t *p = TO_PTR(get_data(self));
+        p->head = locals;
+        return effect;
+    }
     return SeType(self, arg);  // delegate to SeType
 }
 static PROC_DECL(fold_last) {
@@ -1887,13 +1912,13 @@ PROC_DECL(Fail) {
     return error("FAILED");
 }
 
-PROC_DECL(Environment) {
-    XDEBUG(debug_print("Environment self", self));
-    GET_VARS();  // locals
-    XDEBUG(debug_print("Environment vars", vars));
-    TAIL_VAR(locals);
+PROC_DECL(Global) {
+    XDEBUG(debug_print("Global self", self));
+    //GET_VARS();  // locals
+    //XDEBUG(debug_print("Global vars", vars));
+    //TAIL_VAR(locals);
     GET_ARGS();
-    XDEBUG(debug_print("Environment args", args));
+    XDEBUG(debug_print("Global args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1901,7 +1926,7 @@ PROC_DECL(Environment) {
         POP_ARG(symbol);
         END_ARGS();
         int_t value = UNDEF;
-        int_t binding = assoc_find(locals, symbol);
+        int_t binding = UNDEF;//assoc_find(locals, symbol);
         if (IS_PAIR(binding)) {
             value = cdr(binding);
         } else if (symbol == s_quote) {
@@ -1951,45 +1976,22 @@ PROC_DECL(Environment) {
         } else if (symbol == s_gt) {
             value = MK_ACTOR(&a_gt);
         } else {
-            WARN(debug_print("Environment lookup failed", symbol));
+            WARN(debug_print("Global lookup failed", symbol));
             value = error("undefined variable");
         }
-        DEBUG(debug_print("Environment value", value));
+        DEBUG(debug_print("Global value", value));
         effect = effect_send(effect,
             actor_send(cust, value));
         return effect;
     }
-    if (req == s_bind) {  // (cust 'bind assoc)
-        POP_ARG(assoc);
-        XDEBUG(debug_print("Environment assoc", assoc));
-        END_ARGS();
-        while (IS_PAIR(assoc)) {
-            int_t new_binding = car(assoc);
-            if (IS_PAIR(new_binding)) {
-                int_t key = car(new_binding);
-                int_t value = cdr(new_binding);
-                int_t old_binding = assoc_find(locals, key);
-                if (IS_PAIR(old_binding)) {
-                    set_cdr(old_binding, value);  // update in-place
-                } else {
-                    locals = cons(new_binding, locals);  // new binding
-                }
-            }
-            assoc = cdr(assoc);
-        }
-        XDEBUG(debug_print("Environment locals", locals));
-        effect = effect_become(effect,
-            actor_become(MK_PROC(Environment), locals));
-        effect = effect_send(effect,
-            actor_send(cust, UNIT));
-        return effect;
-    }
     return SeType(self, arg);  // delegate to SeType
 }
-// Note: `a_ground_env` can not be `const` because `locals` is mutable
-// WARNING! a_ground_env.tail must be part of the gc root set!
-static cell_t a_ground_env = { .head = MK_PROC(Environment), .tail = NIL };
-// FIXME: consider stacking a mutable Scope on top of the immutable ground env?
+// Note: `gnd_locals` can not be `const` because `locals` is mutable
+// WARNING! gnd_locals.head must be part of the gc root set!
+const cell_t a_global_env = { .head = MK_PROC(Global), .tail = NIL };
+const cell_t gnd_parent = { .head = MK_ACTOR(&a_global_env), .tail = NIL };
+static cell_t gnd_locals = { .head = NIL, .tail = MK_PAIR(&gnd_parent) };
+const cell_t a_ground_env = { .head = MK_PROC(Scope), .tail = MK_PAIR(&gnd_locals) };
 
 /*
  * display procedures
