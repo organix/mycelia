@@ -1533,7 +1533,7 @@ static PROC_DECL(prim_equalp) {  // (equal? . objects)
         while (IS_PAIR(opnd)) {
             int_t y = car(opnd);
             if (!equal(x, y)) {
-                FALSE;
+                return FALSE;
             }
             opnd = cdr(opnd);
         }
@@ -2569,6 +2569,7 @@ int_t test_eval() {
 
     ASSERT(list_3(UNIT, s_foo, s_bar) != list_3(UNIT, s_foo, s_bar));
     ASSERT(equal(list_3(UNIT, s_foo, s_bar), list_3(UNIT, s_foo, s_bar)));
+    ASSERT(!equal(TRUE, FALSE));
 
     eval_test_expr(
         // (<list>)
@@ -2638,6 +2639,11 @@ int_t test_eval() {
     eval_test_cstr(
         "(equal? '(1 2) (list 1 2) (cons 1 (cons 2 '())))",
         "#t"
+    );
+
+    eval_test_cstr(
+        "(equal? #t #f #unit)",
+        "#f"
     );
 
     eval_test_cstr(
