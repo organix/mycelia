@@ -518,6 +518,8 @@ int_t s_or;
 int_t s_eqp;
 int_t s_equalp;
 int_t s_lambda;
+int_t s_eval;
+int_t s_macro;
 int_t s_define;
 int_t s_booleanp;
 int_t s_nullp;
@@ -557,6 +559,8 @@ int_t symbol_boot() {
     s_eqp = symbol("eq?");
     s_equalp = symbol("equal?");
     s_lambda = symbol("lambda");
+    s_eval = symbol("eval");
+    s_macro = symbol("macro");
     s_define = symbol("define");
     s_booleanp = symbol("boolean?");
     s_nullp = symbol("null?");
@@ -1328,6 +1332,101 @@ PROC_DECL(Oper_lambda) {  // (lambda pattern . objects)
 }
 const cell_t a_lambda = { .head = MK_PROC(Oper_lambda), .tail = UNDEF };
 
+PROC_DECL(Oper_eval) {  // (eval expr)
+    XDEBUG(debug_print("Oper_eval self", self));
+    GET_ARGS();
+    XDEBUG(debug_print("Oper_eval args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        if (IS_PAIR(opnd)) {
+            int_t expr = car(opnd);
+            opnd = cdr(opnd);
+            if (opnd == NIL) {
+                effect = effect_send(effect,
+                    actor_send(expr, list_3(cust, s_eval, env)));
+                return effect;
+            }
+        }
+        effect = effect_send(effect,
+            actor_send(cust, error("eval expected 1 operand")));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t oper_eval = { .head = MK_PROC(Oper_eval), .tail = UNDEF };
+const cell_t a_eval = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_eval) };
+
+static PROC_DECL(Oper_k_form) {
+    XDEBUG(debug_print("Oper_k_form self", self));
+    GET_VARS();  // (cust env)
+    XDEBUG(debug_print("Oper_k_form vars", vars));
+    POP_VAR(cust);
+    POP_VAR(env);
+    GET_ARGS();  // form
+    DEBUG(debug_print("Oper_k_form args", args));
+    TAIL_ARG(form);
+    int_t effect = NIL;
+    effect = effect_send(effect,
+        actor_send(form, list_3(cust, s_eval, env)));
+    return effect;
+}
+PROC_DECL(Oper) {
+    DEBUG(debug_print("Oper self", self));
+    GET_VARS();  // oper
+    XDEBUG(debug_print("Oper vars", vars));
+    TAIL_VAR(oper);
+    GET_ARGS();
+    XDEBUG(debug_print("Oper args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        int_t k_form = actor_create(MK_PROC(Oper_k_form), list_2(cust, env));
+        effect = effect_create(effect, k_form);
+        effect = effect_send(effect,
+            actor_send(oper, list_4(k_form, s_apply, opnd, env)));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+PROC_DECL(Oper_macro) {  // (macro pattern . objects)
+    XDEBUG(debug_print("Oper_macro self", self));
+    GET_ARGS();
+    XDEBUG(debug_print("Oper_macro args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        if (IS_PAIR(opnd)) {
+            int_t ptrn = car(opnd);
+            int_t body = cdr(opnd);
+            int_t closure = actor_create(
+                MK_PROC(Closure), list_3(ptrn, body, env));
+            effect = effect_create(effect, closure);
+            int_t oper = actor_create(MK_PROC(Oper), closure);
+            effect = effect_create(effect, oper);
+            effect = effect_send(effect, actor_send(cust, oper));
+            return effect;
+        }
+        effect = effect_send(effect,
+            actor_send(cust, error("macro expected pattern . body")));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t a_macro = { .head = MK_PROC(Oper_macro), .tail = UNDEF };
+
 static PROC_DECL(Define_k_bind) {
     XDEBUG(debug_print("Define_k_bind self", self));
     GET_VARS();  // (cust ptrn env)
@@ -2058,6 +2157,10 @@ PROC_DECL(Global) {
             value = MK_ACTOR(&a_equalp);
         } else if (symbol == s_lambda) {
             value = MK_ACTOR(&a_lambda);
+        } else if (symbol == s_eval) {
+            value = MK_ACTOR(&a_eval);
+        } else if (symbol == s_macro) {
+            value = MK_ACTOR(&a_macro);
         } else if (symbol == s_define) {
             value = MK_ACTOR(&a_define);
         } else if (symbol == s_booleanp) {
@@ -2765,6 +2868,11 @@ int_t test_eval() {
     eval_test_cstr(
         "((lambda ('x #t y 2 . z) (list z y)) 'x #t 1 2 3 4)",
         "((3 4) 1)"
+    );
+
+    eval_test_cstr(
+        "((macro (appl args) (cons appl (eval args))) + '(1 2 3 4 5))",
+        "15"
     );
 
     int_t assoc = list_3(cons(s_foo, MK_NUM(1)), cons(s_bar, MK_NUM(2)), cons(s_baz, MK_NUM(3)));
