@@ -46,8 +46,9 @@ The following procedures are defined in the ground environment:
   * `(eq? . `_objects_`)`
   * `(equal? . `_objects_`)`
   * `(lambda `_pattern_` . `_objects_`)`
-  * `(eval `_expression_`)`
-  * `(macro `_pattern_` . `_objects_`)`
+  * `(eval `_expression_` [`_environment_`])`
+  * `(apply `_oper_` `_args_` [`_environment_`])`
+  * `(macro `_pattern_` `_evar_` . `_objects_`)`
   * `(define `_pattern_` `_expression_`)`
   * `(boolean? . `_objects_`)`
   * `(null? . `_objects_`)`

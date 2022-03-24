@@ -519,6 +519,7 @@ int_t s_eqp;
 int_t s_equalp;
 int_t s_lambda;
 int_t s_eval;
+int_t s_apply;
 int_t s_macro;
 int_t s_define;
 int_t s_booleanp;
@@ -560,6 +561,7 @@ int_t symbol_boot() {
     s_equalp = symbol("equal?");
     s_lambda = symbol("lambda");
     s_eval = symbol("eval");
+    s_apply = symbol("apply");
     s_macro = symbol("macro");
     s_define = symbol("define");
     s_booleanp = symbol("boolean?");
@@ -1145,7 +1147,7 @@ static PROC_DECL(Appl_k_args) {
     if (IS_PROC(oper)) {
         proc_t prim = TO_PTR(oper);
         int_t value = (*prim)(opnd, env);  // delegate to primitive proc
-        DEBUG(debug_print("Appl_k_args value", value));
+        WARN(debug_print("Appl_k_args --DEPRECATED-- value", value));
         effect = effect_send(effect, actor_send(cust, value));
     } else {
         effect = effect_send(effect,
@@ -1175,15 +1177,43 @@ PROC_DECL(Appl) {
     }
     return SeType(self, arg);  // delegate to SeType
 }
+int_t unwrap(int_t appl) {
+    if (get_code(appl) != MK_PROC(Appl)) return error("applicative required");
+    return get_data(appl);  // return underlying operative
+}
+
+PROC_DECL(Oper_prim) {  // call primitive procedure
+    XDEBUG(debug_print("Oper_prim self", self));
+    GET_VARS();  // proc
+    XDEBUG(debug_print("Oper_prim vars", vars));
+    TAIL_VAR(proc);
+    ASSERT(IS_PROC(proc));
+    GET_ARGS();
+    WARN(debug_print("Oper_prim args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        proc_t prim = TO_PTR(proc);
+        int_t value = (*prim)(opnd, env);  // delegate to primitive proc
+        XDEBUG(debug_print("Oper_prim value", value));
+        effect = effect_send(effect, actor_send(cust, value));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
 
 int_t match_pattern(int_t ptrn, int_t opnd, int_t assoc) {
-    XDEBUG(debug_print("match_pattern ptrn", ptrn));
-    XDEBUG(debug_print("match_pattern opnd", opnd));
+    WARN(debug_print("match_pattern ptrn", ptrn));
+    WARN(debug_print("match_pattern opnd", opnd));
     while (IS_PAIR(ptrn)) {
         if (car(ptrn) == s_quote) {
             ptrn = car(cdr(ptrn));
             if (!equal(ptrn, opnd)) return UNDEF;  // wrong literal
-            XDEBUG(debug_print("match_pattern quote", assoc));
+            WARN(debug_print("match_pattern quote", assoc));
             return assoc;  // success
         }
         if (!IS_PAIR(opnd)) return UNDEF;  // wrong structure
@@ -1199,7 +1229,7 @@ int_t match_pattern(int_t ptrn, int_t opnd, int_t assoc) {
     } else {
         if (!equal(ptrn, opnd)) return UNDEF;  // wrong constant
     }
-    XDEBUG(debug_print("match_pattern assoc", assoc));
+    WARN(debug_print("match_pattern assoc", assoc));
     return assoc;  // success
 }
 int_t assoc_find(int_t assoc, int_t key) {
@@ -1213,12 +1243,12 @@ int_t assoc_find(int_t assoc, int_t key) {
 }
 PROC_DECL(Scope) {
     XDEBUG(debug_print("Scope self", self));
-    GET_VARS();  // (locals env)
-    XDEBUG(debug_print("Scope vars", vars));
+    GET_VARS();  // (locals penv)
+    WARN(debug_print("Scope vars", vars));
     POP_VAR(locals);  // local bindings
     POP_VAR(penv);  // parent environment
     GET_ARGS();
-    XDEBUG(debug_print("Scope args", args));
+    WARN(debug_print("Scope args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1274,13 +1304,13 @@ static PROC_DECL(fold_last) {
 }
 PROC_DECL(Closure) {
     XDEBUG(debug_print("Closure self", self));
-    GET_VARS();  // (ptrn body lenv)
+    GET_VARS();  // (eptrn body lenv)
     XDEBUG(debug_print("Closure vars", vars));
-    POP_VAR(ptrn);
+    POP_VAR(eptrn);
     POP_VAR(body);
     POP_VAR(lenv);  // lexical (captured) environment
     GET_ARGS();
-    XDEBUG(debug_print("Closure args", args));
+    WARN(debug_print("Closure args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1288,10 +1318,10 @@ PROC_DECL(Closure) {
         POP_ARG(opnd);
         POP_ARG(denv);  // dynamic (caller) environment
         END_ARGS();
-        int_t assoc = match_pattern(ptrn, opnd, NIL);
+        int_t assoc = match_pattern(eptrn, cons(denv, opnd), NIL);
         if (assoc == UNDEF) {
             effect = effect_send(effect,
-                actor_send(cust, error("lambda pattern mismatch")));
+                actor_send(cust, error("argument pattern mismatch")));
             return effect;
         }
         int_t xenv = actor_create(MK_PROC(Scope), list_2(assoc, lenv));
@@ -1305,19 +1335,19 @@ PROC_DECL(Closure) {
 PROC_DECL(Oper_lambda) {  // (lambda pattern . objects)
     XDEBUG(debug_print("Oper_lambda self", self));
     GET_ARGS();
-    XDEBUG(debug_print("Oper_lambda args", args));
+    WARN(debug_print("Oper_lambda args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
-        POP_ARG(env);
+        POP_ARG(lenv);
         END_ARGS();
         if (IS_PAIR(opnd)) {
             int_t ptrn = car(opnd);
             int_t body = cdr(opnd);
             int_t closure = actor_create(
-                MK_PROC(Closure), list_3(ptrn, body, env));
+                MK_PROC(Closure), list_3(cons(s_ignore, ptrn), body, lenv));
             effect = effect_create(effect, closure);
             int_t appl = actor_create(MK_PROC(Appl), closure);
             effect = effect_create(effect, appl);
@@ -1332,10 +1362,10 @@ PROC_DECL(Oper_lambda) {  // (lambda pattern . objects)
 }
 const cell_t a_lambda = { .head = MK_PROC(Oper_lambda), .tail = UNDEF };
 
-PROC_DECL(Oper_eval) {  // (eval expr)
+PROC_DECL(Oper_eval) {  // (eval expr [env])
     XDEBUG(debug_print("Oper_eval self", self));
     GET_ARGS();
-    XDEBUG(debug_print("Oper_eval args", args));
+    WARN(debug_print("Oper_eval args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1346,6 +1376,10 @@ PROC_DECL(Oper_eval) {  // (eval expr)
         if (IS_PAIR(opnd)) {
             int_t expr = car(opnd);
             opnd = cdr(opnd);
+            if (IS_PAIR(opnd)) {  // optional env
+                env = car(opnd);
+                opnd = cdr(opnd);
+            }
             if (opnd == NIL) {
                 effect = effect_send(effect,
                     actor_send(expr, list_3(cust, s_eval, env)));
@@ -1353,7 +1387,7 @@ PROC_DECL(Oper_eval) {  // (eval expr)
             }
         }
         effect = effect_send(effect,
-            actor_send(cust, error("eval expected 1 operand")));
+            actor_send(cust, error("eval expected 1 or 2 arguments")));
         return effect;
     }
     return SeType(self, arg);  // delegate to SeType
@@ -1361,46 +1395,10 @@ PROC_DECL(Oper_eval) {  // (eval expr)
 const cell_t oper_eval = { .head = MK_PROC(Oper_eval), .tail = UNDEF };
 const cell_t a_eval = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_eval) };
 
-static PROC_DECL(Oper_k_form) {
-    XDEBUG(debug_print("Oper_k_form self", self));
-    GET_VARS();  // (cust env)
-    XDEBUG(debug_print("Oper_k_form vars", vars));
-    POP_VAR(cust);
-    POP_VAR(env);
-    GET_ARGS();  // form
-    DEBUG(debug_print("Oper_k_form args", args));
-    TAIL_ARG(form);
-    int_t effect = NIL;
-    effect = effect_send(effect,
-        actor_send(form, list_3(cust, s_eval, env)));
-    return effect;
-}
-PROC_DECL(Oper) {
-    DEBUG(debug_print("Oper self", self));
-    GET_VARS();  // oper
-    XDEBUG(debug_print("Oper vars", vars));
-    TAIL_VAR(oper);
+PROC_DECL(Oper_apply) {  // (apply oper args [env])
+    XDEBUG(debug_print("Oper_apply self", self));
     GET_ARGS();
-    XDEBUG(debug_print("Oper args", args));
-    POP_ARG(cust);
-    POP_ARG(req);
-    int_t effect = NIL;
-    if (req == s_apply) {  // (cust 'apply opnd env)
-        POP_ARG(opnd);
-        POP_ARG(env);
-        END_ARGS();
-        int_t k_form = actor_create(MK_PROC(Oper_k_form), list_2(cust, env));
-        effect = effect_create(effect, k_form);
-        effect = effect_send(effect,
-            actor_send(oper, list_4(k_form, s_apply, opnd, env)));
-        return effect;
-    }
-    return SeType(self, arg);  // delegate to SeType
-}
-PROC_DECL(Oper_macro) {  // (macro pattern . objects)
-    XDEBUG(debug_print("Oper_macro self", self));
-    GET_ARGS();
-    XDEBUG(debug_print("Oper_macro args", args));
+    WARN(debug_print("Oper_apply args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1409,18 +1407,100 @@ PROC_DECL(Oper_macro) {  // (macro pattern . objects)
         POP_ARG(env);
         END_ARGS();
         if (IS_PAIR(opnd)) {
-            int_t ptrn = car(opnd);
-            int_t body = cdr(opnd);
-            int_t closure = actor_create(
-                MK_PROC(Closure), list_3(ptrn, body, env));
-            effect = effect_create(effect, closure);
-            int_t oper = actor_create(MK_PROC(Oper), closure);
-            effect = effect_create(effect, oper);
-            effect = effect_send(effect, actor_send(cust, oper));
-            return effect;
+            int_t oper = car(opnd);
+            oper = unwrap(oper);  // get underlying operative
+            if (oper == UNDEF) {
+                effect = effect_send(effect, actor_send(cust, UNDEF));
+                return effect;
+            }
+            opnd = cdr(opnd);
+            if (IS_PAIR(opnd)) {
+                int_t args = car(opnd);
+                opnd = cdr(opnd);
+                if (IS_PAIR(opnd)) {  // optional env
+                    env = car(opnd);
+                    opnd = cdr(opnd);
+                }
+                if (opnd == NIL) {
+                    effect = effect_send(effect,
+                        actor_send(oper, list_4(cust, s_apply, args, env)));
+                    return effect;
+                }
+            }
         }
         effect = effect_send(effect,
-            actor_send(cust, error("macro expected pattern . body")));
+            actor_send(cust, error("apply expected 2 or 3 arguments")));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t oper_apply = { .head = MK_PROC(Oper_apply), .tail = UNDEF };
+const cell_t a_apply = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_apply) };
+
+static PROC_DECL(Oper_k_form) {
+    XDEBUG(debug_print("Oper_k_form self", self));
+    GET_VARS();  // (cust denv)
+    XDEBUG(debug_print("Oper_k_form vars", vars));
+    POP_VAR(cust);
+    POP_VAR(denv);
+    GET_ARGS();  // form
+    WARN(debug_print("Oper_k_form args", args));
+    TAIL_ARG(form);
+    int_t effect = NIL;
+    effect = effect_send(effect,
+        actor_send(form, list_3(cust, s_eval, denv)));
+    return effect;
+}
+PROC_DECL(Oper) {
+    DEBUG(debug_print("Oper self", self));
+    GET_VARS();  // oper
+    XDEBUG(debug_print("Oper vars", vars));
+    TAIL_VAR(oper);
+    GET_ARGS();
+    WARN(debug_print("Oper args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(denv);
+        END_ARGS();
+        int_t k_form = actor_create(MK_PROC(Oper_k_form), list_2(cust, denv));
+        effect = effect_create(effect, k_form);
+        effect = effect_send(effect,
+            actor_send(oper, list_4(k_form, s_apply, opnd, denv)));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+PROC_DECL(Oper_macro) {  // (macro pattern evar . objects)
+    XDEBUG(debug_print("Oper_macro self", self));
+    GET_ARGS();
+    WARN(debug_print("Oper_macro args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(lenv);
+        END_ARGS();
+        if (IS_PAIR(opnd)) {
+            int_t ptrn = car(opnd);
+            opnd = cdr(opnd);
+            if (IS_PAIR(opnd)) {
+                int_t evar = car(opnd);
+                int_t body = cdr(opnd);
+                int_t closure = actor_create(
+                    MK_PROC(Closure), list_3(cons(evar, ptrn), body, lenv));
+                effect = effect_create(effect, closure);
+                int_t oper = actor_create(MK_PROC(Oper), closure);
+                effect = effect_create(effect, oper);
+                effect = effect_send(effect, actor_send(cust, oper));
+                return effect;
+            }
+        }
+        effect = effect_send(effect,
+            actor_send(cust, error("macro expected pattern evar . body")));
         return effect;
     }
     return SeType(self, arg);  // delegate to SeType
@@ -1485,7 +1565,8 @@ static PROC_DECL(prim_list) {  // (list . objects)
     //int_t env = arg;
     return opnd;
 }
-const cell_t a_list = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_list) };
+const cell_t oper_list = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_list) };
+const cell_t a_list = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_list) };
 
 static PROC_DECL(prim_cons) {  // (cons head tail)
     int_t opnd = self;
@@ -1502,7 +1583,8 @@ static PROC_DECL(prim_cons) {  // (cons head tail)
     }
     return error("cons expected 2 arguments");
 }
-const cell_t a_cons = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_cons) };
+const cell_t oper_cons = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_cons) };
+const cell_t a_cons = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_cons) };
 
 static PROC_DECL(prim_car) {  // (car pair)
     int_t opnd = self;
@@ -1515,7 +1597,8 @@ static PROC_DECL(prim_car) {  // (car pair)
     }
     return error("car expected 1 argument");
 }
-const cell_t a_car = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_car) };
+const cell_t oper_car = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_car) };
+const cell_t a_car = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_car) };
 
 static PROC_DECL(prim_cdr) {  // (cdr pair)
     int_t opnd = self;
@@ -1528,7 +1611,8 @@ static PROC_DECL(prim_cdr) {  // (cdr pair)
     }
     return error("cdr expected 1 argument");
 }
-const cell_t a_cdr = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_cdr) };
+const cell_t oper_cdr = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_cdr) };
+const cell_t a_cdr = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_cdr) };
 
 PROC_DECL(Oper_quote) {  // (quote expr)
     XDEBUG(debug_print("Oper_quote self", self));
@@ -1657,7 +1741,8 @@ static PROC_DECL(prim_equalp) {  // (equal? . objects)
     }
     return TRUE;
 }
-const cell_t a_equalp = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_equalp) };
+const cell_t oper_equalp = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_equalp) };
+const cell_t a_equalp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_equalp) };
 
 static PROC_DECL(fold_and) {
     int_t zero = self;
@@ -1757,7 +1842,8 @@ static PROC_DECL(Or_k_rest) {
     }
     return effect;
 }
-PROC_DECL(Oper_seq) {  // (and . exprs)
+// FIXME: consider using `Oper_seq` for `begin` et. al.
+PROC_DECL(Oper_seq) {  // (op . exprs)
     XDEBUG(debug_print("Oper_seq self", self));
     GET_VARS();  // (proc . dflt)
     XDEBUG(debug_print("Oper_seq vars", vars));
@@ -1926,52 +2012,40 @@ PROC_DECL(Fixnum) {  // WARNING: behavior used directly in obj_call()
 }
 const cell_t oper_numberp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Fixnum) };
 const cell_t a_numberp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_numberp) };
-
-PROC_DECL(Fixnum_fold) {
-    XDEBUG(debug_print("Fixnum_fold self", self));
-    GET_VARS();  // (zero oplus)
-    XDEBUG(debug_print("Fixnum_fold vars", vars));
-    POP_VAR(zero);
-    POP_VAR(oplus);
-    GET_ARGS();
-    XDEBUG(debug_print("Fixnum_fold args", args));
-    POP_ARG(cust);
-    POP_ARG(req);
-    int_t effect = NIL;
-    if (req == s_apply) {  // (cust 'apply opnd env)
-        POP_ARG(opnd);
-        POP_ARG(env);
-        END_ARGS();
-        effect = effect_send(effect,
-            actor_send(opnd, list_6(cust, s_fold, zero, oplus, s_eval, env)));
-        return effect;
+static PROC_DECL(prim_add) {  // (+ . numbers)
+    int_t n = 0;
+    int_t opnd = self;
+    //int_t env = arg;
+    while (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (!IS_NUM(x)) return UNDEF;
+        n += TO_INT(x);
+        opnd = cdr(opnd);
     }
-    return SeType(self, arg);  // delegate to SeType
+    if (opnd != NIL) {
+        return error("proper list required");
+    }
+    return MK_NUM(n);
 }
-static PROC_DECL(fold_add) {  // (+ . numbers)
-    int_t zero = self;
-    XDEBUG(debug_print("fold_add zero", zero));
-    if (!IS_NUM(zero)) return UNDEF;
-    int_t one = arg;
-    XDEBUG(debug_print("fold_add one", one));
-    if (!IS_NUM(one)) return UNDEF;
-    return MK_NUM(TO_INT(zero) + TO_INT(one));
+const cell_t oper_add = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_add) };
+const cell_t a_add = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_add) };
+static PROC_DECL(prim_mul) {  // (* . numbers)
+    int_t n = 1;
+    int_t opnd = self;
+    //int_t env = arg;
+    while (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (!IS_NUM(x)) return UNDEF;
+        n *= TO_INT(x);
+        opnd = cdr(opnd);
+    }
+    if (opnd != NIL) {
+        return error("proper list required");
+    }
+    return MK_NUM(n);
 }
-const cell_t add_oplus = { .head = MK_PROC(fold_add), .tail = NIL };
-const cell_t add_zero = { .head = MK_NUM(0), .tail = MK_PAIR(&add_oplus) };
-const cell_t a_add = { .head = MK_PROC(Fixnum_fold), .tail = MK_PAIR(&add_zero) };
-static PROC_DECL(fold_mul) {  // (* . numbers)
-    int_t zero = self;
-    XDEBUG(debug_print("fold_mul zero", zero));
-    if (!IS_NUM(zero)) return UNDEF;
-    int_t one = arg;
-    XDEBUG(debug_print("fold_mul one", one));
-    if (!IS_NUM(one)) return UNDEF;
-    return MK_NUM(TO_INT(zero) * TO_INT(one));
-}
-const cell_t mul_oplus = { .head = MK_PROC(fold_mul), .tail = NIL };
-const cell_t mul_zero = { .head = MK_NUM(1), .tail = MK_PAIR(&mul_oplus) };
-const cell_t a_mul = { .head = MK_PROC(Fixnum_fold), .tail = MK_PAIR(&mul_zero) };
+const cell_t oper_mul = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_mul) };
+const cell_t a_mul = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_mul) };
 static PROC_DECL(prim_sub) {  // (- . numbers)
     int_t n = 0;
     int_t opnd = self;
@@ -1990,11 +2064,12 @@ static PROC_DECL(prim_sub) {  // (- . numbers)
         }
     }
     if (opnd != NIL) {
-        return error("- requires a proper list");
+        return error("proper list required");
     }
     return MK_NUM(n);
 }
-const cell_t a_sub = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_sub) };
+const cell_t oper_sub = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_sub) };
+const cell_t a_sub = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_sub) };
 static PROC_DECL(prim_lt) {  // (< . numbers)
     int_t opnd = self;
     //int_t env = arg;
@@ -2013,11 +2088,12 @@ static PROC_DECL(prim_lt) {  // (< . numbers)
         }
     }
     if (opnd != NIL) {
-        return error("< requires a proper list");
+        return error("proper list required");
     }
     return TRUE;
 }
-const cell_t a_lt = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_lt) };
+const cell_t oper_lt = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_lt) };
+const cell_t a_lt = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_lt) };
 static PROC_DECL(prim_le) {  // (<= . numbers)
     int_t opnd = self;
     //int_t env = arg;
@@ -2036,11 +2112,12 @@ static PROC_DECL(prim_le) {  // (<= . numbers)
         }
     }
     if (opnd != NIL) {
-        return error("<= requires a proper list");
+        return error("proper list required");
     }
     return TRUE;
 }
-const cell_t a_le = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_le) };
+const cell_t oper_le = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_le) };
+const cell_t a_le = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_le) };
 static PROC_DECL(prim_eqn) {  // (= . numbers)
     int_t opnd = self;
     //int_t env = arg;
@@ -2059,11 +2136,12 @@ static PROC_DECL(prim_eqn) {  // (= . numbers)
         }
     }
     if (opnd != NIL) {
-        return error("= requires a proper list");
+        return error("proper list required");
     }
     return TRUE;
 }
-const cell_t a_eqn = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_eqn) };
+const cell_t oper_eqn = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_eqn) };
+const cell_t a_eqn = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_eqn) };
 static PROC_DECL(prim_ge) {  // (>= . numbers)
     int_t opnd = self;
     //int_t env = arg;
@@ -2082,11 +2160,12 @@ static PROC_DECL(prim_ge) {  // (>= . numbers)
         }
     }
     if (opnd != NIL) {
-        return error(">= requires a proper list");
+        return error("proper list required");
     }
     return TRUE;
 }
-const cell_t a_ge = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_ge) };
+const cell_t oper_ge = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_ge) };
+const cell_t a_ge = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_ge) };
 static PROC_DECL(prim_gt) {  // (> . numbers)
     int_t opnd = self;
     //int_t env = arg;
@@ -2105,11 +2184,12 @@ static PROC_DECL(prim_gt) {  // (> . numbers)
         }
     }
     if (opnd != NIL) {
-        return error("> requires a proper list");
+        return error("proper list required");
     }
     return TRUE;
 }
-const cell_t a_gt = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_gt) };
+const cell_t oper_gt = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_gt) };
+const cell_t a_gt = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_gt) };
 
 PROC_DECL(Fail) {
     WARN(debug_print("Fail self", self));
@@ -2159,6 +2239,8 @@ PROC_DECL(Global) {
             value = MK_ACTOR(&a_lambda);
         } else if (symbol == s_eval) {
             value = MK_ACTOR(&a_eval);
+        } else if (symbol == s_apply) {
+            value = MK_ACTOR(&a_apply);
         } else if (symbol == s_macro) {
             value = MK_ACTOR(&a_macro);
         } else if (symbol == s_define) {
@@ -2871,8 +2953,13 @@ int_t test_eval() {
     );
 
     eval_test_cstr(
-        "((macro (appl args) (cons appl (eval args))) + '(1 2 3 4 5))",
-        "15"
+        "(eval '(* 1 2 3 4 5))",
+        "120"
+    );
+
+    eval_test_cstr(
+        "(apply - '(1 2 3 4 5))",
+        "-13"
     );
 
     int_t assoc = list_3(cons(s_foo, MK_NUM(1)), cons(s_bar, MK_NUM(2)), cons(s_baz, MK_NUM(3)));
