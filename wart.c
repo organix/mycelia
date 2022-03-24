@@ -1612,7 +1612,7 @@ static PROC_DECL(And_k_rest) {
     XDEBUG(debug_print("And_k_rest args", args));
     TAIL_ARG(value);
     int_t effect = NIL;
-    if ((value == UNDEF) || (value == FALSE)) {
+    if ((value == UNDEF) || (value == FALSE) || (rest == NIL)) {
         effect = effect_send(effect,
             actor_send(cust, value));
     } else if (IS_PAIR(rest)) {
@@ -1642,7 +1642,7 @@ static PROC_DECL(Or_k_rest) {
     XDEBUG(debug_print("Or_k_rest args", args));
     TAIL_ARG(value);
     int_t effect = NIL;
-    if ((value == UNDEF) || (value != FALSE)) {
+    if ((value == UNDEF) || (value != FALSE) || (rest == NIL)) {
         effect = effect_send(effect,
             actor_send(cust, value));
     } else if (IS_PAIR(rest)) {
@@ -1652,9 +1652,6 @@ static PROC_DECL(Or_k_rest) {
             actor_become(MK_PROC(Or_k_rest), list_3(cust, rest, env)));
         effect = effect_send(effect,
             actor_send(expr, list_3(self, s_eval, env)));
-    } else if (rest == NIL) {
-        effect = effect_send(effect,
-            actor_send(cust, FALSE));
     } else {
         effect = effect_send(effect,
             actor_send(cust, error("proper list required")));
