@@ -1721,7 +1721,8 @@ static PROC_DECL(prim_eqp) {  // (eq? . objects)
     }
     return TRUE;
 }
-const cell_t a_eqp = { .head = MK_PROC(Appl), .tail = MK_PROC(prim_eqp) };
+const cell_t oper_eqp = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_eqp) };
+const cell_t a_eqp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_eqp) };
 
 static PROC_DECL(prim_equalp) {  // (equal? . objects)
     int_t opnd = self;
