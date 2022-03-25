@@ -1189,7 +1189,7 @@ PROC_DECL(Oper_prim) {  // call primitive procedure
     TAIL_VAR(proc);
     ASSERT(IS_PROC(proc));
     GET_ARGS();
-    WARN(debug_print("Oper_prim args", args));
+    DEBUG(debug_print("Oper_prim args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1207,13 +1207,13 @@ PROC_DECL(Oper_prim) {  // call primitive procedure
 }
 
 int_t match_pattern(int_t ptrn, int_t opnd, int_t assoc) {
-    WARN(debug_print("match_pattern ptrn", ptrn));
-    WARN(debug_print("match_pattern opnd", opnd));
+    XDEBUG(debug_print("match_pattern ptrn", ptrn));
+    XDEBUG(debug_print("match_pattern opnd", opnd));
     while (IS_PAIR(ptrn)) {
         if (car(ptrn) == s_quote) {
             ptrn = car(cdr(ptrn));
             if (!equal(ptrn, opnd)) return UNDEF;  // wrong literal
-            WARN(debug_print("match_pattern quote", assoc));
+            XDEBUG(debug_print("match_pattern quote", assoc));
             return assoc;  // success
         }
         if (!IS_PAIR(opnd)) return UNDEF;  // wrong structure
@@ -1229,7 +1229,7 @@ int_t match_pattern(int_t ptrn, int_t opnd, int_t assoc) {
     } else {
         if (!equal(ptrn, opnd)) return UNDEF;  // wrong constant
     }
-    WARN(debug_print("match_pattern assoc", assoc));
+    XDEBUG(debug_print("match_pattern assoc", assoc));
     return assoc;  // success
 }
 int_t assoc_find(int_t assoc, int_t key) {
@@ -1244,11 +1244,11 @@ int_t assoc_find(int_t assoc, int_t key) {
 PROC_DECL(Scope) {
     XDEBUG(debug_print("Scope self", self));
     GET_VARS();  // (locals penv)
-    WARN(debug_print("Scope vars", vars));
+    DEBUG(debug_print("Scope vars", vars));
     POP_VAR(locals);  // local bindings
     POP_VAR(penv);  // parent environment
     GET_ARGS();
-    WARN(debug_print("Scope args", args));
+    DEBUG(debug_print("Scope args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1277,6 +1277,7 @@ PROC_DECL(Scope) {
                 int_t key = car(new_binding);
                 int_t value = cdr(new_binding);
                 int_t old_binding = assoc_find(locals, key);
+                // FIXME: consider the dangers of making this impure!
                 if (IS_PAIR(old_binding)) {
                     set_cdr(old_binding, value);  // update in-place
                 } else {
@@ -1287,7 +1288,7 @@ PROC_DECL(Scope) {
         }
         effect = effect_send(effect,
             actor_send(cust, UNIT));
-        // surgically replace `locals` (WARNING! this is a non-transactional BECOME)
+        // FIXME: surgically replace `locals` (WARNING! this is a non-transactional BECOME)
         XDEBUG(debug_print("Scope locals", locals));
         cell_t *p = TO_PTR(get_data(self));
         p->head = locals;
@@ -1310,7 +1311,7 @@ PROC_DECL(Closure) {
     POP_VAR(body);
     POP_VAR(lenv);  // lexical (captured) environment
     GET_ARGS();
-    WARN(debug_print("Closure args", args));
+    DEBUG(debug_print("Closure args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1335,7 +1336,7 @@ PROC_DECL(Closure) {
 PROC_DECL(Oper_lambda) {  // (lambda pattern . objects)
     XDEBUG(debug_print("Oper_lambda self", self));
     GET_ARGS();
-    WARN(debug_print("Oper_lambda args", args));
+    DEBUG(debug_print("Oper_lambda args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1365,7 +1366,7 @@ const cell_t a_lambda = { .head = MK_PROC(Oper_lambda), .tail = UNDEF };
 PROC_DECL(Oper_eval) {  // (eval expr [env])
     XDEBUG(debug_print("Oper_eval self", self));
     GET_ARGS();
-    WARN(debug_print("Oper_eval args", args));
+    DEBUG(debug_print("Oper_eval args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1398,7 +1399,7 @@ const cell_t a_eval = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_eval) };
 PROC_DECL(Oper_apply) {  // (apply oper args [env])
     XDEBUG(debug_print("Oper_apply self", self));
     GET_ARGS();
-    WARN(debug_print("Oper_apply args", args));
+    DEBUG(debug_print("Oper_apply args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1444,7 +1445,7 @@ static PROC_DECL(Oper_k_form) {
     POP_VAR(cust);
     POP_VAR(denv);
     GET_ARGS();  // form
-    WARN(debug_print("Oper_k_form args", args));
+    DEBUG(debug_print("Oper_k_form args", args));
     TAIL_ARG(form);
     int_t effect = NIL;
     effect = effect_send(effect,
@@ -1457,7 +1458,7 @@ PROC_DECL(Oper) {
     XDEBUG(debug_print("Oper vars", vars));
     TAIL_VAR(oper);
     GET_ARGS();
-    WARN(debug_print("Oper args", args));
+    DEBUG(debug_print("Oper args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1476,7 +1477,7 @@ PROC_DECL(Oper) {
 PROC_DECL(Oper_macro) {  // (macro pattern evar . objects)
     XDEBUG(debug_print("Oper_macro self", self));
     GET_ARGS();
-    WARN(debug_print("Oper_macro args", args));
+    DEBUG(debug_print("Oper_macro args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -2684,6 +2685,30 @@ int_t read_eval_print_loop(input_t *in) {
     return OK;
 }
 
+int_t load_file(input_t *in) {
+    while (1) {
+        int_t effect = NIL;
+
+        int_t expr = read_sexpr(in);
+        if (expr == FAIL) break;
+
+        int_t cust = MK_ACTOR(&a_sink);
+        int_t env = MK_ACTOR(&a_ground_env);
+        effect = effect_send(effect,
+            actor_send(expr, list_3(cust, s_eval, env)));
+
+#if CONCURRENT_GC
+        effect = effect_send(effect,
+            actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));
+#endif
+
+        // dispatch all pending events
+        ASSERT(apply_effect(UNDEF, effect) == OK);
+        event_loop();
+    }
+    return OK;
+}
+
 /*
  * unit tests
  */
@@ -3073,6 +3098,18 @@ int main(int argc, char const *argv[])
     cell_t *p = TO_PTR(FAIL);
     p->tail = NIL;  // FIXME: should not be able to assign to `const`
 #endif
+
+    printf("argc = %d\n", argc);
+    for (int i = 1; i < argc; ++i) {
+        printf("argv[%d] = %s\n", i, argv[i]);
+        FILE *f = fopen(argv[i], "r");
+        if (f) {
+            file_in_t file_in;
+            ASSERT(file_init(&file_in, f) == 0);
+            result = load_file(&file_in.input);
+        }
+        fclose(f);
+    }
 
     file_in_t std_in;
     ASSERT(file_init(&std_in, stdin) == 0);
