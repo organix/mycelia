@@ -2863,6 +2863,11 @@ int_t eval_test_cstr(char *cstr, char *result) {
     return OK;
 }
 
+int top_level_eval(char *expr) {
+    // Note: this will panic() if the result is not UNIT
+    return eval_test_cstr(expr, "#unit");
+}
+
 int_t test_eval() {
     WARN(fprintf(stderr, "--test_eval--\n"));
     int_t effect;
@@ -3046,6 +3051,20 @@ int_t actor_boot() {
     return OK;
 }
 
+int_t load_library() {
+    WARN(fprintf(stderr, "--load_library--\n"));
+    top_level_eval("(define w (lambda (f) (f f)))");
+    top_level_eval("(define cadr (lambda ((_ x . _)) x))");
+    top_level_eval("(define caddr (lambda ((_ _ x . _)) x))");
+    top_level_eval("(define not (lambda (b) (eq? b #f)))");
+    top_level_eval("(define zero? (lambda (n) (= n 0)))");
+    top_level_eval("(define list? (lambda (p) (if (pair? p) (list? (cdr p)) (null? p))))");
+    top_level_eval("(define length (lambda (p) (if (pair? p) (+ (length (cdr p)) 1) 0)))");
+    top_level_eval("(define list* (lambda (h . t) (if (pair? t) (cons h (apply list* t)) h)))");
+    //top_level_eval("");
+    return OK;
+}
+
 int main(int argc, char const *argv[])
 {
     clock_t t0 = clock();
@@ -3100,6 +3119,9 @@ int main(int argc, char const *argv[])
     p->tail = NIL;  // FIXME: should not be able to assign to `const`
 #endif
 
+    ASSERT(load_library() == OK);
+
+    WARN(fprintf(stderr, "--load_file--\n"));
     printf("argc = %d\n", argc);
     for (int i = 1; i < argc; ++i) {
         printf("argv[%d] = %s\n", i, argv[i]);
@@ -3111,6 +3133,10 @@ int main(int argc, char const *argv[])
         }
         fclose(f);
     }
+
+    int_t usage = cell_usage();
+    int freed = gc_mark_and_sweep();
+    WARN(printf("main: gc reclaimed %d cells\n", freed));
 
     file_in_t std_in;
     ASSERT(file_init(&std_in, stdin) == 0);
