@@ -3148,7 +3148,6 @@ int_t actor_boot() {
 
 int_t load_library() {
     WARN(fprintf(stderr, "--load_library--\n"));
-    top_level_eval("(define w (lambda (f) (f f)))");
     top_level_eval("(define cadr (lambda ((_ x . _)) x))");
     top_level_eval("(define caddr (lambda ((_ _ x . _)) x))");
     top_level_eval("(define not (lambda (b) (eq? b #f)))");
