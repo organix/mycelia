@@ -267,6 +267,15 @@ int equal(int_t x, int_t y) {
 #endif
 }
 
+int list_len(int_t val) {
+    int len = 0;
+    while (IS_PAIR(val)) {
+        ++len;
+        val = cdr(val);
+    }
+    return len;
+}
+
 int_t set_car(int_t val, int_t head) {
     if (!in_heap(val)) panic("set_car() of non-heap cell");
     cell_t *p = TO_PTR(val);
@@ -508,6 +517,7 @@ int_t s_quote;
 int_t s_typeq;
 int_t s_eval;
 int_t s_apply;
+int_t s_map;
 int_t s_list;
 int_t s_cons;
 int_t s_car;
@@ -518,8 +528,6 @@ int_t s_or;
 int_t s_eqp;
 int_t s_equalp;
 int_t s_lambda;
-int_t s_eval;
-int_t s_apply;
 int_t s_macro;
 int_t s_define;
 int_t s_booleanp;
@@ -535,7 +543,6 @@ int_t s_le;
 int_t s_eqn;
 int_t s_ge;
 int_t s_gt;
-int_t s_map;
 int_t s_fold;
 int_t s_foldr;
 int_t s_bind;
@@ -550,6 +557,7 @@ int_t symbol_boot() {
     s_typeq = symbol("typeq");
     s_eval = symbol("eval");
     s_apply = symbol("apply");
+    s_map = symbol("map");
     s_list = symbol("list");
     s_cons = symbol("cons");
     s_car = symbol("car");
@@ -560,8 +568,6 @@ int_t symbol_boot() {
     s_eqp = symbol("eq?");
     s_equalp = symbol("equal?");
     s_lambda = symbol("lambda");
-    s_eval = symbol("eval");
-    s_apply = symbol("apply");
     s_macro = symbol("macro");
     s_define = symbol("define");
     s_booleanp = symbol("boolean?");
@@ -577,7 +583,6 @@ int_t symbol_boot() {
     s_eqn = symbol("=");
     s_ge = symbol(">=");
     s_gt = symbol(">");
-    s_map = symbol("map");
     s_fold = symbol("fold");
     s_foldr = symbol("foldr");
     s_bind = symbol("bind");
@@ -1177,7 +1182,11 @@ PROC_DECL(Appl) {
     }
     return SeType(self, arg);  // delegate to SeType
 }
+
+PROC_DECL(Oper);  // FORWARD DECLARATION
 int_t unwrap(int_t appl) {
+    // FIXME: figure out how to use `apply` with macros...
+    //if (get_code(appl) != MK_PROC(Oper)) return appl;  // operative macro
     if (get_code(appl) != MK_PROC(Appl)) return error("applicative required");
     return get_data(appl);  // return underlying operative
 }
@@ -1437,6 +1446,85 @@ PROC_DECL(Oper_apply) {  // (apply oper args [env])
 }
 const cell_t oper_apply = { .head = MK_PROC(Oper_apply), .tail = UNDEF };
 const cell_t a_apply = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_apply) };
+
+PROC_DECL(Oper_map) {  // (map oper . lists)
+    XDEBUG(debug_print("Oper_map self", self));
+    GET_ARGS();
+    DEBUG(debug_print("Oper_map args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        if (IS_PAIR(opnd)) {
+            int_t oper = car(opnd);
+            oper = unwrap(oper);  // get underlying operative
+            if (oper == UNDEF) {
+                effect = effect_send(effect, actor_send(cust, UNDEF));
+                return effect;
+            }
+            opnd = cdr(opnd);
+            if (IS_PAIR(opnd)) {
+                int_t x = car(opnd);
+                int n = list_len(x);
+                int_t xs = cdr(opnd);
+                int_t ys = cons(x, NIL); // list heads
+                int_t y = ys;
+                // copy heads and check list lengths
+                while (IS_PAIR(xs)) {
+                    x = car(xs);
+                    if (list_len(x) != n) {
+                        effect = effect_send(effect,
+                            actor_send(cust, error("map requires equal list lengths")));
+                        return effect;
+                    }
+                    set_cdr(y, cons(x, NIL));
+                    y = cdr(y);
+                    xs = cdr(xs);
+                }
+                XDEBUG(debug_print("Oper_map ys", ys));
+                // construct applications
+                int_t zs = cons(UNDEF, NIL);  // anchor cell
+                int_t z = zs;
+                while (IS_PAIR(car(ys))) {
+                    xs = cons(oper, NIL);
+                    set_cdr(z, cons(xs, NIL));
+                    z = cdr(z);
+                    x = xs;
+                    y = ys;
+                    while (IS_PAIR(y)) {
+                        set_cdr(x, cons(car(car(y)), NIL));  // copy head
+                        x = cdr(x);
+                        set_car(y, cdr(car(y)));  // advance head
+                        y = cdr(y);
+                    }
+                    XDEBUG(debug_print("Oper_map ys'", ys));
+                }
+                y = ys;
+                while (IS_PAIR(y)) {  // release head iters
+                    ys = cdr(y);
+                    cell_free(y);
+                    y = ys;
+                }
+                z = cdr(zs);
+                zs = cell_free(zs);  // release anchor
+                // map eval applications
+                DEBUG(debug_print("Oper_map z", z));
+                effect = effect_send(effect,
+                    actor_send(z, list_4(cust, s_map, s_eval, env)));
+                return effect;
+            }
+        }
+        effect = effect_send(effect,
+            actor_send(cust, error("map expected 2 or more arguments")));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t oper_map = { .head = MK_PROC(Oper_map), .tail = UNDEF };
+const cell_t a_map = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_map) };
 
 static PROC_DECL(Oper_k_form) {
     XDEBUG(debug_print("Oper_k_form self", self));
@@ -2243,6 +2331,8 @@ PROC_DECL(Global) {
             value = MK_ACTOR(&a_eval);
         } else if (symbol == s_apply) {
             value = MK_ACTOR(&a_apply);
+        } else if (symbol == s_map) {
+            value = MK_ACTOR(&a_map);
         } else if (symbol == s_macro) {
             value = MK_ACTOR(&a_macro);
         } else if (symbol == s_define) {
@@ -2993,6 +3083,11 @@ int_t test_eval() {
         "-13"
     );
 
+    eval_test_cstr(
+        "(map + '(1 2) '(3 4) '(5 6)))",
+        "(9 12)"
+    );
+
     int_t assoc = list_3(cons(s_foo, MK_NUM(1)), cons(s_bar, MK_NUM(2)), cons(s_baz, MK_NUM(3)));
     DEBUG(debug_print("test_eval assoc", assoc));
     ASSERT(cdr(assoc_find(assoc, s_foo)) == MK_NUM(1));
@@ -3057,10 +3152,13 @@ int_t load_library() {
     top_level_eval("(define cadr (lambda ((_ x . _)) x))");
     top_level_eval("(define caddr (lambda ((_ _ x . _)) x))");
     top_level_eval("(define not (lambda (b) (eq? b #f)))");
+    top_level_eval("(define unit? (macro objs _ (cons eq? (cons #unit objs))))");
     top_level_eval("(define zero? (lambda (n) (= n 0)))");
     top_level_eval("(define list? (lambda (p) (if (pair? p) (list? (cdr p)) (null? p))))");
     top_level_eval("(define length (lambda (p) (if (pair? p) (+ (length (cdr p)) 1) 0)))");
     top_level_eval("(define list* (lambda (h . t) (if (pair? t) (cons h (apply list* t)) h)))");
+    top_level_eval("(define par (lambda _))");
+    top_level_eval("(define seq (macro body _ (list (list* lambda '_ body))))");
     //top_level_eval("");
     return OK;
 }

@@ -34,7 +34,10 @@ to disambiguate when needed.
 
 ## Ground Environment
 
-The following procedures are defined in the ground environment:
+Several procedures are pre-defined in the ground environment.
+
+### Primitives
+
   * `(quote `_expression_`)`
   * `(list . `_objects_`)`
   * `(cons `_head_` `_tail_`)`
@@ -48,6 +51,7 @@ The following procedures are defined in the ground environment:
   * `(lambda `_pattern_` . `_objects_`)`
   * `(eval `_expression_` [`_environment_`])`
   * `(apply `_oper_` `_args_` [`_environment_`])`
+  * `(map `_oper_` . `_lists_`)`
   * `(macro `_pattern_` `_evar_` . `_objects_`)`
   * `(define `_pattern_` `_expression_`)`
   * `(boolean? . `_objects_`)`
@@ -63,6 +67,19 @@ The following procedures are defined in the ground environment:
   * `(= . `_numbers_`)`
   * `(>= . `_numbers_`)`
   * `(> . `_numbers_`)`
+
+### Standard Library
+
+  * `(cadr `_list_`)`
+  * `(caddr `_list_`)`
+  * `(not `_boolean_`)`
+  * `(unit? . `_objects_`)`
+  * `(zero? `_number_`)`
+  * `(list? `_object_`)`
+  * `(length `_list_`)`
+  * `(list* . `_objects_`)`
+  * `(par . `_objects_`)`
+  * `(seq . `_objects_`)`
 
 ## Garbage Collected Heap
 
