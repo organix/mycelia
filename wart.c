@@ -141,7 +141,7 @@ int_t failure(char *_file_, int _line_) {
  * heap memory management (cells)
  */
 
-#define CELL_MAX (1024)
+#define CELL_MAX (1 << 12)  // 4K cells
 cell_t cell[CELL_MAX] = {
     { .head = 1, .tail = 1 },  // root cell (limit,free)
     { .head = 0, .tail = 0 },  // end of free-list
