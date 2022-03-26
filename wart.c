@@ -527,6 +527,7 @@ int_t s_and;
 int_t s_or;
 int_t s_eqp;
 int_t s_equalp;
+int_t s_seq;
 int_t s_lambda;
 int_t s_macro;
 int_t s_define;
@@ -567,6 +568,7 @@ int_t symbol_boot() {
     s_or = symbol("or");
     s_eqp = symbol("eq?");
     s_equalp = symbol("equal?");
+    s_seq = symbol("seq");
     s_lambda = symbol("lambda");
     s_macro = symbol("macro");
     s_define = symbol("define");
@@ -1372,6 +1374,25 @@ PROC_DECL(Oper_lambda) {  // (lambda pattern . objects)
 }
 const cell_t a_lambda = { .head = MK_PROC(Oper_lambda), .tail = UNDEF };
 
+PROC_DECL(Oper_seq) {
+    XDEBUG(debug_print("Oper_seq self", self));
+    GET_ARGS();
+    XDEBUG(debug_print("Oper_seq args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    int_t effect = NIL;
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        effect = effect_send(effect,
+            actor_send(opnd, list_6(cust, s_fold, UNIT, MK_PROC(fold_last), s_eval, env)));
+        return effect;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t a_seq = { .head = MK_PROC(Oper_seq), .tail = UNDEF };
+
 PROC_DECL(Oper_eval) {  // (eval expr [env])
     XDEBUG(debug_print("Oper_eval self", self));
     GET_ARGS();
@@ -1932,15 +1953,15 @@ static PROC_DECL(Or_k_rest) {
     }
     return effect;
 }
-// FIXME: consider using `Oper_seq` for `begin` et. al.
-PROC_DECL(Oper_seq) {  // (op . exprs)
-    XDEBUG(debug_print("Oper_seq self", self));
+// progressive application (short-circuit)
+PROC_DECL(Oper_prog) {  // (op . exprs)
+    XDEBUG(debug_print("Oper_prog self", self));
     GET_VARS();  // (proc . dflt)
-    XDEBUG(debug_print("Oper_seq vars", vars));
+    XDEBUG(debug_print("Oper_prog vars", vars));
     POP_VAR(proc);
     TAIL_VAR(dflt);
     GET_ARGS();
-    XDEBUG(debug_print("Oper_seq args", args));
+    XDEBUG(debug_print("Oper_prog args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -1964,9 +1985,9 @@ PROC_DECL(Oper_seq) {  // (op . exprs)
     return SeType(self, arg);  // delegate to SeType
 }
 const cell_t and_rest = { .head = MK_PROC(And_k_rest), .tail = TRUE };
-const cell_t a_and = { .head = MK_PROC(Oper_seq), .tail = MK_PAIR(&and_rest) };
+const cell_t a_and = { .head = MK_PROC(Oper_prog), .tail = MK_PAIR(&and_rest) };
 const cell_t or_rest = { .head = MK_PROC(Or_k_rest), .tail = FALSE };
-const cell_t a_or = { .head = MK_PROC(Oper_seq), .tail = MK_PAIR(&or_rest) };
+const cell_t a_or = { .head = MK_PROC(Oper_prog), .tail = MK_PAIR(&or_rest) };
 
 PROC_DECL(Null) {
     XDEBUG(debug_print("Null self", self));
@@ -2325,6 +2346,8 @@ PROC_DECL(Global) {
             value = MK_ACTOR(&a_eqp);
         } else if (symbol == s_equalp) {
             value = MK_ACTOR(&a_equalp);
+        } else if (symbol == s_seq) {
+            value = MK_ACTOR(&a_seq);
         } else if (symbol == s_lambda) {
             value = MK_ACTOR(&a_lambda);
         } else if (symbol == s_eval) {
@@ -3157,7 +3180,6 @@ int_t load_library() {
     top_level_eval("(define length (lambda (p) (if (pair? p) (+ (length (cdr p)) 1) 0)))");
     top_level_eval("(define list* (lambda (h . t) (if (pair? t) (cons h (apply list* t)) h)))");
     top_level_eval("(define par (lambda _))");
-    top_level_eval("(define seq (macro body _ (list (list* lambda '_ body))))");
     //top_level_eval("");
     return OK;
 }

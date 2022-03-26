@@ -48,6 +48,7 @@ Several procedures are pre-defined in the ground environment.
   * `(or . `_expressions_`)`
   * `(eq? . `_objects_`)`
   * `(equal? . `_objects_`)`
+  * `(seq . `_objects_`)`
   * `(lambda `_pattern_` . `_objects_`)`
   * `(eval `_expression_` [`_environment_`])`
   * `(apply `_oper_` `_args_` [`_environment_`])`
@@ -79,7 +80,6 @@ Several procedures are pre-defined in the ground environment.
   * `(length `_list_`)`
   * `(list* . `_objects_`)`
   * `(par . `_objects_`)`
-  * `(seq . `_objects_`)`
 
 ## Garbage Collected Heap
 

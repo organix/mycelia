@@ -64,8 +64,9 @@
   (macro (symbols . body) _
     (list define symbols
       (list
-        (cons lambda (cons ()
-          (append body (list (cons list symbols))) )) ))))
+        (list lambda ()
+          (cons seq body)
+          (cons list symbols)) ))))
 
 ;
 ; Extras
