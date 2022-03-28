@@ -2390,9 +2390,9 @@ const cell_t a_ground_env;  // FORWARD DECLARATION
 #if META_ACTORS
 static PROC_DECL(fold_effect) {
     int_t zero = self;
-    WARN(debug_print("fold_effect zero", zero));
+    XDEBUG(debug_print("fold_effect zero", zero));
     int_t one = arg;
-    WARN(debug_print("fold_effect one", one));
+    XDEBUG(debug_print("fold_effect one", one));
     // merge effect `one` into effects `zero`
     if (IS_PAIR(zero) && (car(zero) != UNDEF)) {
         int_t events = car(zero);
@@ -2419,7 +2419,7 @@ PROC_DECL(Behavior) {
     POP_VAR(stmts);
     POP_VAR(lenv);
     GET_ARGS();
-    WARN(debug_print("Behavior args", args));
+    DEBUG(debug_print("Behavior args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -2437,7 +2437,7 @@ PROC_DECL(Behavior) {
                     actor_send(cust, error("message pattern mismatch")));
                 return effect;
             }
-            WARN(debug_print("Behavior assoc", assoc));
+            XDEBUG(debug_print("Behavior assoc", assoc));
             int_t aenv = actor_create(MK_PROC(Scope), list_2(assoc, lenv));
             effect = effect_create(effect, aenv);
             int_t empty = cons(NIL, NIL);  // empty effect
@@ -2451,7 +2451,7 @@ PROC_DECL(Behavior) {
 PROC_DECL(Oper_BEH) {  // (BEH pattern . statements)
     XDEBUG(debug_print("Oper_BEH self", self));
     GET_ARGS();
-    WARN(debug_print("Oper_BEH args", args));
+    DEBUG(debug_print("Oper_BEH args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
@@ -2484,13 +2484,13 @@ static PROC_DECL(Actor_k_done) {
     POP_VAR(cust);
     POP_VAR(actor);
     GET_ARGS();  // effects
-    DEBUG(debug_print("Actor_k_done args", args));
+    XDEBUG(debug_print("Actor_k_done args", args));
     TAIL_ARG(effects);
     // apply effects for this actor
     int_t effect = NIL;
     if (IS_PAIR(effects)) {
         // commit transaction
-        WARN(debug_print("Actor_k_done commit", effects));
+        DEBUG(debug_print("Actor_k_done commit", effects));
         if (car(effects) == UNDEF) {
             int_t reason = cdr(effects);
             ERROR(debug_print("Actor_k_done FAIL", cdr(reason)));
@@ -2499,7 +2499,7 @@ static PROC_DECL(Actor_k_done) {
             while (IS_PAIR(events)) {
                 int_t event = car(events);
                 ASSERT(IS_PAIR(event));
-                WARN(debug_print("Actor_k_done meta-event", event));
+                XDEBUG(debug_print("Actor_k_done meta-event", event));
                 int_t target = car(event);
                 int_t msg = cdr(event);
                 effect = effect_send(effect,  // enqueue meta-event
@@ -2507,19 +2507,19 @@ static PROC_DECL(Actor_k_done) {
                 events = cdr(events);
             }
             int_t beh = cdr(effects);
-            WARN(debug_print("Actor_k_done meta-actor", actor));
+            XDEBUG(debug_print("Actor_k_done meta-actor", actor));
             cell_t *p = TO_PTR(actor);
             if (beh == NIL) {
                 p->tail = cdr(p->tail);  // restore beh, end event transaction
             } else {
-                WARN(debug_print("Actor_k_done meta-become", beh));
+                XDEBUG(debug_print("Actor_k_done meta-become", beh));
                 ASSERT(car(beh) == MK_PROC(Actor));
                 p->tail = cdr(beh);  // install new beh, end event transaction
             }
         }
     } else {
         // rollback transaction
-        WARN(debug_print("Actor_k_done rollback", effects));
+        DEBUG(debug_print("Actor_k_done rollback", effects));
         cell_t *p = TO_PTR(actor);
         p->tail = cdr(p->tail);  // restore beh, end event transaction
     }
@@ -2528,12 +2528,12 @@ static PROC_DECL(Actor_k_done) {
     return effect;
 }
 PROC_DECL(Actor) {
-    WARN(debug_print("Actor self", self));
+    XDEBUG(debug_print("Actor self", self));
     GET_VARS();  // IS_ACTOR(beh) -or- IS_PAIR(effect)
     XDEBUG(debug_print("Actor vars", vars));
     TAIL_VAR(beh);
     if (IS_PAIR(beh)) {  // actor is busy handling an event
-        WARN(debug_print("Actor BUSY", self));
+        XDEBUG(debug_print("Actor BUSY", self));
         return effect_send(NIL,
             actor_send(self, arg));  // re-queue current message (serializer)
     }
@@ -2631,7 +2631,7 @@ PROC_DECL(Beh_println) {
     XDEBUG(debug_print("Beh_println vars", vars));
     TAIL_VAR(meta_effect);
     GET_ARGS();
-    WARN(debug_print("Beh_println args", args));
+    DEBUG(debug_print("Beh_println args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;
