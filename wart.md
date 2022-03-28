@@ -81,6 +81,25 @@ Several procedures are pre-defined in the ground environment.
   * `(list* . `_objects_`)`
   * `(par . `_objects_`)`
 
+### Meta-Actor Facilities
+
+  * `(BEH `_pattern_` . `_statements_`)`
+  * `(CREATE `_behavior_`)`
+  * `(SEND `_target_` `_message_`)`
+  * `(BECOME `_behavior_`)`
+  * `(FAIL `_reason_`)`
+  * `SELF`
+  * `(println . `_objects_`)`
+
+### Meta-Actor Library
+
+  * `sink-beh`
+  * `sink`
+  * `(fwd-beh `_customer_`)`
+  * `(once-beh `_customer_`)`
+  * `(label-beh `_customer_` `_label_`)`
+  * `(tag-beh `_customer_`)`
+
 ## Garbage Collected Heap
 
 The GC Heap is composed of i64 cells.
