@@ -68,6 +68,9 @@ Several procedures are pre-defined in the ground environment.
   * `(= . `_numbers_`)`
   * `(>= . `_numbers_`)`
   * `(> . `_numbers_`)`
+  * `(print `_object_`)`
+  * `(emit . `_codepoints_`)`
+  * `(debug-print `_object_`)`
 
 ### Standard Library
 
@@ -80,6 +83,7 @@ Several procedures are pre-defined in the ground environment.
   * `(length `_list_`)`
   * `(list* . `_objects_`)`
   * `(par . `_objects_`)`
+  * `(newline)`
 
 ### Meta-Actor Facilities
 

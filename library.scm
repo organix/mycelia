@@ -67,3 +67,7 @@
         (list lambda ()
           (cons seq body)
           (cons list symbols)) ))))
+
+(define newline
+  (lambda ()
+    (emit 10)))

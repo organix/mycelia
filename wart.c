@@ -545,6 +545,9 @@ int_t s_le;
 int_t s_eqn;
 int_t s_ge;
 int_t s_gt;
+int_t s_print;
+int_t s_emit;
+int_t s_debug_print;
 int_t s_fold;
 int_t s_foldr;
 int_t s_bind;
@@ -594,6 +597,9 @@ int_t symbol_boot() {
     s_eqn = symbol("=");
     s_ge = symbol(">=");
     s_gt = symbol(">");
+    s_print = symbol("print");
+    s_emit = symbol("emit");
+    s_debug_print = symbol("debug-print");
     s_fold = symbol("fold");
     s_foldr = symbol("foldr");
     s_bind = symbol("bind");
@@ -2319,6 +2325,58 @@ static PROC_DECL(prim_gt) {  // (> . numbers)
 const cell_t oper_gt = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_gt) };
 const cell_t a_gt = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_gt) };
 
+static PROC_DECL(prim_print) {  // (print object)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t obj = car(opnd);
+        opnd = cdr(opnd);
+        if (opnd == NIL) {
+            print(obj);
+            fflush(stdout);
+            return obj;
+        }
+    }
+    return error("print expected 1 argument");
+}
+const cell_t oper_print = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_print) };
+const cell_t a_print = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_print) };
+
+static PROC_DECL(prim_emit) {  // (emit . codepoints)
+    int_t opnd = self;
+    //int_t env = arg;
+    while (IS_PAIR(opnd)) {
+        int_t code = car(opnd);
+        opnd = cdr(opnd);
+        if (!IS_NUM(code)) continue;
+        int_t ch = TO_INT(code);
+        if (NAT(ch) > 0xFF) continue;
+        putchar(ch);  // FIXME: need unicode-capable output...
+    }
+    if (opnd != NIL) {
+        return error("proper list required");
+    }
+    return UNIT;
+}
+const cell_t oper_emit = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_emit) };
+const cell_t a_emit = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_emit) };
+
+static PROC_DECL(prim_debug_print) {  // (debug-print object)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t obj = car(opnd);
+        opnd = cdr(opnd);
+        if (opnd == NIL) {
+            debug_print("", obj);
+            return obj;
+        }
+    }
+    return error("print expected 1 argument");
+}
+const cell_t oper_debug_print = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_debug_print) };
+const cell_t a_debug_print = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_debug_print) };
+
 PROC_DECL(Fail) {
     WARN(debug_print("Fail self", self));
     GET_ARGS();
@@ -2676,6 +2734,12 @@ PROC_DECL(Global) {
             value = MK_ACTOR(&a_ge);
         } else if (symbol == s_gt) {
             value = MK_ACTOR(&a_gt);
+        } else if (symbol == s_print) {
+            value = MK_ACTOR(&a_print);
+        } else if (symbol == s_emit) {
+            value = MK_ACTOR(&a_emit);
+        } else if (symbol == s_debug_print) {
+            value = MK_ACTOR(&a_debug_print);
 #if META_ACTORS
         } else if (symbol == s_BEH) {
             value = MK_ACTOR(&a_BEH);
