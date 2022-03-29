@@ -8,28 +8,33 @@
 (define a-printer
   (CREATE
     (BEH msg
-      (seq (print msg) (newline)) )))
+      (seq (print msg) (newline))
+    )))
 
 (define fwd-beh
   (lambda (cust)
     (BEH msg
-      (SEND cust msg))))
+      (SEND cust msg)
+    )))
 
 (define once-beh
   (lambda (cust)
     (BEH msg
       (SEND cust msg)
-      (BECOME sink-beh))))
+      (BECOME sink-beh)
+    )))
 
 (define label-beh
   (lambda (cust label)
     (BEH msg
-      (SEND cust (cons label msg)))))
+      (SEND cust (cons label msg))
+    )))
 
 (define tag-beh
   (lambda (cust)
     (BEH msg
-      (SEND cust (cons SELF msg)))))
+      (SEND cust (cons SELF msg))
+    )))
 
 (define a-testcase
   (CREATE
@@ -42,3 +47,5 @@
       (SEND a-once '(a b c))
       (SEND a-once '(x y z))
     )))
+
+;(define a-testfail (CREATE (BEH _ (SEND a-printer 'foo) (FAIL 420) (SEND a-printer 'bar))))

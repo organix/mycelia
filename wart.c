@@ -19,7 +19,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define WARN(x)     x   // include/exclude warning instrumentation
 #define DEBUG(x)        // include/exclude debug instrumentation
 #define XDEBUG(x)       // include/exclude extra debugging
-#define ATRACE(x)       // include/exclude meta-actor tracing
+#define ATRACE(x)   x   // include/exclude meta-actor tracing
 
 #define NO_CELL_FREE  0 // never release allocated cells
 #define GC_CALL_DEPTH 0 // count recursion depth during garbage collection
@@ -2475,6 +2475,14 @@ PROC_DECL(Oper_BEH) {  // (BEH pattern . statements)
 }
 const cell_t a_BEH = { .head = MK_PROC(Oper_BEH), .tail = UNDEF };
 
+int is_meta_beh(int_t val) {
+    if (IS_ACTOR(val) && !IS_PROC(val)) {
+        cell_t *p = TO_PTR(val);
+        return (p->head == MK_PROC(Behavior));
+    }
+    return 0;
+}
+
 PROC_DECL(Actor);  // FORWARD DECLARATION
 static PROC_DECL(Actor_k_done) {
     XDEBUG(debug_print("Actor_k_done self", self));
@@ -2492,7 +2500,9 @@ static PROC_DECL(Actor_k_done) {
         ATRACE(debug_print("Actor_k_done commit", effects));
         if (car(effects) == UNDEF) {
             int_t reason = cdr(effects);
-            ERROR(debug_print("Actor_k_done FAIL", cdr(reason)));
+            WARN(debug_print("Actor_k_done FAIL", reason));
+            cell_t *p = TO_PTR(actor);
+            p->tail = cdr(p->tail);  // restore beh, end event transaction
         } else {
             int_t events = car(effects);
             while (IS_PAIR(events)) {
@@ -2532,7 +2542,7 @@ PROC_DECL(Actor) {
     XDEBUG(debug_print("Actor vars", vars));
     TAIL_VAR(beh);
     if (IS_PAIR(beh)) {  // actor is busy handling an event
-        XDEBUG(debug_print("Actor BUSY", self));
+        ATRACE(debug_print("Actor BUSY", self));
         return effect_send(NIL,
             actor_send(self, arg));  // re-queue current message (serializer)
     }
@@ -2557,12 +2567,20 @@ PROC_DECL(Actor) {
     return SeType(self, arg);  // delegate to SeType
 }
 
+int is_meta_actor(int_t val) {
+    if (IS_ACTOR(val) && !IS_PROC(val)) {
+        cell_t *p = TO_PTR(val);
+        return (p->head == MK_PROC(Actor));
+    }
+    return 0;
+}
+
 static PROC_DECL(prim_CREATE) {  // (CREATE beh)
     int_t opnd = self;
     //int_t env = arg;
     if (IS_PAIR(opnd)) {
         int_t beh = car(opnd);
-        //if (!IS_ACTOR(beh)) return UNDEF;  // FIXME: type-check here?
+        if (!is_meta_beh(beh)) return error("CREATE requires Behavior");
         opnd = cdr(opnd);
         if (opnd == NIL) {
             return actor_create(MK_PROC(Actor), beh);
@@ -2578,7 +2596,7 @@ static PROC_DECL(prim_SEND) {  // (SEND target msg)
     //int_t env = arg;
     if (IS_PAIR(opnd)) {
         int_t target = car(opnd);
-        //if (!IS_ACTOR(target)) return UNDEF;  // FIXME: type-check here?
+        if (!is_meta_actor(target)) return error("SEND requires Actor target");
         opnd = cdr(opnd);
         if (IS_PAIR(opnd)) {
             int_t msg = car(opnd);
@@ -2598,7 +2616,7 @@ static PROC_DECL(prim_BECOME) {  // (BECOME beh)
     //int_t env = arg;
     if (IS_PAIR(opnd)) {
         int_t beh = car(opnd);
-        //if (!IS_ACTOR(beh)) return UNDEF;  // FIXME: type-check here?
+        if (!is_meta_beh(beh)) return error("BECOME requires Behavior");
         opnd = cdr(opnd);
         if (opnd == NIL) {
             return cons(NIL, actor_become(MK_PROC(Actor), beh));
