@@ -560,7 +560,6 @@ int_t s_CREATE;
 int_t s_SEND;
 int_t s_BECOME;
 int_t s_FAIL;
-int_t s_println;
 #endif
 
 // runtime initialization
@@ -612,7 +611,6 @@ int_t symbol_boot() {
     s_SEND = symbol("SEND");
     s_BECOME = symbol("BECOME");
     s_FAIL = symbol("FAIL");
-    s_println = symbol("println");
 #endif
     return OK;
 }
@@ -2624,37 +2622,6 @@ static PROC_DECL(prim_FAIL) {  // (FAIL reason)
 }
 const cell_t oper_FAIL = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_FAIL) };
 const cell_t a_FAIL = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_FAIL) };
-
-PROC_DECL(Beh_println) {
-    XDEBUG(debug_print("Beh_println self", self));
-    GET_VARS();  // meta-effect
-    XDEBUG(debug_print("Beh_println vars", vars));
-    TAIL_VAR(meta_effect);
-    GET_ARGS();
-    DEBUG(debug_print("Beh_println args", args));
-    POP_ARG(cust);
-    POP_ARG(req);
-    int_t effect = NIL;
-    if (req == s_apply) {  // (cust 'apply opnd env)
-        POP_ARG(opnd);  // (target . msg)
-        POP_ARG(_env);
-        END_ARGS();
-        if (IS_PAIR(opnd)) {
-            //int_t target = car(opnd);
-            int_t msg = cdr(opnd);
-            print(msg);
-            newline();
-            fflush(stdout);
-            effect = effect_send(effect,
-                actor_send(cust, meta_effect));
-            return effect;
-        }
-    }
-    return SeType(self, arg);  // delegate to SeType
-}
-const cell_t empty_effect = { .head = NIL, .tail = NIL };
-const cell_t beh_println = { .head = MK_PROC(Beh_println), .tail = MK_PAIR(&empty_effect) };
-static cell_t a_meta_println = { .head = MK_PROC(Actor), .tail = MK_ACTOR(&beh_println) };
 #endif // META_ACTORS
 
 PROC_DECL(Global) {
@@ -2751,8 +2718,6 @@ PROC_DECL(Global) {
             value = MK_ACTOR(&a_BECOME);
         } else if (symbol == s_FAIL) {
             value = MK_ACTOR(&a_FAIL);
-        } else if (symbol == s_println) {
-            value = MK_ACTOR(&a_meta_println);
 #endif
         } else {
             WARN(debug_print("Global lookup failed", symbol));

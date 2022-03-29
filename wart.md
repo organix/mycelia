@@ -93,12 +93,12 @@ Several procedures are pre-defined in the ground environment.
   * `(BECOME `_behavior_`)`
   * `(FAIL `_reason_`)`
   * `SELF`
-  * `(println . `_objects_`)`
 
 ### Meta-Actor Library
 
   * `sink-beh`
-  * `sink`
+  * `a-sink`
+  * `a-printer`
   * `(fwd-beh `_customer_`)`
   * `(once-beh `_customer_`)`
   * `(label-beh `_customer_` `_label_`)`

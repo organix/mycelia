@@ -3,7 +3,12 @@
 ;;
 
 (define sink-beh (BEH _))
-(define sink (CREATE sink-beh))
+(define a-sink (CREATE sink-beh))
+
+(define a-printer
+  (CREATE
+    (BEH msg
+      (print msg) (newline))))
 
 (define fwd-beh
   (lambda (cust)
