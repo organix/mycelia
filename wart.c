@@ -19,6 +19,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define WARN(x)     x   // include/exclude warning instrumentation
 #define DEBUG(x)        // include/exclude debug instrumentation
 #define XDEBUG(x)       // include/exclude extra debugging
+#define ATRACE(x)       // include/exclude meta-actor tracing
 
 #define NO_CELL_FREE  0 // never release allocated cells
 #define GC_CALL_DEPTH 0 // count recursion depth during garbage collection
@@ -2392,10 +2393,10 @@ static PROC_DECL(fold_effect) {
     int_t one = arg;
     XDEBUG(debug_print("fold_effect one", one));
     // merge effect `one` into effects `zero`
-    if (IS_PAIR(zero) && (car(zero) != UNDEF)) {
+    if (IS_PAIR(one) && IS_PAIR(zero) && (car(zero) != UNDEF)) {
         int_t events = car(zero);
         int_t beh = cdr(zero);
-        if (!IS_PAIR(one)) return UNDEF;  // invalid effect
+        //if (!IS_PAIR(one)) return zero;  // nothing to add
         int_t event = car(one);
         if (event == UNDEF) return one;  // failure takes precedence
         if (event == NIL) {
@@ -2488,7 +2489,7 @@ static PROC_DECL(Actor_k_done) {
     int_t effect = NIL;
     if (IS_PAIR(effects)) {
         // commit transaction
-        DEBUG(debug_print("Actor_k_done commit", effects));
+        ATRACE(debug_print("Actor_k_done commit", effects));
         if (car(effects) == UNDEF) {
             int_t reason = cdr(effects);
             ERROR(debug_print("Actor_k_done FAIL", cdr(reason)));
@@ -2496,8 +2497,8 @@ static PROC_DECL(Actor_k_done) {
             int_t events = car(effects);
             while (IS_PAIR(events)) {
                 int_t event = car(events);
+                ATRACE(debug_print("Actor_k_done meta-event", event));
                 ASSERT(IS_PAIR(event));
-                XDEBUG(debug_print("Actor_k_done meta-event", event));
                 int_t target = car(event);
                 int_t msg = cdr(event);
                 effect = effect_send(effect,  // enqueue meta-event
@@ -2510,14 +2511,14 @@ static PROC_DECL(Actor_k_done) {
             if (beh == NIL) {
                 p->tail = cdr(p->tail);  // restore beh, end event transaction
             } else {
-                XDEBUG(debug_print("Actor_k_done meta-become", beh));
+                ATRACE(debug_print("Actor_k_done meta-become", beh));
                 ASSERT(car(beh) == MK_PROC(Actor));
                 p->tail = cdr(beh);  // install new beh, end event transaction
             }
         }
     } else {
         // rollback transaction
-        DEBUG(debug_print("Actor_k_done rollback", effects));
+        ATRACE(debug_print("Actor_k_done rollback", effects));
         cell_t *p = TO_PTR(actor);
         p->tail = cdr(p->tail);  // restore beh, end event transaction
     }
@@ -2539,7 +2540,7 @@ PROC_DECL(Actor) {
     cell_t *p = TO_PTR(self);
     p->tail = cons(NIL, beh);  // save beh, begin event transaction
     GET_ARGS();
-    DEBUG(debug_print("Actor args", args));
+    ATRACE(debug_print("Actor args", args));
     POP_ARG(cust);
     POP_ARG(req);
     int_t effect = NIL;

@@ -8,7 +8,7 @@
 (define a-printer
   (CREATE
     (BEH msg
-      (print msg) (newline))))
+      (seq (print msg) (newline)) )))
 
 (define fwd-beh
   (lambda (cust)
@@ -30,3 +30,15 @@
   (lambda (cust)
     (BEH msg
       (SEND cust (cons SELF msg)))))
+
+(define a-testcase
+  (CREATE
+    (BEH _
+      ;(seq (print 'SELF) (debug-print SELF) (newline))
+      (define a-fwd (CREATE (fwd-beh a-printer)))
+      (define a-label (CREATE (label-beh a-fwd 'tag)))
+      (define a-once (CREATE (once-beh a-label)))
+      (SEND a-fwd '(1 2 3))
+      (SEND a-once '(a b c))
+      (SEND a-once '(x y z))
+    )))
