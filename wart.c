@@ -621,7 +621,7 @@ int_t symbol_boot() {
  */
 
 int_t effect_new() {
-    return cons(NIL, cons(NIL, NIL));  // empty effect
+    return cons(NIL, NIL);  // empty effect
 }
 
 int_t actor_create(int_t code, int_t data) {
@@ -633,15 +633,10 @@ int_t actor_create(int_t code, int_t data) {
 }
 
 int_t effect_create(int_t effect, int_t new_actor) {
-    ASSERT(IS_ACTOR(new_actor));
-    ASSERT(in_heap(new_actor));
-    if (effect == NIL) effect = effect_new();  // lazy init
-    if (IS_PAIR(effect) && (car(effect) != FAIL)) {
-        int_t created = cons(new_actor, car(effect));
-        if (!IS_PAIR(created)) return UNDEF;
-        set_car(effect, created);
-    }
-    return effect;
+    //ASSERT(IS_ACTOR(new_actor));
+    //ASSERT(in_heap(new_actor));
+    //if (effect == NIL) effect = effect_new();  // lazy init
+    return effect;  // NOTE: new actors are no longer tracked
 }
 
 int_t actor_send(int_t target, int_t msg) {
@@ -653,9 +648,8 @@ int_t effect_send(int_t effect, int_t new_event) {
     ASSERT(IS_PAIR(new_event));
     if (effect == NIL) effect = effect_new();  // lazy init
     if (IS_PAIR(effect) && (car(effect) != FAIL)) {
-        int_t rest = cdr(effect);
-        int_t sent = cons(new_event, car(rest));
-        set_car(rest, sent);
+        int_t sent = cons(new_event, car(effect));
+        set_car(effect, sent);
     }
     return effect;
 }
@@ -668,15 +662,13 @@ int_t effect_become(int_t effect, int_t new_beh) {
     ASSERT(IS_PAIR(new_beh));
     if (effect == NIL) effect = effect_new();  // lazy init
     if (IS_PAIR(effect) && (car(effect) != FAIL)) {
-        int_t rest = cdr(effect);
-        if (cdr(rest) != NIL) return error("must only BECOME once");
-        set_cdr(rest, new_beh);
+        if (cdr(effect) != NIL) return error("must only BECOME once");
+        set_cdr(effect, new_beh);
     }
     return effect;
 }
 
 int_t effect_fail(int_t effect, int_t reason) {
-    // FIXME: free some, or all, of effect?
     DEBUG(debug_print("effect_fail reason", reason));
     return cons(FAIL, reason);
 }
@@ -725,23 +717,13 @@ int_t apply_effect(int_t self, int_t effect) {
         ERROR(debug_print("apply_effect non-PAIR", effect));
         return UNDEF;
     }
-    int_t actors = car(effect);
-    if (actors == FAIL) {
+    int_t events = car(effect);
+    if (events == FAIL) {
         WARN(debug_print("apply_effect error", effect));
         return effect;  // error thrown
     }
-    // unchain actors
-    XDEBUG(debug_print("apply_effect actors", actors));
-    int_t rest = cdr(effect);
+    int_t beh = cdr(effect);
     effect = cell_free(effect);
-    while (IS_PAIR(actors)) {  // free list, but not actors
-        int_t next = cdr(actors);
-        cell_free(actors);
-        actors = next;
-    }
-    int_t events = car(rest);
-    int_t beh = cdr(rest);
-    rest = cell_free(rest);
     // update behavior
     XDEBUG(debug_print("apply_effect beh", beh));
     if (IS_PAIR(beh) && IS_ACTOR(self)) {
@@ -1074,13 +1056,13 @@ PROC_DECL(gc_mark_and_sweep_beh) {  // perform all GC steps together
 
 // Note: `a_concurrent_gc` can not be `const` because it mutates during gc!
 // WARNING! gc does not traverse static actors, so they can't point to the heap.
-/*const*/ cell_t a_concurrent_gc = {
+static cell_t a_concurrent_gc = {
 #if MULTIPHASE_GC
     .head = MK_PROC(gc_mark_beh),
 #else
     .head = MK_PROC(gc_mark_and_sweep_beh),
 #endif
-    .tail = MK_NUM(5),
+    .tail = MK_NUM(16),
 };
 //    effect = effect_send(effect, actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));  // start gc
 #endif // CONCURRENT_GC
