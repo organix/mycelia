@@ -19,7 +19,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define WARN(x)     x   // include/exclude warning instrumentation
 #define DEBUG(x)        // include/exclude debug instrumentation
 #define XDEBUG(x)       // include/exclude extra debugging
-#define ATRACE(x)   x   // include/exclude meta-actor tracing
+#define ATRACE(x)       // include/exclude meta-actor tracing
 
 #define NO_CELL_FREE  0 // never release allocated cells
 #define GC_CALL_DEPTH 0 // count recursion depth during garbage collection
@@ -2486,10 +2486,11 @@ int is_meta_beh(int_t val) {
 PROC_DECL(Actor);  // FORWARD DECLARATION
 static PROC_DECL(Actor_k_done) {
     XDEBUG(debug_print("Actor_k_done self", self));
-    GET_VARS();  // (cust actor)
+    GET_VARS();  // (cust actor beh)
     XDEBUG(debug_print("Actor_k_done vars", vars));
     POP_VAR(cust);
     POP_VAR(actor);
+    POP_VAR(beh);
     GET_ARGS();  // effects
     XDEBUG(debug_print("Actor_k_done args", args));
     TAIL_ARG(effects);
@@ -2501,8 +2502,6 @@ static PROC_DECL(Actor_k_done) {
         if (car(effects) == UNDEF) {
             int_t reason = cdr(effects);
             WARN(debug_print("Actor_k_done FAIL", reason));
-            cell_t *p = TO_PTR(actor);
-            p->tail = cdr(p->tail);  // restore beh, end event transaction
         } else {
             int_t events = car(effects);
             while (IS_PAIR(events)) {
@@ -2515,40 +2514,36 @@ static PROC_DECL(Actor_k_done) {
                     actor_send(target, list_4(SINK, s_apply, msg, GROUND_ENV)));
                 events = cdr(events);
             }
-            int_t beh = cdr(effects);
-            XDEBUG(debug_print("Actor_k_done meta-actor", actor));
-            cell_t *p = TO_PTR(actor);
-            if (beh == NIL) {
-                p->tail = cdr(p->tail);  // restore beh, end event transaction
-            } else {
+            int_t new_beh = cdr(effects);
+            if (is_meta_beh(new_beh)) {
+                beh = new_beh;  // install new beh
                 ATRACE(debug_print("Actor_k_done meta-become", beh));
-                ASSERT(car(beh) == MK_PROC(Actor));
-                p->tail = cdr(beh);  // install new beh, end event transaction
             }
         }
     } else {
         // rollback transaction
         ATRACE(debug_print("Actor_k_done rollback", effects));
-        cell_t *p = TO_PTR(actor);
-        p->tail = cdr(p->tail);  // restore beh, end event transaction
     }
+    XDEBUG(debug_print("Actor_k_done meta-actor", actor));
+    cell_t *p = TO_PTR(actor);
+    p->tail = beh;  // end event transaction
     effect = effect_send(effect,
         actor_send(cust, UNIT));
     return effect;
 }
 PROC_DECL(Actor) {
     XDEBUG(debug_print("Actor self", self));
-    GET_VARS();  // IS_ACTOR(beh) -or- IS_PAIR(effect)
+    GET_VARS();  // beh  ; UNDEF if busy
     XDEBUG(debug_print("Actor vars", vars));
     TAIL_VAR(beh);
-    if (IS_PAIR(beh)) {  // actor is busy handling an event
+    if (!is_meta_beh(beh)) {  // actor is busy handling an event
         ATRACE(debug_print("Actor BUSY", self));
         return effect_send(NIL,
             actor_send(self, arg));  // re-queue current message (serializer)
     }
-    ASSERT(IS_ACTOR(beh));  // actor is ready to handle an event
+    // actor is ready to handle an event
     cell_t *p = TO_PTR(self);
-    p->tail = cons(NIL, beh);  // save beh, begin event transaction
+    p->tail = UNDEF;  // begin event transaction
     GET_ARGS();
     ATRACE(debug_print("Actor args", args));
     POP_ARG(cust);
@@ -2558,7 +2553,7 @@ PROC_DECL(Actor) {
         POP_ARG(opnd);  // msg
         POP_ARG(env);
         END_ARGS();
-        int_t k_done = actor_create(MK_PROC(Actor_k_done), list_2(cust, self));
+        int_t k_done = actor_create(MK_PROC(Actor_k_done), list_3(cust, self, beh));
         effect = effect_create(effect, k_done);
         effect = effect_send(effect,
             actor_send(beh, list_4(k_done, s_apply, cons(self, opnd), env)));
@@ -2602,7 +2597,7 @@ static PROC_DECL(prim_SEND) {  // (SEND target msg)
             int_t msg = car(opnd);
             opnd = cdr(opnd);
             if (opnd == NIL) {
-                return list_1(actor_send(target, msg));
+                return cons(cons(target, msg), NIL);
             }
         }
     }
@@ -2619,7 +2614,7 @@ static PROC_DECL(prim_BECOME) {  // (BECOME beh)
         if (!is_meta_beh(beh)) return error("BECOME requires Behavior");
         opnd = cdr(opnd);
         if (opnd == NIL) {
-            return cons(NIL, actor_become(MK_PROC(Actor), beh));
+            return cons(NIL, beh);
         }
     }
     return error("BECOME expected 1 argument");
