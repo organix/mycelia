@@ -24,7 +24,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define NO_CELL_FREE  0 // never release allocated cells
 #define GC_CALL_DEPTH 0 // count recursion depth during garbage collection
 #define GC_TRACE_FREE 1 // trace free list during mark phase
-#define CONCURRENT_GC 1 // interleave garbage collection with event dispatch
+#define CONCURRENT_GC 0 // interleave garbage collection with event dispatch
 #define MULTIPHASE_GC 0 // perform gc mark and sweep separately
 #define TIME_DISPATCH 1 // measure execution time for message dispatch
 #define META_ACTORS   1 // include meta-actors facilities
@@ -165,6 +165,8 @@ static int gc_running = 0;      // set during unsafe gc phase(s)
 #if CONCURRENT_GC
 static void gc_set_mark(i32 ofs);  // FORWARD DECLARATION
 static void gc_clr_mark(i32 ofs);  // FORWARD DECLARATION
+#else
+static int gc_free_cnt = 0;
 #endif
 
 static cell_t *cell_new() {
@@ -175,6 +177,8 @@ static cell_t *cell_new() {
         cell[0].tail = next;
 #if CONCURRENT_GC
         gc_set_mark(head);
+#else
+        --gc_free_cnt;
 #endif
         return &cell[head];
     }
@@ -202,6 +206,9 @@ static void cell_reclaim(cell_t *p) {
     int_t ofs = INT(p - cell);
     XDEBUG(fprintf(stderr, "cell_reclaim: ofs=%"PRIdPTR"\n", ofs));
     cell[0].tail = ofs;
+#if !CONCURRENT_GC
+    ++gc_free_cnt;
+#endif
 #endif
 }
 
@@ -459,6 +466,9 @@ int_t cell_usage() {
     WARN(fprintf(stderr,
         "> cell_usage: limit=%"PRIdPTR" free=%"PRIdPTR" max=%"PRIdPTR"\n",
         cell[0].head, cell[0].tail, INT(CELL_MAX)));
+#if !CONCURRENT_GC
+    WARN(fprintf(stderr, "  cell_usage: gc_free_cnt %d\n", gc_free_cnt));
+#endif
     int_t count = 0;
     int_t prev = 0;
     int_t next = cell[0].tail;
@@ -478,7 +488,7 @@ int_t cell_usage() {
  * interned strings (symbols)
  */
 
-#define INTERN_MAX (1024)
+#define INTERN_MAX (4096)
 char intern[INTERN_MAX] = {
     0,  // end of interned strings
 };
@@ -506,11 +516,12 @@ int_t symbol(char *s) {
 next:   i += m;
     }
     // new symbol
+    if ((i + n + 1) >= INTERN_MAX) return panic("out of symbol memory");
     intern[i++] = n;
     for (j = 0; (j < n); ++j) {
         intern[i+j] = s[j];
     }
-    intern[i+j] = 0;
+    intern[i+n] = 0;
     return MK_SYM(i-1);
 }
 
@@ -632,12 +643,16 @@ int_t actor_create(int_t code, int_t data) {
     return MK_ACTOR(p);
 }
 
+#if 1
+#define effect_create(e,a) (e)
+#else
 int_t effect_create(int_t effect, int_t new_actor) {
     //ASSERT(IS_ACTOR(new_actor));
     //ASSERT(in_heap(new_actor));
     //if (effect == NIL) effect = effect_new();  // lazy init
     return effect;  // NOTE: new actors are no longer tracked
 }
+#endif
 
 int_t actor_send(int_t target, int_t msg) {
     //ASSERT(IS_ACTOR(target)); -- obj_call() polymorphic dispatch works for _ANY_ value!
@@ -768,7 +783,7 @@ int_t event_dispatch() {
         printf("event_dispatch: t0=%ld t1=%ld dt=%.6f (%ld CPS)\n", t0, t1, dt, (long)CLOCKS_PER_SEC));
 #endif
 #else // !CONCURRENT_GC
-    if (ok == OK) {
+    if ((ok == OK) && (cell[0].head > (CELL_MAX - 256)) && (gc_free_cnt < 128)) {
         int freed = gc_mark_and_sweep();
         DEBUG(printf("event_dispatch: gc reclaimed %d cells\n", freed));
     }
