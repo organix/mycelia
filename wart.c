@@ -418,8 +418,8 @@ i32 gc_mark_cell(int_t val)
     return cnt;
 }
 
-static cell_t event_q;
-static cell_t gnd_locals;
+static cell_t event_q;  // FORWARD DECLARATION
+static cell_t gnd_locals;  // FORWARD DECLARATION
 i32 gc_mark_roots() {  // mark cells reachable from the root-set
     XDEBUG(fprintf(stderr, "> gc_mark_roots\n"));
     i32 n = 0;
@@ -628,91 +628,24 @@ int_t symbol_boot() {
 }
 
 /*
- * actor primitives
- */
-
-int_t effect_new() {
-    return cons(NIL, NIL);  // empty effect
-}
-
-int_t actor_create(int_t code, int_t data) {
-    if (!IS_PROC(code)) return error("actor code must be a procedure");
-    cell_t *p = cell_new();
-    p->head = code;
-    p->tail = data;
-    return MK_ACTOR(p);
-}
-
-#if 1
-#define effect_create(e,a) (e)
-#else
-int_t effect_create(int_t effect, int_t new_actor) {
-    //ASSERT(IS_ACTOR(new_actor));
-    //ASSERT(in_heap(new_actor));
-    //if (effect == NIL) effect = effect_new();  // lazy init
-    return effect;  // NOTE: new actors are no longer tracked
-}
-#endif
-
-int_t actor_send(int_t target, int_t msg) {
-    //ASSERT(IS_ACTOR(target)); -- obj_call() polymorphic dispatch works for _ANY_ value!
-    return cons(target, msg);
-}
-
-int_t effect_send(int_t effect, int_t new_event) {
-    ASSERT(IS_PAIR(new_event));
-    if (effect == NIL) effect = effect_new();  // lazy init
-    if (IS_PAIR(effect) && (car(effect) != FAIL)) {
-        int_t sent = cons(new_event, car(effect));
-        set_car(effect, sent);
-    }
-    return effect;
-}
-
-int_t actor_become(int_t code, int_t data) {
-    return cons(code, data);
-}
-
-int_t effect_become(int_t effect, int_t new_beh) {
-    ASSERT(IS_PAIR(new_beh));
-    if (effect == NIL) effect = effect_new();  // lazy init
-    if (IS_PAIR(effect) && (car(effect) != FAIL)) {
-        if (cdr(effect) != NIL) return error("must only BECOME once");
-        set_cdr(effect, new_beh);
-    }
-    return effect;
-}
-
-int_t effect_fail(int_t effect, int_t reason) {
-    DEBUG(debug_print("effect_fail reason", reason));
-    return cons(FAIL, reason);
-}
-
-/*
  * actor event dispatch
  */
 
 static cell_t event_q = { .head = NIL, .tail = NIL };
 
-int_t event_q_append(int_t events) {
-    if (events == NIL) return OK;  // nothing to add
-    ASSERT(IS_PAIR(events));
-    // find the end of events
-    int_t tail = events;
-    while (cdr(tail) != NIL) {
-        tail = cdr(tail);
-    }
-    // append events on event_q
+int_t event_q_put(int_t event) {
+    if (!IS_PAIR(event)) return FAIL;
+    int_t tail = cons(event, NIL);
     if (event_q.head == NIL) {
-        event_q.head = events;
+        event_q.head = tail;
     } else {
-        set_cdr(event_q.tail, events);
+        set_cdr(event_q.tail, tail);
     }
     event_q.tail = tail;
     return OK;
 }
 
-int_t event_q_take() {
+int_t event_q_pop() {
     if (event_q.head == NIL) return UNDEF; // event queue empty
     int_t head = event_q.head;
     event_q.head = cdr(head);
@@ -724,33 +657,34 @@ int_t event_q_take() {
     return event;
 }
 
-int_t apply_effect(int_t self, int_t effect) {
-    XDEBUG(debug_print("apply_effect self", self));
-    XDEBUG(debug_print("apply_effect effect", effect));
-    if (effect == NIL) return OK;  // no effect
-    if (!IS_PAIR(effect)) {
-        ERROR(debug_print("apply_effect non-PAIR", effect));
-        return UNDEF;
+static cell_t saved_q = { .head = NIL, .tail = NIL };
+static cell_t saved_a = { .head = UNDEF, .tail = UNDEF };
+
+int_t event_begin(int_t event) {
+    XDEBUG(debug_print("event_begin event", event));
+    saved_q = event_q;  // snapshot event queue
+    saved_a.head = UNDEF;  // prepare for BECOME
+    saved_a.tail = UNDEF;
+    XDEBUG(hexdump("event_begin saved", PTR(&saved_q), 4));
+    return event;
+}
+
+int_t event_commit(int_t event) {
+    XDEBUG(debug_print("event_commit event", event));
+    int_t target = car(event);
+    XDEBUG(debug_print("event_commit target", target));
+    if ((saved_a.head != UNDEF) && IS_ACTOR(target) && !IS_PROC(target)) {
+        cell_t *p = TO_PTR(target);
+        *p = saved_a;  // update target actor
+        XDEBUG(hexdump("event_commit become", PTR(p), 2));
     }
-    int_t events = car(effect);
-    if (events == FAIL) {
-        WARN(debug_print("apply_effect error", effect));
-        return effect;  // error thrown
-    }
-    int_t beh = cdr(effect);
-    effect = cell_free(effect);
-    // update behavior
-    XDEBUG(debug_print("apply_effect beh", beh));
-    if (IS_PAIR(beh) && IS_ACTOR(self)) {
-        cell_t *p = TO_PTR(self);
-        p->head = car(beh);  // code
-        p->tail = cdr(beh);  // data
-        beh = cell_free(beh);
-    }
-    // add events to dispatch queue
-    XDEBUG(debug_print("apply_effect events", events));
-    int_t ok = event_q_append(events);
-    return ok;
+    return cell_free(event);
+}
+
+int_t event_rollback(int_t event) {
+    XDEBUG(debug_print("event_rollback event", event));
+    event_q = saved_q;  // restore event queue (un-SEND)
+    return cell_free(event);
 }
 
 i64 event_dispatch_count = 0;
@@ -760,17 +694,28 @@ int_t event_dispatch() {
 #if TIME_DISPATCH
     clock_t t0 = clock();
 #endif
-    int_t event = event_q_take();
+    int_t event = event_q_pop();
     if (!IS_PAIR(event)) return UNDEF;  // nothing to dispatch
     int_t target = car(event);
     XDEBUG(debug_print("event_dispatch target", target));
+    int_t code = get_code(target);
+    XDEBUG(debug_print("event_dispatch code", code));
+    if (!IS_PROC(code)) return error("event_dispatch requires a procedure");
     int_t msg = cdr(event);
     XDEBUG(debug_print("event_dispatch msg", msg));
-    event = cell_free(event);
+    event = event_begin(event);
+
     // invoke actor behavior
-    int_t effect = obj_call(target, msg);
-    XDEBUG(debug_print("event_dispatch effect", effect));
-    int_t ok = apply_effect(target, effect);
+    proc_t proc = TO_PTR(code);
+    int_t ok = (*proc)(target, msg);
+    XDEBUG(debug_print("event_dispatch ok", ok));
+
+    // apply effect(s)
+    if (ok == OK) {
+        event = event_commit(event);
+    } else {
+        event = event_rollback(event);
+    }
     // gather statistics
 #if TIME_DISPATCH
     clock_t t1 = clock();
@@ -783,23 +728,31 @@ int_t event_dispatch() {
         printf("event_dispatch: t0=%ld t1=%ld dt=%.6f (%ld CPS)\n", t0, t1, dt, (long)CLOCKS_PER_SEC));
 #endif
 #else // !CONCURRENT_GC
-    if ((ok == OK) && (cell[0].head > (CELL_MAX - 256)) && (gc_free_cnt < 128)) {
+    if ((gc_free_cnt < 128) && (cell[0].head > (CELL_MAX - 256))) {
         int freed = gc_mark_and_sweep();
+        clock_t t2 = clock();
         DEBUG(printf("event_dispatch: gc reclaimed %d cells\n", freed));
+#if TIME_DISPATCH
+        event_dispatch_ticks += (t2 - t0);  // include gc
+        DEBUG(double gc = (double)(t2 - t1) / CLOCKS_PER_SEC;
+            printf("event_dispatch: t1=%ld t2=%ld gc=%.6f (%ld CPS)\n", t1, t2, gc, (long)CLOCKS_PER_SEC));
+#endif
+    } else {
+        event_dispatch_ticks += (t1 - t0);  // exclude gc
     }
 #if TIME_DISPATCH
-    clock_t t2 = clock();
-    event_dispatch_ticks += (t2 - t0);  // include gc
     DEBUG(double dt = (double)(t1 - t0) / CLOCKS_PER_SEC;
         printf("event_dispatch: t0=%ld t1=%ld dt=%.6f (%ld CPS)\n", t0, t1, dt, (long)CLOCKS_PER_SEC));
-    DEBUG(double gc = (double)(t2 - t1) / CLOCKS_PER_SEC;
-        printf("event_dispatch: t1=%ld t2=%ld gc=%.6f (%ld CPS)\n", t1, t2, gc, (long)CLOCKS_PER_SEC));
 #endif
 #endif // CONCURRENT_GC
-    return ok;
+    return OK;
 }
 
+static cell_t a_concurrent_gc;  // FORWARD DECLARATION
 int_t event_loop() {
+#if CONCURRENT_GC
+    SEND(MK_ACTOR(&a_concurrent_gc), MK_NUM(0));  // start GC actor
+#endif
 #if TIME_DISPATCH
     event_dispatch_count = 0;
     event_dispatch_ticks = 0;
@@ -817,8 +770,43 @@ int_t event_loop() {
 }
 
 /*
+ * actor primitives
+ */
+
+int_t actor_create(int_t code, int_t data) {
+    XDEBUG(debug_print("actor_create code", code));
+    XDEBUG(debug_print("actor_create data", data));
+    if (!IS_PROC(code)) return error("CREATE code must be a procedure");
+    cell_t *p = cell_new();
+    p->head = code;
+    p->tail = data;
+    return MK_ACTOR(p);
+}
+
+int_t actor_send(int_t target, int_t msg) {
+    XDEBUG(debug_print("actor_send target", target));
+    XDEBUG(debug_print("actor_send msg", msg));
+    int_t event = cons(target, msg);
+    return event_q_put(event);
+}
+
+int_t actor_become(int_t code, int_t data) {
+    XDEBUG(debug_print("actor_become code", code));
+    XDEBUG(debug_print("actor_become data", data));
+    if (!IS_PROC(code)) return error("BECOME code must be a procedure");
+    if (IS_PROC(saved_a.head)) return error("only one BECOME allowed");
+    saved_a.head = code;
+    saved_a.tail = data;
+    return OK;
+}
+
+/*
  * actor behaviors
  */
+
+#define CREATE(c,d)     actor_create((c),(d))
+#define SEND(t,m)       if (actor_send((t),(m)) != OK) return FAIL
+#define BECOME(c,d)     if (actor_become((c),(d)) != OK) return FAIL
 
 #define GET_VARS()     int_t vars = get_data(self)
 #define POP_VAR(name)  int_t name = car(vars); vars = cdr(vars)
@@ -832,26 +820,25 @@ int_t event_loop() {
 PROC_DECL(sink_beh) {
     XDEBUG(debug_print("sink_beh self", self));
     DEBUG(debug_print("sink_beh arg", arg));
-    GET_VARS();  // effect
+    GET_VARS();  // ok
     XDEBUG(debug_print("sink_beh vars", vars));
-    TAIL_VAR(effect);
-    return effect;
+    TAIL_VAR(ok);
+    return ok;
 }
-const cell_t a_sink = { .head = MK_PROC(sink_beh), .tail = NIL };
+const cell_t a_sink = { .head = MK_PROC(sink_beh), .tail = OK };
 #define SINK  MK_ACTOR(&a_sink)
 
 PROC_DECL(println_beh) {
-    DEBUG(debug_print("println_beh self", self));
+    XDEBUG(debug_print("println_beh self", self));
     GET_ARGS();  // value
-    XDEBUG(debug_print("println_beh args", args));
+    DEBUG(debug_print("println_beh args", args));
     TAIL_ARG(value);
-    int_t effect = NIL;
 
     print(value);
     newline();
     fflush(stdout);
 
-    return effect;
+    return OK;
 }
 const cell_t a_println = { .head = MK_PROC(println_beh), .tail = UNDEF };
 
@@ -863,14 +850,11 @@ PROC_DECL(tag_beh) {
     GET_ARGS();  // msg
     XDEBUG(debug_print("tag_beh args", args));
     TAIL_ARG(msg);
-    int_t effect = NIL;
 
-    effect = effect_send(effect,
-        actor_send(cust, cons(self, msg)));
+    SEND(cust, cons(self, msg));
 
-    return effect;
+    return OK;
 }
-
 static PROC_DECL(join_h_beh) {
     XDEBUG(debug_print("join_h_beh self", self));
     GET_VARS();  // (cust head . k_tail)
@@ -882,19 +866,16 @@ static PROC_DECL(join_h_beh) {
     XDEBUG(debug_print("join_h_beh args", args));
     POP_ARG(tag);
     TAIL_ARG(tail);
-    int_t effect = NIL;
 
     if (tag == k_tail) {
         int_t value = cons(head, tail);
         XDEBUG(debug_print("join_h_beh value", value));
-        effect = effect_send(effect,
-            actor_send(cust, value));
+        SEND(cust, value);
     } else {
-        effect = effect_send(effect,
-            actor_send(cust, error("unexpected join tag")));
+        SEND(cust, error("unexpected join tag"));
     }
 
-    return effect;
+    return OK;
 }
 static PROC_DECL(join_t_beh) {
     XDEBUG(debug_print("join_t_beh self", self));
@@ -907,19 +888,16 @@ static PROC_DECL(join_t_beh) {
     XDEBUG(debug_print("join_t_beh args", args));
     POP_ARG(tag);
     TAIL_ARG(head);
-    int_t effect = NIL;
 
     if (tag == k_head) {
         int_t value = cons(head, tail);
         XDEBUG(debug_print("join_t_beh value", value));
-        effect = effect_send(effect,
-            actor_send(cust, value));
+        SEND(cust, value);
     } else {
-        effect = effect_send(effect,
-            actor_send(cust, error("unexpected join tag")));
+        SEND(cust, error("unexpected join tag"));
     }
 
-    return effect;
+    return OK;
 }
 PROC_DECL(join_beh) {
     XDEBUG(debug_print("join_beh self", self));
@@ -932,22 +910,17 @@ PROC_DECL(join_beh) {
     XDEBUG(debug_print("join_beh args", args));
     POP_ARG(tag);
     TAIL_ARG(value);
-    int_t effect = NIL;
 
     if (tag == k_head) {
-        effect = effect_become(effect,
-            actor_become(MK_PROC(join_h_beh), cons(cust, cons(value, k_tail))));
+        BECOME(MK_PROC(join_h_beh), cons(cust, cons(value, k_tail)));
     } else if (tag == k_tail) {
-        effect = effect_become(effect,
-            actor_become(MK_PROC(join_t_beh), cons(cust, cons(k_head, value))));
+        BECOME(MK_PROC(join_t_beh), cons(cust, cons(k_head, value)));
     } else {
-        effect = effect_send(effect,
-            actor_send(cust, error("unexpected join tag")));
+        SEND(cust, error("unexpected join tag"));
     }
 
-    return effect;
+    return OK;
 }
-
 PROC_DECL(fork_beh) {
     XDEBUG(debug_print("fork_beh self", self));
     GET_VARS();  // (cust head . tail)
@@ -959,24 +932,14 @@ PROC_DECL(fork_beh) {
     XDEBUG(debug_print("fork_beh args", args));
     POP_ARG(h_req);
     TAIL_ARG(t_req);
-    int_t effect = NIL;
 
-    int_t k_head = actor_create(MK_PROC(tag_beh), self);
-    effect = effect_create(effect, k_head);
+    int_t k_head = CREATE(MK_PROC(tag_beh), self);
+    int_t k_tail = CREATE(MK_PROC(tag_beh), self);
+    SEND(head, cons(k_head, h_req));
+    SEND(tail, cons(k_tail, t_req));
+    BECOME(MK_PROC(join_beh), cons(cust, cons(k_head, k_tail)));
 
-    int_t k_tail = actor_create(MK_PROC(tag_beh), self);
-    effect = effect_create(effect, k_tail);
-
-    effect = effect_send(effect,
-        actor_send(head, cons(k_head, h_req)));
-
-    effect = effect_send(effect,
-        actor_send(tail, cons(k_tail, t_req)));
-
-    effect = effect_become(effect,
-        actor_become(MK_PROC(join_beh), cons(cust, cons(k_head, k_tail))));
-
-    return effect;
+    return OK;
 }
 
 #if CONCURRENT_GC
@@ -984,13 +947,12 @@ PROC_DECL(gc_sweep_beh);  // FORWARD DECLARATION
 
 PROC_DECL(gc_mark_beh) {
     XDEBUG(debug_print("gc_mark_beh self", self));
-    int_t effect = NIL;
 
     int_t root = event_q.head;  // everything is reachable from the event queue
     if (root == NIL) {
         // if event queue is empty, stop concurrent gc
         DEBUG(printf("gc_mark_beh: STOP CONCURRENT GC\n"));
-        return effect;
+        return OK;
     }
 
     gc_clear();
@@ -1008,30 +970,23 @@ PROC_DECL(gc_mark_beh) {
 
     gc_running = 1;  // enter unsafe gc phase
 
-    effect = effect_become(effect,
-        actor_become(MK_PROC(gc_sweep_beh), UNDEF));
-    effect = effect_send(effect,
-        actor_send(self, arg));
+    BECOME(MK_PROC(gc_sweep_beh), UNDEF);
+    SEND(self, arg);
 
-    XDEBUG(debug_print("gc_mark_beh effect", effect));
-    return effect;
+    return OK;
 }
 PROC_DECL(gc_sweep_beh) {
     XDEBUG(debug_print("gc_sweep_beh self", self));
-    int_t effect = NIL;
 
     int n = gc_sweep();
     XDEBUG(printf("gc_sweep_beh: free'd %d dead cells\n", n));
 
     gc_running = 0;  // leave unsafe gc phase
 
-    effect = effect_become(effect,
-        actor_become(MK_PROC(gc_mark_beh), UNDEF));
-    effect = effect_send(effect,
-        actor_send(self, arg));
+    BECOME(MK_PROC(gc_mark_beh), UNDEF);
+    SEND(self, arg);
 
-    XDEBUG(debug_print("gc_sweep_beh effect", effect));
-    return effect;
+    return OK;
 }
 
 PROC_DECL(gc_mark_and_sweep_beh) {  // perform all GC steps together
@@ -1042,12 +997,11 @@ PROC_DECL(gc_mark_and_sweep_beh) {  // perform all GC steps together
     GET_ARGS();  // count
     XDEBUG(debug_print("gc_mark_and_sweep_beh args", args));
     TAIL_ARG(count);
-    int_t effect = NIL;
 
     if (event_q.head == NIL) {
         // if event queue is empty, stop concurrent gc
         DEBUG(printf("gc_mark_and_sweep_beh: STOP CONCURRENT GC\n"));
-        return effect;
+        return OK;
     }
 
     int_t n = TO_INT(count);
@@ -1055,21 +1009,17 @@ PROC_DECL(gc_mark_and_sweep_beh) {  // perform all GC steps together
     if (n < m) {
         // skip `limit` gc cycles
         XDEBUG(printf("gc_mark_and_sweep_beh: count(%"PRIdPTR") < limit(%"PRIdPTR")\n", n, m));
-        effect = effect_send(effect,
-            actor_send(self, MK_NUM(++n)));
-        return effect;
+        SEND(self, MK_NUM(++n));
+        return OK;
     }
 
     int freed = gc_mark_and_sweep();
     DEBUG(printf("gc_mark_and_sweep_beh: gc reclaimed %d cells\n", freed));
-    effect = effect_send(effect,
-        actor_send(self, MK_NUM(0)));
+    SEND(self, MK_NUM(0));
 
-    XDEBUG(debug_print("gc_mark_and_sweep_beh effect", effect));
-    return effect;
+    return OK;
 }
 
-// Note: `a_concurrent_gc` can not be `const` because it mutates during gc!
 // WARNING! gc does not traverse static actors, so they can't point to the heap.
 static cell_t a_concurrent_gc = {
 #if MULTIPHASE_GC
@@ -1079,7 +1029,7 @@ static cell_t a_concurrent_gc = {
 #endif
     .tail = MK_NUM(16),
 };
-//    effect = effect_send(effect, actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));  // start gc
+//  SEND(MK_ACTOR(&a_concurrent_gc), MK_NUM(0));  // start gc -- done in event_loop()
 #endif // CONCURRENT_GC
 
 PROC_DECL(assert_beh) {
@@ -1090,15 +1040,12 @@ PROC_DECL(assert_beh) {
     GET_ARGS();  // actual
     XDEBUG(debug_print("assert_beh args", args));
     TAIL_ARG(actual);
-    int_t effect = NIL;
     if (!equal(expect, actual)) {
         ERROR(debug_print("assert_beh expect", expect));
         ERROR(debug_print("assert_beh actual", actual));
-        effect = effect_fail(effect,
-            panic("assert_beh !equal(expect, actual)"));
+        return panic("assert_beh !equal(expect, actual)");
     }
-    XDEBUG(debug_print("assert_beh effect", effect));
-    return effect;
+    return OK;
 }
 
 /*
@@ -1113,19 +1060,18 @@ static PROC_DECL(Type) {
     XDEBUG(debug_print("Type args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_typeq) {  // (cust 'typeq T)
         POP_ARG(Tq);
         DEBUG(debug_print("Type T?", Tq));
         END_ARGS();
         int_t value = MK_BOOL(T == Tq);
         DEBUG(debug_print("Type value", value));
-        effect = effect_send(effect, actor_send(cust, value));
-        return effect;
+        SEND(cust, value);
+        return OK;
     }
     WARN(debug_print("Type NOT UNDERSTOOD", arg));
-    return effect_send(effect,
-        actor_send(cust, error("NOT UNDERSTOOD")));
+    SEND(cust, error("NOT UNDERSTOOD"));
+    return OK;
 }
 
 static PROC_DECL(SeType) {
@@ -1134,13 +1080,12 @@ static PROC_DECL(SeType) {
     XDEBUG(debug_print("SeType args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_eval) {  // (cust 'eval env)
         POP_ARG(_env);
         END_ARGS();
         DEBUG(debug_print("SeType value", self));
-        effect = effect_send(effect, actor_send(cust, self));
-        return effect;
+        SEND(cust, self);
+        return OK;
     }
     return Type(self, arg);  // delegate to Type
 }
@@ -1169,17 +1114,17 @@ static PROC_DECL(Appl_k_args) {
     GET_ARGS();  // opnd
     DEBUG(debug_print("Appl_k_args args", args));
     TAIL_ARG(opnd);
-    int_t effect = NIL;
+#if 0
     if (IS_PROC(oper)) {
         proc_t prim = TO_PTR(oper);
         int_t value = (*prim)(opnd, env);  // delegate to primitive proc
         WARN(debug_print("Appl_k_args --DEPRECATED-- value", value));
-        effect = effect_send(effect, actor_send(cust, value));
-    } else {
-        effect = effect_send(effect,
-            actor_send(oper, list_4(cust, s_apply, opnd, env)));
+        SEND(cust, value);
+        return panic("Appl must wrap an Actor, not a Proc");
     }
-    return effect;
+#endif
+    SEND(oper, list_4(cust, s_apply, opnd, env));
+    return OK;
 }
 PROC_DECL(Appl) {
     DEBUG(debug_print("Appl self", self));
@@ -1190,16 +1135,13 @@ PROC_DECL(Appl) {
     XDEBUG(debug_print("Appl args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(env);
         END_ARGS();
-        int_t k_args = actor_create(MK_PROC(Appl_k_args), list_3(cust, oper, env));
-        effect = effect_create(effect, k_args);
-        effect = effect_send(effect,
-            actor_send(opnd, list_4(k_args, s_map, s_eval, env)));
-        return effect;
+        int_t k_args = CREATE(MK_PROC(Appl_k_args), list_3(cust, oper, env));
+        SEND(opnd, list_4(k_args, s_map, s_eval, env));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1215,14 +1157,13 @@ int_t unwrap(int_t appl) {
 PROC_DECL(Oper_prim) {  // call primitive procedure
     XDEBUG(debug_print("Oper_prim self", self));
     GET_VARS();  // proc
-    XDEBUG(debug_print("Oper_prim vars", vars));
+    DEBUG(debug_print("Oper_prim vars", vars));
     TAIL_VAR(proc);
     ASSERT(IS_PROC(proc));
     GET_ARGS();
     DEBUG(debug_print("Oper_prim args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(env);
@@ -1230,8 +1171,8 @@ PROC_DECL(Oper_prim) {  // call primitive procedure
         proc_t prim = TO_PTR(proc);
         int_t value = (*prim)(opnd, env);  // delegate to primitive proc
         XDEBUG(debug_print("Oper_prim value", value));
-        effect = effect_send(effect, actor_send(cust, value));
-        return effect;
+        SEND(cust, value);
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1273,15 +1214,14 @@ int_t assoc_find(int_t assoc, int_t key) {
 }
 PROC_DECL(Scope) {
     XDEBUG(debug_print("Scope self", self));
-    GET_VARS();  // (locals penv)
+    GET_VARS();  // (locals . penv)
     DEBUG(debug_print("Scope vars", vars));
     POP_VAR(locals);  // local bindings
-    POP_VAR(penv);  // parent environment
+    TAIL_VAR(penv);  // parent environment
     GET_ARGS();
     DEBUG(debug_print("Scope args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_lookup) {  // (cust 'lookup symbol)
         POP_ARG(symbol);
         END_ARGS();
@@ -1289,13 +1229,11 @@ PROC_DECL(Scope) {
         if (IS_PAIR(binding)) {
             int_t value = cdr(binding);
             DEBUG(debug_print("Scope value", value));
-            effect = effect_send(effect,
-                actor_send(cust, value)); // send value to cust
+            SEND(cust, value); // send value to cust
         } else {
-            effect = effect_send(effect,
-                actor_send(penv, arg)); // delegate to parent
+            SEND(penv, arg); // delegate to parent
         }
-        return effect;
+        return OK;
     }
     if (req == s_bind) {  // (cust 'bind assoc)
         POP_ARG(assoc);
@@ -1316,13 +1254,12 @@ PROC_DECL(Scope) {
             }
             assoc = cdr(assoc);
         }
-        effect = effect_send(effect,
-            actor_send(cust, UNIT));
+        SEND(cust, UNIT);
         // FIXME: surgically replace `locals` (WARNING! this is a non-transactional BECOME)
         XDEBUG(debug_print("Scope locals", locals));
         cell_t *p = TO_PTR(get_data(self));
         p->head = locals;
-        return effect;
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1344,22 +1281,18 @@ PROC_DECL(Closure) {
     DEBUG(debug_print("Closure args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd denv)
         POP_ARG(opnd);
         POP_ARG(denv);  // dynamic (caller) environment
         END_ARGS();
         int_t assoc = match_pattern(eptrn, cons(denv, opnd), NIL);
         if (assoc == UNDEF) {
-            effect = effect_send(effect,
-                actor_send(cust, error("argument pattern mismatch")));
-            return effect;
+            SEND(cust, error("argument pattern mismatch"));
+            return OK;
         }
-        int_t xenv = actor_create(MK_PROC(Scope), list_2(assoc, lenv));
-        effect = effect_create(effect, xenv);
-        effect = effect_send(effect,
-            actor_send(body, list_6(cust, s_fold, UNIT, MK_PROC(fold_last), s_eval, xenv)));
-        return effect;
+        int_t xenv = CREATE(MK_PROC(Scope), cons(assoc, lenv));
+        SEND(body, list_6(cust, s_fold, UNIT, MK_PROC(fold_last), s_eval, xenv));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1369,7 +1302,6 @@ PROC_DECL(Oper_lambda) {  // (lambda pattern . objects)
     DEBUG(debug_print("Oper_lambda args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(lenv);
@@ -1377,17 +1309,14 @@ PROC_DECL(Oper_lambda) {  // (lambda pattern . objects)
         if (IS_PAIR(opnd)) {
             int_t ptrn = car(opnd);
             int_t body = cdr(opnd);
-            int_t closure = actor_create(
-                MK_PROC(Closure), list_3(cons(s_ignore, ptrn), body, lenv));
-            effect = effect_create(effect, closure);
-            int_t appl = actor_create(MK_PROC(Appl), closure);
-            effect = effect_create(effect, appl);
-            effect = effect_send(effect, actor_send(cust, appl));
-            return effect;
+            int_t closure = CREATE(MK_PROC(Closure),
+                list_3(cons(s_ignore, ptrn), body, lenv));
+            int_t appl = CREATE(MK_PROC(Appl), closure);
+            SEND(cust, appl);
+            return OK;
         }
-        effect = effect_send(effect,
-            actor_send(cust, error("lambda expected pattern . body")));
-        return effect;
+        SEND(cust, error("lambda expected pattern . body"));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1399,14 +1328,12 @@ PROC_DECL(Oper_seq) {
     XDEBUG(debug_print("Oper_seq args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(env);
         END_ARGS();
-        effect = effect_send(effect,
-            actor_send(opnd, list_6(cust, s_fold, UNIT, MK_PROC(fold_last), s_eval, env)));
-        return effect;
+        SEND(opnd, list_6(cust, s_fold, UNIT, MK_PROC(fold_last), s_eval, env));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1418,7 +1345,6 @@ PROC_DECL(Oper_eval) {  // (eval expr [env])
     DEBUG(debug_print("Oper_eval args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(env);
@@ -1431,14 +1357,12 @@ PROC_DECL(Oper_eval) {  // (eval expr [env])
                 opnd = cdr(opnd);
             }
             if (opnd == NIL) {
-                effect = effect_send(effect,
-                    actor_send(expr, list_3(cust, s_eval, env)));
-                return effect;
+                SEND(expr, list_3(cust, s_eval, env));
+                return OK;
             }
         }
-        effect = effect_send(effect,
-            actor_send(cust, error("eval expected 1 or 2 arguments")));
-        return effect;
+        SEND(cust, error("eval expected 1 or 2 arguments"));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1451,7 +1375,6 @@ PROC_DECL(Oper_apply) {  // (apply oper args [env])
     DEBUG(debug_print("Oper_apply args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(env);
@@ -1460,8 +1383,8 @@ PROC_DECL(Oper_apply) {  // (apply oper args [env])
             int_t oper = car(opnd);
             oper = unwrap(oper);  // get underlying operative
             if (oper == UNDEF) {
-                effect = effect_send(effect, actor_send(cust, UNDEF));
-                return effect;
+                SEND(cust, UNDEF);
+                return OK;
             }
             opnd = cdr(opnd);
             if (IS_PAIR(opnd)) {
@@ -1472,15 +1395,13 @@ PROC_DECL(Oper_apply) {  // (apply oper args [env])
                     opnd = cdr(opnd);
                 }
                 if (opnd == NIL) {
-                    effect = effect_send(effect,
-                        actor_send(oper, list_4(cust, s_apply, args, env)));
-                    return effect;
+                    SEND(oper, list_4(cust, s_apply, args, env));
+                    return OK;
                 }
             }
         }
-        effect = effect_send(effect,
-            actor_send(cust, error("apply expected 2 or 3 arguments")));
-        return effect;
+        SEND(cust, error("apply expected 2 or 3 arguments"));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1493,7 +1414,6 @@ PROC_DECL(Oper_map) {  // (map oper . lists)
     DEBUG(debug_print("Oper_map args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(env);
@@ -1502,8 +1422,8 @@ PROC_DECL(Oper_map) {  // (map oper . lists)
             int_t oper = car(opnd);
             oper = unwrap(oper);  // get underlying operative
             if (oper == UNDEF) {
-                effect = effect_send(effect, actor_send(cust, UNDEF));
-                return effect;
+                SEND(cust, UNDEF);
+                return OK;
             }
             opnd = cdr(opnd);
             if (IS_PAIR(opnd)) {
@@ -1516,9 +1436,8 @@ PROC_DECL(Oper_map) {  // (map oper . lists)
                 while (IS_PAIR(xs)) {
                     x = car(xs);
                     if (list_len(x) != n) {
-                        effect = effect_send(effect,
-                            actor_send(cust, error("map requires equal list lengths")));
-                        return effect;
+                        SEND(cust, error("map requires equal list lengths"));
+                        return OK;
                     }
                     set_cdr(y, cons(x, NIL));
                     y = cdr(y);
@@ -1552,14 +1471,12 @@ PROC_DECL(Oper_map) {  // (map oper . lists)
                 zs = cell_free(zs);  // release anchor
                 // map eval applications
                 DEBUG(debug_print("Oper_map z", z));
-                effect = effect_send(effect,
-                    actor_send(z, list_4(cust, s_map, s_eval, env)));
-                return effect;
+                SEND(z, list_4(cust, s_map, s_eval, env));
+                return OK;
             }
         }
-        effect = effect_send(effect,
-            actor_send(cust, error("map expected 2 or more arguments")));
-        return effect;
+        SEND(cust, error("map expected 2 or more arguments"));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1575,10 +1492,8 @@ static PROC_DECL(Macro_k_form) {
     GET_ARGS();  // form
     DEBUG(debug_print("Macro_k_form args", args));
     TAIL_ARG(form);
-    int_t effect = NIL;
-    effect = effect_send(effect,
-        actor_send(form, list_3(cust, s_eval, denv)));
-    return effect;
+    SEND(form, list_3(cust, s_eval, denv));
+    return OK;
 }
 PROC_DECL(Macro) {
     DEBUG(debug_print("Macro self", self));
@@ -1589,16 +1504,13 @@ PROC_DECL(Macro) {
     DEBUG(debug_print("Macro args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(denv);
         END_ARGS();
-        int_t k_form = actor_create(MK_PROC(Macro_k_form), list_2(cust, denv));
-        effect = effect_create(effect, k_form);
-        effect = effect_send(effect,
-            actor_send(oper, list_4(k_form, s_apply, opnd, denv)));
-        return effect;
+        int_t k_form = CREATE(MK_PROC(Macro_k_form), list_2(cust, denv));
+        SEND(oper, list_4(k_form, s_apply, opnd, denv));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1608,7 +1520,6 @@ PROC_DECL(Oper_macro) {  // (macro pattern evar . objects)
     DEBUG(debug_print("Oper_macro args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(lenv);
@@ -1619,18 +1530,15 @@ PROC_DECL(Oper_macro) {  // (macro pattern evar . objects)
             if (IS_PAIR(opnd)) {
                 int_t evar = car(opnd);
                 int_t body = cdr(opnd);
-                int_t closure = actor_create(
-                    MK_PROC(Closure), list_3(cons(evar, ptrn), body, lenv));
-                effect = effect_create(effect, closure);
-                int_t oper = actor_create(MK_PROC(Macro), closure);
-                effect = effect_create(effect, oper);
-                effect = effect_send(effect, actor_send(cust, oper));
-                return effect;
+                int_t closure = CREATE(MK_PROC(Closure),
+                    list_3(cons(evar, ptrn), body, lenv));
+                int_t oper = CREATE(MK_PROC(Macro), closure);
+                SEND(cust, oper);
+                return OK;
             }
         }
-        effect = effect_send(effect,
-            actor_send(cust, error("macro expected pattern evar . body")));
-        return effect;
+        SEND(cust, error("macro expected pattern evar . body"));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1646,16 +1554,13 @@ static PROC_DECL(Define_k_bind) {
     GET_ARGS();  // value
     XDEBUG(debug_print("Define_k_bind args", args));
     TAIL_ARG(value);
-    int_t effect = NIL;
     int_t assoc = match_pattern(ptrn, value, NIL);
     if (assoc == UNDEF) {
-        effect = effect_send(effect,
-            actor_send(cust, error("define pattern mismatch")));
+        SEND(cust, error("define pattern mismatch"));
     } else {
-        effect = effect_send(effect,
-            actor_send(env, list_3(cust, s_bind, assoc)));
+        SEND(env, list_3(cust, s_bind, assoc));
     }
-    return effect;
+    return OK;
 }
 PROC_DECL(Oper_define) {  // (define pattern expression)
     XDEBUG(debug_print("Oper_define self", self));
@@ -1663,7 +1568,6 @@ PROC_DECL(Oper_define) {  // (define pattern expression)
     XDEBUG(debug_print("Oper_define args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(env);
@@ -1673,17 +1577,13 @@ PROC_DECL(Oper_define) {  // (define pattern expression)
             opnd = cdr(opnd);
             if (IS_PAIR(opnd)) {
                 int_t expr = car(opnd);
-                int_t k_bind = actor_create(MK_PROC(Define_k_bind), list_3(cust, ptrn, env));
-                effect = effect_create(effect, k_bind);
-                effect = effect_send(effect,
-                    actor_send(expr, list_3(k_bind, s_eval, env)));
-                return effect;
+                int_t k_bind = CREATE(MK_PROC(Define_k_bind), list_3(cust, ptrn, env));
+                SEND(expr, list_3(k_bind, s_eval, env));
+                return OK;
             }
-            return effect;
         }
-        effect = effect_send(effect,
-            actor_send(cust, error("define expected 2 operands")));
-        return effect;
+        SEND(cust, error("define expected 2 operands"));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1749,7 +1649,6 @@ PROC_DECL(Oper_quote) {  // (quote expr)
     XDEBUG(debug_print("Oper_quote args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(_env);
@@ -1758,13 +1657,12 @@ PROC_DECL(Oper_quote) {  // (quote expr)
             int_t expr = car(opnd);
             if (cdr(opnd) == NIL) {
                 DEBUG(debug_print("Oper_quote value", expr));
-                effect = effect_send(effect, actor_send(cust, expr));
-                return effect;
+                SEND(cust, expr);
+                return OK;
             }
         }
-        effect = effect_send(effect,
-            actor_send(cust, error("quote expected 1 operand")));
-        return effect;
+        SEND(cust, error("quote expected 1 operand"));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1781,16 +1679,13 @@ static PROC_DECL(If_k_pred) {
     GET_ARGS();  // pred
     XDEBUG(debug_print("If_k_pred args", args));
     TAIL_ARG(pred);
-    int_t effect = NIL;
     if (pred == UNDEF) {  // short-circuit for #undef
-        effect = effect_send(effect, actor_send(cust, UNDEF));
+        SEND(cust, UNDEF);
     } else {
-        effect = effect_send(effect,
-            actor_send(
-                ((pred == FALSE) ? altn : cnsq),
-                list_3(cust, s_eval, env)));
+        int_t expr = ((pred == FALSE) ? altn : cnsq);
+        SEND(expr, list_3(cust, s_eval, env));
     }
-    return effect;
+    return OK;
 }
 PROC_DECL(Oper_if) {  // (if pred cnsq altn)
     XDEBUG(debug_print("Oper_if self", self));
@@ -1798,7 +1693,6 @@ PROC_DECL(Oper_if) {  // (if pred cnsq altn)
     XDEBUG(debug_print("Oper_if args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(env);
@@ -1812,19 +1706,16 @@ PROC_DECL(Oper_if) {  // (if pred cnsq altn)
                 if (IS_PAIR(opnd)) {
                     int_t altn = car(opnd);
                     if (cdr(opnd) == NIL) {
-                        int_t k_pred = actor_create(MK_PROC(If_k_pred),
+                        int_t k_pred = CREATE(MK_PROC(If_k_pred),
                             list_4(cust, cnsq, altn, env));
-                        effect = effect_create(effect, k_pred);
-                        effect = effect_send(effect,
-                            actor_send(pred, list_3(k_pred, s_eval, env)));
-                        return effect;
+                        SEND(pred, list_3(k_pred, s_eval, env));
+                        return OK;
                     }
                 }
             }
         }
-        effect = effect_send(effect,
-            actor_send(cust, error("if expected 3 operands")));
-        return effect;
+        SEND(cust, error("if expected 3 operands"));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1891,14 +1782,12 @@ PROC_DECL(Oper_typep) {
     XDEBUG(debug_print("Oper_typep args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(_env);
         END_ARGS();
-        effect = effect_send(effect,
-            actor_send(opnd, list_6(cust, s_fold, TRUE, MK_PROC(fold_and), s_typeq, type)));
-        return effect;
+        SEND(opnd, list_6(cust, s_fold, TRUE, MK_PROC(fold_and), s_typeq, type));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -1925,25 +1814,19 @@ static PROC_DECL(And_k_rest) {
     GET_ARGS();  // value
     XDEBUG(debug_print("And_k_rest args", args));
     TAIL_ARG(value);
-    int_t effect = NIL;
     if ((value == UNDEF) || (value == FALSE) || (rest == NIL)) {
-        effect = effect_send(effect,
-            actor_send(cust, value));
+        SEND(cust, value);
     } else if (IS_PAIR(rest)) {
         int_t expr = car(rest);
         rest = cdr(rest);
-        effect = effect_become(effect,
-            actor_become(MK_PROC(And_k_rest), list_3(cust, rest, env)));
-        effect = effect_send(effect,
-            actor_send(expr, list_3(self, s_eval, env)));
+        BECOME(MK_PROC(And_k_rest), list_3(cust, rest, env));
+        SEND(expr, list_3(self, s_eval, env));
     } else if (rest == NIL) {
-        effect = effect_send(effect,
-            actor_send(cust, TRUE));
+        SEND(cust, TRUE);
     } else {
-        effect = effect_send(effect,
-            actor_send(cust, error("proper list required")));
+        SEND(cust, error("proper list required"));
     }
-    return effect;
+    return OK;
 }
 static PROC_DECL(Or_k_rest) {
     XDEBUG(debug_print("Or_k_rest self", self));
@@ -1955,22 +1838,17 @@ static PROC_DECL(Or_k_rest) {
     GET_ARGS();  // value
     XDEBUG(debug_print("Or_k_rest args", args));
     TAIL_ARG(value);
-    int_t effect = NIL;
     if ((value == UNDEF) || (value != FALSE) || (rest == NIL)) {
-        effect = effect_send(effect,
-            actor_send(cust, value));
+        SEND(cust, value);
     } else if (IS_PAIR(rest)) {
         int_t expr = car(rest);
         rest = cdr(rest);
-        effect = effect_become(effect,
-            actor_become(MK_PROC(Or_k_rest), list_3(cust, rest, env)));
-        effect = effect_send(effect,
-            actor_send(expr, list_3(self, s_eval, env)));
+        BECOME(MK_PROC(Or_k_rest), list_3(cust, rest, env));
+        SEND(expr, list_3(self, s_eval, env));
     } else {
-        effect = effect_send(effect,
-            actor_send(cust, error("proper list required")));
+        SEND(cust, error("proper list required"));
     }
-    return effect;
+    return OK;
 }
 // progressive application (short-circuit)
 PROC_DECL(Oper_prog) {  // (op . exprs)
@@ -1983,7 +1861,6 @@ PROC_DECL(Oper_prog) {  // (op . exprs)
     XDEBUG(debug_print("Oper_prog args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(env);
@@ -1991,15 +1868,12 @@ PROC_DECL(Oper_prog) {  // (op . exprs)
         if (IS_PAIR(opnd)) {
             int_t expr = car(opnd);
             int_t rest = cdr(opnd);
-            int_t k_rest = actor_create(proc, list_3(cust, rest, env));
-            effect = effect_create(effect, k_rest);
-            effect = effect_send(effect,
-                actor_send(expr, list_3(k_rest, s_eval, env)));
-            return effect;
+            int_t k_rest = CREATE(proc, list_3(cust, rest, env));
+            SEND(expr, list_3(k_rest, s_eval, env));
+            return OK;
         }
-        effect = effect_send(effect,
-            actor_send(cust, dflt));
-        return effect;
+        SEND(cust, dflt);
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -2014,20 +1888,17 @@ PROC_DECL(Null) {
     XDEBUG(debug_print("Null args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_map) {  // (cust 'map . h_req)
         TAIL_ARG(h_req);
-        effect = effect_send(effect,
-            actor_send(self, cons(cust, h_req)));
-        return effect;
+        SEND(self, cons(cust, h_req));
+        return OK;
     }
     if (req == s_fold) {  // (cust 'fold zero oplus . req)
         POP_ARG(zero);
         //POP_ARG(oplus);
         //TAIL_ARG(req);
-        effect = effect_send(effect,
-            actor_send(cust, zero));
-        return effect;
+        SEND(cust, zero);
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -2046,14 +1917,12 @@ static PROC_DECL(Pair_k_fold) {
     GET_ARGS();  // one
     XDEBUG(debug_print("Pair_k_fold args", args));
     TAIL_ARG(one);
-    int_t effect = NIL;
     ASSERT(IS_PROC(oplus));
     proc_t proc = TO_PTR(oplus);
     zero = (*proc)(zero, one);  // update accumulator
     DEBUG(debug_print("Pair_k_fold accum", zero));
-    effect = effect_send(effect,
-        actor_send(tail, cons(cust, cons(s_fold, cons(zero, cons(oplus, req))))));
-    return effect;
+    SEND(tail, cons(cust, cons(s_fold, cons(zero, cons(oplus, req)))));
+    return OK;
 }
 static PROC_DECL(Pair_k_apply) {
     XDEBUG(debug_print("Pair_k_apply self", self));
@@ -2065,10 +1934,8 @@ static PROC_DECL(Pair_k_apply) {
     GET_ARGS();  // oper
     XDEBUG(debug_print("Pair_k_apply args", args));
     TAIL_ARG(oper);
-    int_t effect = NIL;
-    effect = effect_send(effect,
-        actor_send(oper, list_4(cust, s_apply, opnd, env)));
-    return effect;
+    SEND(oper, list_4(cust, s_apply, opnd, env));
+    return OK;
 }
 PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
     XDEBUG(debug_print("Pair self", self));
@@ -2076,25 +1943,20 @@ PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
     XDEBUG(debug_print("Pair args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_eval) {  // (cust 'eval env)
         POP_ARG(env);
         END_ARGS();
-        int_t k_apply = actor_create(MK_PROC(Pair_k_apply),
+        int_t k_apply = CREATE(MK_PROC(Pair_k_apply),
             list_3(cust, cdr(self), env));
-        effect = effect_create(effect, k_apply);
-        effect = effect_send(effect,
-            actor_send(car(self), list_3(k_apply, s_eval, env)));
-        return effect;
+        SEND(car(self), list_3(k_apply, s_eval, env));
+        return OK;
     }
     if (req == s_map) {  // (cust 'map . h_req)
         TAIL_ARG(h_req);
         int_t t_req = cdr(arg);  // re-use original arg
-        int_t fork = actor_create(MK_PROC(fork_beh), cons(cust, self));
-        effect = effect_create(effect, fork);
-        effect = effect_send(effect,
-            actor_send(fork, cons(h_req, t_req)));
-        return effect;
+        int_t fork = CREATE(MK_PROC(fork_beh), cons(cust, self));
+        SEND(fork, cons(h_req, t_req));
+        return OK;
     }
     if (req == s_fold) {  // (cust 'fold zero oplus . req)
         int_t rest = args;  // re-use args
@@ -2103,12 +1965,10 @@ PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
         TAIL_ARG(req);
         int_t head = car(self);
         int_t tail = cdr(self);
-        int_t k_fold = actor_create(MK_PROC(Pair_k_fold),
+        int_t k_fold = CREATE(MK_PROC(Pair_k_fold),
             cons(cust, cons(tail, rest)));
-        effect = effect_create(effect, k_fold);
-        effect = effect_send(effect,
-            actor_send(head, cons(k_fold, req)));
-        return effect;
+        SEND(head, cons(k_fold, req));
+        return OK;
     }
     return Type(self, arg);  // delegate to Type (not self-evaluating)
 }
@@ -2121,13 +1981,11 @@ PROC_DECL(Symbol) {  // WARNING: behavior used directly in obj_call()
     XDEBUG(debug_print("Symbol args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_eval) {  // (cust 'eval env)
         POP_ARG(env);
         END_ARGS();
-        effect = effect_send(effect,
-            actor_send(env, list_3(cust, s_lookup, self)));
-        return effect;
+        SEND(env, list_3(cust, s_lookup, self));
+        return OK;
     }
     return Type(self, arg);  // delegate to Type (not self-evaluating)
 }
@@ -2418,7 +2276,6 @@ PROC_DECL(Behavior) {
     DEBUG(debug_print("Behavior args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);  // (target . msg)
         POP_ARG(_env);
@@ -2429,18 +2286,15 @@ PROC_DECL(Behavior) {
             int_t assoc = list_1(cons(s_SELF, target));  // bind SELF
             assoc = match_pattern(ptrn, msg, assoc);
             if (assoc == UNDEF) {
-                effect = effect_send(effect,
-                    actor_send(cust, error("message pattern mismatch")));
-                return effect;
+                SEND(cust, error("message pattern mismatch"));
+                return OK;
             }
             XDEBUG(debug_print("Behavior assoc", assoc));
-            int_t aenv = actor_create(MK_PROC(Scope), list_2(assoc, lenv));
-            effect = effect_create(effect, aenv);
-            int_t empty = cons(NIL, NIL);  // empty effect
-            effect = effect_send(effect,
-                actor_send(stmts, list_6(cust, s_fold, empty, MK_PROC(fold_effect), s_eval, aenv)));
+            int_t aenv = CREATE(MK_PROC(Scope), cons(assoc, lenv));
+            int_t empty = cons(NIL, NIL);  // empty meta-effect
+            SEND(stmts, list_6(cust, s_fold, empty, MK_PROC(fold_effect), s_eval, aenv));
         }
-        return effect;
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -2450,7 +2304,6 @@ PROC_DECL(Oper_BEH) {  // (BEH pattern . statements)
     DEBUG(debug_print("Oper_BEH args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);
         POP_ARG(env);
@@ -2458,15 +2311,13 @@ PROC_DECL(Oper_BEH) {  // (BEH pattern . statements)
         if (IS_PAIR(opnd)) {
             int_t ptrn = car(opnd);
             int_t stmts = cdr(opnd);
-            int_t beh = actor_create(
-                MK_PROC(Behavior), list_3(ptrn, stmts, env));
-            effect = effect_create(effect, beh);
-            effect = effect_send(effect, actor_send(cust, beh));
-            return effect;
+            int_t beh = CREATE(MK_PROC(Behavior),
+                list_3(ptrn, stmts, env));
+            SEND(cust, beh);
+            return OK;
         }
-        effect = effect_send(effect,
-            actor_send(cust, error("BEH expected pattern . statements")));
-        return effect;
+        SEND(cust, error("BEH expected pattern . statements"));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -2492,7 +2343,6 @@ static PROC_DECL(Actor_k_done) {
     XDEBUG(debug_print("Actor_k_done args", args));
     TAIL_ARG(effects);
     // apply effects for this actor
-    int_t effect = NIL;
     if (IS_PAIR(effects)) {
         // commit transaction
         ATRACE(debug_print("Actor_k_done commit", effects));
@@ -2507,8 +2357,7 @@ static PROC_DECL(Actor_k_done) {
                 ASSERT(IS_PAIR(event));
                 int_t target = car(event);
                 int_t msg = cdr(event);
-                effect = effect_send(effect,  // enqueue meta-event
-                    actor_send(target, list_4(SINK, s_apply, msg, GROUND_ENV)));
+                SEND(target, list_4(SINK, s_apply, msg, GROUND_ENV));
                 events = cdr(events);
             }
             int_t new_beh = cdr(effects);
@@ -2524,9 +2373,8 @@ static PROC_DECL(Actor_k_done) {
     XDEBUG(debug_print("Actor_k_done meta-actor", actor));
     cell_t *p = TO_PTR(actor);
     p->tail = beh;  // end event transaction
-    effect = effect_send(effect,
-        actor_send(cust, UNIT));
-    return effect;
+    SEND(cust, UNIT);
+    return OK;
 }
 PROC_DECL(Actor) {
     XDEBUG(debug_print("Actor self", self));
@@ -2535,8 +2383,8 @@ PROC_DECL(Actor) {
     TAIL_VAR(beh);
     if (!is_meta_beh(beh)) {  // actor is busy handling an event
         ATRACE(debug_print("Actor BUSY", self));
-        return effect_send(NIL,
-            actor_send(self, arg));  // re-queue current message (serializer)
+        SEND(self, arg);  // re-queue current message (serializer)
+        return OK;
     }
     // actor is ready to handle an event
     cell_t *p = TO_PTR(self);
@@ -2545,16 +2393,13 @@ PROC_DECL(Actor) {
     ATRACE(debug_print("Actor args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_apply) {  // (cust 'apply opnd env)
         POP_ARG(opnd);  // msg
         POP_ARG(env);
         END_ARGS();
-        int_t k_done = actor_create(MK_PROC(Actor_k_done), list_3(cust, self, beh));
-        effect = effect_create(effect, k_done);
-        effect = effect_send(effect,
-            actor_send(beh, list_4(k_done, s_apply, cons(self, opnd), env)));
-        return effect;
+        int_t k_done = CREATE(MK_PROC(Actor_k_done), list_3(cust, self, beh));
+        SEND(beh, list_4(k_done, s_apply, cons(self, opnd), env));
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
@@ -2575,7 +2420,7 @@ static PROC_DECL(prim_CREATE) {  // (CREATE beh)
         if (!is_meta_beh(beh)) return error("CREATE requires Behavior");
         opnd = cdr(opnd);
         if (opnd == NIL) {
-            return actor_create(MK_PROC(Actor), beh);
+            return CREATE(MK_PROC(Actor), beh);
         }
     }
     return error("CREATE expected 1 argument");
@@ -2637,14 +2482,10 @@ const cell_t a_FAIL = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_FAIL) };
 
 PROC_DECL(Global) {
     XDEBUG(debug_print("Global self", self));
-    //GET_VARS();  // locals
-    //XDEBUG(debug_print("Global vars", vars));
-    //TAIL_VAR(locals);
     GET_ARGS();
     XDEBUG(debug_print("Global args", args));
     POP_ARG(cust);
     POP_ARG(req);
-    int_t effect = NIL;
     if (req == s_lookup) {  // (cust 'lookup symbol)
         POP_ARG(symbol);
         END_ARGS();
@@ -2735,17 +2576,14 @@ PROC_DECL(Global) {
             value = error("undefined variable");
         }
         DEBUG(debug_print("Global value", value));
-        effect = effect_send(effect,
-            actor_send(cust, value));
-        return effect;
+        SEND(cust, value);
+        return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
-// Note: `gnd_locals` can not be `const` because `locals` is mutable
 // WARNING! gnd_locals.head must be part of the gc root set!
-const cell_t a_global_env = { .head = MK_PROC(Global), .tail = NIL };
-const cell_t gnd_parent = { .head = MK_ACTOR(&a_global_env), .tail = NIL };
-static cell_t gnd_locals = { .head = NIL, .tail = MK_PAIR(&gnd_parent) };
+const cell_t a_global_env = { .head = MK_PROC(Global), .tail = UNDEF };
+static cell_t gnd_locals = { .head = NIL, .tail = MK_ACTOR(&a_global_env) };
 const cell_t a_ground_env = { .head = MK_PROC(Scope), .tail = MK_PAIR(&gnd_locals) };
 
 /*
@@ -2802,6 +2640,7 @@ void print(int_t value) {
 }
 
 void debug_print(char *label, int_t value) {
+    fflush(stdout);
     fprintf(stderr, "%s:", label);
     fprintf(stderr, " 16#%"PRIxPTR"", value);
     //fprintf(stderr, " %"PRIdPTR"", value);
@@ -3114,29 +2953,20 @@ int_t read_sexpr(input_t *in) {
 int_t read_eval_print_loop(input_t *in) {
     WARN(fprintf(stderr, "--REPL--\n"));
     while (1) {
-        int_t effect = NIL;
-
         fprintf(stdout, "wart> ");  // REPL prompt
         fflush(stdout);
 
         // read expr to evaluate
         int_t expr = read_sexpr(in);
         if (expr == FAIL) break;
-        WARN(debug_print("  REPL expr", expr));
+        DEBUG(debug_print("  REPL expr", expr));
 
         // evalute expr and print result
         int_t cust = MK_ACTOR(&a_println);
         int_t env = GROUND_ENV;
-        effect = effect_send(effect,
-            actor_send(expr, list_3(cust, s_eval, env)));
-
-#if CONCURRENT_GC
-        effect = effect_send(effect,
-            actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));
-#endif
+        SEND(expr, list_3(cust, s_eval, env));
 
         // dispatch all pending events
-        ASSERT(apply_effect(UNDEF, effect) == OK);
         event_loop();
     }
     newline();
@@ -3145,23 +2975,15 @@ int_t read_eval_print_loop(input_t *in) {
 
 int_t load_file(input_t *in) {
     while (1) {
-        int_t effect = NIL;
-
         int_t expr = read_sexpr(in);
         if (expr == FAIL) break;
 
+        // evalute each expr in file
         int_t cust = SINK;
         int_t env = GROUND_ENV;
-        effect = effect_send(effect,
-            actor_send(expr, list_3(cust, s_eval, env)));
-
-#if CONCURRENT_GC
-        effect = effect_send(effect,
-            actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));
-#endif
+        SEND(expr, list_3(cust, s_eval, env));
 
         // dispatch all pending events
-        ASSERT(apply_effect(UNDEF, effect) == OK);
         event_loop();
     }
     return OK;
@@ -3213,7 +3035,7 @@ int_t test_cells() {
     DEBUG(debug_print("test_cells free v0", v2));
     ASSERT(v2 == NIL);
 
-    v2 = actor_create(MK_PROC(sink_beh), v1);
+    v2 = CREATE(MK_PROC(sink_beh), v1);
     DEBUG(debug_print("test_cells cons v2", v2));
     ASSERT(in_heap(v2));
 #if !NO_CELL_FREE
@@ -3233,42 +3055,28 @@ int_t test_cells() {
 
 int_t test_actors() {
     WARN(fprintf(stderr, "--test_actors--\n"));
-    int_t effect = NIL;
-    XDEBUG(debug_print("test_actors effect", effect));
-    int_t a = actor_create(MK_PROC(sink_beh), NIL);
-    XDEBUG(debug_print("test_actors actor_create", a));
-    effect = effect_create(effect, a);
-    XDEBUG(debug_print("test_actors effect_create", effect));
+    int_t a = CREATE(MK_PROC(sink_beh), NIL);
+    XDEBUG(debug_print("test_actors CREATE", a));
     int_t m = list_3(SINK, s_eval, NIL);
     XDEBUG(debug_print("test_actors message", m));
-    int_t e = actor_send(a, m);
-    XDEBUG(debug_print("test_actors actor_send", e));
-    effect = effect_send(effect, e);
-    XDEBUG(debug_print("test_actors effect_send", effect));
-    int_t x = apply_effect(UNDEF, effect);
-    XDEBUG(debug_print("test_actors apply_effect", x));
+    SEND(a, m);
+    // dispatch one event
     int_t r = event_dispatch();
     DEBUG(debug_print("test_actors event_dispatch", r));
     if (r != OK) return r;  // early exit on failure...
 
 #if 1
-    effect = NIL;
     // UNIT is self-evaluating
-    a = actor_create(MK_PROC(assert_beh), UNIT);
-    effect = effect_create(effect, a);
+    a = CREATE(MK_PROC(assert_beh), UNIT);
     m = list_3(a, s_eval, NIL);
     DEBUG(debug_print("test_actors m_1", m));
-    e = actor_send(UNIT, m);
-    effect = effect_send(effect, e);
+    SEND(UNIT, m);
     // UNIT has Unit type
-    a = actor_create(MK_PROC(assert_beh), TRUE);
-    effect = effect_create(effect, a);
+    a = CREATE(MK_PROC(assert_beh), TRUE);
     m = list_3(a, s_typeq, MK_PROC(Unit));
     DEBUG(debug_print("test_actors m_2", m));
-    e = actor_send(UNIT, m);
-    effect = effect_send(effect, e);
+    SEND(UNIT, m);
     // dispatch all pending events
-    ASSERT(apply_effect(UNDEF, effect) == OK);
     r = event_loop();
     DEBUG(debug_print("test_actors event_loop", r));
 #endif
@@ -3278,25 +3086,11 @@ int_t test_actors() {
 }
 
 int_t eval_test_expr(int_t expr, int_t expect) {
-    int_t effect = NIL;
-
-    int_t cust = actor_create(MK_PROC(assert_beh), expect);
-    effect = effect_create(effect, cust);
-
-    int_t env = GROUND_ENV;
-    effect = effect_send(effect,
-        actor_send(expr, list_3(cust, s_eval, env)));
-
-#if CONCURRENT_GC
-    effect = effect_send(effect,
-        actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));
-#endif
-
+    int_t cust = CREATE(MK_PROC(assert_beh), expect);
+    SEND(expr, list_3(cust, s_eval, GROUND_ENV));
     // dispatch all pending events
-    ASSERT(apply_effect(UNDEF, effect) == OK);
     int_t result = event_loop();
     DEBUG(debug_print("eval_test_expr event_loop", result));
-
     return OK;
 }
 
@@ -3327,7 +3121,6 @@ int top_level_eval(char *expr) {
 
 int_t test_eval() {
     WARN(fprintf(stderr, "--test_eval--\n"));
-    int_t effect;
     int_t cust;
     int_t expr;
     int_t env = GROUND_ENV;
@@ -3336,18 +3129,11 @@ int_t test_eval() {
     int_t s_bar = symbol("bar");
     int_t s_baz = symbol("baz");
 
-    effect = NIL;
-    cust = actor_create(MK_PROC(assert_beh), s_foo);
-    effect = effect_create(effect, cust);
+    cust = CREATE(MK_PROC(assert_beh), s_foo);
     //expr = list_2(MK_ACTOR(&a_quote), s_foo);  // (<quote> foo)
     expr = list_2(s_quote, s_foo);  // (quote foo)
-    effect = effect_send(effect,
-        actor_send(expr, list_3(cust, s_eval, env)));
-#if CONCURRENT_GC
-    effect = effect_send(effect, actor_send(MK_ACTOR(&a_concurrent_gc), MK_NUM(0)));
-#endif
+    SEND(expr, list_3(cust, s_eval, env));
     // dispatch all pending events
-    ASSERT(apply_effect(UNDEF, effect) == OK);
     result = event_loop();
     DEBUG(debug_print("test_eval event_loop", result));
 
@@ -3355,6 +3141,13 @@ int_t test_eval() {
     ASSERT(equal(list_3(UNIT, s_foo, s_bar), list_3(UNIT, s_foo, s_bar)));
     ASSERT(!equal(TRUE, FALSE));
 
+#if 0
+    DEBUG(debug_print("test_eval a_list", MK_ACTOR(&a_list)));
+    DEBUG(debug_print("test_eval oper_list", MK_ACTOR(&oper_list)));
+    DEBUG(debug_print("test_eval Oper_prim", MK_PROC(Oper_prim)));
+    DEBUG(debug_print("test_eval prim_list", MK_PROC(prim_list)));
+    DEBUG(debug_print("test_eval prim_cons", MK_PROC(prim_cons)));
+#endif
     eval_test_expr(
         // (<list>)
         list_1(MK_ACTOR(&a_list)),
@@ -3497,10 +3290,10 @@ int_t test_eval() {
 }
 
 int_t unit_tests() {
-    if (test_values() != OK) return UNDEF;
-    if (test_cells() != OK) return UNDEF;
-    if (test_actors() != OK) return UNDEF;
-    if (test_eval() != OK) return UNDEF;
+    ASSERT(test_values() == OK);
+    ASSERT(test_cells() == OK);
+    ASSERT(test_actors() == OK);
+    ASSERT(test_eval() == OK);
     return OK;
 }
 
@@ -3509,7 +3302,7 @@ int_t unit_tests() {
  */
 
 int_t actor_boot() {
-    if (symbol_boot() != OK) return UNDEF;
+    ASSERT(symbol_boot() == OK);
     return OK;
 }
 
@@ -3535,8 +3328,7 @@ int main(int argc, char const *argv[])
     double dt = (double)(t1 - t0) / CLOCKS_PER_SEC;
     printf("t0=%ld t1=%ld dt=%.9f (%ld CPS)\n", t0, t1, dt, (long)CLOCKS_PER_SEC);
 
-    int_t result = actor_boot();
-    if (result != OK) panic("actor_boot() failed");
+    ASSERT(actor_boot() == OK);
 
 #if 1
     fprintf(stderr, "newline = %"PRIxPTR"\n", INT(newline));
@@ -3567,21 +3359,10 @@ int main(int argc, char const *argv[])
     ASSERT(IS_SYM(s_content));
 #endif
 
-#if 1
-    result = unit_tests();
-    WARN(debug_print("result", result));
-#endif
+    // run unit tests
+    ASSERT(unit_tests() == OK);
 
-    printf("result = ");
-    print(result);
-    newline();
-
-#if 0
-    ASSERT(IS_ACTOR(FAIL));
-    cell_t *p = TO_PTR(FAIL);
-    p->tail = NIL;  // FIXME: should not be able to assign to `const`
-#endif
-
+    // load internal library
     ASSERT(load_library() == OK);
 
     WARN(fprintf(stderr, "--load_file--\n"));
@@ -3592,7 +3373,7 @@ int main(int argc, char const *argv[])
         if (f) {
             file_in_t file_in;
             ASSERT(file_init(&file_in, f) == 0);
-            result = load_file(&file_in.input);
+            ASSERT(load_file(&file_in.input) == OK);
         }
         fclose(f);
     }
@@ -3603,7 +3384,7 @@ int main(int argc, char const *argv[])
 
     file_in_t std_in;
     ASSERT(file_init(&std_in, stdin) == 0);
-    result = read_eval_print_loop(&std_in.input);
+    int_t result = read_eval_print_loop(&std_in.input);
 
     return (result == OK ? 0 : 1);
 }
