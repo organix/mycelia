@@ -2606,17 +2606,6 @@ const cell_t a_ground_env = { .head = MK_PROC(Scope), .tail = MK_PAIR(&gnd_local
 void print(int_t value) {
     if (value == FREE_CELL) {
         printf("#FREE-CELL");
-    } else if (IS_ACTOR(value)) {
-        cell_t *p = TO_PTR(value);
-        printf("#actor-%"PRIxPTR"", NAT(p));
-    } else if (IS_PROC(value)) {
-        proc_t f = TO_PROC(value);
-        printf("#proc-%"PRIxPTR"", NAT(f));
-    } else if (IS_NUM(value)) {
-        printf("%+"PRIdPTR"", TO_INT(value));
-    } else if (IS_SYM(value)) {
-        char *s = &intern[TO_ENUM(value)];
-        printf("%.*s", (int)(*s), (s + 1));
     } else if (value == UNDEF) {
         printf("#undefined");
     } else if (value == UNIT) {
@@ -2631,6 +2620,17 @@ void print(int_t value) {
         printf("#inf");
     } else if (value == FAIL) {
         printf("#fail");
+    } else if (IS_ACTOR(value)) {
+        cell_t *p = TO_PTR(value);
+        printf("#actor-%"PRIxPTR"", NAT(p));
+    } else if (IS_PROC(value)) {
+        proc_t f = TO_PROC(value);
+        printf("#proc-%"PRIxPTR"", NAT(f));
+    } else if (IS_NUM(value)) {
+        printf("%+"PRIdPTR"", TO_INT(value));
+    } else if (IS_SYM(value)) {
+        char *s = &intern[TO_ENUM(value)];
+        printf("%.*s", (int)(*s), (s + 1));
     } else if (IS_PAIR(value) && (value > 1024)) {  // FIXME: protect against bad data
         char *s = "(";
         while (IS_PAIR(value) && (value > 1024)) {  // FIXME: protect against bad data
