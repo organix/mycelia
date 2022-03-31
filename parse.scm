@@ -2,19 +2,19 @@
 ;; parse.scm (based on PEG3.hum)
 ;;
 
-(define match-empty
+(define peg-empty
 	(lambda (in)
 		(list #t () in)))
-(define match-fail
+(define peg-fail
 	(lambda (in)
 		(list #f in)))
-(define match-any
+(define peg-any
 	(lambda (in)
 		(if (null? in)
 			(list #f in)
 			(let (((token . rest) in))
 				(list #t token rest)))))
-(define match-eq
+(define peg-eq
 	(lambda (value)
 		(lambda (in)
 			(if (null? in)
@@ -23,7 +23,7 @@
 					(if (equal? token value)
 						(list #t token rest)
 						(list #f in)))))))
-(define match-if
+(define peg-if
 	(lambda (test?)
 		(lambda (in)
 			(if (null? in)
@@ -32,14 +32,14 @@
 					(if (test? token)
 						(list #t token rest)
 						(list #f in)))))))
-(define match-or
+(define peg-or
 	(lambda (left right)
 		(lambda (in)
 			(let (((ok . state) (left in)))
 				(if ok
 					(cons #t state)
 					(right in))))))
-(define match-and
+(define peg-and
 	(lambda (left right)
 		(lambda (in)
 			(let (((ok . state) (left in)))
@@ -51,36 +51,36 @@
 									(list #t (cons lval rval) rest))
 								(list #f in))))
 					(list #f in))))))
-(define match-alt
-	(lambda matches
-		(if (pair? matches)
-			(match-or (car matches) (apply match-alt (cdr matches)))
-			match-fail)))
-(define match-seq
-	(lambda matches
-		(if (pair? matches)
-			(match-and (car matches) (apply match-seq (cdr matches)))
-			match-empty)))
-(define match-opt
-	(lambda (match)
-		(match-or match match-empty)))
-(define match-star
-	(lambda (match)
+(define peg-alt
+	(lambda pegs
+		(if (pair? pegs)
+			(peg-or (car pegs) (apply peg-alt (cdr pegs)))
+			peg-fail)))
+(define peg-seq
+	(lambda pegs
+		(if (pair? pegs)
+			(peg-and (car pegs) (apply peg-seq (cdr pegs)))
+			peg-empty)))
+(define peg-opt
+	(lambda (peg)
+		(peg-or peg peg-empty)))
+(define peg-star
+	(lambda (peg)
 		(lambda (in)
-			((match-opt (match-and match (match-star match))) in))))
-(define match-plus
-	(lambda (match)
-		(match-and match (match-star match))))
-(define match-not
-	(lambda (match)
+			((peg-opt (peg-and peg (peg-star peg))) in))))
+(define peg-plus
+	(lambda (peg)
+		(peg-and peg (peg-star peg))))
+(define peg-not
+	(lambda (peg)
 		(lambda (in)
-			(let (((ok . state) (match in)))
+			(let (((ok . state) (peg in)))
 				(if ok
 					(list #f in)
 					(list #t () in))))))
-(define match-peek
-	(lambda (match)
-		(match-not (match-not match))))
+(define peg-peek
+	(lambda (peg)
+		(peg-not (peg-not peg))))
 
 ;
 ; test fixture
@@ -90,49 +90,49 @@
 ; factor = '(' expr ')' | number
 ; number = [0-9]+
 ;
-(define match-expr
+(define peg-expr
 	(lambda (in)
-		((match-seq
-			match-term
-			(match-star (match-seq
-				(match-or (match-eq 45) (match-eq 43))  ; minus/plus
-				match-term)))
+		((peg-seq
+			peg-term
+			(peg-star (peg-seq
+				(peg-or (peg-eq 45) (peg-eq 43))  ; minus/plus
+				peg-term)))
 		in)))
-(define match-term
+(define peg-term
 	(lambda (in)
-		((match-seq
-			match-factor
-			(match-star (match-seq
-				(match-or (match-eq 42) (match-eq 47))  ; star/slash
-				match-factor)))
+		((peg-seq
+			peg-factor
+			(peg-star (peg-seq
+				(peg-or (peg-eq 42) (peg-eq 47))  ; star/slash
+				peg-factor)))
 		in)))
-(define match-factor
+(define peg-factor
 	(lambda (in)
-		((match-alt
-			(match-seq
-				(match-eq 40)  ; open paren
-				match-expr
-				(match-eq 41))  ; close paren
-			match-number)
+		((peg-alt
+			(peg-seq
+				(peg-eq 40)  ; open paren
+				peg-expr
+				(peg-eq 41))  ; close paren
+			peg-number)
 		in)))
-(define match-number
+(define peg-number
 	(lambda (in)
-		((match-plus match-digit)
+		((peg-plus peg-digit)
 		in)))
-(define match-digit
+(define peg-digit
 	(lambda (in)
-		((match-alt
-			(match-eq 48)  ; zero
-			(match-eq 49)  ; one
-			(match-eq 50)  ; two
-			(match-eq 51)  ; three
-			(match-eq 52)  ; four
-			(match-eq 53)  ; five
-			(match-eq 54)  ; six
-			(match-eq 55)  ; seven
-			(match-eq 56)  ; eight
-			(match-eq 57))  ; nine
+		((peg-alt
+			(peg-eq 48)  ; zero
+			(peg-eq 49)  ; one
+			(peg-eq 50)  ; two
+			(peg-eq 51)  ; three
+			(peg-eq 52)  ; four
+			(peg-eq 53)  ; five
+			(peg-eq 54)  ; six
+			(peg-eq 55)  ; seven
+			(peg-eq 56)  ; eight
+			(peg-eq 57))  ; nine
 		in)))
 
 (define expr (list 49 43 50 42 51 45 57 48))  ; 1 + 2 * 3 - 9 0
-(match-expr expr)  ; match test-case
+(peg-expr expr)  ; test-case
