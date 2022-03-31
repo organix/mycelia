@@ -61,37 +61,36 @@ typedef PROC_DECL((*proc_t));
 #define TAG_ACTOR   INT(0x3)
 
 #define ENUM_MASK   INT(0xF)
-#define ENUM_SYMBOL INT(0x2)
-#define ENUM_PROC   INT(0x6)
+#define ENUM_PROC   INT(0x2)
+#define ENUM_SYMBOL INT(0x6)
 #define ENUM_RSVD1  INT(0xA)
 #define ENUM_RSVD2  INT(0xE)
+
+#define IS_ADDR(v)  ((v)&1)
 
 #define MK_NUM(n)   INT(NAT(n)<<2)
 #define MK_PAIR(p)  INT(PTR(p)+TAG_PAIR)
 #define MK_ENUM(n)  INT((NAT(n)<<4)|TAG_ENUM)
 #define MK_ACTOR(p) INT(PTR(p)+TAG_ACTOR)
 
-#define MK_SYM(n)   (MK_ENUM(NAT(n))|ENUM_SYMBOL)
-//#define MK_PROC(p)  (MK_ENUM(PTR(p))|ENUM_PROC)
-#define MK_PROC(p)  MK_ACTOR(p)
+#define MK_SYM(n)   (MK_ENUM(n)|ENUM_SYMBOL)
+#define MK_PROC(f)  INT(PTR(f)+TAG_ENUM)
 #define MK_BOOL(b)  ((b) ? TRUE : FALSE)
-
-#define IS_ADDR(v)  ((v)&1)
 
 #define IS_NUM(v)   (((v)&TAG_MASK) == TAG_FIXNUM)
 #define IS_PAIR(v)  (((v)&TAG_MASK) == TAG_PAIR)
 #define IS_ENUM(v)  (((v)&TAG_MASK) == TAG_ENUM)
 #define IS_ACTOR(v) (((v)&TAG_MASK) == TAG_ACTOR)
 
-#define IS_SYM(v)   (((v)&ENUM_MASK) == ENUM_SYMBOL)
-//#define IS_PROC(v)  (((v)&ENUM_MASK) == ENUM_PROC)
-#define IS_PROC(v)  is_proc(v)
+//#define IS_SYM(v)   (((v)&ENUM_MASK) == ENUM_SYMBOL)
+#define IS_SYM(v)   (IS_ENUM(v)&&((v)<0xFFFF))
+#define IS_PROC(v)  (IS_ENUM(v)&&((v)>0xFFFF))
 
 #define TO_INT(v)   (INT(v)>>2)
 #define TO_NAT(v)   (NAT(v)>>2)
 #define TO_PTR(v)   PTR(NAT(v)&~TAG_MASK)
 #define TO_ENUM(v)  (INT(v)>>4)
-//#define TO_PROC(v)  ((proc_t)(TO_ENUM(v)))
+#define TO_PROC(v)  ((proc_t)(PTR(v)-TAG_ENUM))
 
 void newline() {  // DO NOT MOVE -- USED TO DEFINE is_proc()
     printf("\n");
@@ -311,9 +310,7 @@ int_t set_cdr(int_t val, int_t tail) {
 
 int_t get_code(int_t val) {
     int_t code = UNDEF;  // polymorphic dispatch procedure
-    if (IS_PROC(val)) {
-        code = val;
-    } else if (IS_ACTOR(val)) {
+    if (IS_ACTOR(val)) {
         cell_t *p = TO_PTR(val);
         code = p->head;
     } else if (IS_PAIR(val)) {
@@ -322,6 +319,8 @@ int_t get_code(int_t val) {
         code = MK_PROC(Fixnum);
     } else if (IS_SYM(val)) {
         code = MK_PROC(Symbol);
+    } else if (IS_PROC(val)) {
+        code = val;
     } else {
         code = error("undefined dispatch procedure");
     }
@@ -330,7 +329,7 @@ int_t get_code(int_t val) {
 
 int_t get_data(int_t val) {
     int_t data = val;
-    if (!IS_PROC(val) && IS_ACTOR(val)) {
+    if (IS_ACTOR(val)) {
         cell_t *p = TO_PTR(val);
         data = p->tail;
     }
@@ -340,7 +339,7 @@ int_t get_data(int_t val) {
 PROC_DECL(obj_call) {
     int_t code = get_code(self);
     if (!IS_PROC(code)) return error("obj_call() requires a procedure");
-    proc_t proc = TO_PTR(code);
+    proc_t proc = TO_PROC(code);
     return (*proc)(self, arg);
 }
 
@@ -687,7 +686,7 @@ int_t event_commit(int_t event) {
     XDEBUG(debug_print("event_commit event", event));
     int_t target = car(event);
     XDEBUG(debug_print("event_commit target", target));
-    if ((saved_a.head != UNDEF) && IS_ACTOR(target) && !IS_PROC(target)) {
+    if ((saved_a.head != UNDEF) && IS_ACTOR(target)) {
         cell_t *p = TO_PTR(target);
         *p = saved_a;  // update target actor
         XDEBUG(hexdump("event_commit become", PTR(p), 2));
@@ -720,7 +719,7 @@ int_t event_dispatch() {
     event = event_begin(event);
 
     // invoke actor behavior
-    proc_t proc = TO_PTR(code);
+    proc_t proc = TO_PROC(code);
     int_t ok = (*proc)(target, msg);
     XDEBUG(debug_print("event_dispatch ok", ok));
 
@@ -1130,7 +1129,7 @@ static PROC_DECL(Appl_k_args) {
     TAIL_ARG(opnd);
 #if 0
     if (IS_PROC(oper)) {
-        proc_t prim = TO_PTR(oper);
+        proc_t prim = TO_PROC(oper);
         int_t value = (*prim)(opnd, env);  // delegate to primitive proc
         WARN(debug_print("Appl_k_args --DEPRECATED-- value", value));
         SEND(cust, value);
@@ -1182,7 +1181,7 @@ PROC_DECL(Oper_prim) {  // call primitive procedure
         POP_ARG(opnd);
         POP_ARG(env);
         END_ARGS();
-        proc_t prim = TO_PTR(proc);
+        proc_t prim = TO_PROC(proc);
         int_t value = (*prim)(opnd, env);  // delegate to primitive proc
         XDEBUG(debug_print("Oper_prim value", value));
         SEND(cust, value);
@@ -1932,7 +1931,7 @@ static PROC_DECL(Pair_k_fold) {
     XDEBUG(debug_print("Pair_k_fold args", args));
     TAIL_ARG(one);
     ASSERT(IS_PROC(oplus));
-    proc_t proc = TO_PTR(oplus);
+    proc_t proc = TO_PROC(oplus);
     zero = (*proc)(zero, one);  // update accumulator
     DEBUG(debug_print("Pair_k_fold accum", zero));
     SEND(tail, cons(cust, cons(s_fold, cons(zero, cons(oplus, req)))));
@@ -2338,7 +2337,7 @@ PROC_DECL(Oper_BEH) {  // (BEH pattern . statements)
 const cell_t a_BEH = { .head = MK_PROC(Oper_BEH), .tail = UNDEF };
 
 int is_meta_beh(int_t val) {
-    if (IS_ACTOR(val) && !IS_PROC(val)) {
+    if (IS_ACTOR(val)) {
         cell_t *p = TO_PTR(val);
         return (p->head == MK_PROC(Behavior));
     }
@@ -2419,7 +2418,7 @@ PROC_DECL(Actor) {
 }
 
 int is_meta_actor(int_t val) {
-    if (IS_ACTOR(val) && !IS_PROC(val)) {
+    if (IS_ACTOR(val)) {
         cell_t *p = TO_PTR(val);
         return (p->head == MK_PROC(Actor));
     }
@@ -2607,9 +2606,12 @@ const cell_t a_ground_env = { .head = MK_PROC(Scope), .tail = MK_PAIR(&gnd_local
 void print(int_t value) {
     if (value == FREE_CELL) {
         printf("#FREE-CELL");
+    } else if (IS_ACTOR(value)) {
+        cell_t *p = TO_PTR(value);
+        printf("#actor-%"PRIxPTR"", NAT(p));
     } else if (IS_PROC(value)) {
-        proc_t p = TO_PTR(value);
-        printf("#proc-%"PRIxPTR"", NAT(p));
+        proc_t f = TO_PROC(value);
+        printf("#proc-%"PRIxPTR"", NAT(f));
     } else if (IS_NUM(value)) {
         printf("%+"PRIdPTR"", TO_INT(value));
     } else if (IS_SYM(value)) {
@@ -2629,9 +2631,6 @@ void print(int_t value) {
         printf("#inf");
     } else if (value == FAIL) {
         printf("#fail");
-    } else if (IS_ACTOR(value)) {
-        cell_t *p = TO_PTR(value);
-        printf("#actor-%"PRIxPTR"", NAT(p));
     } else if (IS_PAIR(value) && (value > 1024)) {  // FIXME: protect against bad data
         char *s = "(";
         while (IS_PAIR(value) && (value > 1024)) {  // FIXME: protect against bad data
@@ -2673,7 +2672,7 @@ void debug_print(char *label, int_t value) {
         fprintf(stderr, " SYM[%"PRIuPTR"]", n);
     }
     if (IS_ACTOR(value)) fprintf(stderr, " ACTOR");
-    if (IS_ADDR(value) && !IS_PROC(value)) {
+    if (IS_ADDR(value)) {
         cell_t *p = TO_PTR(value);
         fprintf(stderr, " <%"PRIxPTR",%"PRIxPTR">", p->head, p->tail);
     }
