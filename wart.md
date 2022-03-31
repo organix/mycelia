@@ -158,9 +158,10 @@ Pointers to i32 values are 4-byte aligned, making the 2 LSBs zero.
 
 ____  3322 2222 2222 1111  1111 1100 0000 0000
 i32:  1098 7654 3210 9876  5432 1098 7654 3210
-      xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt
-                                            ^^-- Pointer
-                                            +--- Subtype
+      xxxx xxxx xxxx xxxx  xxxx xxxx xxxx eett
+                                          ^ ^^-- Pointer
+                                          | +--- Subtype
+                                          +----- Enumeration
 
 2#00 = Immediate 30-bit signed Integer value=(x>>2)
       snnn nnnn nnnn nnnn  nnnn nnnn nnnn nn00
@@ -168,12 +169,12 @@ i32:  1098 7654 3210 9876  5432 1098 7654 3210
   +-- aaaa aaaa aaaa aaaa  aaaa aaaa aaaa aa01
   +-> xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt = car
       xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt = cdr
-2#10 = Immediate 30-bit unsigned Index value=(x>>2)
-      iiii iiii iiii iiii  iiii iiii iiii ii10
+2#10 = Immediate 28-bit signed enumeration Index value=(x>>4)
+      iiii iiii iiii iiii  iiii iiii iiii ee10
 2#11 = Pointer to Object (code+data) value addr=(x&~3)
   +-- aaaa aaaa aaaa aaaa  aaaa aaaa aaaa aa11
-  +-> xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt = proc
-      xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt = var
+  +-> xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt = code
+      xxxx xxxx xxxx xxxx  xxxx xxxx xxxx xxtt = data
 ```
 
 ### Object Method Invocations

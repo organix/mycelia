@@ -57,29 +57,41 @@ typedef PROC_DECL((*proc_t));
 #define TAG_MASK    INT(0x3)
 #define TAG_FIXNUM  INT(0x0)
 #define TAG_PAIR    INT(0x1)
-#define TAG_SYMBOL  INT(0x2)
+#define TAG_ENUM    INT(0x2)
 #define TAG_ACTOR   INT(0x3)
+
+#define ENUM_MASK   INT(0xF)
+#define ENUM_SYMBOL INT(0x2)
+#define ENUM_PROC   INT(0x6)
+#define ENUM_RSVD1  INT(0xA)
+#define ENUM_RSVD2  INT(0xE)
 
 #define MK_NUM(n)   INT(NAT(n)<<2)
 #define MK_PAIR(p)  INT(PTR(p)+TAG_PAIR)
-#define MK_SYM(n)   INT((NAT(n)<<2)|TAG_SYMBOL)
+#define MK_ENUM(n)  INT((NAT(n)<<4)|TAG_ENUM)
 #define MK_ACTOR(p) INT(PTR(p)+TAG_ACTOR)
 
-#define MK_BOOL(b)  ((b) ? TRUE : FALSE)
+#define MK_SYM(n)   (MK_ENUM(NAT(n))|ENUM_SYMBOL)
+//#define MK_PROC(p)  (MK_ENUM(PTR(p))|ENUM_PROC)
 #define MK_PROC(p)  MK_ACTOR(p)
+#define MK_BOOL(b)  ((b) ? TRUE : FALSE)
 
 #define IS_ADDR(v)  ((v)&1)
 
 #define IS_NUM(v)   (((v)&TAG_MASK) == TAG_FIXNUM)
 #define IS_PAIR(v)  (((v)&TAG_MASK) == TAG_PAIR)
-#define IS_SYM(v)   (((v)&TAG_MASK) == TAG_SYMBOL)
+#define IS_ENUM(v)  (((v)&TAG_MASK) == TAG_ENUM)
 #define IS_ACTOR(v) (((v)&TAG_MASK) == TAG_ACTOR)
 
+#define IS_SYM(v)   (((v)&ENUM_MASK) == ENUM_SYMBOL)
+//#define IS_PROC(v)  (((v)&ENUM_MASK) == ENUM_PROC)
 #define IS_PROC(v)  is_proc(v)
 
 #define TO_INT(v)   (INT(v)>>2)
 #define TO_NAT(v)   (NAT(v)>>2)
 #define TO_PTR(v)   PTR(NAT(v)&~TAG_MASK)
+#define TO_ENUM(v)  (INT(v)>>4)
+//#define TO_PROC(v)  ((proc_t)(TO_ENUM(v)))
 
 void newline() {  // DO NOT MOVE -- USED TO DEFINE is_proc()
     printf("\n");
@@ -301,15 +313,17 @@ int_t get_code(int_t val) {
     int_t code = UNDEF;  // polymorphic dispatch procedure
     if (IS_PROC(val)) {
         code = val;
-    } else if (IS_PAIR(val)) {
-        code = MK_PROC(Pair);
-    } else if (IS_SYM(val)) {
-        code = MK_PROC(Symbol);
-    } else if (IS_NUM(val)) {
-        code = MK_PROC(Fixnum);
     } else if (IS_ACTOR(val)) {
         cell_t *p = TO_PTR(val);
         code = p->head;
+    } else if (IS_PAIR(val)) {
+        code = MK_PROC(Pair);
+    } else if (IS_NUM(val)) {
+        code = MK_PROC(Fixnum);
+    } else if (IS_SYM(val)) {
+        code = MK_PROC(Symbol);
+    } else {
+        code = error("undefined dispatch procedure");
     }
     return code;
 }
@@ -494,7 +508,7 @@ char intern[INTERN_MAX] = {
 };
 
 int is_symbol(int_t val) {
-    return IS_SYM(val) && (NAT(TO_PTR(val) - PTR(intern)) < sizeof(intern));
+    return IS_SYM(val) && (NAT(PTR(&intern[TO_ENUM(val)]) - PTR(intern)) < sizeof(intern));
 }
 
 int_t symbol(char *s) {
@@ -2599,7 +2613,7 @@ void print(int_t value) {
     } else if (IS_NUM(value)) {
         printf("%+"PRIdPTR"", TO_INT(value));
     } else if (IS_SYM(value)) {
-        char *s = &intern[TO_NAT(value)];
+        char *s = &intern[TO_ENUM(value)];
         printf("%.*s", (int)(*s), (s + 1));
     } else if (value == UNDEF) {
         printf("#undefined");
@@ -2655,7 +2669,7 @@ void debug_print(char *label, int_t value) {
     if (IS_NUM(value)) fprintf(stderr, " NUM");
     if (IS_PAIR(value)) fprintf(stderr, " PAIR");
     if (IS_SYM(value)) {
-        nat_t n = TO_NAT(value);
+        nat_t n = NAT(TO_ENUM(value));
         fprintf(stderr, " SYM[%"PRIuPTR"]", n);
     }
     if (IS_ACTOR(value)) fprintf(stderr, " ACTOR");
