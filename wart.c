@@ -1920,6 +1920,7 @@ PROC_DECL(Null) {
         return OK;
     }
     if (req == s_fold) {  // (cust 'fold zero oplus . req)
+        // WARNING! this behavior is also inlined in Pair_k_fold
         POP_ARG(zero);
         //POP_ARG(oplus);
         //TAIL_ARG(req);
@@ -1960,7 +1961,12 @@ static PROC_DECL(Pair_k_fold) {
     proc_t proc = TO_PROC(oplus);
     zero = (*proc)(zero, one);  // update accumulator
     DEBUG(debug_print("Pair_k_fold accum", zero));
-    SEND(tail, cons(cust, cons(s_fold, cons(zero, cons(oplus, req)))));
+    if (tail == NIL) {
+        // inlined behavior from Null...
+        SEND(cust, zero);
+    } else {
+        SEND(tail, cons(cust, cons(s_fold, cons(zero, cons(oplus, req)))));
+    }
     return OK;
 }
 static PROC_DECL(Pair_k_apply) {
@@ -1974,6 +1980,17 @@ static PROC_DECL(Pair_k_apply) {
     XDEBUG(debug_print("Pair_k_apply args", args));
     TAIL_ARG(oper);
     SEND(oper, list_4(cust, s_apply, opnd, env));
+    return OK;
+}
+static PROC_DECL(Pair_k_eval_tail) {
+    XDEBUG(debug_print("Pair_k_eval_tail self", self));
+    GET_VARS();  // cust
+    XDEBUG(debug_print("Pair_k_eval_tail vars", vars));
+    TAIL_VAR(cust);
+    GET_ARGS();  // head
+    XDEBUG(debug_print("Pair_k_eval_tail args", args));
+    TAIL_ARG(head);
+    SEND(cust, cons(head, NIL));
     return OK;
 }
 PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
@@ -1992,9 +2009,15 @@ PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
     }
     if (req == s_map) {  // (cust 'map . h_req)
         TAIL_ARG(h_req);
-        int_t t_req = cdr(arg);  // re-use original arg
-        int_t fork = CREATE(MK_PROC(fork_beh), cons(cust, self));
-        SEND(fork, cons(h_req, t_req));
+        if ((cdr(self) == NIL) && (car(h_req) == s_eval)) {
+            // optimization to eval NIL tail
+            int_t k_eval_tail = CREATE(MK_PROC(Pair_k_eval_tail), cust);
+            SEND(car(self), cons(k_eval_tail, h_req));
+        } else {
+            int_t t_req = cdr(arg);  // re-use original arg
+            int_t fork = CREATE(MK_PROC(fork_beh), cons(cust, self));
+            SEND(fork, cons(h_req, t_req));
+        }
         return OK;
     }
     if (req == s_fold) {  // (cust 'fold zero oplus . req)
