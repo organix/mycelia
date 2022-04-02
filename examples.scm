@@ -60,6 +60,20 @@
       (list x (dq-norm p q)))))
 
 ;
+; a stateful counting procedure
+;
+(provide (counter)
+  (define env (current-env))
+  (define count 0)
+  (define counter
+    (lambda ()
+      (eval
+        '(seq
+          (define count (+ count 1))
+          count)
+        env))))
+
+;
 ; scoping test case
 ;
 
