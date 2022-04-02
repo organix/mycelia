@@ -19,7 +19,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define WARN(x)     x   // include/exclude warning instrumentation
 #define DEBUG(x)        // include/exclude debug instrumentation
 #define XDEBUG(x)       // include/exclude extra debugging
-#define ATRACE(x)       // include/exclude meta-actor tracing
+#define ATRACE(x)   x   // include/exclude meta-actor tracing
 
 #define NO_CELL_FREE  0 // never release allocated cells
 #define GC_CALL_DEPTH 0 // count recursion depth during garbage collection
@@ -2399,9 +2399,6 @@ PROC_DECL(Actor) {
         SEND(self, arg);  // re-queue current message (serializer)
         return OK;
     }
-    // actor is ready to handle an event
-    cell_t *p = TO_PTR(self);
-    p->tail = UNDEF;  // begin event transaction
     GET_ARGS();
     ATRACE(debug_print("Actor args", args));
     POP_ARG(cust);
@@ -2412,6 +2409,8 @@ PROC_DECL(Actor) {
         END_ARGS();
         int_t k_done = CREATE(MK_PROC(Actor_k_done), list_3(cust, self, beh));
         SEND(beh, list_4(k_done, s_apply, cons(self, opnd), env));
+        cell_t *p = TO_PTR(self);
+        p->tail = UNDEF;  // begin event transaction
         return OK;
     }
     return SeType(self, arg);  // delegate to SeType
