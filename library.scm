@@ -4,9 +4,6 @@
 
 ;(define integer? number?)  ; integers are currently the only number type implemented
 
-(define current-env (macro _ env env))
-(define qlist (macro x _ (list quote x)))
-
 (define cond
   (macro clauses _
     (if (null? clauses)
@@ -22,6 +19,7 @@
       (list* lambda (map car bindings) body)
       (map cadr bindings))))
 
+;(define append (lambda (x y) (if (null? x) y (cons (car x) (append (cdr x) y)))))  ; two lists only
 (define append
   (lambda x
     (if (pair? x)
@@ -60,6 +58,12 @@
         (binop first (foldr rest binop zero))
       ) args)) ))
 
+;(define reverse (lambda (xs) (if (pair? xs) (append (reverse (cdr xs)) (list (car xs))) xs)))  ; O(n^2) algorithm
+(define reverse
+  (lambda (xs)
+    (define rcons (lambda (x y) (cons y x)))
+    (foldl xs rcons ())))
+
 (define provide
   (macro (symbols . body) _
     (list define symbols
@@ -71,3 +75,12 @@
 (define newline
   (lambda ()
     (emit 10)))
+
+; Little Schemer (4th edition)
+(define atom? (lambda (x) (and (not (pair? x)) (not (null? x)))))
+(define add1 (lambda (x) (+ x 1)))
+(define sub1 (lambda (x) (- x 1)))
+
+; Handy Macros
+(define current-env (macro _ env env))
+(define qlist (macro x _ (list quote x)))

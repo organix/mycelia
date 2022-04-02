@@ -3227,6 +3227,11 @@ int_t test_eval() {
     );
 
     eval_test_cstr(
+        "(eq? () '() (quote ()))",
+        "#t"
+    );
+
+    eval_test_cstr(
         "(equal? '(1 2) (list 1 2) (cons 1 (cons 2 '())))",
         "#t"
     );

@@ -49,11 +49,11 @@ Several procedures are pre-defined in the ground environment.
   * `(eq? . `_objects_`)`
   * `(equal? . `_objects_`)`
   * `(seq . `_objects_`)`
-  * `(lambda `_pattern_` . `_objects_`)`
+  * `(lambda `_pattern_` . `_body_`)`
   * `(eval `_expression_` [`_environment_`])`
   * `(apply `_oper_` `_args_` [`_environment_`])`
   * `(map `_oper_` . `_lists_`)`
-  * `(macro `_pattern_` `_evar_` . `_objects_`)`
+  * `(macro `_pattern_` `_evar_` . `_body_`)`
   * `(define `_pattern_` `_expression_`)`
   * `(boolean? . `_objects_`)`
   * `(null? . `_objects_`)`
@@ -72,7 +72,7 @@ Several procedures are pre-defined in the ground environment.
   * `(emit . `_codepoints_`)`
   * `(debug-print `_object_`)`
 
-### Standard Library
+### Built-In Library
 
   * `(cadr `_list_`)`
   * `(caddr `_list_`)`
@@ -83,7 +83,23 @@ Several procedures are pre-defined in the ground environment.
   * `(length `_list_`)`
   * `(list* . `_objects_`)`
   * `(par . `_objects_`)`
+
+### Extended Library (library.scm)
+
+  * `(cond . `_clauses_`)`
+  * `(let `_bindings_` . `_body_`)`
+  * `(append . `_lists_`)`
+  * `(reduce `_args_` `_binop_` `_zero_`)`
+  * `(foldl `_args_` `_binop_` `_zero_`)`
+  * `(foldr `_args_` `_binop_` `_zero_`)`
+  * `(reverse `_list_`)`
+  * `(provide `_symbols_` . `_body_`)`
   * `(newline)`
+  * `(atom? `_object_`)`
+  * `(add1 `_number_`)`
+  * `(sub1 `_number_`)`
+  * `(current-env)`
+  * `(qlist . `_parameters_`)`
 
 ### Meta-Actor Facilities
 
@@ -94,7 +110,7 @@ Several procedures are pre-defined in the ground environment.
   * `(FAIL `_reason_`)`
   * `SELF`
 
-### Meta-Actor Library
+### Meta-Actor Library (actor.scm)
 
   * `sink-beh`
   * `a-sink`

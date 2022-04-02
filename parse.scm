@@ -34,7 +34,9 @@
             (list #f in)))))))
 (define peg-range
   (lambda (lo hi)
-    (peg-if (lambda (token) (<= lo token hi)))))
+    (peg-if
+      (lambda (token)
+        (<= lo token hi)))))
 (define peg-or
   (lambda (left right)
     (lambda (in)
