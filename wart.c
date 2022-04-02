@@ -19,7 +19,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define WARN(x)     x   // include/exclude warning instrumentation
 #define DEBUG(x)        // include/exclude debug instrumentation
 #define XDEBUG(x)       // include/exclude extra debugging
-#define ATRACE(x)   x   // include/exclude meta-actor tracing
+#define ATRACE(x)       // include/exclude meta-actor tracing
 
 #define NO_CELL_FREE  0 // never release allocated cells
 #define GC_CALL_DEPTH 0 // count recursion depth during garbage collection
@@ -1814,7 +1814,20 @@ PROC_DECL(Boolean) {
     XDEBUG(debug_print("Boolean args", args));
     return SeType(self, arg);  // delegate to SeType
 }
-const cell_t oper_booleanp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Boolean) };
+static PROC_DECL(prim_booleanp) {  // (boolean? . objects)
+    int_t opnd = self;
+    //int_t env = arg;
+    while (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if ((x != FALSE) && (x != TRUE)) return FALSE;
+        opnd = cdr(opnd);
+    }
+    if (opnd != NIL) {
+        return error("proper list required");
+    }
+    return TRUE;
+}
+const cell_t oper_booleanp = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_booleanp) };
 const cell_t a_booleanp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_booleanp) };
 
 static PROC_DECL(And_k_rest) {
@@ -1915,7 +1928,20 @@ PROC_DECL(Null) {
     }
     return SeType(self, arg);  // delegate to SeType
 }
-const cell_t oper_nullp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Null) };
+static PROC_DECL(prim_nullp) {  // (null? . objects)
+    int_t opnd = self;
+    //int_t env = arg;
+    while (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (x != NIL) return FALSE;
+        opnd = cdr(opnd);
+    }
+    if (opnd != NIL) {
+        return error("proper list required");
+    }
+    return TRUE;
+}
+const cell_t oper_nullp = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_nullp) };
 const cell_t a_nullp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_nullp) };
 
 static PROC_DECL(Pair_k_fold) {
@@ -1985,7 +2011,20 @@ PROC_DECL(Pair) {  // WARNING: behavior used directly in obj_call()
     }
     return Type(self, arg);  // delegate to Type (not self-evaluating)
 }
-const cell_t oper_pairp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Pair) };
+static PROC_DECL(prim_pairp) {  // (pair? . objects)
+    int_t opnd = self;
+    //int_t env = arg;
+    while (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (!IS_PAIR(x)) return FALSE;
+        opnd = cdr(opnd);
+    }
+    if (opnd != NIL) {
+        return error("proper list required");
+    }
+    return TRUE;
+}
+const cell_t oper_pairp = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_pairp) };
 const cell_t a_pairp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_pairp) };
 
 PROC_DECL(Symbol) {  // WARNING: behavior used directly in obj_call()
@@ -2002,8 +2041,27 @@ PROC_DECL(Symbol) {  // WARNING: behavior used directly in obj_call()
     }
     return Type(self, arg);  // delegate to Type (not self-evaluating)
 }
+#if 0
 const cell_t oper_symbolp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Symbol) };
 const cell_t a_symbolp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_symbolp) };
+#else
+static PROC_DECL(prim_symbolp) {  // (symbol? . objects)
+    int_t opnd = self;
+    //int_t env = arg;
+    while (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        //if (get_code(x) != MK_PROC(Symbol)) return FALSE;
+        if (!IS_SYM(x)) return FALSE;
+        opnd = cdr(opnd);
+    }
+    if (opnd != NIL) {
+        return error("proper list required");
+    }
+    return TRUE;
+}
+const cell_t oper_symbolp = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_symbolp) };
+const cell_t a_symbolp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_symbolp) };
+#endif
 
 PROC_DECL(Fixnum) {  // WARNING: behavior used directly in obj_call()
     XDEBUG(debug_print("Fixnum self", self));
@@ -2011,7 +2069,20 @@ PROC_DECL(Fixnum) {  // WARNING: behavior used directly in obj_call()
     XDEBUG(debug_print("Fixnum args", args));
     return SeType(self, arg);  // delegate to SeType
 }
-const cell_t oper_numberp = { .head = MK_PROC(Oper_typep), .tail = MK_PROC(Fixnum) };
+static PROC_DECL(prim_numberp) {  // (number? . objects)
+    int_t opnd = self;
+    //int_t env = arg;
+    while (IS_PAIR(opnd)) {
+        int_t x = car(opnd);
+        if (!IS_NUM(x)) return FALSE;
+        opnd = cdr(opnd);
+    }
+    if (opnd != NIL) {
+        return error("proper list required");
+    }
+    return TRUE;
+}
+const cell_t oper_numberp = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_numberp) };
 const cell_t a_numberp = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_numberp) };
 static PROC_DECL(prim_add) {  // (+ . numbers)
     int_t n = 0;

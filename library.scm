@@ -2,7 +2,7 @@
 ;; library.scm (extended library definitions)
 ;;
 
-;(define integer? number?)  ; integers are currently the only number type implemented
+(define integer? number?)  ; integers are currently the only number type implemented
 
 (define cond
   (macro clauses _
