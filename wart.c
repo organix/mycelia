@@ -3338,9 +3338,11 @@ PROC_DECL(peg_start_beh) {
 
 int_t test_parsing() {
     WARN(fprintf(stderr, "--test_parsing--\n"));
+    //char nstr_buf[] = { 0 };  // ""
     //char nstr_buf[] = { 1, 48 };  // "0"
     //char nstr_buf[] = { 2, 48, 49 };  // "01"
-    char nstr_buf[] = { 3, 48, 49, 10 };  // "01\n"
+    //char nstr_buf[] = { 3, 48, 49, 10 };  // "01\n"
+    char nstr_buf[] = { 4, 48, 49, 48, 10 };  // "010\n"
     nstr_in_t str_in;
     int_t src;
     int_t ptrn;
@@ -3381,6 +3383,35 @@ int_t test_parsing() {
     //ptrn = CREATE(MK_PROC(&peg_and_beh), cons(ptrn_0, ptrn_0));
     //ptrn = CREATE(MK_PROC(&peg_and_beh), cons(ptrn_0, MK_ACTOR(&peg_empty)));
     start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
+    SEND(src, start);
+    event_loop();
+
+/*
+LET star_grammar_beh(grammar) = λmsg.[ # star ::= <grammar> <star> | <empty>;
+    BECOME alt_grammar_beh(
+        NEW seq_grammar_beh(grammar, SELF),
+        empty_grammar
+    )
+    SEND msg TO SELF
+]
+LET plus_grammar_beh(grammar) = λmsg.[ # plus ::= <grammar> <grammar>*;
+    BECOME seq_grammar_beh(
+        grammar,
+        NEW star_grammar_beh(grammar)
+    )
+    SEND msg TO SELF
+]
+*/
+    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
+    src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
+    ptrn_0 = CREATE(MK_PROC(&peg_eq_beh), MK_NUM(48));
+    ptrn_1 = CREATE(MK_PROC(&peg_eq_beh), MK_NUM(49));
+    ptrn = CREATE(MK_PROC(&peg_or_beh), cons(ptrn_0, ptrn_1));
+    int_t loop = cons(ptrn, UNDEF);
+    ptrn_0 = CREATE(MK_PROC(&peg_and_beh), loop);
+    ptrn_1 = CREATE(MK_PROC(&peg_or_beh), cons(ptrn_0, MK_ACTOR(&peg_empty)));
+    set_cdr(loop, ptrn_1);
+    start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn_1));
     SEND(src, start);
     event_loop();
 
