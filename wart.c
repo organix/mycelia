@@ -20,6 +20,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define DEBUG(x)        // include/exclude debug instrumentation
 #define XDEBUG(x)       // include/exclude extra debugging
 #define ATRACE(x)       // include/exclude meta-actor tracing
+#define PTRACE(x)       // include/exclude PEG-actor tracing
 
 #define NO_CELL_FREE  0 // never release allocated cells
 #define GC_CALL_DEPTH 0 // count recursion depth during garbage collection
@@ -28,6 +29,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define MULTIPHASE_GC 0 // perform gc mark and sweep separately
 #define TIME_DISPATCH 1 // measure execution time for message dispatch
 #define META_ACTORS   1 // include meta-actors facilities
+#define PEG_ACTORS    1 // include PEG parsing facilities
 
 #ifndef __SIZEOF_POINTER__
 #error "need __SIZEOF_POINTER__ for hexdump()"
@@ -2586,6 +2588,100 @@ const cell_t oper_FAIL = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_FAIL
 const cell_t a_FAIL = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_FAIL) };
 #endif // META_ACTORS
 
+#if PEG_ACTORS
+PROC_DECL(peg_empty_beh) {
+    PTRACE(debug_print("peg_empty_beh self", self));
+    GET_ARGS();  // (custs value . in) = ((ok . fail) value . (token . next))
+    PTRACE(debug_print("peg_empty_beh args", args));
+    POP_ARG(custs);  // (ok . fail)
+    int_t resume = args;  // (value . in)
+    //POP_ARG(value);
+    //TAIL_ARG(in);  // (token . next) -or- NIL
+    int_t ok = car(custs);
+    //int_t fail = cdr(custs);
+    SEND(ok, resume);
+    return OK;
+}
+const cell_t peg_empty = { .head = MK_PROC(peg_empty_beh), .tail = TRUE };
+
+PROC_DECL(peg_fail_beh) {
+    PTRACE(debug_print("peg_fail_beh self", self));
+    GET_ARGS();  // (custs value . in) = ((ok . fail) value . (token . next))
+    PTRACE(debug_print("peg_fail_beh args", args));
+    POP_ARG(custs);  // (ok . fail)
+    int_t resume = args;  // (value . in)
+    //POP_ARG(value);
+    //TAIL_ARG(in);  // (token . next) -or- NIL
+    //int_t ok = car(custs);
+    int_t fail = cdr(custs);
+    SEND(fail, resume);
+    return OK;
+}
+const cell_t peg_fail = { .head = MK_PROC(peg_fail_beh), .tail = FALSE };
+
+static PROC_DECL(peg_k_next) {
+    PTRACE(debug_print("peg_k_next self", self));
+    GET_VARS();  // (cust . value)
+    PTRACE(debug_print("peg_k_next vars", vars));
+    POP_VAR(cust);
+    TAIL_VAR(value);
+    GET_ARGS();  // in = (token . next) -or- NIL
+    TAIL_ARG(in);
+    PTRACE(debug_print("peg_k_next args", args));
+    SEND(cust, cons(value, in));
+    return OK;
+}
+PROC_DECL(peg_any_beh) {
+    PTRACE(debug_print("peg_any_beh self", self));
+    GET_ARGS();  // (custs value . in) = ((ok . fail) value . (token . next))
+    PTRACE(debug_print("peg_any_beh args", args));
+    POP_ARG(custs);  // (ok . fail)
+    int_t resume = args;  // (value . in)
+    POP_ARG(_value);
+    TAIL_ARG(in);  // (token . next) -or- NIL
+    int_t ok = car(custs);
+    int_t fail = cdr(custs);
+    if (in == NIL) {
+        SEND(fail, resume);  // fail
+    } else {
+        int_t token = car(in);
+        int_t next = cdr(in);
+        int_t k_next = CREATE(MK_PROC(peg_k_next), cons(ok, token));
+        SEND(next, k_next);  // advance
+    }
+    return OK;
+}
+const cell_t peg_any = { .head = MK_PROC(peg_any_beh), .tail = UNIT };
+
+PROC_DECL(peg_eq_beh) {
+    PTRACE(debug_print("peg_eq_beh self", self));
+    GET_VARS();  // match
+    PTRACE(debug_print("peg_eq_beh vars", vars));
+    TAIL_VAR(match);
+    GET_ARGS();  // (custs value . in) = ((ok . fail) value . (token . next))
+    PTRACE(debug_print("peg_eq_beh args", args));
+    POP_ARG(custs);  // (ok . fail)
+    int_t resume = args;  // (value . in)
+    POP_ARG(_value);
+    TAIL_ARG(in);  // (token . next) -or- NIL
+    int_t ok = car(custs);
+    int_t fail = cdr(custs);
+    if (in != NIL) {
+        int_t token = car(in);
+        int_t next = cdr(in);
+        if (equal(token, match)) {
+            int_t k_next = CREATE(MK_PROC(peg_k_next), cons(ok, token));
+            SEND(next, k_next);  // advance
+            return OK;
+        }
+    }
+    SEND(fail, resume);  // fail
+    return OK;
+}
+const cell_t peg_eq = { .head = MK_PROC(peg_eq_beh), .tail = UNIT };
+
+#endif // PEG_ACTORS
+
 PROC_DECL(Global) {
     XDEBUG(debug_print("Global self", self));
     GET_ARGS();
@@ -3095,6 +3191,90 @@ int_t load_file(input_t *in) {
     return OK;
 }
 
+#if PEG_ACTORS
+PROC_DECL(input_resolved_beh) {
+    PTRACE(debug_print("input_resolved_beh self", self));
+    GET_VARS();  // (token . next) -or- NIL
+    PTRACE(debug_print("input_resolved_beh vars", vars));
+    TAIL_VAR(in);
+    GET_ARGS();  // cust
+    PTRACE(debug_print("input_resolved_beh args", args));
+    TAIL_ARG(cust);
+    SEND(cust, in);
+    return OK;
+}
+PROC_DECL(input_promise_beh) {
+    PTRACE(debug_print("input_promise_beh self", self));
+    GET_VARS();  // input
+    PTRACE(debug_print("input_promise_beh vars", vars));
+    TAIL_VAR(input);
+    GET_ARGS();  // cust
+    PTRACE(debug_print("input_promise_beh args", args));
+    TAIL_ARG(cust);
+    input_t *in = TO_PTR(input);
+    i32 ch = (in->get)(in);  // read
+    if (ch < 0) {
+        BECOME(MK_PROC(&input_resolved_beh), NIL);
+    } else {
+        (in->next)(in, 1);  // advance
+        int_t next = CREATE(MK_PROC(&input_promise_beh), input);
+        BECOME(MK_PROC(&input_resolved_beh), cons(MK_NUM(ch), next));
+    }
+    SEND(self, arg);  // re-send original request to resolved promise
+    return OK;
+}
+
+PROC_DECL(peg_result_beh) {
+    XDEBUG(debug_print("peg_result_beh self", self));
+    GET_VARS();  // label
+    XDEBUG(debug_print("peg_result_beh vars", vars));
+    TAIL_VAR(label);
+    GET_ARGS();  // result
+    XDEBUG(debug_print("peg_result_beh args", args));
+    TAIL_ARG(result);
+    print(label);
+    fflush(stdout);
+    debug_print("", result);
+    return OK;
+}
+
+PROC_DECL(peg_start_beh) {
+    PTRACE(debug_print("peg_start_beh self", self));
+    GET_VARS();  // ((ok . fail) . ptrn)
+    PTRACE(debug_print("peg_start_beh vars", vars));
+    POP_VAR(custs);
+    TAIL_VAR(ptrn);
+    GET_ARGS();  // (token . next) -or- NIL
+    PTRACE(debug_print("peg_start_beh args", args));
+    TAIL_ARG(in);
+    SEND(ptrn, cons(custs, cons(UNDEF, in)));
+    return OK;
+}
+
+int_t test_parsing() {
+    WARN(fprintf(stderr, "--test_parsing--\n"));
+    //char nstr_buf[] = { 1, 48 };  // "0"
+    char nstr_buf[] = { 2, 48, 49 };  // "01"
+    nstr_in_t str_in;
+
+    int_t ok = CREATE(MK_PROC(&peg_result_beh), symbol("ok"));
+    int_t fail = CREATE(MK_PROC(&peg_result_beh), symbol("fail"));
+
+    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
+    int_t src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
+    //int_t ptrn = MK_ACTOR(&peg_empty);
+    //int_t ptrn = MK_ACTOR(&peg_fail);
+    //int_t ptrn = MK_ACTOR(&peg_any);
+    int_t ptrn = CREATE(MK_PROC(&peg_eq_beh), MK_NUM(48));
+    //int_t ptrn = CREATE(MK_PROC(&peg_eq_beh), MK_NUM(49));
+    int_t start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
+    SEND(src, start);
+    event_loop();
+
+    return OK;
+}
+#endif // PEG_ACTORS
+
 /*
  * unit tests
  */
@@ -3405,6 +3585,9 @@ int_t unit_tests() {
     ASSERT(test_cells() == OK);
     ASSERT(test_actors() == OK);
     ASSERT(test_eval() == OK);
+#if PEG_ACTORS
+    ASSERT(test_parsing() == OK);
+#endif // PEG_ACTORS
     return OK;
 }
 
@@ -3472,7 +3655,7 @@ int main(int argc, char const *argv[])
 
     // run unit tests
     ASSERT(unit_tests() == OK);
-
+#if 0
     // load internal library
     ASSERT(load_library() == OK);
 
@@ -3498,6 +3681,7 @@ int main(int argc, char const *argv[])
     int_t result = read_eval_print_loop(&std_in.input);
 
     return (result == OK ? 0 : 1);
+#endif
 }
 
 int is_proc(int_t val) {
