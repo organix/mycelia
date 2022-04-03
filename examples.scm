@@ -107,11 +107,11 @@
 
 (define sexpr-grammar '(
   (sexpr
-    (and _ (or list atom)))
+    (seq _ (alt list atom)))
   (list
     (seq (eq 40) (star sexpr) _ (eq 41)))
   (atom
-    (or number symbol))
+    (alt number symbol))
   (number
     (plus (range 48 57)))  ; digit
   (symbol
