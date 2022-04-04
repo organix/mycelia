@@ -2589,6 +2589,7 @@ const cell_t a_FAIL = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_FAIL) };
 #endif // META_ACTORS
 
 #if PEG_ACTORS
+
 PROC_DECL(peg_empty_beh) {
     PTRACE(debug_print("peg_empty_beh self", self));
     GET_ARGS();  // (custs value . in) = ((ok . fail) value . (token . next))
@@ -2672,6 +2673,83 @@ PROC_DECL(peg_eq_beh) {
             int_t k_next = CREATE(MK_PROC(peg_k_next), cons(ok, token));
             SEND(next, k_next);  // advance
             return OK;
+        }
+    }
+    SEND(fail, resume);  // fail
+    return OK;
+}
+
+// character classes
+#define CTL (1<<0)  /* control */
+#define DGT (1<<1)  /* digit */
+#define UPR (1<<2)  /* uppercase */
+#define LWR (1<<3)  /* lowercase */
+#define DLM (1<<4)  /* "'(),;[]`{|} */
+#define PCT (1<<5)  /* punctuation (non-DLM) */
+#define HEX (1<<6)  /* hexadecimal */
+#define WSP (1<<7)  /* whitespace */
+
+static char char_class[128] = {
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*0_*/  CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*0_*/  CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*1_*/  CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*1_*/  CTL,     CTL|WSP, CTL|WSP, CTL|WSP, CTL|WSP, CTL|WSP, CTL,     CTL,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*2_*/  WSP,     PCT,     DLM,     PCT,     PCT,     PCT,     PCT,     DLM,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*2_*/  DLM,     DLM,     PCT,     PCT,     DLM,     PCT,     PCT,     PCT,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*3_*/  DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*3_*/  DGT|HEX, DGT|HEX, PCT,     DLM,     PCT,     PCT,     PCT,     PCT,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*4_*/  PCT,     UPR|HEX, UPR|HEX, UPR|HEX, UPR|HEX, UPR|HEX, UPR|HEX, UPR,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*4_*/  UPR,     UPR,     UPR,     UPR,     UPR,     UPR,     UPR,     UPR,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*5_*/  UPR,     UPR,     UPR,     UPR,     UPR,     UPR,     UPR,     UPR,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*5_*/  UPR,     UPR,     UPR,     DLM,     PCT,     DLM,     PCT,     PCT,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*6_*/  DLM,     LWR|HEX, LWR|HEX, LWR|HEX, LWR|HEX, LWR|HEX, LWR|HEX, LWR,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*6_*/  LWR,     LWR,     LWR,     LWR,     LWR,     LWR,     LWR,     LWR,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*7_*/  LWR,     LWR,     LWR,     LWR,     LWR,     LWR,     LWR,     LWR,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*7_*/  LWR,     LWR,     LWR,     DLM,     DLM,     DLM,     PCT,     CTL,
+};
+
+PROC_DECL(peg_class_beh) {
+    PTRACE(debug_print("peg_class_beh self", self));
+    GET_VARS();  // class
+    PTRACE(debug_print("peg_class_beh vars", vars));
+    TAIL_VAR(class);
+    GET_ARGS();  // (custs value . in) = ((ok . fail) value . (token . next))
+    PTRACE(debug_print("peg_class_beh args", args));
+    POP_ARG(custs);  // (ok . fail)
+    int_t resume = args;  // (value . in)
+    POP_ARG(_value);
+    TAIL_ARG(in);  // (token . next) -or- NIL
+    int_t ok = car(custs);
+    int_t fail = cdr(custs);
+    if (in != NIL) {
+        int_t token = car(in);
+        int_t next = cdr(in);
+        if (IS_NUM(token)) {
+            nat_t codepoint = TO_NAT(token);
+            if (codepoint < 0x80) {
+                nat_t mask = TO_NAT(class);
+                if (char_class[codepoint] & mask) {
+                    int_t k_next = CREATE(MK_PROC(peg_k_next), cons(ok, token));
+                    SEND(next, k_next);  // advance
+                    return OK;
+                }
+            }
         }
     }
     SEND(fail, resume);  // fail
@@ -3625,10 +3703,7 @@ int_t test_parsing() {
 
     ASSERT(nstr_init(&str_in, nstr_buf) == 0);
     src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
-    ptrn_0 = CREATE(MK_PROC(&peg_in_set_beh), cons(  // could also be list_2()
-        cons(MK_NUM(48), MK_NUM(57)),   // [0-9]
-        MK_NUM(45)                      // [-]
-    ));
+    ptrn_0 = CREATE(MK_PROC(&peg_in_set_beh), list_1(cons(MK_NUM(48), MK_NUM(57))));  // [0-9]
     ptrn_1 = CREATE(MK_PROC(&peg_eq_beh), MK_NUM(10));
     ptrn_1 = CREATE(MK_PROC(&peg_not_beh), ptrn_1);
     ptrn_1 = CREATE(MK_PROC(&peg_and_beh), cons(ptrn_0, ptrn_1));
@@ -3651,7 +3726,7 @@ int_t test_parsing() {
     src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
     ptrn_0 = CREATE(MK_PROC(&peg_in_set_beh), cons(MK_NUM(43), MK_NUM(45)));  // [+-]
     ptrn_0 = CREATE(MK_PROC(&peg_opt_beh), ptrn_0);
-    ptrn_1 = CREATE(MK_PROC(&peg_in_set_beh), list_1(cons(MK_NUM(48), MK_NUM(57))));  // [0-9]
+    ptrn_1 = CREATE(MK_PROC(&peg_class_beh), MK_NUM(DGT));  // digit
     ptrn_1 = CREATE(MK_PROC(&peg_plus_beh), ptrn_1);
     ptrn = CREATE(MK_PROC(&peg_in_set_beh), list_2(cons(MK_NUM(9), MK_NUM(13)), MK_NUM(32)));  // [\t-\r ]
     ptrn = CREATE(MK_PROC(&peg_star_beh), ptrn);

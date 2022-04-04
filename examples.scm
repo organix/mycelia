@@ -128,6 +128,38 @@
 ; _      = [ \t-\r]*
 ;
 
+(define delim-chars '(
+  34          ; "
+  39          ; '
+  40          ; (
+  41          ; )
+  44          ; ,
+  59          ; ;
+  91          ; [
+  93          ; ]
+  96          ; `
+  123         ; {
+  124         ; |
+  125         ; }
+  ))
+(define ident-chars '(
+  33          ; !
+  (35 . 38)   ; #$%&
+  42          ; *
+  43          ; +
+  45          ; -
+  46          ; .
+  47          ; /
+  (48 . 58)   ; 0123456789
+  58          ; :
+  (60 . 64)   ; <=>?@
+  (65 . 90)   ; ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  92          ; \
+  94          ; ^
+  95          ; _
+  (97 . 122)  ; abcdefghijklmnopqrstuvwxyz
+  126         ; ~
+  ))
 (define sexpr-grammar '(
   (sexpr
     (seq _ (alt list atom)))
@@ -138,14 +170,9 @@
   (number
     (plus (range 48 57)))  ; digit
   (symbol
-    ;(plus (if ident-char?)))  ; not whitespace or ();'"`,[]{}|
-    (plus (alt
-      (range 97 122)  ; lowercase
-      (range 65 90)   ; uppercase
-      (range 48 57)   ; digit
-    )))
+    (plus (class DGT LWR UPR PCT)))  ; excludes DLM "'(),;[]`{|}
   (_
-    (star (range 0 32)))  ; whitespace
+    (star (class WSP)))  ; whitespace
 ))
 
 ; test-case "(CAR ( LIST 0 1)\t)"
