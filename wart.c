@@ -2601,7 +2601,7 @@ PROC_DECL(peg_empty_beh) {
     SEND(ok, cons(NIL, in));
     return OK;
 }
-const cell_t peg_empty = { .head = MK_PROC(peg_empty_beh), .tail = TRUE };
+const cell_t peg_empty = { .head = MK_PROC(peg_empty_beh), .tail = NIL };
 
 PROC_DECL(peg_fail_beh) {
     PTRACE(debug_print("peg_fail_beh self", self));
@@ -2616,7 +2616,7 @@ PROC_DECL(peg_fail_beh) {
     SEND(fail, resume);
     return OK;
 }
-const cell_t peg_fail = { .head = MK_PROC(peg_fail_beh), .tail = FALSE };
+const cell_t peg_fail = { .head = MK_PROC(peg_fail_beh), .tail = UNDEF };
 
 static PROC_DECL(peg_k_next) {
     PTRACE(debug_print("peg_k_next self", self));
@@ -2762,6 +2762,82 @@ PROC_DECL(peg_and_beh) {
     int_t and_fail = CREATE(MK_PROC(peg_and_fail_beh), cons(fail, resume));
     int_t and_ok = CREATE(MK_PROC(peg_and_ok_beh), cons(rest, cons(ok, and_fail)));
     SEND(first, cons(cons(and_ok, fail), resume));
+    return OK;
+}
+
+PROC_DECL(peg_alt_beh) {
+    PTRACE(debug_print("peg_alt_beh self", self));
+    GET_VARS();  // ptrns
+    PTRACE(debug_print("peg_alt_beh vars", vars));
+    TAIL_VAR(ptrns);
+    if (IS_PAIR(ptrns)) {
+        int_t head = car(ptrns);
+        int_t tail = cdr(ptrns);
+        int_t rest = (IS_PAIR(tail)
+            ? CREATE(MK_PROC(peg_alt_beh), tail)
+            : MK_ACTOR(&peg_fail));
+        BECOME(MK_PROC(peg_or_beh), cons(head, rest));
+    } else if (ptrns == NIL) {
+        BECOME(MK_PROC(peg_fail_beh), UNDEF);
+    } else {
+        return error("proper list required");
+    }
+    SEND(self, arg);  // re-send original message
+    return OK;
+}
+
+PROC_DECL(peg_seq_beh) {
+    PTRACE(debug_print("peg_seq_beh self", self));
+    GET_VARS();  // ptrns
+    PTRACE(debug_print("peg_seq_beh vars", vars));
+    TAIL_VAR(ptrns);
+    if (IS_PAIR(ptrns)) {
+        int_t head = car(ptrns);
+        int_t tail = cdr(ptrns);
+        int_t rest = (IS_PAIR(tail)
+            ? CREATE(MK_PROC(peg_seq_beh), tail)
+            : MK_ACTOR(&peg_empty));
+        BECOME(MK_PROC(peg_and_beh), cons(head, rest));
+    } else if (ptrns == NIL) {
+        BECOME(MK_PROC(peg_empty_beh), UNDEF);
+    } else {
+        return error("proper list required");
+    }
+    SEND(self, arg);  // re-send original message
+    return OK;
+}
+
+PROC_DECL(peg_opt_beh) {
+    PTRACE(debug_print("peg_opt_beh self", self));
+    GET_VARS();  // ptrn
+    PTRACE(debug_print("peg_opt_beh vars", vars));
+    TAIL_VAR(ptrn);
+    // Note: we want either a single-element list or an empty list
+    ptrn = CREATE(MK_PROC(peg_and_beh), cons(ptrn, MK_ACTOR(&peg_empty)));
+    BECOME(MK_PROC(peg_or_beh), cons(ptrn, MK_ACTOR(&peg_empty)));
+    SEND(self, arg);  // re-send original message
+    return OK;
+}
+
+PROC_DECL(peg_star_beh) {
+    PTRACE(debug_print("peg_star_beh self", self));
+    GET_VARS();  // ptrn
+    PTRACE(debug_print("peg_star_beh vars", vars));
+    TAIL_VAR(ptrn);
+    ptrn = CREATE(MK_PROC(peg_and_beh), cons(ptrn, self));
+    BECOME(MK_PROC(peg_or_beh), cons(ptrn, MK_ACTOR(&peg_empty)));
+    SEND(self, arg);  // re-send original message
+    return OK;
+}
+
+PROC_DECL(peg_plus_beh) {
+    PTRACE(debug_print("peg_star_beh self", self));
+    GET_VARS();  // ptrn
+    PTRACE(debug_print("peg_star_beh vars", vars));
+    TAIL_VAR(ptrn);
+    int_t reps = CREATE(MK_PROC(peg_star_beh), ptrn);
+    BECOME(MK_PROC(peg_and_beh), cons(ptrn, reps));
+    SEND(self, arg);  // re-send original message
     return OK;
 }
 
@@ -3386,22 +3462,6 @@ int_t test_parsing() {
     SEND(src, start);
     event_loop();
 
-/*
-LET star_grammar_beh(grammar) = λmsg.[ # star ::= <grammar> <star> | <empty>;
-    BECOME alt_grammar_beh(
-        NEW seq_grammar_beh(grammar, SELF),
-        empty_grammar
-    )
-    SEND msg TO SELF
-]
-LET plus_grammar_beh(grammar) = λmsg.[ # plus ::= <grammar> <grammar>*;
-    BECOME seq_grammar_beh(
-        grammar,
-        NEW star_grammar_beh(grammar)
-    )
-    SEND msg TO SELF
-]
-*/
     ASSERT(nstr_init(&str_in, nstr_buf) == 0);
     src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
     ptrn_0 = CREATE(MK_PROC(&peg_eq_beh), MK_NUM(48));
@@ -3412,6 +3472,59 @@ LET plus_grammar_beh(grammar) = λmsg.[ # plus ::= <grammar> <grammar>*;
     ptrn_1 = CREATE(MK_PROC(&peg_or_beh), cons(ptrn_0, MK_ACTOR(&peg_empty)));
     set_cdr(loop, ptrn_1);
     start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn_1));
+    SEND(src, start);
+    event_loop();
+
+    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
+    src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
+    ptrn = CREATE(MK_PROC(&peg_alt_beh), list_5(
+        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(52)),
+        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(51)),
+        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(50)),
+        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(49)),
+        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(48))
+    ));
+    start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
+    SEND(src, start);
+    event_loop();
+
+    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
+    src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
+    ptrn = CREATE(MK_PROC(&peg_seq_beh), list_5(
+        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(48)),
+        CREATE(MK_PROC(&peg_opt_beh),
+            CREATE(MK_PROC(&peg_eq_beh), MK_NUM(49))),
+        CREATE(MK_PROC(&peg_opt_beh),
+            CREATE(MK_PROC(&peg_eq_beh), MK_NUM(49))),
+        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(48)),
+        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(10))
+    ));
+    start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
+    SEND(src, start);
+    event_loop();
+
+    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
+    src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
+    ptrn_0 = CREATE(MK_PROC(&peg_eq_beh), MK_NUM(48));
+    ptrn_1 = CREATE(MK_PROC(&peg_eq_beh), MK_NUM(49));
+    ptrn = CREATE(MK_PROC(&peg_or_beh), cons(ptrn_0, ptrn_1));
+    ptrn = CREATE(MK_PROC(&peg_star_beh), ptrn);
+    ptrn = CREATE(MK_PROC(&peg_seq_beh), list_2(ptrn, ptrn));
+    start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
+    SEND(src, start);
+    event_loop();
+
+    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
+    src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
+    ptrn_0 = CREATE(MK_PROC(&peg_eq_beh), MK_NUM(48));
+    ptrn_0 = CREATE(MK_PROC(&peg_plus_beh), ptrn_0);
+    ptrn_1 = CREATE(MK_PROC(&peg_alt_beh), list_2(
+        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(49)),
+        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(48))
+    ));
+    ptrn_1 = CREATE(MK_PROC(&peg_plus_beh), ptrn_1);
+    ptrn = CREATE(MK_PROC(&peg_seq_beh), list_2(ptrn_0, ptrn_1));
+    start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
     SEND(src, start);
     event_loop();
 
