@@ -2668,7 +2668,64 @@ PROC_DECL(peg_eq_beh) {
     if (in != NIL) {
         int_t token = car(in);
         int_t next = cdr(in);
-        if (equal(token, match)) {
+        if (equal(match, token)) {
+            int_t k_next = CREATE(MK_PROC(peg_k_next), cons(ok, token));
+            SEND(next, k_next);  // advance
+            return OK;
+        }
+    }
+    SEND(fail, resume);  // fail
+    return OK;
+}
+
+static int in_set(int_t set, int_t val) {
+    XDEBUG(debug_print("in_set set", set));
+    XDEBUG(debug_print("in_set val", val));
+    if (!IS_NUM(val)) return 0;  // number token required
+    int_t n = TO_INT(val);
+    while (IS_PAIR(set)) {
+        int_t item = car(set);
+        XDEBUG(debug_print("in_set item", item));
+        if (IS_PAIR(item)) {
+            int_t lo = car(item);
+            if (!IS_NUM(lo)) return 0;  // number pattern required
+            int_t hi = cdr(item);
+            if (!IS_NUM(hi)) return 0;  // number pattern required
+            lo = TO_INT(lo);
+            hi = TO_INT(hi);
+            if ((lo <= n) && (n <= hi)) return 1;  // match!
+        } else {
+            if (!IS_NUM(item)) return 0;  // number pattern required
+            int_t m = TO_INT(item);
+            if (m == n) return 1;  // match!
+        }
+        set = cdr(set);
+    }
+    XDEBUG(debug_print("in_set tail", set));
+    if (set != NIL) {
+        if (!IS_NUM(set)) return 0;  // number pattern required
+        int_t m = TO_INT(set);
+        if (m == n) return 1;  // match!
+    }
+    return 0;  // fail
+}
+PROC_DECL(peg_in_set_beh) {
+    PTRACE(debug_print("peg_in_set_beh self", self));
+    GET_VARS();  // set
+    PTRACE(debug_print("peg_in_set_beh vars", vars));
+    TAIL_VAR(set);
+    GET_ARGS();  // (custs value . in) = ((ok . fail) value . (token . next))
+    PTRACE(debug_print("peg_in_set_beh args", args));
+    POP_ARG(custs);  // (ok . fail)
+    int_t resume = args;  // (value . in)
+    POP_ARG(_value);
+    TAIL_ARG(in);  // (token . next) -or- NIL
+    int_t ok = car(custs);
+    int_t fail = cdr(custs);
+    if (in != NIL) {
+        int_t token = car(in);
+        int_t next = cdr(in);
+        if (in_set(set, token)) {
             int_t k_next = CREATE(MK_PROC(peg_k_next), cons(ok, token));
             SEND(next, k_next);  // advance
             return OK;
@@ -3568,9 +3625,9 @@ int_t test_parsing() {
 
     ASSERT(nstr_init(&str_in, nstr_buf) == 0);
     src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
-    ptrn_0 = CREATE(MK_PROC(&peg_alt_beh), list_2(
-        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(49)),
-        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(48))
+    ptrn_0 = CREATE(MK_PROC(&peg_in_set_beh), cons(  // could also be list_2()
+        cons(MK_NUM(48), MK_NUM(57)),   // [0-9]
+        MK_NUM(45)                      // [-]
     ));
     ptrn_1 = CREATE(MK_PROC(&peg_eq_beh), MK_NUM(10));
     ptrn_1 = CREATE(MK_PROC(&peg_not_beh), ptrn_1);
@@ -3585,6 +3642,21 @@ int_t test_parsing() {
     ptrn_0 = CREATE(MK_PROC(&peg_star_beh), MK_ACTOR(&peg_any));
     ptrn_1 = CREATE(MK_PROC(&peg_peek_beh), MK_ACTOR(&peg_empty));
     ptrn = CREATE(MK_PROC(&peg_seq_beh), list_2(ptrn_0, ptrn_1));
+    start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
+    SEND(src, start);
+    event_loop();
+
+    char nstr_buf2[] = { 12, 48, 9, 45, 49, 50, 13, 32, 43, 51, 54, 57, 10 };  // "0\t-12\r +369\n"
+    ASSERT(nstr_init(&str_in, nstr_buf2) == 0);
+    src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
+    ptrn_0 = CREATE(MK_PROC(&peg_in_set_beh), cons(MK_NUM(43), MK_NUM(45)));  // [+-]
+    ptrn_0 = CREATE(MK_PROC(&peg_opt_beh), ptrn_0);
+    ptrn_1 = CREATE(MK_PROC(&peg_in_set_beh), list_1(cons(MK_NUM(48), MK_NUM(57))));  // [0-9]
+    ptrn_1 = CREATE(MK_PROC(&peg_plus_beh), ptrn_1);
+    ptrn = CREATE(MK_PROC(&peg_in_set_beh), list_2(cons(MK_NUM(9), MK_NUM(13)), MK_NUM(32)));  // [\t-\r ]
+    ptrn = CREATE(MK_PROC(&peg_star_beh), ptrn);
+    ptrn = CREATE(MK_PROC(&peg_seq_beh), list_3(ptrn, ptrn_0, ptrn_1));
+    ptrn = CREATE(MK_PROC(&peg_star_beh), ptrn);  // ([\t-\r ]*[+-]?[0-9]+)*
     start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
     SEND(src, start);
     event_loop();
@@ -3973,7 +4045,7 @@ int main(int argc, char const *argv[])
 
     // run unit tests
     ASSERT(unit_tests() == OK);
-#if 0
+#if 1
     // load internal library
     ASSERT(load_library() == OK);
 

@@ -140,5 +140,5 @@
   (lambda (in)
     ((peg-range 48 57) in)))  ; zero..nine
 
-(define expr (list 49 43 50 42 51 45 57 48))  ; 1 + 2 * 3 - 9 0
+(define expr '(49 43 50 42 51 45 57 48))  ; 1 + 2 * 3 - 9 0
 (seq (print (peg-expr expr)) (newline))  ; test-case

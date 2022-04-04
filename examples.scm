@@ -95,6 +95,29 @@
 ; ==> 2
 
 ;
+; PEG number-list example (requires: parse.scm)
+;   regex: ([\t-\r ]*[+-]?[0-9]+)*
+;
+
+(define peg-number-list
+  (lambda (in)
+    ((peg-star
+      (peg-seq
+        (peg-star
+          (peg-or
+            (peg-range 9 13)
+            (peg-eq 32)))
+        (peg-opt
+          (peg-or
+            (peg-eq 43)
+            (peg-eq 45)))
+        (peg-plus
+          (peg-range 48 57))))
+    in)))
+(define number-list-example '(48 9 45 49 50 13 32 43 51 54 57 10))  ; "0\t-12\r +369\n"
+(seq (print (peg-number-list number-list-example)) (newline))  ; test-case
+
+;
 ; S-Expression Grammar
 ;
 ; sexpr  = _ (list | atom)
