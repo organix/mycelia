@@ -168,9 +168,9 @@
   (atom
     (alt number symbol))
   (number
-    (plus (range 48 57)))  ; digit
+    (plus (class DGT)))  ; digit
   (symbol
-    (plus (class DGT LWR UPR PCT)))  ; excludes DLM "'(),;[]`{|}
+    (plus (class DGT LWR UPR SYM)))  ; excludes DLM "'(),;[]`{|}
   (_
     (star (class WSP)))  ; whitespace
 ))

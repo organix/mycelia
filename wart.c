@@ -2685,7 +2685,7 @@ PROC_DECL(peg_eq_beh) {
 #define UPR (1<<2)  /* uppercase */
 #define LWR (1<<3)  /* lowercase */
 #define DLM (1<<4)  /* "'(),;[]`{|} */
-#define PCT (1<<5)  /* punctuation (non-DLM) */
+#define SYM (1<<5)  /* symbol (non-DLM) */
 #define HEX (1<<6)  /* hexadecimal */
 #define WSP (1<<7)  /* whitespace */
 
@@ -2699,21 +2699,21 @@ static char char_class[128] = {
 /*      _8       _9       _A       _B       _C       _D       _E       _F    */
 /*1_*/  CTL,     CTL|WSP, CTL|WSP, CTL|WSP, CTL|WSP, CTL|WSP, CTL,     CTL,
 /*      _0       _1       _2       _3       _4       _5       _6       _7    */
-/*2_*/  WSP,     PCT,     DLM,     PCT,     PCT,     PCT,     PCT,     DLM,
+/*2_*/  WSP,     SYM,     DLM,     SYM,     SYM,     SYM,     SYM,     DLM,
 /*      _8       _9       _A       _B       _C       _D       _E       _F    */
-/*2_*/  DLM,     DLM,     PCT,     PCT,     DLM,     PCT,     PCT,     PCT,
+/*2_*/  DLM,     DLM,     SYM,     SYM,     DLM,     SYM,     SYM,     SYM,
 /*      _0       _1       _2       _3       _4       _5       _6       _7    */
 /*3_*/  DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX,
 /*      _8       _9       _A       _B       _C       _D       _E       _F    */
-/*3_*/  DGT|HEX, DGT|HEX, PCT,     DLM,     PCT,     PCT,     PCT,     PCT,
+/*3_*/  DGT|HEX, DGT|HEX, SYM,     DLM,     SYM,     SYM,     SYM,     SYM,
 /*      _0       _1       _2       _3       _4       _5       _6       _7    */
-/*4_*/  PCT,     UPR|HEX, UPR|HEX, UPR|HEX, UPR|HEX, UPR|HEX, UPR|HEX, UPR,
+/*4_*/  SYM,     UPR|HEX, UPR|HEX, UPR|HEX, UPR|HEX, UPR|HEX, UPR|HEX, UPR,
 /*      _8       _9       _A       _B       _C       _D       _E       _F    */
 /*4_*/  UPR,     UPR,     UPR,     UPR,     UPR,     UPR,     UPR,     UPR,
 /*      _0       _1       _2       _3       _4       _5       _6       _7    */
 /*5_*/  UPR,     UPR,     UPR,     UPR,     UPR,     UPR,     UPR,     UPR,
 /*      _8       _9       _A       _B       _C       _D       _E       _F    */
-/*5_*/  UPR,     UPR,     UPR,     DLM,     PCT,     DLM,     PCT,     PCT,
+/*5_*/  UPR,     UPR,     UPR,     DLM,     SYM,     DLM,     SYM,     SYM,
 /*      _0       _1       _2       _3       _4       _5       _6       _7    */
 /*6_*/  DLM,     LWR|HEX, LWR|HEX, LWR|HEX, LWR|HEX, LWR|HEX, LWR|HEX, LWR,
 /*      _8       _9       _A       _B       _C       _D       _E       _F    */
@@ -2721,7 +2721,7 @@ static char char_class[128] = {
 /*      _0       _1       _2       _3       _4       _5       _6       _7    */
 /*7_*/  LWR,     LWR,     LWR,     LWR,     LWR,     LWR,     LWR,     LWR,
 /*      _8       _9       _A       _B       _C       _D       _E       _F    */
-/*7_*/  LWR,     LWR,     LWR,     DLM,     DLM,     DLM,     PCT,     CTL,
+/*7_*/  LWR,     LWR,     LWR,     DLM,     DLM,     DLM,     SYM,     CTL,
 };
 
 PROC_DECL(peg_class_beh) {
