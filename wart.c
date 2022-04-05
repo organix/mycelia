@@ -30,6 +30,8 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define TIME_DISPATCH 1 // measure execution time for message dispatch
 #define META_ACTORS   1 // include meta-actors facilities
 #define PEG_ACTORS    1 // include PEG parsing facilities
+#define RUN_SELF_TEST 1 // include and run unit-test suite
+#define RUN_FILE_REPL 1 // evalutate code from files and interactive REPL
 
 #ifndef __SIZEOF_POINTER__
 #error "need __SIZEOF_POINTER__ for hexdump()"
@@ -753,7 +755,9 @@ int_t event_dispatch() {
             printf("event_dispatch: t1=%ld t2=%ld gc=%.6f (%ld CPS)\n", t1, t2, gc, (long)CLOCKS_PER_SEC));
 #endif
     } else {
+#if TIME_DISPATCH
         event_dispatch_ticks += (t1 - t0);  // exclude gc
+#endif
     }
 #if TIME_DISPATCH
     DEBUG(double dt = (double)(t1 - t0) / CLOCKS_PER_SEC;
@@ -3849,6 +3853,36 @@ int_t test_parsing() {
  * unit tests
  */
 
+int_t eval_test_expr(int_t expr, int_t expect) {
+    int_t cust = CREATE(MK_PROC(assert_beh), expect);
+    SEND(expr, list_3(cust, s_eval, GROUND_ENV));
+    // dispatch all pending events
+    int_t result = event_loop();
+    DEBUG(debug_print("eval_test_expr event_loop", result));
+    return OK;
+}
+
+static char nstr_buf[256];
+int_t eval_test_cstr(char *cstr, char *result) {
+    nstr_in_t str_in;
+
+    cstr_to_nstr(cstr, nstr_buf, sizeof(nstr_buf));
+    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
+    int_t expr = read_sexpr(&str_in.input);
+    if (expr == FAIL) error("eval_test_cstr: read expr failed");
+    DEBUG(debug_print("  expr", expr));
+
+    cstr_to_nstr(result, nstr_buf, sizeof(nstr_buf));
+    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
+    int_t expect = read_sexpr(&str_in.input);
+    if (expect == FAIL) error("eval_test_cstr: read expect failed");
+    DEBUG(debug_print("  expect", expect));
+
+    eval_test_expr(expr, expect);
+    return OK;
+}
+
+#if RUN_SELF_TEST
 int_t test_values() {
     WARN(fprintf(stderr, "--test_values--\n"));
     DEBUG(debug_print("test_values OK", OK));
@@ -3939,40 +3973,6 @@ int_t test_actors() {
 
     int_t usage = cell_usage();
     return OK;
-}
-
-int_t eval_test_expr(int_t expr, int_t expect) {
-    int_t cust = CREATE(MK_PROC(assert_beh), expect);
-    SEND(expr, list_3(cust, s_eval, GROUND_ENV));
-    // dispatch all pending events
-    int_t result = event_loop();
-    DEBUG(debug_print("eval_test_expr event_loop", result));
-    return OK;
-}
-
-static char nstr_buf[256];
-int_t eval_test_cstr(char *cstr, char *result) {
-    nstr_in_t str_in;
-
-    cstr_to_nstr(cstr, nstr_buf, sizeof(nstr_buf));
-    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
-    int_t expr = read_sexpr(&str_in.input);
-    if (expr == FAIL) error("eval_test_cstr: read expr failed");
-    DEBUG(debug_print("  expr", expr));
-
-    cstr_to_nstr(result, nstr_buf, sizeof(nstr_buf));
-    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
-    int_t expect = read_sexpr(&str_in.input);
-    if (expect == FAIL) error("eval_test_cstr: read expect failed");
-    DEBUG(debug_print("  expect", expect));
-
-    eval_test_expr(expr, expect);
-    return OK;
-}
-
-int top_level_eval(char *expr) {
-    // Note: this will panic() if the result is not UNIT
-    return eval_test_cstr(expr, "#unit");
 }
 
 int_t test_eval() {
@@ -4160,6 +4160,7 @@ int_t unit_tests() {
 #endif // PEG_ACTORS
     return OK;
 }
+#endif // RUN_SELF_TEST
 
 /*
  * bootstrap
@@ -4168,6 +4169,11 @@ int_t unit_tests() {
 int_t actor_boot() {
     ASSERT(symbol_boot() == OK);
     return OK;
+}
+
+int top_level_eval(char *expr) {
+    // Note: this will panic() if the result is not UNIT
+    return eval_test_cstr(expr, "#unit");
 }
 
 int_t load_library() {
@@ -4187,14 +4193,16 @@ int_t load_library() {
 
 int main(int argc, char const *argv[])
 {
+    int_t result = OK;
+
+    ASSERT(actor_boot() == OK);
+
+#if RUN_SELF_TEST
     clock_t t0 = clock();
     clock_t t1 = clock();
     double dt = (double)(t1 - t0) / CLOCKS_PER_SEC;
     printf("t0=%ld t1=%ld dt=%.9f (%ld CPS)\n", t0, t1, dt, (long)CLOCKS_PER_SEC);
 
-    ASSERT(actor_boot() == OK);
-
-#if 1
     fprintf(stderr, "newline = %"PRIxPTR"\n", INT(newline));
     fprintf(stderr, "  Undef = %"PRIxPTR"\n", INT(Undef));
     fprintf(stderr, "   Unit = %"PRIxPTR"\n", INT(Unit));
@@ -4221,11 +4229,12 @@ int main(int argc, char const *argv[])
     fprintf(stderr, "s_quote = %"PRIxPTR"\n", s_quote);
     fprintf(stderr, "s_content = %"PRIxPTR"\n", s_content);
     ASSERT(IS_SYM(s_content));
-#endif
 
     // run unit tests
     ASSERT(unit_tests() == OK);
-#if 0
+#endif // RUN_SELF_TEST
+
+#if RUN_FILE_REPL
     // load internal library
     ASSERT(load_library() == OK);
 
@@ -4248,10 +4257,10 @@ int main(int argc, char const *argv[])
 
     file_in_t std_in;
     ASSERT(file_init(&std_in, stdin) == 0);
-    int_t result = read_eval_print_loop(&std_in.input);
+    result = read_eval_print_loop(&std_in.input);
+#endif // RUN_FILE_REPL
 
     return (result == OK ? 0 : 1);
-#endif
 }
 
 int is_proc(int_t val) {
