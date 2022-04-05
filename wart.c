@@ -3027,9 +3027,10 @@ static PROC_DECL(peg_k_call_beh) {
     PTRACE(debug_print("peg_k_call_beh vars", vars));
     TAIL_VAR(req);
     GET_ARGS();  // ptrn
-    WARN(debug_print("peg_k_call_beh args", args));
+    PTRACE(debug_print("peg_k_call_beh args", args));
     TAIL_ARG(ptrn);
     if (ptrn == UNDEF) {
+        WARN(debug_print("peg_k_call_beh rule not found", ptrn));
         ptrn = MK_ACTOR(&peg_fail);  // if rule not found, fail
     }
     SEND(ptrn, req);  // fwd original req to ptrn
@@ -3039,11 +3040,11 @@ static PROC_DECL(peg_k_call_beh) {
 PROC_DECL(peg_call_beh) {
     PTRACE(debug_print("peg_call_beh self", self));
     GET_VARS();  // (name . scope)
-    WARN(debug_print("peg_call_beh vars", vars));
+    PTRACE(debug_print("peg_call_beh vars", vars));
     POP_VAR(name);
     TAIL_VAR(scope);
     GET_ARGS();  // (custs value . in) = ((ok . fail) value . (token . next))
-    WARN(debug_print("peg_call_beh args", args));
+    PTRACE(debug_print("peg_call_beh args", args));
     TAIL_ARG(req);
     int_t k_call = CREATE(MK_PROC(peg_k_call_beh), req);
     SEND(scope, list_3(k_call, s_lookup, name));
@@ -3829,10 +3830,12 @@ int_t test_parsing() {
     ptrn_0 = CREATE(MK_PROC(&peg_call_beh), cons(symbol("number"), scope));
     ptrn_1 = CREATE(MK_PROC(&peg_call_beh), cons(symbol("symbol"), scope));
     ptrn = CREATE(MK_PROC(&peg_alt_beh), list_3(ptrn, ptrn_0, ptrn_1));
-    ptrn_0 = CREATE(MK_PROC(&peg_call_beh), cons(symbol("_"), scope));
+    //ptrn_0 = CREATE(MK_PROC(&peg_call_beh), cons(symbol("_"), scope));
+    //ptrn_0 = CREATE(MK_PROC(&peg_call_beh), cons(symbol("opt_wsp"), scope));
+    ptrn_0 = opt_wsp;
     ptrn = CREATE(MK_PROC(&peg_seq_beh), list_2(ptrn_0, ptrn));
     set_car(env, cons(cons(symbol("sexpr"), ptrn), car(env)));
-    WARN(debug_print("test_parsng sepxr env", env));
+    DEBUG(debug_print("test_parsing sepxr env", env));
     // parse test-case
     start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
     SEND(src, start);
