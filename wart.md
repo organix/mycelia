@@ -68,6 +68,8 @@ Several procedures are pre-defined in the ground environment.
   * `(= . `_numbers_`)`
   * `(>= . `_numbers_`)`
   * `(> . `_numbers_`)`
+  * `(list->number `_list_`)`
+  * `(list->symbol `_list_`)`
   * `(print `_object_`)`
   * `(emit . `_codepoints_`)`
   * `(debug-print `_object_`)`

@@ -574,6 +574,8 @@ int_t s_le;
 int_t s_eqn;
 int_t s_ge;
 int_t s_gt;
+int_t s_list_to_number;
+int_t s_list_to_symbol;
 int_t s_print;
 int_t s_emit;
 int_t s_debug_print;
@@ -625,6 +627,8 @@ int_t symbol_boot() {
     s_eqn = symbol("=");
     s_ge = symbol(">=");
     s_gt = symbol(">");
+    s_list_to_number = symbol("list->number");
+    s_list_to_symbol = symbol("list->symbol");
     s_print = symbol("print");
     s_emit = symbol("emit");
     s_debug_print = symbol("debug-print");
@@ -2294,6 +2298,62 @@ static PROC_DECL(prim_gt) {  // (> . numbers)
 const cell_t oper_gt = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_gt) };
 const cell_t a_gt = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_gt) };
 
+static PROC_DECL(prim_list_to_number) {  // (list->number list)
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t xs = car(opnd);
+        opnd = cdr(opnd);
+        if (opnd == NIL) {
+            int_t n = 0;
+            while (IS_PAIR(xs)) {
+                WARN(debug_print("prim_list_to_number xs", xs));
+                int_t x = car(xs);
+                if (!IS_NUM(x)) return UNDEF;
+                int_t d = TO_INT(x) - '0';
+                if (NAT(d) > 9) return UNDEF;
+                n = (10 * n) + d;
+                xs = cdr(xs);
+            }
+            int_t value = MK_NUM(n);
+            WARN(debug_print("prim_list_to_number value", value));
+            return value;
+        }
+    }
+    return error("list->number expected 1 argument");
+}
+const cell_t oper_list_to_number = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_list_to_number) };
+const cell_t a_list_to_number = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_list_to_number) };
+static PROC_DECL(prim_list_to_symbol) {  // (list->symbol list)
+    static char buf[32];
+    int_t opnd = self;
+    //int_t env = arg;
+    if (IS_PAIR(opnd)) {
+        int_t xs = car(opnd);
+        opnd = cdr(opnd);
+        if (opnd == NIL) {
+            size_t idx = 0;
+            while (IS_PAIR(xs)) {
+                WARN(debug_print("prim_list_to_symbol xs", xs));
+                int_t x = car(xs);
+                if (!IS_NUM(x)) return UNDEF;
+                int_t c = TO_INT(x);
+                if (NAT(c - ' ') >= NAT(0x7F - ' ')) return UNDEF;
+                buf[idx++] = TO_INT(x);
+                if (idx >= sizeof(buf)) return error("symbol too long");
+                xs = cdr(xs);
+            }
+            buf[idx] = '\0';  // ensure NUL-termination
+            int_t value = symbol(buf);
+            WARN(debug_print("prim_list_to_symbol value", value));
+            return value;
+        }
+    }
+    return error("list->symbol expected 1 argument");
+}
+const cell_t oper_list_to_symbol = { .head = MK_PROC(Oper_prim), .tail = MK_PROC(prim_list_to_symbol) };
+const cell_t a_list_to_symbol = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_list_to_symbol) };
+
 static PROC_DECL(prim_print) {  // (print object)
     int_t opnd = self;
     //int_t env = arg;
@@ -3130,6 +3190,10 @@ PROC_DECL(Global) {
             value = MK_ACTOR(&a_ge);
         } else if (symbol == s_gt) {
             value = MK_ACTOR(&a_gt);
+        } else if (symbol == s_list_to_number) {
+            value = MK_ACTOR(&a_list_to_number);
+        } else if (symbol == s_list_to_symbol) {
+            value = MK_ACTOR(&a_list_to_symbol);
         } else if (symbol == s_print) {
             value = MK_ACTOR(&a_print);
         } else if (symbol == s_emit) {
