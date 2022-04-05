@@ -128,38 +128,6 @@
 ; _      = [ \t-\r]*
 ;
 
-(define delim-chars '(
-  34          ; "
-  39          ; '
-  40          ; (
-  41          ; )
-  44          ; ,
-  59          ; ;
-  91          ; [
-  93          ; ]
-  96          ; `
-  123         ; {
-  124         ; |
-  125         ; }
-  ))
-(define ident-chars '(
-  33          ; !
-  (35 . 38)   ; #$%&
-  42          ; *
-  43          ; +
-  45          ; -
-  46          ; .
-  47          ; /
-  (48 . 58)   ; 0123456789
-  58          ; :
-  (60 . 64)   ; <=>?@
-  (65 . 90)   ; ABCDEFGHIJKLMNOPQRSTUVWXYZ
-  92          ; \
-  94          ; ^
-  95          ; _
-  (97 . 122)  ; abcdefghijklmnopqrstuvwxyz
-  126         ; ~
-  ))
 (define sexpr-grammar '(
   (sexpr
     (seq _ (alt list atom)))

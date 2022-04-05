@@ -1245,8 +1245,10 @@ PROC_DECL(Scope) {
             int_t value = cdr(binding);
             DEBUG(debug_print("Scope value", value));
             SEND(cust, value); // send value to cust
+        } else if ((penv != NIL) && (penv != UNDEF)) {
+            SEND(penv, arg);  // delegate to parent
         } else {
-            SEND(penv, arg); // delegate to parent
+            SEND(cust, UNDEF);  // no parent, no binding
         }
         return OK;
     }
@@ -2689,15 +2691,15 @@ PROC_DECL(peg_eq_beh) {
 #define HEX (1<<6)  /* hexadecimal */
 #define WSP (1<<7)  /* whitespace */
 
-static char char_class[128] = {
+static unsigned char char_class[128] = {
 /*      _0       _1       _2       _3       _4       _5       _6       _7    */
 /*0_*/  CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,
 /*      _8       _9       _A       _B       _C       _D       _E       _F    */
-/*0_*/  CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,
+/*0_*/  CTL,     CTL|WSP, CTL|WSP, CTL|WSP, CTL|WSP, CTL|WSP, CTL,     CTL,
 /*      _0       _1       _2       _3       _4       _5       _6       _7    */
 /*1_*/  CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,
 /*      _8       _9       _A       _B       _C       _D       _E       _F    */
-/*1_*/  CTL,     CTL|WSP, CTL|WSP, CTL|WSP, CTL|WSP, CTL|WSP, CTL,     CTL,
+/*1_*/  CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,
 /*      _0       _1       _2       _3       _4       _5       _6       _7    */
 /*2_*/  WSP,     SYM,     DLM,     SYM,     SYM,     SYM,     SYM,     DLM,
 /*      _8       _9       _A       _B       _C       _D       _E       _F    */
@@ -2739,12 +2741,17 @@ PROC_DECL(peg_class_beh) {
     int_t fail = cdr(custs);
     if (in != NIL) {
         int_t token = car(in);
+        XDEBUG(debug_print("peg_class_beh token", token));
         int_t next = cdr(in);
         if (IS_NUM(token)) {
             nat_t codepoint = TO_NAT(token);
+            XDEBUG(fprintf(stderr, "peg_class_beh codepoint=16#%02"PRIxPTR" (%"PRIdPTR")\n",
+                codepoint, codepoint));
             if (codepoint < 0x80) {
                 nat_t mask = TO_NAT(class);
-                if (char_class[codepoint] & mask) {
+                XDEBUG(fprintf(stderr, "peg_class_beh mask=16#%02"PRIxPTR" class=16#%02"PRIxPTR"\n",
+                    mask, NAT(char_class[codepoint])));
+                if (NAT(char_class[codepoint]) & mask) {
                     int_t k_next = CREATE(MK_PROC(peg_k_next), cons(ok, token));
                     SEND(next, k_next);  // advance
                     return OK;
@@ -3011,6 +3018,35 @@ PROC_DECL(peg_peek_beh) {
     int_t not = CREATE(MK_PROC(peg_not_beh), ptrn);
     BECOME(MK_PROC(peg_not_beh), not);
     SEND(self, arg);  // re-send original message
+    return OK;
+}
+
+static PROC_DECL(peg_k_call_beh) {
+    PTRACE(debug_print("peg_k_call_beh self", self));
+    GET_VARS();  // req
+    PTRACE(debug_print("peg_k_call_beh vars", vars));
+    TAIL_VAR(req);
+    GET_ARGS();  // ptrn
+    WARN(debug_print("peg_k_call_beh args", args));
+    TAIL_ARG(ptrn);
+    if (ptrn == UNDEF) {
+        ptrn = MK_ACTOR(&peg_fail);  // if rule not found, fail
+    }
+    SEND(ptrn, req);  // fwd original req to ptrn
+    return OK;
+}
+// FIXME: consider BECOMEing fwd to ptrn on first lookup (lazy cache)
+PROC_DECL(peg_call_beh) {
+    PTRACE(debug_print("peg_call_beh self", self));
+    GET_VARS();  // (name . scope)
+    WARN(debug_print("peg_call_beh vars", vars));
+    POP_VAR(name);
+    TAIL_VAR(scope);
+    GET_ARGS();  // (custs value . in) = ((ok . fail) value . (token . next))
+    WARN(debug_print("peg_call_beh args", args));
+    TAIL_ARG(req);
+    int_t k_call = CREATE(MK_PROC(peg_k_call_beh), req);
+    SEND(scope, list_3(k_call, s_lookup, name));
     return OK;
 }
 
@@ -3598,6 +3634,8 @@ int_t test_parsing() {
     int_t ptrn_0;
     int_t ptrn_1;
     int_t start;
+    int_t env;
+    int_t scope;
 
     int_t ok = CREATE(MK_PROC(&peg_result_beh), symbol("ok"));
     int_t fail = CREATE(MK_PROC(&peg_result_beh), symbol("fail"));
@@ -3721,7 +3759,10 @@ int_t test_parsing() {
     SEND(src, start);
     event_loop();
 
-    char nstr_buf2[] = { 12, 48, 9, 45, 49, 50, 13, 32, 43, 51, 54, 57, 10 };  // "0\t-12\r +369\n"
+    /*
+     * test-case "0\t-12\r +369\n"
+     */
+    char nstr_buf2[] = { 12, 48, 9, 45, 49, 50, 13, 32, 43, 51, 54, 57, 10 };
     ASSERT(nstr_init(&str_in, nstr_buf2) == 0);
     src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
     ptrn_0 = CREATE(MK_PROC(&peg_in_set_beh), cons(MK_NUM(43), MK_NUM(45)));  // [+-]
@@ -3732,6 +3773,67 @@ int_t test_parsing() {
     ptrn = CREATE(MK_PROC(&peg_star_beh), ptrn);
     ptrn = CREATE(MK_PROC(&peg_seq_beh), list_3(ptrn, ptrn_0, ptrn_1));
     ptrn = CREATE(MK_PROC(&peg_star_beh), ptrn);  // ([\t-\r ]*[+-]?[0-9]+)*
+    start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
+    SEND(src, start);
+    event_loop();
+
+    // opt_wsp: (star (class WSP))
+    //ptrn = CREATE(MK_PROC(&peg_in_set_beh), list_2(cons(MK_NUM(9), MK_NUM(13)), MK_NUM(32)));  // [\t-\r ]
+    ptrn = CREATE(MK_PROC(&peg_class_beh), MK_NUM(WSP));
+    int_t opt_wsp = CREATE(MK_PROC(&peg_star_beh), ptrn);
+
+    // digits: (plus (class DGT))
+    ptrn = CREATE(MK_PROC(&peg_class_beh), MK_NUM(DGT));
+    int_t digits = CREATE(MK_PROC(&peg_plus_beh), ptrn);
+
+    ASSERT(nstr_init(&str_in, nstr_buf2) == 0);
+    src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
+    ptrn_0 = CREATE(MK_PROC(&peg_in_set_beh), cons(MK_NUM(43), MK_NUM(45)));  // [+-]
+    ptrn_0 = CREATE(MK_PROC(&peg_opt_beh), ptrn_0);
+    ptrn = CREATE(MK_PROC(&peg_seq_beh), list_3(opt_wsp, ptrn_0, digits));
+    ptrn = CREATE(MK_PROC(&peg_star_beh), ptrn);  // (star (seq opt_wsp opt_sign digits))
+    start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
+    SEND(src, start);
+    event_loop();
+
+    /*
+     * test-case "(CAR ( LIST 0 1)\t)"
+     */
+    char nstr_buf3[] = { 18, 40, 67, 65, 82, 32, 40, 32, 76, 73, 83, 84, 32, 48, 32, 49, 41, 9, 41 };
+    ASSERT(nstr_init(&str_in, nstr_buf3) == 0);
+    src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
+    env = cons(NIL, NIL);  // empty env, no parent
+    scope = CREATE(MK_PROC(Scope), env);  // rule scope
+    // list: (seq (eq 40) (star sexpr) _ (eq 41))
+    ptrn_0 = CREATE(MK_PROC(&peg_call_beh), cons(symbol("sexpr"), scope));
+    ptrn = CREATE(MK_PROC(&peg_seq_beh), list_4(
+        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(40)),
+        CREATE(MK_PROC(&peg_star_beh), ptrn_0),
+        CREATE(MK_PROC(&peg_call_beh), cons(symbol("_"), scope)),
+        CREATE(MK_PROC(&peg_eq_beh), MK_NUM(41))));
+    set_car(env, cons(cons(symbol("list"), ptrn), car(env)));
+    // number: (plus (class DGT))
+    ptrn = CREATE(MK_PROC(&peg_class_beh), MK_NUM(DGT));
+    ptrn = CREATE(MK_PROC(&peg_plus_beh), ptrn);
+    set_car(env, cons(cons(symbol("number"), ptrn), car(env)));
+    // symbol: (plus (class DGT LWR UPR SYM))
+    ptrn = CREATE(MK_PROC(&peg_class_beh), MK_NUM(DGT|LWR|UPR|SYM));
+    ptrn = CREATE(MK_PROC(&peg_plus_beh), ptrn);
+    set_car(env, cons(cons(symbol("symbol"), ptrn), car(env)));
+    // _: (star (class WSP))
+    ptrn = CREATE(MK_PROC(&peg_class_beh), MK_NUM(WSP));
+    ptrn = CREATE(MK_PROC(&peg_star_beh), ptrn);
+    set_car(env, cons(cons(symbol("_"), ptrn), car(env)));
+    // sexpr: (seq _ (alt list number symbol))
+    ptrn = CREATE(MK_PROC(&peg_call_beh), cons(symbol("list"), scope));
+    ptrn_0 = CREATE(MK_PROC(&peg_call_beh), cons(symbol("number"), scope));
+    ptrn_1 = CREATE(MK_PROC(&peg_call_beh), cons(symbol("symbol"), scope));
+    ptrn = CREATE(MK_PROC(&peg_alt_beh), list_3(ptrn, ptrn_0, ptrn_1));
+    ptrn_0 = CREATE(MK_PROC(&peg_call_beh), cons(symbol("_"), scope));
+    ptrn = CREATE(MK_PROC(&peg_seq_beh), list_2(ptrn_0, ptrn));
+    set_car(env, cons(cons(symbol("sexpr"), ptrn), car(env)));
+    WARN(debug_print("test_parsng sepxr env", env));
+    // parse test-case
     start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
     SEND(src, start);
     event_loop();
@@ -4120,7 +4222,7 @@ int main(int argc, char const *argv[])
 
     // run unit tests
     ASSERT(unit_tests() == OK);
-#if 1
+#if 0
     // load internal library
     ASSERT(load_library() == OK);
 
