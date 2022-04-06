@@ -3115,47 +3115,48 @@ PROC_DECL(peg_call_beh) {
     return OK;
 }
 
-/*
-PROC_DECL(Oper_prim) {  // call primitive procedure
-    XDEBUG(debug_print("Oper_prim self", self));
-    GET_VARS();  // proc
-    DEBUG(debug_print("Oper_prim vars", vars));
-    TAIL_VAR(proc);
-    ASSERT(IS_PROC(proc));
-    GET_ARGS();
-    DEBUG(debug_print("Oper_prim args", args));
-    POP_ARG(cust);
-    POP_ARG(req);
-    if (req == s_apply) {  // (cust 'apply opnd env)
-        POP_ARG(opnd);
-        POP_ARG(env);
-        END_ARGS();
-        proc_t prim = TO_PROC(proc);
-        int_t value = (*prim)(opnd, env);  // delegate to primitive proc
-        XDEBUG(debug_print("Oper_prim value", value));
-        SEND(cust, value);
-        return OK;
-    }
-    return SeType(self, arg);  // delegate to SeType
+static PROC_DECL(peg_k_value_beh) {
+    PTRACE(debug_print("peg_k_value_beh self", self));
+    GET_VARS();  // (cust . in)
+    PTRACE(debug_print("peg_k_value_beh vars", vars));
+    POP_VAR(cust);
+    TAIL_VAR(in);
+    GET_ARGS();  // value
+    PTRACE(debug_print("peg_k_value_beh args", args));
+    TAIL_ARG(value);
+    SEND(cust, cons(value, in));
+    return OK;
 }
-*/
 static PROC_DECL(peg_ok_xform_beh) {
     PTRACE(debug_print("peg_ok_xform_beh self", self));
     GET_VARS();  // (ok . proc)
     PTRACE(debug_print("peg_ok_xform_beh vars", vars));
     POP_VAR(ok);
     TAIL_VAR(proc);
-    ASSERT(IS_PROC(proc));
     GET_ARGS();  // (value . in)
     PTRACE(debug_print("peg_ok_xform_beh args", args));
     POP_ARG(value);
     TAIL_ARG(in);  // (token . next) -or- NIL
     int_t env = MK_ACTOR(&a_ground_env);  // default to ground env
-    proc_t prim = TO_PROC(proc);
-    value = list_1(value);  // convert value to single-operand list
-    value = (*prim)(value, env);  // transform value via primitive proc
+    int_t k_value = CREATE(MK_PROC(peg_k_value_beh), cons(ok, in));
+    if (IS_PROC(proc)) {
+        proc_t prim = TO_PROC(proc);
+        value = list_1(value);  // convert value to single-operand list
+        value = (*prim)(value, env);  // transform value via primitive proc
+    } else if (IS_SYM(proc)) {
+        value = list_2(s_quote, value);  // quote value
+        int_t expr = list_2(proc, value);  // apply proc to value
+        DEBUG(debug_print("peg_ok_xform_beh expr", expr));
+        SEND(expr, list_3(k_value, s_eval, env));
+        return OK;  // reply via k_value
+    } else if (IS_ACTOR(proc)) {
+        SEND(proc, list_4(k_value, s_apply, value, env));
+        return OK;  // reply via k_value
+    } else {
+        value = error("invalid xform proc");
+    }
     PTRACE(debug_print("peg_ok_xform_beh value", value));
-    SEND(ok, cons(value, in));
+    SEND(k_value, value);
     return OK;
 }
 PROC_DECL(peg_xform_beh) {
@@ -3164,7 +3165,6 @@ PROC_DECL(peg_xform_beh) {
     PTRACE(debug_print("peg_xform_beh vars", vars));
     POP_VAR(ptrn);
     TAIL_VAR(proc);
-    ASSERT(IS_PROC(proc));
     GET_ARGS();  // (custs value . in) = ((ok . fail) value . (token . next))
     PTRACE(debug_print("peg_xform_beh args", args));
     POP_ARG(custs);  // (ok . fail)
@@ -3927,6 +3927,13 @@ int_t test_parsing() {
     event_loop();
 
     /*
+     * S-expression Grammar
+     *  sexpr  = _ (list | number | symbol)
+     *  list   = '(' sexpr* _ ')'
+     *  number = [0-9]+
+     *  symbol = [^ \t-\r"'\(\),;[\]`{|}]+
+     *  _      = [ \t-\r]*
+     *
      * test-case "(CAR ( LIST 0 1)\t)"
      */
     char nstr_buf3[] = { 18, 40, 67, 65, 82, 32, 40, 32, 76, 73, 83, 84, 32, 48, 32, 49, 41, 9, 41 };
@@ -3941,6 +3948,7 @@ int_t test_parsing() {
         CREATE(MK_PROC(&peg_star_beh), ptrn_0),
         CREATE(MK_PROC(&peg_call_beh), cons(symbol("_"), scope)),
         CREATE(MK_PROC(&peg_eq_beh), MK_NUM(41))));
+    ptrn = CREATE(MK_PROC(&peg_xform_beh), cons(ptrn, symbol("cadr")));
     set_car(env, cons(cons(symbol("list"), ptrn), car(env)));
     // number: (plus (class DGT))
     ptrn = CREATE(MK_PROC(&peg_class_beh), MK_NUM(DGT));
@@ -3965,6 +3973,7 @@ int_t test_parsing() {
     //ptrn_0 = CREATE(MK_PROC(&peg_call_beh), cons(symbol("opt_wsp"), scope));
     ptrn_0 = opt_wsp;
     ptrn = CREATE(MK_PROC(&peg_seq_beh), list_2(ptrn_0, ptrn));
+    ptrn = CREATE(MK_PROC(&peg_xform_beh), cons(ptrn, symbol("cadr")));
     set_car(env, cons(cons(symbol("sexpr"), ptrn), car(env)));
     DEBUG(debug_print("test_parsing sepxr env", env));
     // parse test-case
@@ -4282,9 +4291,6 @@ int_t unit_tests() {
     ASSERT(test_cells() == OK);
     ASSERT(test_actors() == OK);
     ASSERT(test_eval() == OK);
-#if PEG_ACTORS
-    ASSERT(test_parsing() == OK);
-#endif // PEG_ACTORS
     return OK;
 }
 #endif // RUN_SELF_TEST
@@ -4361,10 +4367,16 @@ int main(int argc, char const *argv[])
     ASSERT(unit_tests() == OK);
 #endif // RUN_SELF_TEST
 
-#if RUN_FILE_REPL
     // load internal library
     ASSERT(load_library() == OK);
 
+#if RUN_SELF_TEST
+#if PEG_ACTORS
+    ASSERT(test_parsing() == OK);
+#endif // PEG_ACTORS
+#endif // RUN_SELF_TEST
+
+#if RUN_FILE_REPL
     WARN(fprintf(stderr, "--load_file--\n"));
     printf("argc = %d\n", argc);
     for (int i = 1; i < argc; ++i) {
