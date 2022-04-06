@@ -31,7 +31,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define META_ACTORS   1 // include meta-actors facilities
 #define PEG_ACTORS    1 // include PEG parsing facilities
 #define RUN_SELF_TEST 1 // include and run unit-test suite
-#define RUN_FILE_REPL 1 // evalutate code from files and interactive REPL
+#define RUN_FILE_REPL 0 // evalutate code from files and interactive REPL
 
 #ifndef __SIZEOF_POINTER__
 #error "need __SIZEOF_POINTER__ for hexdump()"
@@ -2307,7 +2307,7 @@ static PROC_DECL(prim_list_to_number) {  // (list->number list)
         if (opnd == NIL) {
             int_t n = 0;
             while (IS_PAIR(xs)) {
-                WARN(debug_print("prim_list_to_number xs", xs));
+                XDEBUG(debug_print("prim_list_to_number xs", xs));
                 int_t x = car(xs);
                 if (!IS_NUM(x)) return UNDEF;
                 int_t d = TO_INT(x) - '0';
@@ -2316,7 +2316,7 @@ static PROC_DECL(prim_list_to_number) {  // (list->number list)
                 xs = cdr(xs);
             }
             int_t value = MK_NUM(n);
-            WARN(debug_print("prim_list_to_number value", value));
+            DEBUG(debug_print("prim_list_to_number value", value));
             return value;
         }
     }
@@ -2334,7 +2334,7 @@ static PROC_DECL(prim_list_to_symbol) {  // (list->symbol list)
         if (opnd == NIL) {
             size_t idx = 0;
             while (IS_PAIR(xs)) {
-                WARN(debug_print("prim_list_to_symbol xs", xs));
+                XDEBUG(debug_print("prim_list_to_symbol xs", xs));
                 int_t x = car(xs);
                 if (!IS_NUM(x)) return UNDEF;
                 int_t c = TO_INT(x);
@@ -2345,7 +2345,7 @@ static PROC_DECL(prim_list_to_symbol) {  // (list->symbol list)
             }
             buf[idx] = '\0';  // ensure NUL-termination
             int_t value = symbol(buf);
-            WARN(debug_print("prim_list_to_symbol value", value));
+            DEBUG(debug_print("prim_list_to_symbol value", value));
             return value;
         }
     }
@@ -3945,6 +3945,7 @@ int_t test_parsing() {
     // number: (plus (class DGT))
     ptrn = CREATE(MK_PROC(&peg_class_beh), MK_NUM(DGT));
     ptrn = CREATE(MK_PROC(&peg_plus_beh), ptrn);
+    ptrn = CREATE(MK_PROC(&peg_xform_beh), cons(ptrn, MK_PROC(prim_list_to_number)));
     set_car(env, cons(cons(symbol("number"), ptrn), car(env)));
     // symbol: (plus (class DGT LWR UPR SYM))
     ptrn = CREATE(MK_PROC(&peg_class_beh), MK_NUM(DGT|LWR|UPR|SYM));
