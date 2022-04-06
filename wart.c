@@ -31,7 +31,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define META_ACTORS   1 // include meta-actors facilities
 #define PEG_ACTORS    1 // include PEG parsing facilities
 #define RUN_SELF_TEST 1 // include and run unit-test suite
-#define RUN_FILE_REPL 0 // evalutate code from files and interactive REPL
+#define RUN_FILE_REPL 1 // evalutate code from files and interactive REPL
 
 #ifndef __SIZEOF_POINTER__
 #error "need __SIZEOF_POINTER__ for hexdump()"
@@ -4311,8 +4311,12 @@ int top_level_eval(char *expr) {
 
 int_t load_library() {
     WARN(fprintf(stderr, "--load_library--\n"));
+    top_level_eval("(define caar (lambda (((x . _) . _)) x))");
+    top_level_eval("(define cdar (lambda (((_ . x) . _)) x))");
+    top_level_eval("(define cddr (lambda ((_ _ . x)) x))");
     top_level_eval("(define cadr (lambda ((_ x . _)) x))");
     top_level_eval("(define caddr (lambda ((_ _ x . _)) x))");
+    top_level_eval("(define cadddr (lambda ((_ _ _ x . _)) x))");
     top_level_eval("(define not (lambda (b) (eq? b #f)))");
     top_level_eval("(define unit? (macro objs _ (cons eq? (cons #unit objs))))");
     top_level_eval("(define zero? (lambda (n) (= n 0)))");

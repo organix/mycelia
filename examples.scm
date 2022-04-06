@@ -17,6 +17,12 @@
       (* n (fact (- n 1)))
       1)))
 
+(define fib  ; O(n^3) performance?
+  (lambda (n)
+    (if (< n 2)
+      n
+      (+ (fib (- n 1)) (fib (- n 2))))))
+
 ; mutual recursion example (very inefficient)
 (define even?
   (lambda (n)
