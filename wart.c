@@ -3115,6 +3115,67 @@ PROC_DECL(peg_call_beh) {
     return OK;
 }
 
+/*
+PROC_DECL(Oper_prim) {  // call primitive procedure
+    XDEBUG(debug_print("Oper_prim self", self));
+    GET_VARS();  // proc
+    DEBUG(debug_print("Oper_prim vars", vars));
+    TAIL_VAR(proc);
+    ASSERT(IS_PROC(proc));
+    GET_ARGS();
+    DEBUG(debug_print("Oper_prim args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(env);
+        END_ARGS();
+        proc_t prim = TO_PROC(proc);
+        int_t value = (*prim)(opnd, env);  // delegate to primitive proc
+        XDEBUG(debug_print("Oper_prim value", value));
+        SEND(cust, value);
+        return OK;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+*/
+static PROC_DECL(peg_ok_xform_beh) {
+    PTRACE(debug_print("peg_ok_xform_beh self", self));
+    GET_VARS();  // (ok . proc)
+    PTRACE(debug_print("peg_ok_xform_beh vars", vars));
+    POP_VAR(ok);
+    TAIL_VAR(proc);
+    ASSERT(IS_PROC(proc));
+    GET_ARGS();  // (value . in)
+    PTRACE(debug_print("peg_ok_xform_beh args", args));
+    POP_ARG(value);
+    TAIL_ARG(in);  // (token . next) -or- NIL
+    int_t env = MK_ACTOR(&a_ground_env);  // default to ground env
+    proc_t prim = TO_PROC(proc);
+    value = list_1(value);  // convert value to single-operand list
+    value = (*prim)(value, env);  // transform value via primitive proc
+    PTRACE(debug_print("peg_ok_xform_beh value", value));
+    SEND(ok, cons(value, in));
+    return OK;
+}
+PROC_DECL(peg_xform_beh) {
+    PTRACE(debug_print("peg_xform_beh self", self));
+    GET_VARS();  // (ptrn . proc)
+    PTRACE(debug_print("peg_xform_beh vars", vars));
+    POP_VAR(ptrn);
+    TAIL_VAR(proc);
+    ASSERT(IS_PROC(proc));
+    GET_ARGS();  // (custs value . in) = ((ok . fail) value . (token . next))
+    PTRACE(debug_print("peg_xform_beh args", args));
+    POP_ARG(custs);  // (ok . fail)
+    TAIL_ARG(resume);  // (value . in)
+    int_t ok = car(custs);
+    int_t fail = cdr(custs);
+    int_t ok_xform = CREATE(MK_PROC(peg_ok_xform_beh), cons(ok, proc));
+    SEND(ptrn, cons(cons(ok_xform, fail), resume));
+    return OK;
+}
+
 #endif // PEG_ACTORS
 
 PROC_DECL(Global) {
@@ -3888,6 +3949,7 @@ int_t test_parsing() {
     // symbol: (plus (class DGT LWR UPR SYM))
     ptrn = CREATE(MK_PROC(&peg_class_beh), MK_NUM(DGT|LWR|UPR|SYM));
     ptrn = CREATE(MK_PROC(&peg_plus_beh), ptrn);
+    ptrn = CREATE(MK_PROC(&peg_xform_beh), cons(ptrn, MK_PROC(prim_list_to_symbol)));
     set_car(env, cons(cons(symbol("symbol"), ptrn), car(env)));
     // _: (star (class WSP))
     ptrn = CREATE(MK_PROC(&peg_class_beh), MK_NUM(WSP));
