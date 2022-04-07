@@ -3691,7 +3691,81 @@ int_t load_file(input_t *in) {
     return OK;
 }
 
+static char nstr_buf[256];
+int_t cstr_to_sexpr(char *cstr) {
+    nstr_in_t str_in;
+    cstr_to_nstr(cstr, nstr_buf, sizeof(nstr_buf));
+    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
+    int_t expr = read_sexpr(&str_in.input);
+    return expr;
+}
+
 #if PEG_ACTORS
+int_t compile_peg_rules(int_t scope, int_t rules);  // FORWARD DECLARATION
+int_t compile_peg_rule(int_t scope, int_t rule) {
+    int_t ptrn = UNDEF;
+    if (IS_PAIR(rule)) {
+        int_t kind = car(rule);
+        rule = cdr(rule);
+        if (kind == symbol("eq")) {
+            ptrn = CREATE(MK_PROC(&peg_eq_beh), car(rule));
+        } else if (kind == symbol("alt")) {
+            int_t ptrns = compile_peg_rules(scope, rule);
+            if (ptrns == UNDEF) return UNDEF;
+            ptrn = CREATE(MK_PROC(&peg_alt_beh), ptrns);
+        } else if (kind == symbol("seq")) {
+            int_t ptrns = compile_peg_rules(scope, rule);
+            if (ptrns == UNDEF) return UNDEF;
+            ptrn = CREATE(MK_PROC(&peg_seq_beh), ptrns);
+        } else if (kind == symbol("star")) {
+            ptrn = compile_peg_rule(scope, car(rule));
+            if (ptrn == UNDEF) return UNDEF;
+            ptrn = CREATE(MK_PROC(&peg_star_beh), ptrn);
+        } else if (kind == symbol("plus")) {
+            ptrn = compile_peg_rule(scope, car(rule));
+            if (ptrn == UNDEF) return UNDEF;
+            ptrn = CREATE(MK_PROC(&peg_plus_beh), ptrn);
+        } else if (kind == symbol("class")) {
+            int_t class = 0;
+            while (IS_PAIR(rule)) {
+                int_t kw = car(rule);
+                rule = cdr(rule);
+                if (kw == symbol("CTL")) { class |= CTL; continue; }
+                if (kw == symbol("DGT")) { class |= DGT; continue; }
+                if (kw == symbol("UPR")) { class |= UPR; continue; }
+                if (kw == symbol("LWR")) { class |= LWR; continue; }
+                if (kw == symbol("DLM")) { class |= DLM; continue; }
+                if (kw == symbol("SYM")) { class |= SYM; continue; }
+                if (kw == symbol("HEX")) { class |= HEX; continue; }
+                if (kw == symbol("WSP")) { class |= WSP; continue; }
+            }
+            ptrn = CREATE(MK_PROC(&peg_class_beh), MK_NUM(class));
+        }
+    } else if (IS_SYM(rule)) {
+        ptrn = CREATE(MK_PROC(&peg_call_beh), cons(rule, scope));
+    }
+    return ptrn;
+}
+int_t compile_peg_rules(int_t scope, int_t rules) {
+    if (!IS_PAIR(rules)) return NIL;
+    int_t ptrn = compile_peg_rule(scope, car(rules));
+    if (ptrn == UNDEF) return UNDEF;
+    int_t ptrns = compile_peg_rules(scope, cdr(rules));
+    if (ptrns == UNDEF) return UNDEF;
+    return cons(ptrn, ptrns);
+}
+int_t add_peg_rule(int_t scope, char *name, char *rule) {
+    ASSERT(get_code(scope) == MK_PROC(Scope));
+    int_t expr = cstr_to_sexpr(rule);
+    if (expr == FAIL) return error("peg rule parse failed");
+    int_t ptrn = compile_peg_rule(scope, expr);
+    if (ptrn == UNDEF) return error("peg rule compile failed");
+    int_t binding = cons(symbol(name), ptrn);
+    int_t data = get_data(scope);
+    set_car(data, cons(binding, car(data)));  // extend env
+    return OK;
+}
+
 PROC_DECL(input_resolved_beh) {
     PTRACE(debug_print("input_resolved_beh self", self));
     GET_VARS();  // (token . next) -or- NIL
@@ -3981,6 +4055,27 @@ int_t test_parsing() {
     SEND(src, start);
     event_loop();
 
+    ASSERT(nstr_init(&str_in, nstr_buf3) == 0);
+    src = CREATE(MK_PROC(&input_promise_beh), MK_ACTOR(&str_in));
+    scope = CREATE(MK_PROC(Scope), cons(NIL, NIL));  // empty env, no parent
+    ASSERT(add_peg_rule(scope, "sexpr",
+        "(seq _ (alt list number symbol))") == OK);
+    ASSERT(add_peg_rule(scope, "list",
+        "(seq (eq 40) (star sexpr) _ (eq 41))") == OK);
+    ASSERT(add_peg_rule(scope, "number",
+        "(plus (class DGT))") == OK);
+    ASSERT(add_peg_rule(scope, "symbol",
+        "(plus (class DGT LWR UPR SYM))") == OK);
+    ASSERT(add_peg_rule(scope, "_",
+        "(star (class WSP))") == OK);
+    env = car(get_data(scope));  // get env from scope
+    ptrn = assoc_find(env, symbol("sexpr"));
+    ASSERT(ptrn != UNDEF);
+    ptrn = cdr(ptrn);  // get pattern from binding
+    start = CREATE(MK_PROC(&peg_start_beh), cons(cons(ok, fail), ptrn));
+    SEND(src, start);
+    event_loop();
+
     return OK;
 }
 #endif // PEG_ACTORS
@@ -3998,22 +4093,13 @@ int_t eval_test_expr(int_t expr, int_t expect) {
     return OK;
 }
 
-static char nstr_buf[256];
 int_t eval_test_cstr(char *cstr, char *result) {
-    nstr_in_t str_in;
-
-    cstr_to_nstr(cstr, nstr_buf, sizeof(nstr_buf));
-    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
-    int_t expr = read_sexpr(&str_in.input);
+    int_t expr = cstr_to_sexpr(cstr);
     if (expr == FAIL) error("eval_test_cstr: read expr failed");
     DEBUG(debug_print("  expr", expr));
-
-    cstr_to_nstr(result, nstr_buf, sizeof(nstr_buf));
-    ASSERT(nstr_init(&str_in, nstr_buf) == 0);
-    int_t expect = read_sexpr(&str_in.input);
+    int_t expect = cstr_to_sexpr(result);
     if (expect == FAIL) error("eval_test_cstr: read expect failed");
     DEBUG(debug_print("  expect", expect));
-
     eval_test_expr(expr, expect);
     return OK;
 }
