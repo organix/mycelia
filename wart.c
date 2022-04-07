@@ -32,7 +32,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define META_ACTORS   1 // include meta-actors facilities
 #define PEG_ACTORS    1 // include PEG parsing facilities
 #define RUN_SELF_TEST 1 // include and run unit-test suite
-#define RUN_FILE_REPL 0 // evalutate code from files and interactive REPL
+#define RUN_FILE_REPL 1 // evalutate code from files and interactive REPL
 
 #ifndef __SIZEOF_POINTER__
 #error "need __SIZEOF_POINTER__ for hexdump()"
@@ -561,6 +561,7 @@ int_t s_equalp;
 int_t s_seq;
 int_t s_lambda;
 int_t s_macro;
+int_t s_vau;
 int_t s_define;
 int_t s_booleanp;
 int_t s_nullp;
@@ -614,6 +615,7 @@ int_t symbol_boot() {
     s_seq = symbol("seq");
     s_lambda = symbol("lambda");
     s_macro = symbol("macro");
+    s_vau = symbol("vau");
     s_define = symbol("define");
     s_booleanp = symbol("boolean?");
     s_nullp = symbol("null?");
@@ -1296,15 +1298,15 @@ static PROC_DECL(fold_last) {
     XDEBUG(debug_print("fold_last one", one));
     return one;
 }
-PROC_DECL(Closure) {
-    XDEBUG(debug_print("Closure self", self));
+PROC_DECL(Fexpr) {
+    XDEBUG(debug_print("Fexpr self", self));
     GET_VARS();  // (eptrn body lenv)
-    XDEBUG(debug_print("Closure vars", vars));
+    XDEBUG(debug_print("Fexpr vars", vars));
     POP_VAR(eptrn);
     POP_VAR(body);
     POP_VAR(lenv);  // lexical (captured) environment
     GET_ARGS();
-    DEBUG(debug_print("Closure args", args));
+    DEBUG(debug_print("Fexpr args", args));
     POP_ARG(cust);
     POP_ARG(req);
     if (req == s_apply) {  // (cust 'apply opnd denv)
@@ -1335,9 +1337,9 @@ PROC_DECL(Oper_lambda) {  // (lambda pattern . objects)
         if (IS_PAIR(opnd)) {
             int_t ptrn = car(opnd);
             int_t body = cdr(opnd);
-            int_t closure = CREATE(MK_PROC(Closure),
+            int_t oper = CREATE(MK_PROC(Fexpr),
                 list_3(cons(s_ignore, ptrn), body, lenv));
-            int_t appl = CREATE(MK_PROC(Appl), closure);
+            int_t appl = CREATE(MK_PROC(Appl), oper);
             SEND(cust, appl);
             return OK;
         }
@@ -1555,12 +1557,12 @@ PROC_DECL(Oper_macro) {  // (macro pattern evar . objects)
             int_t ptrn = car(opnd);
             opnd = cdr(opnd);
             if (IS_PAIR(opnd)) {
-                int_t evar = car(opnd);
+                int_t evar = car(opnd);  // FIXME: ========= ELIMINATE THIS PARAMETER =========
                 int_t body = cdr(opnd);
-                int_t closure = CREATE(MK_PROC(Closure),
-                    list_3(cons(evar, ptrn), body, lenv));
-                int_t oper = CREATE(MK_PROC(Macro), closure);
-                SEND(cust, oper);
+                int_t oper = CREATE(MK_PROC(Fexpr),
+                    list_3(cons(s_ignore, ptrn), body, lenv));
+                int_t macro = CREATE(MK_PROC(Macro), oper);
+                SEND(cust, macro);
                 return OK;
             }
         }
@@ -1570,6 +1572,35 @@ PROC_DECL(Oper_macro) {  // (macro pattern evar . objects)
     return SeType(self, arg);  // delegate to SeType
 }
 const cell_t a_macro = { .head = MK_PROC(Oper_macro), .tail = UNDEF };
+
+PROC_DECL(Oper_vau) {  // (vau pattern evar . objects)
+    XDEBUG(debug_print("Oper_vau self", self));
+    GET_ARGS();
+    DEBUG(debug_print("Oper_vau args", args));
+    POP_ARG(cust);
+    POP_ARG(req);
+    if (req == s_apply) {  // (cust 'apply opnd env)
+        POP_ARG(opnd);
+        POP_ARG(lenv);
+        END_ARGS();
+        if (IS_PAIR(opnd)) {
+            int_t ptrn = car(opnd);
+            opnd = cdr(opnd);
+            if (IS_PAIR(opnd)) {
+                int_t evar = car(opnd);
+                int_t body = cdr(opnd);
+                int_t oper = CREATE(MK_PROC(Fexpr),
+                    list_3(cons(evar, ptrn), body, lenv));
+                SEND(cust, oper);
+                return OK;
+            }
+        }
+        SEND(cust, error("vau expected pattern evar . body"));
+        return OK;
+    }
+    return SeType(self, arg);  // delegate to SeType
+}
+const cell_t a_vau = { .head = MK_PROC(Oper_vau), .tail = UNDEF };
 
 static PROC_DECL(Define_k_bind) {
     XDEBUG(debug_print("Define_k_bind self", self));
@@ -3274,6 +3305,8 @@ PROC_DECL(Global) {
             value = MK_ACTOR(&a_map);
         } else if (symbol == s_macro) {
             value = MK_ACTOR(&a_macro);
+        } else if (symbol == s_vau) {
+            value = MK_ACTOR(&a_vau);
         } else if (symbol == s_define) {
             value = MK_ACTOR(&a_define);
         } else if (symbol == s_booleanp) {
