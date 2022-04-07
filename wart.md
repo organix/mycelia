@@ -19,18 +19,13 @@ Linear memory (Heap) is addressed by offset from zero.
 
 ### Disjoint Base Types
 
-Tag  | Type   | Description
------|--------|------------
-2#00 | Fixnum | (x>>2) = 2's-complement integer
-2#01 | Pair   | (x&~3) = machine address of cell
-2#10 | Symbol | (x>>2) = index into symbol table
-2#11 | Actor  | (x&~3) = machine address of cell
-
-_Procedures_ are encoded as _Actors_
-(since they are opaque values),
-using the raw code address.
-Some code performs an additional check
-to disambiguate when needed.
+Tag    | Type   | Description
+-------|--------|------------
+2#xx00 | Fixnum | (x>>2) = 2's-complement integer
+2#xx01 | Pair   | (x&~3) = machine address of cell (car/cdr)
+2#0010 | Proc   | (x&~3) = executable code address
+2#0110 | Symbol | (x>>2) = index into symbol table
+2#xx11 | Actor  | (x&~3) = machine address of cell (code/data)
 
 ## Ground Environment
 
@@ -50,10 +45,11 @@ Several procedures are pre-defined in the ground environment.
   * `(equal? . `_objects_`)`
   * `(seq . `_objects_`)`
   * `(lambda `_pattern_` . `_body_`)`
+  * `(macro `_pattern_` . `_body_`)`
+  * `(vau `_pattern_` `_evar_` . `_body_`)`
   * `(eval `_expression_` [`_environment_`])`
   * `(apply `_oper_` `_args_` [`_environment_`])`
   * `(map `_oper_` . `_lists_`)`
-  * `(macro `_pattern_` `_evar_` . `_body_`)`
   * `(define `_pattern_` `_expression_`)`
   * `(boolean? . `_objects_`)`
   * `(null? . `_objects_`)`

@@ -5,7 +5,7 @@
 (define integer? number?)  ; integers are currently the only number type implemented
 
 (define cond
-  (macro clauses _
+  (macro clauses
     (if (null? clauses)
       #unit
       (apply
@@ -14,7 +14,7 @@
         clauses) )))
 
 (define let
-  (macro (bindings . body) _
+  (macro (bindings . body)
     (cons
       (list* lambda (map car bindings) body)
       (map cadr bindings))))
@@ -65,7 +65,7 @@
     (foldl xs rcons ())))
 
 (define provide
-  (macro (symbols . body) _
+  (macro (symbols . body)
     (list define symbols
       (list
         (list lambda ()
@@ -81,6 +81,7 @@
 (define add1 (lambda (x) (+ x 1)))
 (define sub1 (lambda (x) (- x 1)))
 
-; Handy Macros
-(define current-env (macro _ env env))
-(define qlist (macro x _ (list quote x)))
+; Handy Special Forms
+(define current-env (vau _ e e))
+(define qlist (macro x (list quote x)))
+;(define qlist (vau x _ x))

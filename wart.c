@@ -1153,12 +1153,12 @@ static PROC_DECL(Appl_k_args) {
     return OK;
 }
 PROC_DECL(Appl) {
-    DEBUG(debug_print("Appl self", self));
+    XDEBUG(debug_print("Appl self", self));
     GET_VARS();  // oper
     XDEBUG(debug_print("Appl vars", vars));
     TAIL_VAR(oper);
     GET_ARGS();
-    XDEBUG(debug_print("Appl args", args));
+    DEBUG(debug_print("Appl args", args));
     POP_ARG(cust);
     POP_ARG(req);
     if (req == s_apply) {  // (cust 'apply opnd env)
@@ -1513,10 +1513,10 @@ const cell_t a_map = { .head = MK_PROC(Appl), .tail = MK_ACTOR(&oper_map) };
 
 static PROC_DECL(Macro_k_form) {
     XDEBUG(debug_print("Macro_k_form self", self));
-    GET_VARS();  // (cust denv)
+    GET_VARS();  // (cust . denv)
     XDEBUG(debug_print("Macro_k_form vars", vars));
     POP_VAR(cust);
-    POP_VAR(denv);
+    TAIL_VAR(denv);
     GET_ARGS();  // form
     MTRACE(debug_print("Macro_k_form args", args));
     TAIL_ARG(form);
@@ -1524,12 +1524,12 @@ static PROC_DECL(Macro_k_form) {
     return OK;
 }
 PROC_DECL(Macro) {
-    DEBUG(debug_print("Macro self", self));
+    XDEBUG(debug_print("Macro self", self));
     GET_VARS();  // oper
     XDEBUG(debug_print("Macro vars", vars));
     TAIL_VAR(oper);
     GET_ARGS();
-    XDEBUG(debug_print("Macro args", args));
+    DEBUG(debug_print("Macro args", args));
     POP_ARG(cust);
     POP_ARG(req);
     if (req == s_apply) {  // (cust 'apply opnd env)
@@ -1537,13 +1537,13 @@ PROC_DECL(Macro) {
         POP_ARG(denv);
         END_ARGS();
         MTRACE(debug_print("Macro opnd", opnd));
-        int_t k_form = CREATE(MK_PROC(Macro_k_form), list_2(cust, denv));
+        int_t k_form = CREATE(MK_PROC(Macro_k_form), cons(cust, denv));
         SEND(oper, list_4(k_form, s_apply, opnd, denv));
         return OK;
     }
     return SeType(self, arg);  // delegate to SeType
 }
-PROC_DECL(Oper_macro) {  // (macro pattern evar . objects)
+PROC_DECL(Oper_macro) {  // (macro pattern . objects)
     XDEBUG(debug_print("Oper_macro self", self));
     GET_ARGS();
     DEBUG(debug_print("Oper_macro args", args));
@@ -1555,18 +1555,14 @@ PROC_DECL(Oper_macro) {  // (macro pattern evar . objects)
         END_ARGS();
         if (IS_PAIR(opnd)) {
             int_t ptrn = car(opnd);
-            opnd = cdr(opnd);
-            if (IS_PAIR(opnd)) {
-                int_t evar = car(opnd);  // FIXME: ========= ELIMINATE THIS PARAMETER =========
-                int_t body = cdr(opnd);
-                int_t oper = CREATE(MK_PROC(Fexpr),
-                    list_3(cons(s_ignore, ptrn), body, lenv));
-                int_t macro = CREATE(MK_PROC(Macro), oper);
-                SEND(cust, macro);
-                return OK;
-            }
+            int_t body = cdr(opnd);
+            int_t oper = CREATE(MK_PROC(Fexpr),
+                list_3(cons(s_ignore, ptrn), body, lenv));
+            int_t macro = CREATE(MK_PROC(Macro), oper);
+            SEND(cust, macro);
+            return OK;
         }
-        SEND(cust, error("macro expected pattern evar . body"));
+        SEND(cust, error("macro expected pattern . body"));
         return OK;
     }
     return SeType(self, arg);  // delegate to SeType
@@ -4164,22 +4160,19 @@ int_t test_parsing() {
 #if 1
     env = cons(NIL, GROUND_ENV);  // empty env, ground_env parent
     scope = CREATE(MK_PROC(Scope), env);  // rule scope
-    //expr = cstr_to_sexpr("(define qlist (macro x _ (list quote x)))");
-    //ASSERT(expr != FAIL);
-    //eval_immediate(SINK, expr, scope);
-    expr = cstr_to_sexpr("(define <SEXPR> (macro (_ x) _ x))");
+    expr = cstr_to_sexpr("(define <SEXPR> (macro (_ x) x))");
     ASSERT(expr != FAIL);
     eval_immediate(SINK, expr, scope);
-    expr = cstr_to_sexpr("(define <LIST> (macro (_ x _ _) _ (cons list x)))");
+    expr = cstr_to_sexpr("(define <LIST> (macro (_ x _ _) (cons list x)))");
     ASSERT(expr != FAIL);
     eval_immediate(SINK, expr, scope);
-    expr = cstr_to_sexpr("(define <NUMBER> (macro x _ (list list->number (list quote x))))");
+    expr = cstr_to_sexpr("(define <NUMBER> (macro x (list list->number (list quote x))))");
     ASSERT(expr != FAIL);
     eval_immediate(SINK, expr, scope);
-    expr = cstr_to_sexpr("(define <SYMBOL> (macro x _ (list list->symbol (list quote x))))");
+    expr = cstr_to_sexpr("(define <SYMBOL> (macro x (list list->symbol (list quote x))))");
     ASSERT(expr != FAIL);
     eval_immediate(SINK, expr, scope);
-    //expr = cstr_to_sexpr("(define <_> (macro _ _ ()))");
+    //expr = cstr_to_sexpr("(define <_> (macro _ ()))");
     //ASSERT(expr != FAIL);
     //eval_immediate(SINK, expr, scope);
     cust = CREATE(MK_PROC(peg_eval_beh), cons(ok, scope));
@@ -4519,7 +4512,7 @@ int_t load_library() {
     top_level_eval("(define caddr (lambda ((_ _ x . _)) x))");
     top_level_eval("(define cadddr (lambda ((_ _ _ x . _)) x))");
     top_level_eval("(define not (lambda (b) (eq? b #f)))");
-    top_level_eval("(define unit? (macro objs _ (cons eq? (cons #unit objs))))");
+    top_level_eval("(define unit? (macro objs (cons eq? (cons #unit objs))))");
     top_level_eval("(define zero? (lambda (n) (= n 0)))");
     top_level_eval("(define list? (lambda (p) (if (pair? p) (list? (cdr p)) (null? p))))");
     top_level_eval("(define length (lambda (p) (if (pair? p) (+ (length (cdr p)) 1) 0)))");
