@@ -1095,6 +1095,7 @@ static PROC_DECL(Type) {
         SEND(cust, value);
         return OK;
     }
+    WARN(debug_print("Type self", self));
     WARN(debug_print("Type NOT UNDERSTOOD", arg));
     SEND(cust, error("NOT UNDERSTOOD"));
     return OK;

@@ -24,7 +24,7 @@ Tag    | Type   | Description
 2#xx00 | Fixnum | (x>>2) = 2's-complement integer
 2#xx01 | Pair   | (x&~3) = machine address of cell (car/cdr)
 2#0010 | Proc   | (x&~3) = executable code address
-2#0110 | Symbol | (x>>2) = index into symbol table
+2#0110 | Symbol | (x>>4) = index into symbol table
 2#xx11 | Actor  | (x&~3) = machine address of cell (code/data)
 
 ## Ground Environment
