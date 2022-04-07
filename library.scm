@@ -83,5 +83,5 @@
 
 ; Handy Special Forms
 (define current-env (vau _ e e))
-(define qlist (macro x (list quote x)))
-;(define qlist (vau x _ x))
+;(define qlist (macro x (list quote x)))
+(define qlist (vau x _ x))

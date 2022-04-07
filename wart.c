@@ -19,7 +19,7 @@ See further [https://github.com/organix/mycelia/blob/master/wart.md]
 #define WARN(x)     x   // include/exclude warning instrumentation
 #define DEBUG(x)        // include/exclude debug instrumentation
 #define XDEBUG(x)       // include/exclude extra debugging
-#define MTRACE(x)   x   // include/exclude macro tracing
+#define MTRACE(x)       // include/exclude macro tracing
 #define ATRACE(x)       // include/exclude meta-actor tracing
 #define PTRACE(x)       // include/exclude PEG-actor tracing
 
@@ -4161,18 +4161,22 @@ int_t test_parsing() {
     env = cons(NIL, GROUND_ENV);  // empty env, ground_env parent
     scope = CREATE(MK_PROC(Scope), env);  // rule scope
     expr = cstr_to_sexpr("(define <SEXPR> (macro (_ x) x))");
+    //expr = cstr_to_sexpr("(define <SEXPR> (vau (_ x) e (eval x e)))");
     ASSERT(expr != FAIL);
     eval_immediate(SINK, expr, scope);
     expr = cstr_to_sexpr("(define <LIST> (macro (_ x _ _) (cons list x)))");
+    //expr = cstr_to_sexpr("(define <LIST> (vau (_ x _ _) e (eval (cons list x) e)))");
     ASSERT(expr != FAIL);
     eval_immediate(SINK, expr, scope);
-    expr = cstr_to_sexpr("(define <NUMBER> (macro x (list list->number (list quote x))))");
+    //expr = cstr_to_sexpr("(define <NUMBER> (macro x (list list->number (list quote x))))");
+    expr = cstr_to_sexpr("(define <NUMBER> (vau x _ (list->number x)))");
     ASSERT(expr != FAIL);
     eval_immediate(SINK, expr, scope);
-    expr = cstr_to_sexpr("(define <SYMBOL> (macro x (list list->symbol (list quote x))))");
+    //expr = cstr_to_sexpr("(define <SYMBOL> (macro x (list list->symbol (list quote x))))");
+    expr = cstr_to_sexpr("(define <SYMBOL> (vau x _ (list->symbol x)))");
     ASSERT(expr != FAIL);
     eval_immediate(SINK, expr, scope);
-    //expr = cstr_to_sexpr("(define <_> (macro _ ()))");
+    //expr = cstr_to_sexpr("(define <_> (vau _ _ ()))");
     //ASSERT(expr != FAIL);
     //eval_immediate(SINK, expr, scope);
     cust = CREATE(MK_PROC(peg_eval_beh), cons(ok, scope));
