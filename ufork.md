@@ -5,7 +5,7 @@ interleaved execution of threaded instruction streams.
 Instruction streams are not assumed to be
 arranged in consecutive memory locations.
 Instead, each instruction contains a "pointer"
-to the subsequent instuction,
+to the subsequent instruction,
 or multiple pointers in the case of conditionals, etc.
 
 This is combined with a lightweight computational context
@@ -107,14 +107,30 @@ usually via some late-bound named-reference.
 
 ## Representation
 
-The primary data-structure in **uFork** consists of four machine-native integers.
+The primary data-structure in **uFork** consists of four integers.
 
-Name | Description
------|------------
- t   | code/type
- x   | first/car
- y   | rest/cdr
- z   | link/next
+ t        | x        | y        | z
+----------|----------|----------|----------
+proc/type | head/car | tail/cdr | link/next
+
+### Actors
+
+#### Instructions
+
+ t        | x        | y        | z
+----------|----------|----------|----------
+SEND      |target    |message   |
+CREATE    |behavior  |          |
+BECOME    |behavior  |          |
+ABORT     |reason    |          |
+
+#### Data Structures
+
+ t        | x        | y        | z
+----------|----------|----------|----------
+EFFECT    |events    |behavior  |
+EVENT     |target    |message   |
+
 
 ## Inspiration
 
