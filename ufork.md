@@ -2,6 +2,18 @@
 
 The key idea behind this Actor Virtual Machine is
 interleaved execution of threaded instruction streams.
+Instruction streams are not assumed to be
+arranged in consecutive memory locations.
+Instead, each instruction contains a "pointer"
+to the subsequent instuction,
+or multiple pointers in the case of conditionals, etc.
+
+This is combined with a lightweight computational context
+(such as IP+SP) that makes it efficient
+to enqueue the context after each instruction.
+Then the next context can be dequeued and executed.
+Thus an arbitrary number of instruction streams can be executed,
+interleaved at the instruction level.
 
 ## Primitives
 
@@ -15,14 +27,17 @@ to be useful building-blocks.
 ### [Actors](http://www.dalnefre.com/wp/2020/01/requirements-for-an-actor-programming-language/)
 
 We take a transactional view of _actors_,
-where all the _effects_ caused by an actor's _behavior_
+where all the _effects_
+caused by an actor's _behavior_
+in response to an _event_
 become visible at the same logical instant.
 
 Actor primitives include:
-  * SEND _target_ _message_
-  * CREATE _behavior_
-  * BECOME _behavior_
-  * ABORT _reason_
+
+  * SEND(_target_, _message_)
+  * CREATE(_behavior_)
+  * BECOME(_behavior_)
+  * ABORT(_reason_)
 
 ### [Lambda-Calculus](http://www.dalnefre.com/wp/2010/08/evaluating-expressions-part-1-core-lambda-calculus/)
 
@@ -31,6 +46,7 @@ However, it is useful to think about lambda-calculus
 in terms of primitive expressions.
 
 Lambda-Calculus primitives include:
+
   * Constant
   * Variable
   * Lambda-Abstraction
@@ -42,8 +58,9 @@ There is a long lineage of languages, starting with LISP,
 that have a very lambda-calculus like feel to them.
 Many of them depart from the pure-functional nature of lambda-calculus,
 but the core evaluation scheme is functional,
-based on a small set of primitive types:
-  * Constant (including Nil)
+based on a small set of primitives:
+
+  * Constant (includes Nil)
   * Symbol
   * Pair
 
@@ -65,6 +82,7 @@ _Parsing Expression Grammars_ (PEGs) are a powerful,
 but simple, tool for describing unambiguous parsers.
 
 PEG primitives include:
+
   * Empty
   * Match(_predicate_)
   * Or(_first_, _rest_)
@@ -77,6 +95,7 @@ Suprisingly, there are no repetition expressions in the primitive set.
 This is because they can be trivially defined in primitive terms.
 
 Derived PEGs include:
+
   * Optional(_pattern_) = Or(_pattern_, Empty)
   * Plus(_pattern_) = And(_pattern_, Star(_pattern_))
   * Star(_pattern_) = Or(Plus(_pattern_), Empty)
