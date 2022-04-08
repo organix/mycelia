@@ -108,11 +108,12 @@ cell_t cell_table[CELL_MAX] = {
     { .t = Undef_T,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF  },
     { .t = Unit_T,      .x = UNIT,      .y = UNIT,      .z = UNDEF  },
 };
+cell_t *cell_zero = &cell_table[0];  // allow offset for negative indicies
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
 int_t cell_top = START; // limit of allocated cell memory
 
-#define IS_PAIR(x)  (cell_table[(x)].t == Pair_T)
-#define IS_BOOL(x)  (cell_table[(x)].t == Boolean_T)
+#define IS_PAIR(x)  (cell_zero[(x)].t == Pair_T)
+#define IS_BOOL(x)  (cell_zero[(x)].t == Boolean_T)
 
 PROC_DECL(Free) {
     return panic("DISPATCH TO FREE CELL!");
@@ -125,7 +126,7 @@ static int_t cell_new(int_t t, int_t x, int_t y, int_t z) {
     if (cell_next != NIL) {
         // use cell from free-list
         next = cell_next;
-        cell_next = cell_table[next].z;
+        cell_next = cell_zero[next].z;
         --gc_free_cnt;
     } else if (next < CELL_MAX) {
         // extend top of heap
@@ -133,25 +134,25 @@ static int_t cell_new(int_t t, int_t x, int_t y, int_t z) {
     } else {
         return panic("out of cell memory");
     }
-    cell_table[next].t = t;
-    cell_table[next].x = x;
-    cell_table[next].y = y;
-    cell_table[next].z = z;
+    cell_zero[next].t = t;
+    cell_zero[next].x = x;
+    cell_zero[next].y = y;
+    cell_zero[next].z = z;
     return next;
 }
 
 static void cell_reclaim(int_t addr) {
     // link into free-list
-    cell_table[addr].z = cell_next;
-    cell_table[addr].y = UNDEF;
-    cell_table[addr].x = UNDEF;
-    cell_table[addr].t = Free_T;
+    cell_zero[addr].z = cell_next;
+    cell_zero[addr].y = UNDEF;
+    cell_zero[addr].x = UNDEF;
+    cell_zero[addr].t = Free_T;
     cell_next = addr;
     ++gc_free_cnt;
 }
 
 int_t cell_free(int_t addr) {
-    ASSERT(cell_table[addr].t != Free_T);  // prevent double-free
+    ASSERT(cell_zero[addr].t != Free_T);  // prevent double-free
     cell_reclaim(addr);
     return UNDEF;
 }
@@ -169,11 +170,11 @@ int_t cons(int_t head, int_t tail) {
 #define list_6(v1,v2,v3,v4,v5,v6)  cons((v1), cons((v2), cons((v3), cons((v4), cons((v5), cons((v6), NIL))))))
 
 int_t car(int_t val) {
-    return cell_table[val].x;
+    return cell_zero[val].x;
 }
 
 int_t cdr(int_t val) {
-    return cell_table[val].y;
+    return cell_zero[val].y;
 }
 
 int_t equal(int_t x, int_t y) {
