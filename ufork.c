@@ -80,6 +80,7 @@ PROC_DECL(Pair);
 PROC_DECL(Symbol);
 PROC_DECL(Boolean);
 PROC_DECL(Unit);
+PROC_DECL(Actor);
 PROC_DECL(Free);
 PROC_DECL(vm_push);
 PROC_DECL(vm_drop);
@@ -89,7 +90,6 @@ PROC_DECL(vm_lt);
 PROC_DECL(vm_if);
 PROC_DECL(vm_putc);
 PROC_DECL(vm_getc);
-PROC_DECL(fn_debug);
 
 #define Undef_T     (0)
 #define Null_T      (1)
@@ -97,16 +97,16 @@ PROC_DECL(fn_debug);
 #define Symbol_T    (3)
 #define Boolean_T   (4)
 #define Unit_T      (5)
-#define Free_T      (6)
-#define VM_push     (7)
-#define VM_drop     (8)
-#define VM_dup      (9)
-#define VM_eq       (10)
-#define VM_lt       (11)
-#define VM_if       (12)
-#define VM_putc     (13)
-#define VM_getc     (14)
-#define FN_debug    (15)
+#define Actor_T     (6)
+#define Free_T      (7)
+#define VM_push     (8)
+#define VM_drop     (9)
+#define VM_dup      (10)
+#define VM_eq       (11)
+#define VM_lt       (12)
+#define VM_if       (13)
+#define VM_putc     (14)
+#define VM_getc     (15)
 
 proc_t proc_table[] = {
     Undef,
@@ -115,6 +115,7 @@ proc_t proc_table[] = {
     Symbol,
     Boolean,
     Unit,
+    Actor,
     Free,  // free-cell marker
     vm_push,
     vm_drop,
@@ -124,7 +125,6 @@ proc_t proc_table[] = {
     vm_if,
     vm_putc,
     vm_getc,
-    fn_debug,
 };
 proc_t *proc_zero = &proc_table[0];  // base for proc offsets
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
@@ -144,7 +144,7 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define NIL         (2)
 #define UNDEF       (3)
 #define UNIT        (4)
-#define A_DEBUG     (5)
+#define A_BOOT      (5)
 #define START       (6)
 
 #define CELL_MAX (1<<10)  // 1K cells
@@ -154,21 +154,22 @@ cell_t cell_table[CELL_MAX] = {
     { .t = Null_T,      .x = NIL,       .y = NIL,       .z = UNDEF      },
     { .t = Undef_T,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF      },
     { .t = Unit_T,      .x = UNIT,      .y = UNIT,      .z = UNDEF      },
-    { .t = FN_debug,    .x = UNDEF,     .y = UNDEF,     .z = UNDEF      },
-    { .t = VM_push,     .x = '>',       .y = START+1,   .z = UNDEF      },  // <--- START
-    { .t = VM_putc,     .x = UNDEF,     .y = START+2,   .z = UNDEF      },
-    { .t = VM_push,     .x = ' ',       .y = START+3,   .z = UNDEF      },
-    { .t = VM_putc,     .x = UNDEF,     .y = START+4,   .z = UNDEF      },
-    { .t = VM_getc,     .x = UNDEF,     .y = START+5,   .z = UNDEF      },
-    { .t = VM_dup,      .x = 1,         .y = START+6,   .z = UNDEF      },
-    { .t = VM_push,     .x = '\0',      .y = START+7,   .z = UNDEF      },
-    { .t = VM_lt,       .x = UNDEF,     .y = START+8,   .z = UNDEF      },
-    { .t = VM_if,       .x = UNIT,      .y = START+9,   .z = UNDEF      },
-    { .t = VM_putc,     .x = UNDEF,     .y = START+4,   .z = UNDEF      },
+    { .t = Actor_T,     .x = START+1,   .y = NIL,       .z = UNDEF      },
+    { .t = START+1,     .x = NIL,       .y = A_BOOT,    .z = UNDEF      },  // <--- START
+    { .t = VM_push,     .x = '>',       .y = START+2,   .z = UNDEF      },
+    { .t = VM_putc,     .x = UNDEF,     .y = START+3,   .z = UNDEF      },
+    { .t = VM_push,     .x = ' ',       .y = START+4,   .z = UNDEF      },
+    { .t = VM_putc,     .x = UNDEF,     .y = START+5,   .z = UNDEF      },
+    { .t = VM_getc,     .x = UNDEF,     .y = START+6,   .z = UNDEF      },
+    { .t = VM_dup,      .x = 1,         .y = START+7,   .z = UNDEF      },
+    { .t = VM_push,     .x = '\0',      .y = START+8,   .z = UNDEF      },
+    { .t = VM_lt,       .x = UNDEF,     .y = START+9,   .z = UNDEF      },
+    { .t = VM_if,       .x = UNIT,      .y = START+10,  .z = UNDEF      },
+    { .t = VM_putc,     .x = UNDEF,     .y = START+5,   .z = UNDEF      },
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
-int_t cell_top = START+10; // limit of allocated cell memory
+int_t cell_top = START+11; // limit of allocated cell memory
 
 #define get_t(n) (cell_zero[(n)].t)
 #define get_x(n) (cell_zero[(n)].x)
@@ -278,29 +279,37 @@ int_t append_reverse(int_t head, int_t tail) {
  * runtime (virtual machine engine)
  */
 
-int_t instruction_pointer = START;
-int_t stack_pointer = NIL;
+int_t k_queue_head = START;
+int_t k_queue_tail = START;
+
+#define GET_IP() get_t(k_queue_head)
+#define GET_SP() get_x(k_queue_head)
+#define GET_EP() get_y(k_queue_head)
+
+#define SET_IP(v) set_t(k_queue_head,(v))
+#define SET_SP(v) set_x(k_queue_head,(v))
+#define SET_EP(v) set_y(k_queue_head,(v))
 
 int_t stack_push(int_t value) {
-    stack_pointer = cons(value, stack_pointer);
+    SET_SP(cons(value, GET_SP()));
     return value;
 }
 
 int_t stack_pop() {
     int_t value = UNDEF;
-    if (IS_PAIR(stack_pointer)) {
-        value = car(stack_pointer);
-        stack_pointer = cdr(stack_pointer);
+    if (IS_PAIR(GET_SP())) {
+        value = car(GET_SP());
+        SET_SP(cdr(GET_SP()));
     }
     return value;
 }
 
 int_t runtime() {
-    int_t next = instruction_pointer;
-    while (next >= START) {
-        instruction_pointer = next;
-        int_t proc = get_t(instruction_pointer);
-        next = call_proc(proc, instruction_pointer, stack_pointer);
+    int_t next = GET_IP();
+    while (next > START) {
+        int_t ip = SET_IP(next);
+        int_t proc = get_t(ip);
+        next = call_proc(proc, ip, GET_EP());
     }
     return next;
 }
@@ -333,6 +342,10 @@ PROC_DECL(Unit) {
     return error("Unit not implemented");
 }
 
+PROC_DECL(Actor) {
+    return error("Actor not implemented");
+}
+
 PROC_DECL(vm_push) {
     int_t v = get_x(self);
     stack_push(v);
@@ -350,12 +363,12 @@ PROC_DECL(vm_drop) {
 PROC_DECL(vm_dup) {
     int_t n = get_x(self);
     int_t dup = NIL;
-    int_t sp = stack_pointer;
+    int_t sp = GET_SP();
     while (n-- > 0) {  // copy n items from stack
         dup = cons(car(sp), dup);
         sp = cdr(sp);
     }
-    stack_pointer = append_reverse(dup, stack_pointer);
+    SET_SP(append_reverse(dup, GET_SP()));
     return get_y(self);
 }
 
@@ -390,12 +403,6 @@ PROC_DECL(vm_getc) {
     int_t c = getchar();
     stack_push(c);
     return get_y(self);
-}
-
-PROC_DECL(fn_debug) {
-    DEBUG(debug_print("fn_debug self", self));
-    DEBUG(debug_print("fn_debug arg", arg));
-    return UNIT;
 }
 
 void debug_print(char *label, int_t addr) {

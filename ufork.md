@@ -127,7 +127,7 @@ Free_T    |UNDEF     |UNDEF     |next
 
  t        | x        | y        | z
 ----------|----------|----------|----------
-Pair_T    |item      |next      |
+Pair_T    |item      |rest      |
 
 ##### Continuation
 
@@ -165,7 +165,7 @@ ABORT     |reason    |          |
  t        | x        | y        | z
 ----------|----------|----------|----------
 EVENT     |target    |message   |
-ACTOR     |behavior  |events    |behavior'
+Actor_T   |behavior  |events'   |behavior'
 
 
 ## Inspiration
