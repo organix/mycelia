@@ -155,16 +155,16 @@ cell_t cell_table[CELL_MAX] = {
     { .t = Undef_T,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF      },
     { .t = Unit_T,      .x = UNIT,      .y = UNIT,      .z = UNDEF      },
     { .t = FN_debug,    .x = UNDEF,     .y = UNDEF,     .z = UNDEF      },
-    { .t = VM_push,     .x = '>',       .y = UNDEF,     .z = START+1    },  // <--- START
-    { .t = VM_putc,     .x = UNDEF,     .y = UNDEF,     .z = START+2    },
-    { .t = VM_push,     .x = ' ',       .y = UNDEF,     .z = START+3    },
-    { .t = VM_putc,     .x = UNDEF,     .y = UNDEF,     .z = START+4    },
-    { .t = VM_getc,     .x = UNDEF,     .y = UNDEF,     .z = START+5    },
-    { .t = VM_dup,      .x = 1,         .y = UNDEF,     .z = START+6    },
-    { .t = VM_push,     .x = '\0',      .y = UNDEF,     .z = START+7    },
-    { .t = VM_lt,       .x = UNDEF,     .y = UNDEF,     .z = START+8    },
-    { .t = VM_if,       .x = UNDEF,     .y = UNIT,      .z = START+9    },
-    { .t = VM_putc,     .x = UNDEF,     .y = UNDEF,     .z = START+4    },
+    { .t = VM_push,     .x = '>',       .y = START+1,   .z = UNDEF      },  // <--- START
+    { .t = VM_putc,     .x = UNDEF,     .y = START+2,   .z = UNDEF      },
+    { .t = VM_push,     .x = ' ',       .y = START+3,   .z = UNDEF      },
+    { .t = VM_putc,     .x = UNDEF,     .y = START+4,   .z = UNDEF      },
+    { .t = VM_getc,     .x = UNDEF,     .y = START+5,   .z = UNDEF      },
+    { .t = VM_dup,      .x = 1,         .y = START+6,   .z = UNDEF      },
+    { .t = VM_push,     .x = '\0',      .y = START+7,   .z = UNDEF      },
+    { .t = VM_lt,       .x = UNDEF,     .y = START+8,   .z = UNDEF      },
+    { .t = VM_if,       .x = UNIT,      .y = START+9,   .z = UNDEF      },
+    { .t = VM_putc,     .x = UNDEF,     .y = START+4,   .z = UNDEF      },
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
@@ -263,6 +263,17 @@ int_t list_len(int_t val) {
     return len;
 }
 
+// WARNING! destuctive reverse in-place and append
+int_t append_reverse(int_t head, int_t tail) {
+    while (IS_PAIR(head)) {
+        int_t rest = cdr(head);
+        set_cdr(head, tail);
+        tail = head;
+        head = rest;
+    }
+    return tail;
+}
+
 /*
  * runtime (virtual machine engine)
  */
@@ -325,7 +336,7 @@ PROC_DECL(Unit) {
 PROC_DECL(vm_push) {
     int_t v = get_x(self);
     stack_push(v);
-    return get_z(self);
+    return get_y(self);
 }
 
 PROC_DECL(vm_drop) {
@@ -333,7 +344,7 @@ PROC_DECL(vm_drop) {
     while (n-- > 0) {
         stack_pop();
     }
-    return get_z(self);
+    return get_y(self);
 }
 
 PROC_DECL(vm_dup) {
@@ -344,47 +355,41 @@ PROC_DECL(vm_dup) {
         dup = cons(car(sp), dup);
         sp = cdr(sp);
     }
-    sp = stack_pointer;
-    while (dup != NIL) {  // reverse in-place
-        int_t rest = cdr(dup);
-        set_cdr(dup, sp);
-        sp = dup;
-        dup = rest;
-    }
-    stack_pointer = sp;  // move to stack
-    return get_z(self);
+    stack_pointer = append_reverse(dup, stack_pointer);
+    return get_y(self);
 }
 
 PROC_DECL(vm_eq) {
     int_t y = stack_pop();
     int_t x = stack_pop();
-    stack_push(equal(x, y));
-    return get_z(self);
+    //stack_push(equal(x, y));
+    stack_push(x == y);  // identity, not equality
+    return get_y(self);
 }
 
 PROC_DECL(vm_lt) {
     int_t m = stack_pop();
     int_t n = stack_pop();
     stack_push((n < m) ? TRUE : FALSE);
-    return get_z(self);
+    return get_y(self);
 }
 
 PROC_DECL(vm_if) {
     int_t b = stack_pop();
     // FIXME: check for UNDEF? ...if so, then what?
-    return ((b == FALSE) ? get_z(self) : get_y(self));
+    return ((b == FALSE) ? get_y(self) : get_x(self));
 }
 
 PROC_DECL(vm_putc) {
     int_t c = stack_pop();
     putchar(c);
-    return get_z(self);
+    return get_y(self);
 }
 
 PROC_DECL(vm_getc) {
     int_t c = getchar();
     stack_push(c);
-    return get_z(self);
+    return get_y(self);
 }
 
 PROC_DECL(fn_debug) {

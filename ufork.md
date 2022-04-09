@@ -115,6 +115,26 @@ proc/type | head/car | tail/cdr | link/next
 
 ### Virtual Machine
 
+#### Data Structures
+
+##### Free-List
+
+ t        | x        | y        | z
+----------|----------|----------|----------
+Free_T    |UNDEF     |UNDEF     |next
+
+##### Stack
+
+ t        | x        | y        | z
+----------|----------|----------|----------
+Pair_T    |item      |next      |
+
+##### Continuation
+
+ t        | x        | y        | z
+----------|----------|----------|----------
+instr_ptr |stack_ptr |event_ptr |k_next
+
 #### Instructions
 
  t        | x        | y        | z
@@ -144,8 +164,8 @@ ABORT     |reason    |          |
 
  t        | x        | y        | z
 ----------|----------|----------|----------
-EFFECT    |events    |behavior  |
 EVENT     |target    |message   |
+ACTOR     |behavior  |events    |behavior'
 
 
 ## Inspiration
