@@ -81,8 +81,10 @@ PROC_DECL(Symbol);
 PROC_DECL(Boolean);
 PROC_DECL(Unit);
 PROC_DECL(Free);
-PROC_DECL(vm_getc);
+PROC_DECL(vm_push);
+PROC_DECL(vm_drop);
 PROC_DECL(vm_putc);
+PROC_DECL(vm_getc);
 PROC_DECL(fn_debug);
 
 #define Undef_T     (0)
@@ -92,9 +94,11 @@ PROC_DECL(fn_debug);
 #define Boolean_T   (4)
 #define Unit_T      (5)
 #define Free_T      (6)
-#define VM_getc     (7)
-#define VM_putc     (8)
-#define FN_debug    (9)
+#define VM_push     (7)
+#define VM_drop     (8)
+#define VM_putc     (9)
+#define VM_getc     (10)
+#define FN_debug    (11)
 
 proc_t proc_table[] = {
     Undef,
@@ -104,8 +108,10 @@ proc_t proc_table[] = {
     Boolean,
     Unit,
     Free,  // free-cell marker
-    vm_getc,
+    vm_push,
+    vm_drop,
     vm_putc,
+    vm_getc,
     fn_debug,
 };
 proc_t *proc_zero = &proc_table[0];  // base for proc offsets
@@ -129,7 +135,7 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define A_DEBUG     (5)
 #define START       (6)
 
-#define CELL_MAX (1<<12)  // 4K cells
+#define CELL_MAX (1<<10)  // 1K cells
 cell_t cell_table[CELL_MAX] = {
     { .t = Boolean_T,   .x = FALSE,     .y = FALSE,     .z = UNDEF      },
     { .t = Boolean_T,   .x = TRUE,      .y = TRUE,      .z = UNDEF      },
@@ -137,12 +143,16 @@ cell_t cell_table[CELL_MAX] = {
     { .t = Undef_T,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF      },
     { .t = Unit_T,      .x = UNIT,      .y = UNIT,      .z = UNDEF      },
     { .t = FN_debug,    .x = UNDEF,     .y = UNDEF,     .z = UNDEF      },
-    { .t = VM_getc,     .x = UNDEF,     .y = UNDEF,     .z = START+1    },  // <--- START
-    { .t = VM_putc,     .x = UNDEF,     .y = UNDEF,     .z = START+0    },
+    { .t = VM_push,     .x = '>',       .y = UNDEF,     .z = START+1    },  // <--- START
+    { .t = VM_putc,     .x = UNDEF,     .y = UNDEF,     .z = START+2    },
+    { .t = VM_push,     .x = ' ',       .y = UNDEF,     .z = START+3    },
+    { .t = VM_putc,     .x = UNDEF,     .y = UNDEF,     .z = START+4    },
+    { .t = VM_getc,     .x = UNDEF,     .y = UNDEF,     .z = START+5    },
+    { .t = VM_putc,     .x = UNDEF,     .y = UNDEF,     .z = START+4    },
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
-int_t cell_top = START+2; // limit of allocated cell memory
+int_t cell_top = START+6; // limit of allocated cell memory
 
 #define get_t(n) (cell_zero[(n)].t)
 #define get_x(n) (cell_zero[(n)].x)
@@ -256,13 +266,14 @@ int_t stack_pop() {
 }
 
 void runtime() {
+    int_t next = instruction_pointer;
     int_t result = UNIT;
-    while (result == UNIT) {
-        int_t proc = get_t(instruction_pointer);
-        int_t next = get_z(instruction_pointer);
-        result = call_proc(proc, instruction_pointer, stack_pointer);
+    do {
         instruction_pointer = next;
-    }
+        int_t proc = get_t(instruction_pointer);
+        next = get_z(instruction_pointer);
+        result = call_proc(proc, instruction_pointer, stack_pointer);
+    } while (result == UNIT);
 }
 
 /*
@@ -293,15 +304,29 @@ PROC_DECL(Unit) {
     return error("Unit not implemented");
 }
 
-PROC_DECL(vm_getc) {
-    int_t c = getchar();
-    stack_push(c);
+PROC_DECL(vm_push) {
+    int_t v = get_x(self);
+    stack_push(v);
+    return UNIT;
+}
+
+PROC_DECL(vm_drop) {
+    int_t n = get_x(self);
+    while (n-- > 0) {
+        stack_pop();
+    }
     return UNIT;
 }
 
 PROC_DECL(vm_putc) {
     int_t c = stack_pop();
     putchar(c);
+    return UNIT;
+}
+
+PROC_DECL(vm_getc) {
+    int_t c = getchar();
+    stack_push(c);
     return UNIT;
 }
 
