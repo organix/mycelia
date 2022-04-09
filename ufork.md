@@ -113,6 +113,17 @@ The primary data-structure in **uFork** consists of four integers.
 ----------|----------|----------|----------
 proc/type | head/car | tail/cdr | link/next
 
+### Virtual Machine
+
+#### Instructions
+
+ t        | x        | y        | z
+----------|----------|----------|----------
+VM_push   |literal   |          |next_ip
+VM_drop   |count     |          |next_ip
+VM_putc   |          |          |next_ip
+VM_getc   |          |          |next_ip
+
 ### Actors
 
 #### Instructions
@@ -122,6 +133,7 @@ proc/type | head/car | tail/cdr | link/next
 SEND      |target    |message   |
 CREATE    |behavior  |          |
 BECOME    |behavior  |          |
+COMMIT    |          |          |
 ABORT     |reason    |          |
 
 #### Data Structures

@@ -61,7 +61,13 @@ typedef struct cell {
 
 typedef PROC_DECL((*proc_t));
 
-void debug_print(char *label, int_t addr);  // FORWARD DECLARATION
+// FORWARD DECLARATIONS
+void debug_print(char *label, int_t addr);
+int_t panic(char *reason);
+int_t error(char *reason);
+int_t failure(char *_file_, int _line_);
+
+#define ASSERT(cond)    if (!(cond)) return failure(__FILE__, __LINE__)
 
 /*
  * native code procedures
@@ -75,7 +81,9 @@ PROC_DECL(Symbol);
 PROC_DECL(Boolean);
 PROC_DECL(Unit);
 PROC_DECL(Free);
-PROC_DECL(fn_emit);
+PROC_DECL(vm_getc);
+PROC_DECL(vm_putc);
+PROC_DECL(fn_debug);
 
 #define Undef_T     (0)
 #define Null_T      (1)
@@ -84,7 +92,9 @@ PROC_DECL(fn_emit);
 #define Boolean_T   (4)
 #define Unit_T      (5)
 #define Free_T      (6)
-#define FN_emit     (7)
+#define VM_getc     (7)
+#define VM_putc     (8)
+#define FN_debug    (9)
 
 proc_t proc_table[] = {
     Undef,
@@ -94,15 +104,18 @@ proc_t proc_table[] = {
     Boolean,
     Unit,
     Free,  // free-cell marker
-    fn_emit,
+    vm_getc,
+    vm_putc,
+    fn_debug,
 };
 proc_t *proc_zero = &proc_table[0];  // base for proc offsets
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 
-int_t panic(char *reason);  // FORWARD DECLARATION
-int_t error(char *reason);  // FORWARD DECLARATION
-int_t failure(char *_file_, int _line_);  // FORWARD DECLARATION
-#define ASSERT(cond)    if (!(cond)) return failure(__FILE__, __LINE__)
+int_t call_proc(int_t proc, int_t self, int_t arg) {
+    ASSERT(NAT(proc) < PROC_MAX);
+    int_t result = (proc_zero[proc])(self, arg);
+    return result;
+}
 
 /*
  * heap memory management (cells)
@@ -113,21 +126,23 @@ int_t failure(char *_file_, int _line_);  // FORWARD DECLARATION
 #define NIL         (2)
 #define UNDEF       (3)
 #define UNIT        (4)
-#define A_EMIT      (5)
+#define A_DEBUG     (5)
 #define START       (6)
 
 #define CELL_MAX (1<<12)  // 4K cells
 cell_t cell_table[CELL_MAX] = {
-    { .t = Boolean_T,   .x = FALSE,     .y = FALSE,     .z = UNDEF  },
-    { .t = Boolean_T,   .x = TRUE,      .y = TRUE,      .z = UNDEF  },
-    { .t = Null_T,      .x = NIL,       .y = NIL,       .z = UNDEF  },
-    { .t = Undef_T,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF  },
-    { .t = Unit_T,      .x = UNIT,      .y = UNIT,      .z = UNDEF  },
-    { .t = FN_emit,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF  },
+    { .t = Boolean_T,   .x = FALSE,     .y = FALSE,     .z = UNDEF      },
+    { .t = Boolean_T,   .x = TRUE,      .y = TRUE,      .z = UNDEF      },
+    { .t = Null_T,      .x = NIL,       .y = NIL,       .z = UNDEF      },
+    { .t = Undef_T,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF      },
+    { .t = Unit_T,      .x = UNIT,      .y = UNIT,      .z = UNDEF      },
+    { .t = FN_debug,    .x = UNDEF,     .y = UNDEF,     .z = UNDEF      },
+    { .t = VM_getc,     .x = UNDEF,     .y = UNDEF,     .z = START+1    },  // <--- START
+    { .t = VM_putc,     .x = UNDEF,     .y = UNDEF,     .z = START+0    },
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
-int_t cell_top = START; // limit of allocated cell memory
+int_t cell_top = START+2; // limit of allocated cell memory
 
 #define get_t(n) (cell_zero[(n)].t)
 #define get_x(n) (cell_zero[(n)].x)
@@ -220,6 +235,37 @@ int_t list_len(int_t val) {
 }
 
 /*
+ * runtime (virtual machine engine)
+ */
+
+int_t instruction_pointer = START;
+int_t stack_pointer = NIL;
+
+int_t stack_push(int_t value) {
+    stack_pointer = cons(value, stack_pointer);
+    return value;
+}
+
+int_t stack_pop() {
+    int_t value = UNDEF;
+    if (IS_PAIR(stack_pointer)) {
+        value = car(stack_pointer);
+        stack_pointer = cdr(stack_pointer);
+    }
+    return value;
+}
+
+void runtime() {
+    int_t result = UNIT;
+    while (result == UNIT) {
+        int_t proc = get_t(instruction_pointer);
+        int_t next = get_z(instruction_pointer);
+        result = call_proc(proc, instruction_pointer, stack_pointer);
+        instruction_pointer = next;
+    }
+}
+
+/*
  * bootstrap
  */
 
@@ -247,9 +293,21 @@ PROC_DECL(Unit) {
     return error("Unit not implemented");
 }
 
-PROC_DECL(fn_emit) {
-    DEBUG(debug_print("fn_emit self", self));
-    DEBUG(debug_print("fn_emit arg", arg));
+PROC_DECL(vm_getc) {
+    int_t c = getchar();
+    stack_push(c);
+    return UNIT;
+}
+
+PROC_DECL(vm_putc) {
+    int_t c = stack_pop();
+    putchar(c);
+    return UNIT;
+}
+
+PROC_DECL(fn_debug) {
+    DEBUG(debug_print("fn_debug self", self));
+    DEBUG(debug_print("fn_debug arg", arg));
     return UNIT;
 }
 
@@ -260,6 +318,7 @@ void debug_print(char *label, int_t addr) {
 
 int main(int argc, char const *argv[])
 {
+    runtime();
     return 0;
 }
 
