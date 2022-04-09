@@ -83,6 +83,10 @@ PROC_DECL(Unit);
 PROC_DECL(Free);
 PROC_DECL(vm_push);
 PROC_DECL(vm_drop);
+PROC_DECL(vm_dup);
+PROC_DECL(vm_eq);
+PROC_DECL(vm_lt);
+PROC_DECL(vm_if);
 PROC_DECL(vm_putc);
 PROC_DECL(vm_getc);
 PROC_DECL(fn_debug);
@@ -96,9 +100,13 @@ PROC_DECL(fn_debug);
 #define Free_T      (6)
 #define VM_push     (7)
 #define VM_drop     (8)
-#define VM_putc     (9)
-#define VM_getc     (10)
-#define FN_debug    (11)
+#define VM_dup      (9)
+#define VM_eq       (10)
+#define VM_lt       (11)
+#define VM_if       (12)
+#define VM_putc     (13)
+#define VM_getc     (14)
+#define FN_debug    (15)
 
 proc_t proc_table[] = {
     Undef,
@@ -110,6 +118,10 @@ proc_t proc_table[] = {
     Free,  // free-cell marker
     vm_push,
     vm_drop,
+    vm_dup,
+    vm_eq,
+    vm_lt,
+    vm_if,
     vm_putc,
     vm_getc,
     fn_debug,
@@ -148,11 +160,15 @@ cell_t cell_table[CELL_MAX] = {
     { .t = VM_push,     .x = ' ',       .y = UNDEF,     .z = START+3    },
     { .t = VM_putc,     .x = UNDEF,     .y = UNDEF,     .z = START+4    },
     { .t = VM_getc,     .x = UNDEF,     .y = UNDEF,     .z = START+5    },
+    { .t = VM_dup,      .x = 1,         .y = UNDEF,     .z = START+6    },
+    { .t = VM_push,     .x = '\0',      .y = UNDEF,     .z = START+7    },
+    { .t = VM_lt,       .x = UNDEF,     .y = UNDEF,     .z = START+8    },
+    { .t = VM_if,       .x = UNDEF,     .y = UNIT,      .z = START+9    },
     { .t = VM_putc,     .x = UNDEF,     .y = UNDEF,     .z = START+4    },
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
-int_t cell_top = START+6; // limit of allocated cell memory
+int_t cell_top = START+10; // limit of allocated cell memory
 
 #define get_t(n) (cell_zero[(n)].t)
 #define get_x(n) (cell_zero[(n)].x)
@@ -221,8 +237,11 @@ int_t cons(int_t head, int_t tail) {
 #define list_5(v1,v2,v3,v4,v5)  cons((v1), cons((v2), cons((v3), cons((v4), cons((v5), NIL)))))
 #define list_6(v1,v2,v3,v4,v5,v6)  cons((v1), cons((v2), cons((v3), cons((v4), cons((v5), cons((v6), NIL))))))
 
-#define car(addr) get_x(addr)
-#define cdr(addr) get_y(addr)
+#define car(v) get_x(v)
+#define cdr(v) get_y(v)
+
+#define set_car(v,x) set_x((v),(x))
+#define set_cdr(v,y) set_y((v),(y))
 
 int_t equal(int_t x, int_t y) {
     if (x == y) return TRUE;
@@ -232,7 +251,7 @@ int_t equal(int_t x, int_t y) {
         y = cdr(y);
         if (x == y) return TRUE;
     }
-    return 0;
+    return FALSE;
 }
 
 int_t list_len(int_t val) {
@@ -265,15 +284,14 @@ int_t stack_pop() {
     return value;
 }
 
-void runtime() {
+int_t runtime() {
     int_t next = instruction_pointer;
-    int_t result = UNIT;
-    do {
+    while (next >= START) {
         instruction_pointer = next;
         int_t proc = get_t(instruction_pointer);
-        next = get_z(instruction_pointer);
-        result = call_proc(proc, instruction_pointer, stack_pointer);
-    } while (result == UNIT);
+        next = call_proc(proc, instruction_pointer, stack_pointer);
+    }
+    return next;
 }
 
 /*
@@ -307,7 +325,7 @@ PROC_DECL(Unit) {
 PROC_DECL(vm_push) {
     int_t v = get_x(self);
     stack_push(v);
-    return UNIT;
+    return get_z(self);
 }
 
 PROC_DECL(vm_drop) {
@@ -315,19 +333,58 @@ PROC_DECL(vm_drop) {
     while (n-- > 0) {
         stack_pop();
     }
-    return UNIT;
+    return get_z(self);
+}
+
+PROC_DECL(vm_dup) {
+    int_t n = get_x(self);
+    int_t dup = NIL;
+    int_t sp = stack_pointer;
+    while (n-- > 0) {  // copy n items from stack
+        dup = cons(car(sp), dup);
+        sp = cdr(sp);
+    }
+    sp = stack_pointer;
+    while (dup != NIL) {  // reverse in-place
+        int_t rest = cdr(dup);
+        set_cdr(dup, sp);
+        sp = dup;
+        dup = rest;
+    }
+    stack_pointer = sp;  // move to stack
+    return get_z(self);
+}
+
+PROC_DECL(vm_eq) {
+    int_t y = stack_pop();
+    int_t x = stack_pop();
+    stack_push(equal(x, y));
+    return get_z(self);
+}
+
+PROC_DECL(vm_lt) {
+    int_t m = stack_pop();
+    int_t n = stack_pop();
+    stack_push((n < m) ? TRUE : FALSE);
+    return get_z(self);
+}
+
+PROC_DECL(vm_if) {
+    int_t b = stack_pop();
+    // FIXME: check for UNDEF? ...if so, then what?
+    return ((b == FALSE) ? get_z(self) : get_y(self));
 }
 
 PROC_DECL(vm_putc) {
     int_t c = stack_pop();
     putchar(c);
-    return UNIT;
+    return get_z(self);
 }
 
 PROC_DECL(vm_getc) {
     int_t c = getchar();
     stack_push(c);
-    return UNIT;
+    return get_z(self);
 }
 
 PROC_DECL(fn_debug) {
@@ -337,13 +394,14 @@ PROC_DECL(fn_debug) {
 }
 
 void debug_print(char *label, int_t addr) {
-    fprintf(stderr, "%s: t=%"PdI" x=%"PdI" y=%"PdI" z=%"PdI"\n",
-        label, get_t(addr), get_x(addr), get_y(addr), get_z(addr));
+    fprintf(stderr, "%s: addr=%"PdI" .t=%"PdI" .x=%"PdI" .y=%"PdI" .z=%"PdI"\n",
+        label, addr, get_t(addr), get_x(addr), get_y(addr), get_z(addr));
 }
 
 int main(int argc, char const *argv[])
 {
-    runtime();
+    int_t result = runtime();
+    DEBUG(debug_print("runtime result", result));
     return 0;
 }
 
