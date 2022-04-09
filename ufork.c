@@ -144,8 +144,8 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define NIL         (2)
 #define UNDEF       (3)
 #define UNIT        (4)
-#define A_BOOT      (5)
-#define START       (6)
+#define START       (5)
+#define A_BOOT      (6)
 
 #define CELL_MAX (1<<10)  // 1K cells
 cell_t cell_table[CELL_MAX] = {
@@ -154,22 +154,22 @@ cell_t cell_table[CELL_MAX] = {
     { .t = Null_T,      .x = NIL,       .y = NIL,       .z = UNDEF      },
     { .t = Undef_T,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF      },
     { .t = Unit_T,      .x = UNIT,      .y = UNIT,      .z = UNDEF      },
-    { .t = Actor_T,     .x = START+1,   .y = NIL,       .z = UNDEF      },
-    { .t = START+1,     .x = NIL,       .y = A_BOOT,    .z = UNDEF      },  // <--- START
-    { .t = VM_push,     .x = '>',       .y = START+2,   .z = UNDEF      },
-    { .t = VM_putc,     .x = UNDEF,     .y = START+3,   .z = UNDEF      },
-    { .t = VM_push,     .x = ' ',       .y = START+4,   .z = UNDEF      },
-    { .t = VM_putc,     .x = UNDEF,     .y = START+5,   .z = UNDEF      },
-    { .t = VM_getc,     .x = UNDEF,     .y = START+6,   .z = UNDEF      },
-    { .t = VM_dup,      .x = 1,         .y = START+7,   .z = UNDEF      },
-    { .t = VM_push,     .x = '\0',      .y = START+8,   .z = UNDEF      },
-    { .t = VM_lt,       .x = UNDEF,     .y = START+9,   .z = UNDEF      },
-    { .t = VM_if,       .x = UNIT,      .y = START+10,  .z = UNDEF      },
-    { .t = VM_putc,     .x = UNDEF,     .y = START+5,   .z = UNDEF      },
+    { .t = START+2,     .x = NIL,       .y = A_BOOT,    .z = UNDEF      },  // <--- START
+    { .t = Actor_T,     .x = START+2,   .y = NIL,       .z = UNDEF      },
+    { .t = VM_push,     .x = '>',       .y = START+3,   .z = UNDEF      },
+    { .t = VM_putc,     .x = UNDEF,     .y = START+4,   .z = UNDEF      },
+    { .t = VM_push,     .x = ' ',       .y = START+5,   .z = UNDEF      },
+    { .t = VM_putc,     .x = UNDEF,     .y = START+6,   .z = UNDEF      },
+    { .t = VM_getc,     .x = UNDEF,     .y = START+7,   .z = UNDEF      },  // +6
+    { .t = VM_dup,      .x = 1,         .y = START+8,   .z = UNDEF      },
+    { .t = VM_push,     .x = '\0',      .y = START+9,   .z = UNDEF      },
+    { .t = VM_lt,       .x = UNDEF,     .y = START+10,  .z = UNDEF      },
+    { .t = VM_if,       .x = UNIT,      .y = START+11,  .z = UNDEF      },
+    { .t = VM_putc,     .x = UNDEF,     .y = START+6,   .z = UNDEF      },
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
-int_t cell_top = START+11; // limit of allocated cell memory
+int_t cell_top = START+12; // limit of allocated cell memory
 
 #define get_t(n) (cell_zero[(n)].t)
 #define get_x(n) (cell_zero[(n)].x)
@@ -306,7 +306,7 @@ int_t stack_pop() {
 
 int_t runtime() {
     int_t next = GET_IP();
-    while (next > START) {
+    while (next >= START) {
         int_t ip = SET_IP(next);
         int_t proc = get_t(ip);
         next = call_proc(proc, ip, GET_EP());
