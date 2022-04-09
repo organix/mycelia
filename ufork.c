@@ -25,16 +25,25 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 typedef int32_t int_t;
 typedef uint32_t nat_t;
 typedef void *ptr_t;
+#define PdI PRId32
+#define PuI PRIu32
+#define PxI PRIx32
 #endif
 #if USE_INT64_T
 typedef int64_t int_t;
 typedef uint64_t nat_t;
 typedef void *ptr_t;
+#define PdI PRId64
+#define PuI PRIu64
+#define PxI PRIx64
 #endif
 #if USE_INTPTR_T
 typedef intptr_t int_t;
 typedef uintptr_t nat_t;
 typedef void *ptr_t;
+#define PdI PRIdPTR
+#define PuI PRIuPTR
+#define PxI PRIxPTR
 #endif
 
 #define INT(n) ((int_t)(n))
@@ -64,6 +73,7 @@ PROC_DECL(Symbol);
 PROC_DECL(Boolean);
 PROC_DECL(Unit);
 PROC_DECL(Free);
+PROC_DECL(fn_emit);
 
 #define Undef_T     (0)
 #define Null_T      (1)
@@ -72,6 +82,7 @@ PROC_DECL(Free);
 #define Boolean_T   (4)
 #define Unit_T      (5)
 #define Free_T      (6)
+#define FN_emit     (7)
 
 proc_t proc_table[] = {
     Undef,
@@ -81,6 +92,7 @@ proc_t proc_table[] = {
     Boolean,
     Unit,
     Free,  // free-cell marker
+    fn_emit,
 };
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 
@@ -98,7 +110,8 @@ int_t failure(char *_file_, int _line_);  // FORWARD DECLARATION
 #define NIL         (2)
 #define UNDEF       (3)
 #define UNIT        (4)
-#define START       (5)
+#define A_EMIT      (5)
+#define START       (6)
 
 #define CELL_MAX (1<<12)  // 4K cells
 cell_t cell_table[CELL_MAX] = {
@@ -107,13 +120,24 @@ cell_t cell_table[CELL_MAX] = {
     { .t = Null_T,      .x = NIL,       .y = NIL,       .z = UNDEF  },
     { .t = Undef_T,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF  },
     { .t = Unit_T,      .x = UNIT,      .y = UNIT,      .z = UNDEF  },
+    { .t = FN_emit,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF  },
 };
 cell_t *cell_zero = &cell_table[0];  // allow offset for negative indicies
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
 int_t cell_top = START; // limit of allocated cell memory
 
-#define IS_PAIR(x)  (cell_zero[(x)].t == Pair_T)
-#define IS_BOOL(x)  (cell_zero[(x)].t == Boolean_T)
+#define get_t(n) (cell_zero[(n)].t)
+#define get_x(n) (cell_zero[(n)].x)
+#define get_y(n) (cell_zero[(n)].y)
+#define get_z(n) (cell_zero[(n)].z)
+
+#define set_t(n,v) (cell_zero[(n)].t = (v))
+#define set_x(n,v) (cell_zero[(n)].x = (v))
+#define set_y(n,v) (cell_zero[(n)].y = (v))
+#define set_z(n,v) (cell_zero[(n)].z = (v))
+
+#define IS_PAIR(n)  (get_t(n) == Pair_T)
+#define IS_BOOL(n)  (get_t(n) == Boolean_T)
 
 PROC_DECL(Free) {
     return panic("DISPATCH TO FREE CELL!");
@@ -126,7 +150,7 @@ static int_t cell_new(int_t t, int_t x, int_t y, int_t z) {
     if (cell_next != NIL) {
         // use cell from free-list
         next = cell_next;
-        cell_next = cell_zero[next].z;
+        cell_next = get_z(next);
         --gc_free_cnt;
     } else if (next < CELL_MAX) {
         // extend top of heap
@@ -134,19 +158,19 @@ static int_t cell_new(int_t t, int_t x, int_t y, int_t z) {
     } else {
         return panic("out of cell memory");
     }
-    cell_zero[next].t = t;
-    cell_zero[next].x = x;
-    cell_zero[next].y = y;
-    cell_zero[next].z = z;
+    set_t(next, t);
+    set_x(next, x);
+    set_y(next, y);
+    set_z(next, z);
     return next;
 }
 
 static void cell_reclaim(int_t addr) {
     // link into free-list
-    cell_zero[addr].z = cell_next;
-    cell_zero[addr].y = UNDEF;
-    cell_zero[addr].x = UNDEF;
-    cell_zero[addr].t = Free_T;
+    set_z(addr, cell_next);
+    set_y(addr, UNDEF);
+    set_x(addr, UNDEF);
+    set_t(addr, Free_T);
     cell_next = addr;
     ++gc_free_cnt;
 }
@@ -169,13 +193,8 @@ int_t cons(int_t head, int_t tail) {
 #define list_5(v1,v2,v3,v4,v5)  cons((v1), cons((v2), cons((v3), cons((v4), cons((v5), NIL)))))
 #define list_6(v1,v2,v3,v4,v5,v6)  cons((v1), cons((v2), cons((v3), cons((v4), cons((v5), cons((v6), NIL))))))
 
-int_t car(int_t val) {
-    return cell_zero[val].x;
-}
-
-int_t cdr(int_t val) {
-    return cell_zero[val].y;
-}
+#define car(addr) get_x(addr)
+#define cdr(addr) get_y(addr)
 
 int_t equal(int_t x, int_t y) {
     if (x == y) return TRUE;
@@ -223,6 +242,14 @@ PROC_DECL(Boolean) {
 
 PROC_DECL(Unit) {
     return error("Unit not implemented");
+}
+
+PROC_DECL(fn_emit) {
+    fprintf(stderr, "fn_emit self: t=%"PdI" x=%"PdI" y=%"PdI" z=%"PdI"\n",
+        get_t(self), get_x(self), get_y(self), get_z(self));
+    fprintf(stderr, "fn_emit arg: t=%"PdI" x=%"PdI" y=%"PdI" z=%"PdI"\n",
+        get_t(arg), get_x(arg), get_y(arg), get_z(arg));
+    return UNIT;
 }
 
 int main(int argc, char const *argv[])
