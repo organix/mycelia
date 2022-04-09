@@ -15,7 +15,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #include <inttypes.h>   // for PRIiPTR, PRIuPTR, PRIXPTR, etc.
 #include <time.h>       // for clock_t, clock(), etc.
 
-#define DEBUG(x)        // include/exclude debug instrumentation
+#define DEBUG(x)    x   // include/exclude debug instrumentation
 
 #define USE_INT32_T   1 // define "machine word" as int32_t from <stdint.h>
 #define USE_INT64_T   0 // define "machine word" as int64_t from <stdint.h>
@@ -51,15 +51,17 @@ typedef void *ptr_t;
 #define PTR(n) ((ptr_t)(n))
 
 typedef struct cell {
-    int_t       t;
-    int_t       x;
-    int_t       y;
-    int_t       z;
+    int_t       t;      // proc/type (code offset from proc_zero)
+    int_t       x;      // head/car  (data offset from cell_zero)
+    int_t       y;      // tail/cdr  (data offset from cell_zero)
+    int_t       z;      // link/next (data offset from cell_zero)
 } cell_t;
 
 #define PROC_DECL(name)  int_t name(int_t self, int_t arg)
 
 typedef PROC_DECL((*proc_t));
+
+void debug_print(char *label, int_t addr);  // FORWARD DECLARATION
 
 /*
  * native code procedures
@@ -94,6 +96,7 @@ proc_t proc_table[] = {
     Free,  // free-cell marker
     fn_emit,
 };
+proc_t *proc_zero = &proc_table[0];  // base for proc offsets
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 
 int_t panic(char *reason);  // FORWARD DECLARATION
@@ -122,7 +125,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t = Unit_T,      .x = UNIT,      .y = UNIT,      .z = UNDEF  },
     { .t = FN_emit,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF  },
 };
-cell_t *cell_zero = &cell_table[0];  // allow offset for negative indicies
+cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
 int_t cell_top = START; // limit of allocated cell memory
 
@@ -245,11 +248,14 @@ PROC_DECL(Unit) {
 }
 
 PROC_DECL(fn_emit) {
-    fprintf(stderr, "fn_emit self: t=%"PdI" x=%"PdI" y=%"PdI" z=%"PdI"\n",
-        get_t(self), get_x(self), get_y(self), get_z(self));
-    fprintf(stderr, "fn_emit arg: t=%"PdI" x=%"PdI" y=%"PdI" z=%"PdI"\n",
-        get_t(arg), get_x(arg), get_y(arg), get_z(arg));
+    DEBUG(debug_print("fn_emit self", self));
+    DEBUG(debug_print("fn_emit arg", arg));
     return UNIT;
+}
+
+void debug_print(char *label, int_t addr) {
+    fprintf(stderr, "%s: t=%"PdI" x=%"PdI" y=%"PdI" z=%"PdI"\n",
+        label, get_t(addr), get_x(addr), get_y(addr), get_z(addr));
 }
 
 int main(int argc, char const *argv[])
