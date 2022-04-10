@@ -157,8 +157,9 @@ PROC_DECL(vm_push);
 PROC_DECL(vm_drop);
 PROC_DECL(vm_dup);
 PROC_DECL(vm_eq);
-PROC_DECL(vm_lt);
+PROC_DECL(vm_lt);  // FIXME: consider VM_cmp{x:{LT,LE,EQ,GE,GT}}
 PROC_DECL(vm_if);
+PROC_DECL(vm_act);
 PROC_DECL(vm_putc);
 PROC_DECL(vm_getc);
 
@@ -178,13 +179,15 @@ PROC_DECL(vm_getc);
 #define VM_eq       (-14)
 #define VM_lt       (-15)
 #define VM_if       (-16)
-#define VM_putc     (-17)
-#define VM_getc     (-18)
+#define VM_act      (-17)
+#define VM_putc     (-18)
+#define VM_getc     (-19)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
     vm_getc,
     vm_putc,
+    vm_act,
     vm_if,
     vm_lt,
     vm_eq,
@@ -223,6 +226,7 @@ static char *proc_label(int_t proc) {
         "VM_eq",
         "VM_lt",
         "VM_if",
+        "VM_act",
         "VM_putc",
         "VM_getc",
     };
@@ -240,10 +244,19 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
     return result;
 }
 
+// VM_act effects
+#define ACT_SELF    (0)
+#define ACT_SEND    (1)
+#define ACT_CREATE  (2)
+#define ACT_BECOME  (3)
+#define ACT_ABORT   (4)
+#define ACT_COMMIT  (5)
+
 /*
  * heap memory management (cells)
  */
 
+// constants
 #define FALSE       (0)
 #define TRUE        (1)
 #define NIL         (2)
@@ -301,8 +314,9 @@ int_t cell_top = START+12; // limit of allocated cell memory
 #define set_y(n,v) (cell_zero[(n)].y = (v))
 #define set_z(n,v) (cell_zero[(n)].z = (v))
 
-#define IS_PAIR(n)  (get_t(n) == Pair_T)
-#define IS_BOOL(n)  (get_t(n) == Boolean_T)
+#define IS_PROC(n)  ((n) < 0)
+#define IS_PAIR(n)  (!IS_PROC(n) && (get_t(n) == Pair_T))
+#define IS_BOOL(n)  (((n) == FALSE) || ((n) == TRUE))
 
 PROC_DECL(Free) {
     return panic("DISPATCH TO FREE CELL!");
@@ -492,7 +506,7 @@ int_t runtime() {
         int_t event = event_q_pop();
         XTRACE(debug_print("runtime event", event));
         if (event != UNDEF) {
-            // start new "thread" to handle event
+            // spawn new "thread" to handle event
             int_t actor = get_x(event);
             if (get_y(actor) == UNDEF) {  // actor ready
                 set_y(actor, NIL);  // begin actor transaction
@@ -510,13 +524,14 @@ int_t runtime() {
         int_t ip = GET_IP();
         int_t proc = get_t(ip);
         ITRACE(continuation_trace());
-        ip = call_proc(proc, ip, GET_EP());
+        ip = call_proc(proc, ip, GET_EP());  // FIXME: EP is already available
         SET_IP(ip);  // update IP
         int_t cont = cont_q_pop();
         XTRACE(debug_print("runtime done", cont));
         if (ip >= START) {
             cont_q_put(cont);  // enqueue continuation
         }
+        // FIXME: if "thread" is dead, should be able to free cont and event...
     }
     return UNIT;
 }
@@ -619,6 +634,65 @@ PROC_DECL(vm_if) {
     return ((b == FALSE) ? get_y(self) : get_x(self));
 }
 
+PROC_DECL(vm_act) {
+    int_t e = get_x(self);
+    int_t ep = GET_EP();
+    switch (e) {
+        case ACT_SELF: {
+            int_t me = get_x(ep);
+            stack_push(me);
+            break;
+        }
+        case ACT_SEND: {
+            int_t a = stack_pop();  // target
+            int_t m = stack_pop();  // message
+            int_t me = get_x(ep);
+            int_t ev = cell_new(Event_T, a, m, get_y(me));
+            set_y(me, ev);
+            break;
+        }
+        case ACT_CREATE: {
+            int_t b = stack_pop();  // behavior
+            int_t a = cell_new(Actor_T, b, UNDEF, UNDEF);
+            stack_push(a);
+            break;
+        }
+        case ACT_BECOME: {
+            int_t b = stack_pop();  // behavior
+            int_t me = get_x(ep);
+            ASSERT(get_z(me) == UNDEF);  // BECOME only allowed once
+            set_z(me, b);
+            break;
+        }
+        case ACT_ABORT: {
+            int_t r = stack_pop();  // reason
+            int_t me = get_x(ep);
+            DEBUG(debug_print("ABORT!", r));
+            set_y(me, UNDEF);  // abort actor transaction
+            return FALSE;  // terminate thread
+        }
+        case ACT_COMMIT: {
+            int_t me = get_x(ep);
+            int_t b = get_z(me);
+            if (b != UNDEF) {
+                set_x(me, b);  // BECOME new behavior
+            }
+            int_t e = get_y(me);
+            while (e != NIL) {
+                int_t es = get_z(e);
+                event_q_put(e);
+                e = es;
+            }
+            set_y(me, UNDEF);  // commit actor transaction
+            return TRUE;  // terminate thread
+        }
+        default: {
+            return error("unknown effect");
+        }
+    }
+    return get_y(self);
+}
+
 PROC_DECL(vm_putc) {
     int_t c = stack_pop();
     putchar(c);
@@ -657,6 +731,17 @@ static void print_stack(int_t sp) {
         fprintf(stderr, "%+"PdI" ", item);
     }
 }
+static char *effect_label(int_t e) {
+    switch (e) {
+        case ACT_SELF:      return "SELF";
+        case ACT_SEND:      return "SEND";
+        case ACT_CREATE:    return "CREATE";
+        case ACT_BECOME:    return "BECOME";
+        case ACT_ABORT:     return "ABORT";
+        case ACT_COMMIT:    return "COMMIT";
+    }
+    return "<unknown>";
+}
 static void print_inst(int_t ip) {
     int_t proc = get_t(ip);
     fprintf(stderr, "%s", cell_label(proc));
@@ -668,6 +753,7 @@ static void print_inst(int_t ip) {
         case VM_eq:   fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_lt:   fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_if:   fprintf(stderr, "{t:%"PdI",f:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_act:  fprintf(stderr, "{e:%s,k:%"PdI"}", effect_label(get_x(ip)), get_y(ip)); break;
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_getc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         default: {
