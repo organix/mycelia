@@ -19,9 +19,11 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
+#define ITRACE(x)   x   // include/exclude instruction trace
 #define XTRACE(x)       // include/exclude execution trace
 #else
 #define DEBUG(x)        // include/exclude debug instrumentation
+#define ITRACE(x)       // include/exclude instruction trace
 #define XTRACE(x)       // include/exclude execution trace
 #endif
 
@@ -79,7 +81,6 @@ typedef struct cell {
 typedef PROC_DECL((*proc_t));
 
 // FORWARD DECLARATIONS
-void debug_print(char *label, int_t addr);
 int_t panic(char *reason);
 int_t error(char *reason);
 int_t failure(char *_file_, int _line_);
@@ -93,6 +94,7 @@ int_t failure(char *_file_, int _line_);
 
 // FORWARD DECLARATIONS
 void debug_print(char *label, int_t addr);
+void continuation_trace();
 
 #if USE_INT16_T || (USE_INTPTR_T && (__SIZEOF_POINTER__ == 2))
 static void hexdump(char *label, int_t *addr, size_t cnt) {
@@ -229,7 +231,7 @@ static char *proc_label(int_t proc) {
 int_t call_proc(int_t proc, int_t self, int_t arg) {
     nat_t ofs = NAT(-1 - proc);
     ASSERT(ofs < PROC_MAX);
-    DEBUG(debug_print("call_proc self", self));
+    XTRACE(debug_print("call_proc self", self));
     int_t result = (proc_zero[proc])(self, arg);
     return result;
 }
@@ -492,7 +494,7 @@ int_t runtime() {
                 set_y(actor, NIL);  // begin actor transaction
                 set_z(actor, UNDEF);  // no BECOME
                 int_t cont = cell_new(get_x(actor), get_y(event), event, NIL);
-                DEBUG(debug_print("runtime spawn", cont));
+                ITRACE(debug_print("runtime spawn", cont));
                 cont_q_put(cont);  // enqueue continuation
             } else {  // actor busy
                 event_q_put(event);  // re-queue event
@@ -503,6 +505,7 @@ int_t runtime() {
         // execute next continuation
         int_t ip = GET_IP();
         int_t proc = get_t(ip);
+        ITRACE(continuation_trace());
         ip = call_proc(proc, ip, GET_EP());
         SET_IP(ip);  // update IP
         int_t cont = cont_q_pop();
@@ -616,7 +619,7 @@ PROC_DECL(vm_getc) {
 #if INCLUDE_DEBUG
 void debug_print(char *label, int_t addr) {
     fprintf(stderr, "%s: ", label);
-    fprintf(stderr, " %s[%"PdI"]", cell_label(addr), addr);
+    fprintf(stderr, "%s[%"PdI"]", cell_label(addr), addr);
     if (addr >= 0) {
         fprintf(stderr, " = ");
         fprintf(stderr, "{t:%s(%"PdI"),", cell_label(get_t(addr)), get_t(addr));
@@ -624,6 +627,41 @@ void debug_print(char *label, int_t addr) {
         fprintf(stderr, " y:%s(%"PdI"),", cell_label(get_y(addr)), get_y(addr));
         fprintf(stderr, " z:%s(%"PdI")}", cell_label(get_z(addr)), get_z(addr));
     }
+    fprintf(stderr, "\n");
+}
+
+static void print_stack(int_t sp) {
+    if (IS_PAIR(sp)) {
+        print_stack(cdr(sp));
+        int_t item = car(sp);
+        //fprintf(stderr, "%s[%"PdI"] ", cell_label(item), item);
+        fprintf(stderr, "%"PdI" ", item);
+    }
+}
+static void print_inst(int_t ip) {
+    int_t proc = get_t(ip);
+    fprintf(stderr, "%s", cell_label(proc));
+    switch (proc) {
+        case VM_push: fprintf(stderr, "{v:%"PdI", k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_drop: fprintf(stderr, "{n:%"PdI", k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_dup:  fprintf(stderr, "{n:%"PdI", k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_eq:   fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
+        case VM_lt:   fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
+        case VM_if:   fprintf(stderr, "{t:%"PdI", f:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
+        case VM_getc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
+        default: {
+            fprintf(stderr, "(%"PdI",", get_t(proc));
+            fprintf(stderr, " %"PdI",", get_x(ip));
+            fprintf(stderr, " %"PdI",", get_y(ip));
+            fprintf(stderr, " %"PdI")", get_z(ip));
+        }
+    }
+}
+void continuation_trace() {
+    print_stack(GET_SP());
+    print_inst(GET_IP());
+    //print_event(GET_EP());
     fprintf(stderr, "\n");
 }
 #endif
