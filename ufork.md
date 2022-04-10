@@ -143,8 +143,8 @@ VM_cell   |slots     |next_ip   |
 VM_push   |literal   |next_ip   |
 VM_drop   |count     |next_ip   |
 VM_dup    |count     |next_ip   |
-VM_eq     |          |next_ip   |
-VM_lt     |          |next_ip   |
+VM_eqv    |          |next_ip   |
+VM_cmp    |relation  |next_ip   |
 VM_if     |true_ip   |false_ip  |
 VM_act    |effect    |next_ip   |
 VM_putc   |          |next_ip   |

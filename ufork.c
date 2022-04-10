@@ -156,8 +156,8 @@ PROC_DECL(vm_cell);
 PROC_DECL(vm_push);
 PROC_DECL(vm_drop);
 PROC_DECL(vm_dup);
-PROC_DECL(vm_eq);
-PROC_DECL(vm_lt);  // FIXME: consider VM_cmp{x:{LT,LE,EQ,GE,GT}}
+PROC_DECL(vm_eqv);
+PROC_DECL(vm_cmp);
 PROC_DECL(vm_if);
 PROC_DECL(vm_act);
 PROC_DECL(vm_putc);
@@ -176,8 +176,8 @@ PROC_DECL(vm_getc);
 #define VM_push     (-11)
 #define VM_drop     (-12)
 #define VM_dup      (-13)
-#define VM_eq       (-14)
-#define VM_lt       (-15)
+#define VM_eqv      (-14)
+#define VM_cmp      (-15)
 #define VM_if       (-16)
 #define VM_act      (-17)
 #define VM_putc     (-18)
@@ -189,8 +189,8 @@ proc_t proc_table[] = {
     vm_putc,
     vm_act,
     vm_if,
-    vm_lt,
-    vm_eq,
+    vm_cmp,
+    vm_eqv,
     vm_dup,
     vm_drop,
     vm_push,
@@ -223,8 +223,8 @@ static char *proc_label(int_t proc) {
         "VM_push",
         "VM_drop",
         "VM_dup",
-        "VM_eq",
-        "VM_lt",
+        "VM_eqv",
+        "VM_cmp",
         "VM_if",
         "VM_act",
         "VM_putc",
@@ -243,6 +243,14 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
     int_t result = (proc_zero[proc])(self, arg);
     return result;
 }
+
+// VM_cmp relations
+#define CMP_EQ      (0)
+#define CMP_GE      (1)
+#define CMP_GT      (2)
+#define CMP_LT      (3)
+#define CMP_LE      (4)
+#define CMP_NE      (5)
 
 // VM_act effects
 #define ACT_SELF    (0)
@@ -296,7 +304,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t = VM_getc,     .x = UNDEF,     .y = START+7,   .z = UNDEF      },  // +6
     { .t = VM_dup,      .x = 1,         .y = START+8,   .z = UNDEF      },
     { .t = VM_push,     .x = '\0',      .y = START+9,   .z = UNDEF      },
-    { .t = VM_lt,       .x = UNDEF,     .y = START+10,  .z = UNDEF      },
+    { .t = VM_cmp,      .x = CMP_LT,    .y = START+10,  .z = UNDEF      },
     { .t = VM_if,       .x = UNIT,      .y = START+11,  .z = UNDEF      },
     { .t = VM_putc,     .x = UNDEF,     .y = START+6,   .z = UNDEF      },
 };
@@ -613,18 +621,26 @@ PROC_DECL(vm_dup) {
     return get_y(self);
 }
 
-PROC_DECL(vm_eq) {
+PROC_DECL(vm_eqv) {
     int_t y = stack_pop();
     int_t x = stack_pop();
-    //stack_push(equal(x, y));
-    stack_push(x == y);  // identity, not equality
+    stack_push(equal(x, y));
     return get_y(self);
 }
 
-PROC_DECL(vm_lt) {
+PROC_DECL(vm_cmp) {
+    int_t r = get_x(self);
     int_t m = stack_pop();
     int_t n = stack_pop();
-    stack_push((n < m) ? TRUE : FALSE);
+    switch (r) {
+        case CMP_EQ:    stack_push((n == m) ? TRUE : FALSE);    break;
+        case CMP_GE:    stack_push((n >= m) ? TRUE : FALSE);    break;
+        case CMP_GT:    stack_push((n > m) ? TRUE : FALSE);     break;
+        case CMP_LT:    stack_push((n < m) ? TRUE : FALSE);     break;
+        case CMP_LE:    stack_push((n <= m) ? TRUE : FALSE);    break;
+        case CMP_NE:    stack_push((n != m) ? TRUE : FALSE);    break;
+        default:        return error("unknown relation");
+    }
     return get_y(self);
 }
 
@@ -731,6 +747,17 @@ static void print_stack(int_t sp) {
         fprintf(stderr, "%+"PdI" ", item);
     }
 }
+static char *relation_label(int_t r) {
+    switch (r) {
+        case CMP_EQ:    return "EQ";
+        case CMP_GE:    return "GE";
+        case CMP_GT:    return "GT";
+        case CMP_LT:    return "LT";
+        case CMP_LE:    return "LE";
+        case CMP_NE:    return "NE";
+    }
+    return "<unknown>";
+}
 static char *effect_label(int_t e) {
     switch (e) {
         case ACT_SELF:      return "SELF";
@@ -750,8 +777,8 @@ static void print_inst(int_t ip) {
         case VM_push: fprintf(stderr, "{v:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_drop: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_dup:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_eq:   fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
-        case VM_lt:   fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
+        case VM_eqv:  fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
+        case VM_cmp:  fprintf(stderr, "{r:%s,k:%"PdI"}", relation_label(get_x(ip)), get_y(ip)); break;
         case VM_if:   fprintf(stderr, "{t:%"PdI",f:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_act:  fprintf(stderr, "{e:%s,k:%"PdI"}", effect_label(get_x(ip)), get_y(ip)); break;
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
