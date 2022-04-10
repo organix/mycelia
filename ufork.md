@@ -139,6 +139,7 @@ instr_ptr |stack_ptr |event_ptr |k_next
 
  t        | x        | y        | z
 ----------|----------|----------|----------
+VM_cell   |slots     |next_ip   |
 VM_push   |literal   |next_ip   |
 VM_drop   |count     |next_ip   |
 VM_dup    |count     |next_ip   |

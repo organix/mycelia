@@ -152,6 +152,7 @@ PROC_DECL(Unit);
 PROC_DECL(Actor);
 PROC_DECL(Event);
 PROC_DECL(Free);  // FIXME: consider using FALSE instead?
+PROC_DECL(vm_cell);
 PROC_DECL(vm_push);
 PROC_DECL(vm_drop);
 PROC_DECL(vm_dup);
@@ -170,14 +171,15 @@ PROC_DECL(vm_getc);
 #define Actor_T     (-7)
 #define Event_T     (-8)
 #define Free_T      (-9)
-#define VM_push     (-10)
-#define VM_drop     (-11)
-#define VM_dup      (-12)
-#define VM_eq       (-13)
-#define VM_lt       (-14)
-#define VM_if       (-15)
-#define VM_putc     (-16)
-#define VM_getc     (-17)
+#define VM_cell     (-10)
+#define VM_push     (-11)
+#define VM_drop     (-12)
+#define VM_dup      (-13)
+#define VM_eq       (-14)
+#define VM_lt       (-15)
+#define VM_if       (-16)
+#define VM_putc     (-17)
+#define VM_getc     (-18)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
@@ -189,6 +191,7 @@ proc_t proc_table[] = {
     vm_dup,
     vm_drop,
     vm_push,
+    vm_cell,
     Free,  // free-cell marker
     Event,
     Actor,
@@ -213,6 +216,7 @@ static char *proc_label(int_t proc) {
         "Actor_T",
         "Event_T",
         "Free_T",
+        "VM_cell",
         "VM_push",
         "VM_drop",
         "VM_dup",
@@ -304,7 +308,7 @@ PROC_DECL(Free) {
     return panic("DISPATCH TO FREE CELL!");
 }
 
-static int gc_free_cnt = 0;
+static int_t gc_free_cnt = 0;  // number of cells in free-list
 
 static int_t cell_new(int_t t, int_t x, int_t y, int_t z) {
     int_t next = cell_top;
@@ -553,6 +557,21 @@ PROC_DECL(Event) {
     return error("Event message not understood");
 }
 
+PROC_DECL(vm_cell) {
+    int_t n = get_x(self);
+    int_t z = UNDEF;
+    int_t y = UNDEF;
+    int_t x = UNDEF;
+    ASSERT(n > 0);
+    if (n > 3) { z = stack_pop(); }
+    if (n > 2) { y = stack_pop(); }
+    if (n > 1) { x = stack_pop(); }
+    int_t t = stack_pop();
+    int_t v = cell_new(t, x, y, z);
+    stack_push(v);
+    return get_y(self);
+}
+
 PROC_DECL(vm_push) {
     int_t v = get_x(self);
     stack_push(v);
@@ -635,19 +654,20 @@ static void print_stack(int_t sp) {
         print_stack(cdr(sp));
         int_t item = car(sp);
         //fprintf(stderr, "%s[%"PdI"] ", cell_label(item), item);
-        fprintf(stderr, "%"PdI" ", item);
+        fprintf(stderr, "%+"PdI" ", item);
     }
 }
 static void print_inst(int_t ip) {
     int_t proc = get_t(ip);
     fprintf(stderr, "%s", cell_label(proc));
     switch (proc) {
-        case VM_push: fprintf(stderr, "{v:%"PdI", k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_drop: fprintf(stderr, "{n:%"PdI", k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_dup:  fprintf(stderr, "{n:%"PdI", k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_cell: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_push: fprintf(stderr, "{v:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_drop: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_dup:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_eq:   fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_lt:   fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
-        case VM_if:   fprintf(stderr, "{t:%"PdI", f:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_if:   fprintf(stderr, "{t:%"PdI",f:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_getc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         default: {
@@ -672,6 +692,7 @@ int main(int argc, char const *argv[])
     DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 24*4));
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
+    DEBUG(fprintf(stderr, "free_cnt=%"PuI" cell_top=%"PuI"\n", gc_free_cnt, cell_top));
     return 0;
 }
 
