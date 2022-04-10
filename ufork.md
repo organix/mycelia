@@ -167,6 +167,37 @@ ABORT     |reason    |          |
 Event_T   |target    |message   |next
 Actor_T   |behavior  |events'   |behavior'
 
+### Object Graph
+
+```
+e_queue: [head,tail]--------------------------+
+          |                                   V
+          +-->[Event,to,msg,next]---> ... -->[Event,to,msg,NIL]
+
+k_queue: [head,tail]--------------------+
+          |                             V
+          +-->[ip,sp,ep,kp]---> ... -->[ip,sp,ep,NIL]
+               |  |  |
+               |  |  +-->[Event,to,msg,NIL]
+               |  |             |  |
+               |  |             |  +--> ...
+               |  |             V
+               |  |            [Actor,beh,es',beh']
+               |  V
+               | [Pair,car,cdr,?]
+               |       |   |
+               |       |   +--> ... -->[Pair,car,NIL,?]
+               |       V
+               |      item
+               V
+              [EQ,?,ip,?]
+                    |
+                    +--> [IF,t,f,?]
+                             | |
+                             | +--> ...
+                             V
+                             ...
+```
 
 ## Inspiration
 
