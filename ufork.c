@@ -12,15 +12,24 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>     // for intptr_t, uintptr_t, uint8_t, uint16_t, etc.
-#include <inttypes.h>   // for PRIiPTR, PRIuPTR, PRIXPTR, etc.
+#include <inttypes.h>   // for PRIiPTR, PRIuPTR, PRIxPTR, etc.
 #include <time.h>       // for clock_t, clock(), etc.
 
 #define DEBUG(x)    x   // include/exclude debug instrumentation
 
-#define USE_INT32_T   1 // define "machine word" as int32_t from <stdint.h>
+#define USE_INT16_T   1 // define "machine word" as int16_t from <stdint.h>
+#define USE_INT32_T   0 // define "machine word" as int32_t from <stdint.h>
 #define USE_INT64_T   0 // define "machine word" as int64_t from <stdint.h>
 #define USE_INTPTR_T  0 // define "machine word" as intptr_t from <stdint.h>
 
+#if USE_INT16_T
+typedef int16_t int_t;
+typedef uint16_t nat_t;
+typedef void *ptr_t;
+#define PdI PRId16
+#define PuI PRIu16
+#define PxI PRIx16
+#endif
 #if USE_INT32_T
 typedef int32_t int_t;
 typedef uint32_t nat_t;
@@ -68,6 +77,50 @@ int_t error(char *reason);
 int_t failure(char *_file_, int _line_);
 
 #define ASSERT(cond)    if (!(cond)) return failure(__FILE__, __LINE__)
+
+/*
+ * debugging tools
+ */
+
+#if USE_INT16_T || (USE_INTPTR_T && (__SIZEOF_POINTER__ == 2))
+static void hexdump(char *label, int_t *addr, size_t cnt) {
+    fprintf(stderr, "%s:", label);
+    for (nat_t n = 0; n < cnt; ++n) {
+        if ((n & 0x7) == 0x0) {
+            fprintf(stderr, "\n%04"PxI":", NAT(addr));
+        }
+        if ((n & 0x3) == 0x0) {
+            fprintf(stderr, " ");
+        }
+        fprintf(stderr, " %04"PxI"", NAT(*addr++));
+    }
+    fprintf(stderr, "\n");
+}
+#endif
+#if USE_INT32_T || (USE_INTPTR_T && (__SIZEOF_POINTER__ == 4))
+static void hexdump(char *label, int_t *addr, size_t cnt) {
+    fprintf(stderr, "%s: %04"PxI"..", label, (NAT(addr) >> 16));
+    for (nat_t n = 0; n < cnt; ++n) {
+        if ((n & 0x7) == 0x0) {
+            fprintf(stderr, "\n..%04"PxI":", (NAT(addr) & 0xFFFF));
+        }
+        fprintf(stderr, " %08"PxI"", NAT(*addr++) & 0xFFFFFFFF);
+    }
+    fprintf(stderr, "\n");
+}
+#endif
+#if USE_INT64_T || (USE_INTPTR_T && (__SIZEOF_POINTER__ == 8))
+static void hexdump(char *label, int_t *addr, size_t cnt) {
+    fprintf(stderr, "%s: %08"PxI"..", label, (NAT(addr) >> 32));
+    for (nat_t n = 0; n < cnt; ++n) {
+        if ((n & 0x3) == 0x0) {
+            fprintf(stderr, "\n..%08"PxI":", (NAT(addr) & 0xFFFFFFFF));
+        }
+        fprintf(stderr, " %016"PxI"", NAT(*addr++));
+    }
+    fprintf(stderr, "\n");
+}
+#endif
 
 /*
  * native code procedures
@@ -449,6 +502,7 @@ void debug_print(char *label, int_t addr) {
 
 int main(int argc, char const *argv[])
 {
+    DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 24*4));
     int_t result = runtime();
     DEBUG(debug_print("runtime result", result));
     return 0;
