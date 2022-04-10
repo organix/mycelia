@@ -15,7 +15,15 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #include <inttypes.h>   // for PRIiPTR, PRIuPTR, PRIxPTR, etc.
 #include <time.h>       // for clock_t, clock(), etc.
 
+#define INCLUDE_DEBUG 1 // include debugging facilities
+
+#if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
+#define XTRACE(x)       // include/exclude execution trace
+#else
+#define DEBUG(x)        // include/exclude debug instrumentation
+#define XTRACE(x)       // include/exclude execution trace
+#endif
 
 #define USE_INT16_T   1 // define "machine word" as int16_t from <stdint.h>
 #define USE_INT32_T   0 // define "machine word" as int32_t from <stdint.h>
@@ -81,6 +89,10 @@ int_t failure(char *_file_, int _line_);
 /*
  * debugging tools
  */
+#if INCLUDE_DEBUG
+
+// FORWARD DECLARATIONS
+void debug_print(char *label, int_t addr);
 
 #if USE_INT16_T || (USE_INTPTR_T && (__SIZEOF_POINTER__ == 2))
 static void hexdump(char *label, int_t *addr, size_t cnt) {
@@ -122,6 +134,8 @@ static void hexdump(char *label, int_t *addr, size_t cnt) {
 }
 #endif
 
+#endif // INCLUDE_DEBUG
+
 /*
  * native code procedures
  */
@@ -135,7 +149,7 @@ PROC_DECL(Boolean);
 PROC_DECL(Unit);
 PROC_DECL(Actor);
 PROC_DECL(Event);
-PROC_DECL(Free);
+PROC_DECL(Free);  // FIXME: consider using FALSE instead?
 PROC_DECL(vm_push);
 PROC_DECL(vm_drop);
 PROC_DECL(vm_dup);
@@ -145,48 +159,77 @@ PROC_DECL(vm_if);
 PROC_DECL(vm_putc);
 PROC_DECL(vm_getc);
 
-#define Undef_T     (0)
-#define Null_T      (1)
-#define Pair_T      (2)
-#define Symbol_T    (3)
-#define Boolean_T   (4)
-#define Unit_T      (5)
-#define Actor_T     (6)
-#define Event_T     (7)
-#define Free_T      (8)
-#define VM_push     (9)
-#define VM_drop     (10)
-#define VM_dup      (11)
-#define VM_eq       (12)
-#define VM_lt       (13)
-#define VM_if       (14)
-#define VM_putc     (15)
-#define VM_getc     (16)
+#define Undef_T     (-1)
+#define Null_T      (-2)
+#define Pair_T      (-3)
+#define Symbol_T    (-4)
+#define Boolean_T   (-5)
+#define Unit_T      (-6)
+#define Actor_T     (-7)
+#define Event_T     (-8)
+#define Free_T      (-9)
+#define VM_push     (-10)
+#define VM_drop     (-11)
+#define VM_dup      (-12)
+#define VM_eq       (-13)
+#define VM_lt       (-14)
+#define VM_if       (-15)
+#define VM_putc     (-16)
+#define VM_getc     (-17)
 
-proc_t proc_table[] = {
-    Undef,
-    Null,
-    Pair,
-    Symbol,
-    Boolean,
-    Unit,
-    Actor,
-    Event,
-    Free,  // free-cell marker
-    vm_push,
-    vm_drop,
-    vm_dup,
-    vm_eq,
-    vm_lt,
-    vm_if,
-    vm_putc,
-    vm_getc,
-};
-proc_t *proc_zero = &proc_table[0];  // base for proc offsets
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
+proc_t proc_table[] = {
+    vm_getc,
+    vm_putc,
+    vm_if,
+    vm_lt,
+    vm_eq,
+    vm_dup,
+    vm_drop,
+    vm_push,
+    Free,  // free-cell marker
+    Event,
+    Actor,
+    Unit,
+    Boolean,
+    Symbol,
+    Pair,
+    Null,
+    Undef,
+};
+proc_t *proc_zero = &proc_table[PROC_MAX];  // base for proc offsets
+
+#if INCLUDE_DEBUG
+static char *proc_label(int_t proc) {
+    static char *label[] = {
+        "Undef_T",
+        "Null_T",
+        "Pair_T",
+        "Symbol_T",
+        "Boolean_T",
+        "Unit_T",
+        "Actor_T",
+        "Event_T",
+        "Free_T",
+        "VM_push",
+        "VM_drop",
+        "VM_dup",
+        "VM_eq",
+        "VM_lt",
+        "VM_if",
+        "VM_putc",
+        "VM_getc",
+    };
+    nat_t ofs = NAT(-1 - proc);
+    if (ofs < PROC_MAX) return label[ofs];
+    return "<unknown>";
+}
+#endif
 
 int_t call_proc(int_t proc, int_t self, int_t arg) {
-    ASSERT(NAT(proc) < PROC_MAX);
+    nat_t ofs = NAT(-1 - proc);
+    ASSERT(ofs < PROC_MAX);
+    DEBUG(debug_print("call_proc self", self));
     int_t result = (proc_zero[proc])(self, arg);
     return result;
 }
@@ -203,15 +246,30 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define START       (5)
 #define A_BOOT      (6)
 
-#define CELL_MAX (1<<10)  // 1K cells
+#if INCLUDE_DEBUG
+static char *cell_label(int_t cell) {
+    static char *label[] = {
+        "FALSE",
+        "TRUE",
+        "NIL",
+        "UNDEF",
+        "UNIT",
+    };
+    if (cell < 0) return proc_label(cell);
+    if (cell < START) return label[cell];
+    return "cell";
+}
+#endif
+
+#define CELL_MAX NAT(1<<10)  // 1K cells
 cell_t cell_table[CELL_MAX] = {
     { .t = Boolean_T,   .x = FALSE,     .y = FALSE,     .z = UNDEF      },
     { .t = Boolean_T,   .x = TRUE,      .y = TRUE,      .z = UNDEF      },
     { .t = Null_T,      .x = NIL,       .y = NIL,       .z = UNDEF      },
     { .t = Undef_T,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF      },
     { .t = Unit_T,      .x = UNIT,      .y = UNIT,      .z = UNDEF      },
-    { .t = START+2,     .x = NIL,       .y = A_BOOT,    .z = UNDEF      },  // <--- START
-    { .t = Actor_T,     .x = START+2,   .y = NIL,       .z = UNDEF      },
+    { .t = Event_T,     .x = A_BOOT,    .y = NIL,       .z = NIL        },  // <--- START
+    { .t = Actor_T,     .x = START+2,   .y = UNDEF,     .z = UNDEF      },  // <--- A_BOOT
     { .t = VM_push,     .x = '>',       .y = START+3,   .z = UNDEF      },
     { .t = VM_putc,     .x = UNDEF,     .y = START+4,   .z = UNDEF      },
     { .t = VM_push,     .x = ' ',       .y = START+5,   .z = UNDEF      },
@@ -332,11 +390,72 @@ int_t append_reverse(int_t head, int_t tail) {
 }
 
 /*
- * runtime (virtual machine engine)
+ * actor event-queue
  */
 
-int_t k_queue_head = START;
-int_t k_queue_tail = START;
+int_t e_queue_head = START;
+int_t e_queue_tail = START;
+
+#define event_q_empty() (e_queue_head == NIL)
+
+int_t event_q_put(int_t event) {
+    set_z(event, NIL);
+    if (event_q_empty()) {
+        e_queue_head = event;
+    } else {
+        set_z(e_queue_tail, event);
+    }
+    e_queue_tail = event;
+    return event;
+}
+
+int_t event_q_pop() {
+    if (event_q_empty()) return UNDEF; // event queue empty
+    int_t event = e_queue_head;
+    e_queue_head = get_z(event);
+    set_z(event, NIL);
+    if (event_q_empty()) {
+        e_queue_tail = NIL;  // empty queue
+    }
+    return event;
+}
+
+/*
+ * VM continuation-queue
+ */
+
+int_t k_queue_head = NIL;
+int_t k_queue_tail = NIL;
+
+// FIXME: e_queue and k_queue management procedures are the same...
+
+#define cont_q_empty() (k_queue_head == NIL)
+
+int_t cont_q_put(int_t cont) {
+    set_z(cont, NIL);
+    if (cont_q_empty()) {
+        k_queue_head = cont;
+    } else {
+        set_z(k_queue_tail, cont);
+    }
+    k_queue_tail = cont;
+    return cont;
+}
+
+int_t cont_q_pop() {
+    if (cont_q_empty()) return UNDEF; // cont queue empty
+    int_t cont = k_queue_head;
+    k_queue_head = get_z(cont);
+    set_z(cont, NIL);
+    if (cont_q_empty()) {
+        k_queue_tail = NIL;  // empty queue
+    }
+    return cont;
+}
+
+/*
+ * runtime (virtual machine engine)
+ */
 
 #define GET_IP() get_t(k_queue_head)
 #define GET_SP() get_x(k_queue_head)
@@ -347,6 +466,7 @@ int_t k_queue_tail = START;
 #define SET_EP(v) set_y(k_queue_head,(v))
 
 int_t stack_push(int_t value) {
+    XTRACE(debug_print("stack push", value));
     SET_SP(cons(value, GET_SP()));
     return value;
 }
@@ -357,51 +477,45 @@ int_t stack_pop() {
         value = car(GET_SP());
         SET_SP(cdr(GET_SP()));
     }
+    XTRACE(debug_print("stack pop", value));
     return value;
 }
 
 int_t runtime() {
-    int_t next = GET_IP();
-    while (next >= START) {
-        int_t ip = SET_IP(next);
+    while (1) {
+        int_t event = event_q_pop();
+        XTRACE(debug_print("runtime event", event));
+        if (event != UNDEF) {
+            // start new "thread" to handle event
+            int_t actor = get_x(event);
+            if (get_y(actor) == UNDEF) {  // actor ready
+                set_y(actor, NIL);  // begin actor transaction
+                set_z(actor, UNDEF);  // no BECOME
+                int_t cont = cell_new(get_x(actor), get_y(event), event, NIL);
+                DEBUG(debug_print("runtime spawn", cont));
+                cont_q_put(cont);  // enqueue continuation
+            } else {  // actor busy
+                event_q_put(event);  // re-queue event
+            }
+        }
+        XTRACE(debug_print("runtime cont", k_queue_head));
+        if (cont_q_empty()) break;  // no more instructions to execute...
+        // execute next continuation
+        int_t ip = GET_IP();
         int_t proc = get_t(ip);
-        next = call_proc(proc, ip, GET_EP());
+        ip = call_proc(proc, ip, GET_EP());
+        SET_IP(ip);  // update IP
+        int_t cont = cont_q_pop();
+        XTRACE(debug_print("runtime done", cont));
+        if (ip >= START) {
+            cont_q_put(cont);  // enqueue continuation
+        }
     }
-    return next;
+    return UNIT;
 }
 
 /*
- * actor event-queue
- */
-
-int_t e_queue_head = NIL;
-int_t e_queue_tail = NIL;
-//static cell_t event_q = { .head = NIL, .tail = NIL };
-
-int_t event_q_put(int_t event) {
-    set_z(event, NIL);
-    if (e_queue_head == NIL) {
-        e_queue_head = event;
-    } else {
-        set_z(e_queue_tail, event);
-    }
-    e_queue_tail = event;
-    return event;
-}
-
-int_t event_q_pop() {
-    if (e_queue_head == NIL) return UNDEF; // event queue empty
-    int_t event = e_queue_head;
-    e_queue_head = get_z(event);
-    set_z(event, NIL);
-    if (e_queue_head == NIL) {
-        e_queue_tail = NIL;  // empty queue
-    }
-    return event;
-}
-
-/*
- * bootstrap
+ * native procedures
  */
 
 PROC_DECL(Undef) {
@@ -495,16 +609,31 @@ PROC_DECL(vm_getc) {
     return get_y(self);
 }
 
+/*
+ * bootstrap
+ */
+
+#if INCLUDE_DEBUG
 void debug_print(char *label, int_t addr) {
-    fprintf(stderr, "%s: addr=%"PdI" .t=%"PdI" .x=%"PdI" .y=%"PdI" .z=%"PdI"\n",
-        label, addr, get_t(addr), get_x(addr), get_y(addr), get_z(addr));
+    fprintf(stderr, "%s: ", label);
+    fprintf(stderr, " %s[%"PdI"]", cell_label(addr), addr);
+    if (addr >= 0) {
+        fprintf(stderr, " = ");
+        fprintf(stderr, "{t:%s(%"PdI"),", cell_label(get_t(addr)), get_t(addr));
+        fprintf(stderr, " x:%s(%"PdI"),", cell_label(get_x(addr)), get_x(addr));
+        fprintf(stderr, " y:%s(%"PdI"),", cell_label(get_y(addr)), get_y(addr));
+        fprintf(stderr, " z:%s(%"PdI")}", cell_label(get_z(addr)), get_z(addr));
+    }
+    fprintf(stderr, "\n");
 }
+#endif
 
 int main(int argc, char const *argv[])
 {
+    DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
     DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 24*4));
     int_t result = runtime();
-    DEBUG(debug_print("runtime result", result));
+    DEBUG(debug_print("main result", result));
     return 0;
 }
 
