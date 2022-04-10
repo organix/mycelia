@@ -164,7 +164,7 @@ ABORT     |reason    |          |
 
  t        | x        | y        | z
 ----------|----------|----------|----------
-EVENT     |target    |message   |
+Event_T   |target    |message   |next
 Actor_T   |behavior  |events'   |behavior'
 
 

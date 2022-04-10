@@ -81,6 +81,7 @@ PROC_DECL(Symbol);
 PROC_DECL(Boolean);
 PROC_DECL(Unit);
 PROC_DECL(Actor);
+PROC_DECL(Event);
 PROC_DECL(Free);
 PROC_DECL(vm_push);
 PROC_DECL(vm_drop);
@@ -98,15 +99,16 @@ PROC_DECL(vm_getc);
 #define Boolean_T   (4)
 #define Unit_T      (5)
 #define Actor_T     (6)
-#define Free_T      (7)
-#define VM_push     (8)
-#define VM_drop     (9)
-#define VM_dup      (10)
-#define VM_eq       (11)
-#define VM_lt       (12)
-#define VM_if       (13)
-#define VM_putc     (14)
-#define VM_getc     (15)
+#define Event_T     (7)
+#define Free_T      (8)
+#define VM_push     (9)
+#define VM_drop     (10)
+#define VM_dup      (11)
+#define VM_eq       (12)
+#define VM_lt       (13)
+#define VM_if       (14)
+#define VM_putc     (15)
+#define VM_getc     (16)
 
 proc_t proc_table[] = {
     Undef,
@@ -116,6 +118,7 @@ proc_t proc_table[] = {
     Boolean,
     Unit,
     Actor,
+    Event,
     Free,  // free-cell marker
     vm_push,
     vm_drop,
@@ -315,35 +318,69 @@ int_t runtime() {
 }
 
 /*
+ * actor event-queue
+ */
+
+int_t e_queue_head = NIL;
+int_t e_queue_tail = NIL;
+//static cell_t event_q = { .head = NIL, .tail = NIL };
+
+int_t event_q_put(int_t event) {
+    set_z(event, NIL);
+    if (e_queue_head == NIL) {
+        e_queue_head = event;
+    } else {
+        set_z(e_queue_tail, event);
+    }
+    e_queue_tail = event;
+    return event;
+}
+
+int_t event_q_pop() {
+    if (e_queue_head == NIL) return UNDEF; // event queue empty
+    int_t event = e_queue_head;
+    e_queue_head = get_z(event);
+    set_z(event, NIL);
+    if (e_queue_head == NIL) {
+        e_queue_tail = NIL;  // empty queue
+    }
+    return event;
+}
+
+/*
  * bootstrap
  */
 
 PROC_DECL(Undef) {
-    return error("Undef not implemented");
+    return error("Undef message not understood");
 }
 
 PROC_DECL(Null) {
-    return error("Null not implemented");
+    return error("Null message not understood");
 }
 
 PROC_DECL(Pair) {
-    return error("Pair not implemented");
+    return error("Pair message not understood");
 }
 
 PROC_DECL(Symbol) {
-    return error("Symbol not implemented");
+    return error("Symbol message not understood");
 }
 
 PROC_DECL(Boolean) {
-    return error("Boolean not implemented");
+    return error("Boolean message not understood");
 }
 
 PROC_DECL(Unit) {
-    return error("Unit not implemented");
+    return error("Unit message not understood");
 }
 
 PROC_DECL(Actor) {
-    return error("Actor not implemented");
+    return error("Actor message not understood");
+}
+
+PROC_DECL(Event) {
+    return error("Event message not understood");
 }
 
 PROC_DECL(vm_push) {
