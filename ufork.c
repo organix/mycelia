@@ -121,6 +121,7 @@ PROC_DECL(vm_dup);
 PROC_DECL(vm_eqv);
 PROC_DECL(vm_cmp);
 PROC_DECL(vm_if);
+PROC_DECL(vm_msg);
 PROC_DECL(vm_act);
 PROC_DECL(vm_putc);
 PROC_DECL(vm_getc);
@@ -141,15 +142,17 @@ PROC_DECL(vm_getc);
 #define VM_eqv      (-14)
 #define VM_cmp      (-15)
 #define VM_if       (-16)
-#define VM_act      (-17)
-#define VM_putc     (-18)
-#define VM_getc     (-19)
+#define VM_msg      (-17)
+#define VM_act      (-18)
+#define VM_putc     (-19)
+#define VM_getc     (-20)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
     vm_getc,
     vm_putc,
     vm_act,
+    vm_msg,
     vm_if,
     vm_cmp,
     vm_eqv,
@@ -188,6 +191,7 @@ static char *proc_label(int_t proc) {
         "VM_eqv",
         "VM_cmp",
         "VM_if",
+        "VM_msg",
         "VM_act",
         "VM_putc",
         "VM_getc",
@@ -631,6 +635,26 @@ PROC_DECL(vm_if) {
     return ((b == FALSE) ? get_y(self) : get_x(self));
 }
 
+PROC_DECL(vm_msg) {
+    int_t i = get_x(self);
+    int_t ep = GET_EP();
+    int_t m = get_y(ep);
+    int_t v = UNDEF;
+    if (i == 0) {  // entire message
+        v = m;
+    } else if (i > 0) {  // message item at index
+        while (IS_PAIR(m)) {
+            if (--i == 0) {
+                v = car(m);
+                break;
+            }
+            m = cdr(m);
+        }
+    }
+    stack_push(v);
+    return get_y(self);
+}
+
 PROC_DECL(vm_act) {
     int_t e = get_x(self);
     int_t ep = GET_EP();
@@ -802,6 +826,7 @@ static void print_inst(int_t ip) {
         case VM_eqv:  fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_cmp:  fprintf(stderr, "{r:%s,k:%"PdI"}", relation_label(get_x(ip)), get_y(ip)); break;
         case VM_if:   fprintf(stderr, "{t:%"PdI",f:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_msg:  fprintf(stderr, "{i:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_act:  fprintf(stderr, "{e:%s,k:%"PdI"}", effect_label(get_x(ip)), get_y(ip)); break;
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_getc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
