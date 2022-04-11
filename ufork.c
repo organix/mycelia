@@ -16,6 +16,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #include <time.h>       // for clock_t, clock(), etc.
 
 #define INCLUDE_DEBUG 1 // include debugging facilities
+#define EXPLICIT_FREE 1 // explicitly free leaked memory
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -25,6 +26,12 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define DEBUG(x)        // include/exclude debug instrumentation
 #define ITRACE(x)       // include/exclude instruction trace
 #define XTRACE(x)       // include/exclude execution trace
+#endif
+
+#if EXPLICIT_FREE
+#define XFREE(x)    cell_free(x)
+#else
+#define XFREE(x)    // free removed
 #endif
 
 #define USE_INT16_T   1 // define "machine word" as int16_t from <stdint.h>
@@ -511,13 +518,16 @@ int_t stack_push(int_t value) {
 }
 
 int_t stack_pop() {
-    int_t value = UNDEF;
-    if (IS_PAIR(GET_SP())) {
-        value = car(GET_SP());
-        SET_SP(cdr(GET_SP()));
+    int_t item = UNDEF;
+    int_t sp = GET_SP();
+    if (IS_PAIR(sp)) {
+        item = car(sp);
+        int_t rest = cdr(sp);
+        SET_SP(rest);
+        XFREE(sp);
     }
-    XTRACE(debug_print("stack pop", value));
-    return value;
+    XTRACE(debug_print("stack pop", item));
+    return item;
 }
 
 int_t runtime() {
@@ -538,7 +548,9 @@ int_t runtime() {
             }
         }
         XTRACE(debug_print("runtime cont", k_queue_head));
-        if (cont_q_empty()) break;  // no more instructions to execute...
+        if (cont_q_empty()) {
+            break;  // no more instructions to execute...
+        }
         // execute next continuation
         int_t ip = GET_IP();
         int_t proc = get_t(ip);
@@ -549,8 +561,11 @@ int_t runtime() {
         XTRACE(debug_print("runtime done", cont));
         if (ip >= START) {
             cont_q_put(cont);  // enqueue continuation
+        } else {
+            // if "thread" is dead, free cont and event
+            XFREE(get_y(cont));
+            XFREE(cont);
         }
-        // FIXME: if "thread" is dead, should be able to free cont and event...
     }
     return UNIT;
 }
@@ -821,6 +836,7 @@ int main(int argc, char const *argv[])
     DEBUG(disassemble(0, 32));
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
+    DEBUG(disassemble(0, 32));
     DEBUG(fprintf(stderr, "free_cnt=%"PuI" cell_top=%"PuI"\n", gc_free_cnt, cell_top));
     return 0;
 }
