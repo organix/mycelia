@@ -290,27 +290,37 @@ static char *cell_label(int_t cell) {
 
 #define CELL_MAX NAT(1<<10)  // 1K cells
 cell_t cell_table[CELL_MAX] = {
-    { .t = Boolean_T,   .x = FALSE,     .y = FALSE,     .z = UNDEF      },
-    { .t = Boolean_T,   .x = TRUE,      .y = TRUE,      .z = UNDEF      },
-    { .t = Null_T,      .x = NIL,       .y = NIL,       .z = UNDEF      },
-    { .t = Undef_T,     .x = UNDEF,     .y = UNDEF,     .z = UNDEF      },
-    { .t = Unit_T,      .x = UNIT,      .y = UNIT,      .z = UNDEF      },
-    { .t = Event_T,     .x = A_BOOT,    .y = NIL,       .z = NIL        },  // <--- START
-    { .t = Actor_T,     .x = START+2,   .y = UNDEF,     .z = UNDEF      },  // <--- A_BOOT
-    { .t = VM_push,     .x = '>',       .y = START+3,   .z = UNDEF      },
-    { .t = VM_putc,     .x = UNDEF,     .y = START+4,   .z = UNDEF      },
-    { .t = VM_push,     .x = ' ',       .y = START+5,   .z = UNDEF      },
-    { .t = VM_putc,     .x = UNDEF,     .y = START+6,   .z = UNDEF      },
-    { .t = VM_getc,     .x = UNDEF,     .y = START+7,   .z = UNDEF      },  // +6
-    { .t = VM_dup,      .x = 1,         .y = START+8,   .z = UNDEF      },
-    { .t = VM_push,     .x = '\0',      .y = START+9,   .z = UNDEF      },
-    { .t = VM_cmp,      .x = CMP_LT,    .y = START+10,  .z = UNDEF      },
-    { .t = VM_if,       .x = UNIT,      .y = START+11,  .z = UNDEF      },
-    { .t = VM_putc,     .x = UNDEF,     .y = START+6,   .z = UNDEF      },
+    { .t=Boolean_T,     .x=FALSE,       .y=FALSE,       .z=UNDEF        },
+    { .t=Boolean_T,     .x=TRUE,        .y=TRUE,        .z=UNDEF        },
+    { .t=Null_T,        .x=NIL,         .y=NIL,         .z=UNDEF        },
+    { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
+    { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
+    { .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START
+    { .t=Actor_T,       .x=START+2,     .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
+    { .t=VM_push,       .x='>',         .y=START+3,     .z=UNDEF        },
+    { .t=VM_putc,       .x=UNDEF,       .y=START+4,     .z=UNDEF        },
+    { .t=VM_push,       .x=' ',         .y=START+5,     .z=UNDEF        },
+    { .t=VM_putc,       .x=UNDEF,       .y=START+6,     .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=START+7,     .z=UNDEF        },  // +6
+    { .t=VM_act,        .x=ACT_SELF,    .y=START+8,     .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_SEND,    .y=START+9,     .z=UNDEF        },
+    { .t=VM_push,       .x=START+12,    .y=START+10,    .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_BECOME,  .y=START+11,    .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_getc,       .x=UNDEF,       .y=START+13,    .z=UNDEF        },  // +12
+    { .t=VM_dup,        .x=1,           .y=START+14,    .z=UNDEF        },
+    { .t=VM_push,       .x='\0',        .y=START+15,    .z=UNDEF        },
+    { .t=VM_cmp,        .x=CMP_LT,      .y=START+16,    .z=UNDEF        },
+    { .t=VM_if,         .x=START+21,    .y=START+17,    .z=UNDEF        },
+    { .t=VM_putc,       .x=UNDEF,       .y=START+18,    .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=START+19,    .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_SELF,    .y=START+20,    .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_SEND,    .y=START+21,    .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF,       },
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
-int_t cell_top = START+12; // limit of allocated cell memory
+int_t cell_top = START+22; // limit of allocated cell memory
 
 #define get_t(n) (cell_zero[(n)].t)
 #define get_x(n) (cell_zero[(n)].x)
