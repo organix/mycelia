@@ -783,12 +783,7 @@ static void print_inst(int_t ip) {
         case VM_act:  fprintf(stderr, "{e:%s,k:%"PdI"}", effect_label(get_x(ip)), get_y(ip)); break;
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_getc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
-        default: {
-            fprintf(stderr, "(%"PdI",", get_t(proc));
-            fprintf(stderr, " %"PdI",", get_x(ip));
-            fprintf(stderr, " %"PdI",", get_y(ip));
-            fprintf(stderr, " %"PdI")", get_z(ip));
-        }
+        default:      fprintf(stderr, "{x:%"PdI",y:%"PdI",z:%"PdI"}", get_x(ip), get_y(ip), get_z(ip)); break;
     }
 }
 void continuation_trace() {

@@ -117,58 +117,42 @@ proc/type | head/car | tail/cdr | link/next
 
 #### Data Structures
 
-##### Free-List
-
- t        | x        | y        | z
-----------|----------|----------|----------
-Free_T    |UNDEF     |UNDEF     |next
-
-##### Stack
-
- t        | x        | y        | z
-----------|----------|----------|----------
-Pair_T    |item      |rest      |
-
-##### Continuation
-
- t        | x        | y        | z
-----------|----------|----------|----------
-instr_ptr |stack_ptr |event_ptr |k_next
+ Structure                            | Description
+--------------------------------------|---------------------------------
+{t=Free_T, z=next}                    | cell in the free-list
+{t=Pair_T, x=item, y=rest}            | stack entry holding _item_
+{t=IP, x=SP, y=EP, z=next}            | continuation queue entry
+{t=Event_T, x=target, y=msg, z=next } | actor event queue entry
+{t=Actor_T, x=beh, y=?, z=?}          | idle actor
+{t=Actor_T, x=beh, y=events', z=beh'} | busy actor, intially {y=(), z=?}
 
 #### Instructions
 
- t        | x        | y        | z
-----------|----------|----------|----------
-VM_cell   |slots     |next_ip   |
-VM_push   |literal   |next_ip   |
-VM_drop   |count     |next_ip   |
-VM_dup    |count     |next_ip   |
-VM_eqv    |          |next_ip   |
-VM_cmp    |relation  |next_ip   |
-VM_if     |true_ip   |false_ip  |
-VM_act    |effect    |next_ip   |
-VM_putc   |          |next_ip   |
-VM_getc   |          |next_ip   |
-
-### Actors
-
-#### Instructions
-
- t        | x        | y        | z
-----------|----------|----------|----------
-SELF      |          |          |
-SEND      |target    |message   |
-CREATE    |behavior  |          |
-BECOME    |behavior  |          |
-ABORT     |reason    |          |
-COMMIT    |          |          |
-
-#### Data Structures
-
- t        | x        | y        | z
-----------|----------|----------|----------
-Event_T   |target    |message   |next
-Actor_T   |behavior  |events'   |behavior'
+ Input          | Instruction                   | Output  | Description
+----------------|-------------------------------|---------|------------------------------
+_T_             | {t=VM_cell, x=1, y=_K_}       | _cell_  | create cell {t=_T_}
+_T_ _X_         | {t=VM_cell, x=2, y=_K_}       | _cell_  | create cell {t=_T_, x=_X_}
+_T_ _X_ _Y_     | {t=VM_cell, x=3, y=_K_}       | _cell_  | create cell {t=_T_, x=_X_, y=_Y_}
+_T_ _X_ _Y_ _Z_ | {t=VM_cell, x=4, y=_K_}       | _cell_  | create cell {t=_T_, x=_X_, y=_Y_, z=_Z_}
+&mdash;         | {t=VM_push, x=_value_, y=_K_} | _value_ | push literal _value_ on stack
+_v_<sub>n</sub> ... _v_<sub>1</sub> | {t=VM_drop, x=_n_, y=_K_} | &mdash; | remove _n_ items from stack
+_v_<sub>n</sub> ... _v_<sub>1</sub> | {t=VM_dup, x=_n_, y=_K_} |_v_<sub>n</sub> ... _v_<sub>1</sub> _v_<sub>n</sub> ... _v_<sub>1</sub> | duplicate _n_ items on stack
+_x_ _y_         | {t=VM_eqv, y=_K_}             | _bool_  | `TRUE` if _x_ and _y_ are equivalent, otherwise `FALSE`
+_n_ _m_         | {t=VM_cmp, x=EQ, y=_K_}       | _bool_  | `TRUE` if _n_ == _m_, otherwise `FALSE`
+_n_ _m_         | {t=VM_cmp, x=GE, y=_K_}       | _bool_  | `TRUE` if _n_ >= _m_, otherwise `FALSE`
+_n_ _m_         | {t=VM_cmp, x=GT, y=_K_}       | _bool_  | `TRUE` if _n_ > _m_, otherwise `FALSE`
+_n_ _m_         | {t=VM_cmp, x=LT, y=_K_}       | _bool_  | `TRUE` if _n_ < _m_, otherwise `FALSE`
+_n_ _m_         | {t=VM_cmp, x=LE, y=_K_}       | _bool_  | `TRUE` if _n_ <= _m_, otherwise `FALSE`
+_n_ _m_         | {t=VM_cmp, x=NE, y=_K_}       | _bool_  | `TRUE` if _n_ != _m_, otherwise `FALSE`
+_bool_          | {t=VM_if, x=_T_, y=_F_}       | &mdash; | continue _F_ if `FALSE`, otherwise continue _T_
+&mdash;         | {t=VM_act, x=SELF, y=_K_}     | _actor_ | push current _actor_ on stack
+_msg_ _target_  | {t=VM_act, x=SEND, y=_K_}     | &mdash; | send _msg_ to _target_ actor
+_beh_           | {t=VM_act, x=CREATE, y=_K_}   | _actor_ | create new actor with behavior _beh_
+_beh_           | {t=VM_act, x=BECOME, y=_K_}   | &mdash; | replace current behavior with _beh_
+_reason_        | {t=VM_act, x=ABORT}           | &mdash; | abort actor transaction with _reason_
+&mdash;         | {t=VM_act, x=COMMIT}          | &mdash; | commit actor transaction
+_char_          | {t=VM_putc, y=_K_}            | &mdash; | write _char_ to console
+&mdash;         | {t=VM_getc, y=_K_}            | _char_  | read _char_ from console
 
 ### Object Graph
 
@@ -193,13 +177,13 @@ k_queue: [head,tail]--------------------+
                |       V
                |      item
                V
-              [EQ,?,ip,?]
-                    |
-                    +--> [IF,t,f,?]
-                             | |
-                             | +--> ...
-                             V
-                             ...
+              [CMP,EQ,k,?]
+                      |
+                      +--> [IF,t,f,?]
+                               | |
+                               | +--> ...
+                               V
+                               ...
 ```
 
 ## Inspiration
