@@ -311,16 +311,17 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_dup,        .x=1,           .y=START+14,    .z=UNDEF        },
     { .t=VM_push,       .x='\0',        .y=START+15,    .z=UNDEF        },
     { .t=VM_cmp,        .x=CMP_LT,      .y=START+16,    .z=UNDEF        },
-    { .t=VM_if,         .x=START+21,    .y=START+17,    .z=UNDEF        },
+    { .t=VM_if,         .x=START+22,    .y=START+17,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=START+18,    .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=START+19,    .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SELF,    .y=START+20,    .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SEND,    .y=START+21,    .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF,       },
+    { .t=VM_drop,       .x=1,           .y=START+21,    .z=UNDEF        },
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
-int_t cell_top = START+22; // limit of allocated cell memory
+int_t cell_top = START+23; // limit of allocated cell memory
 
 #define get_t(n) (cell_zero[(n)].t)
 #define get_x(n) (cell_zero[(n)].x)
@@ -709,6 +710,7 @@ PROC_DECL(vm_act) {
                 event_q_put(e);
                 e = es;
             }
+            DEBUG(if (GET_SP() != NIL) debug_print("STACK NOT EMPTY!", GET_SP()));
             set_y(me, UNDEF);  // commit actor transaction
             return TRUE;  // terminate thread
         }
@@ -802,12 +804,21 @@ void continuation_trace() {
     //print_event(GET_EP());
     fprintf(stderr, "\n");
 }
+void disassemble(int_t ip, int_t n) {
+    while (n-- > 0) {
+        fprintf(stderr, "cell[%"PdI"] = ", ip);
+        print_inst(ip);
+        fprintf(stderr, "\n");
+        ++ip;
+    }
+}
 #endif
 
 int main(int argc, char const *argv[])
 {
     DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
-    DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 24*4));
+    DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 32*4));
+    DEBUG(disassemble(0, 32));
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
     DEBUG(fprintf(stderr, "free_cnt=%"PuI" cell_top=%"PuI"\n", gc_free_cnt, cell_top));
