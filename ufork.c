@@ -23,9 +23,9 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define ITRACE(x)   x   // include/exclude instruction trace
 #define XTRACE(x)       // include/exclude execution trace
 #else
-#define DEBUG(x)        // include/exclude debug instrumentation
-#define ITRACE(x)       // include/exclude instruction trace
-#define XTRACE(x)       // include/exclude execution trace
+#define DEBUG(x)        // exclude debug instrumentation
+#define ITRACE(x)       // exclude instruction trace
+#define XTRACE(x)       // exclude execution trace
 #endif
 
 #if EXPLICIT_FREE
@@ -34,10 +34,11 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define XFREE(x)    // free removed
 #endif
 
-#define USE_INT16_T   1 // define "machine word" as int16_t from <stdint.h>
-#define USE_INT32_T   0 // define "machine word" as int32_t from <stdint.h>
-#define USE_INT64_T   0 // define "machine word" as int64_t from <stdint.h>
-#define USE_INTPTR_T  0 // define "machine word" as intptr_t from <stdint.h>
+// choose a definition of "machine word" from the following:
+#define USE_INT16_T   1 // int16_t from <stdint.h>
+#define USE_INT32_T   0 // int32_t from <stdint.h>
+#define USE_INT64_T   0 // int64_t from <stdint.h>
+#define USE_INTPTR_T  0 // intptr_t from <stdint.h>
 
 #if USE_INT16_T
 typedef int16_t int_t;
@@ -91,59 +92,13 @@ typedef PROC_DECL((*proc_t));
 int_t panic(char *reason);
 int_t error(char *reason);
 int_t failure(char *_file_, int _line_);
-
-#define ASSERT(cond)    if (!(cond)) return failure(__FILE__, __LINE__)
-
-/*
- * debugging tools
- */
 #if INCLUDE_DEBUG
-
-// FORWARD DECLARATIONS
+void hexdump(char *label, int_t *addr, size_t cnt);
 void debug_print(char *label, int_t addr);
 void continuation_trace();
-
-#if USE_INT16_T || (USE_INTPTR_T && (__SIZEOF_POINTER__ == 2))
-static void hexdump(char *label, int_t *addr, size_t cnt) {
-    fprintf(stderr, "%s:", label);
-    for (nat_t n = 0; n < cnt; ++n) {
-        if ((n & 0x7) == 0x0) {
-            fprintf(stderr, "\n%04"PxI":", NAT(addr));
-        }
-        if ((n & 0x3) == 0x0) {
-            fprintf(stderr, " ");
-        }
-        fprintf(stderr, " %04"PxI"", NAT(*addr++));
-    }
-    fprintf(stderr, "\n");
-}
-#endif
-#if USE_INT32_T || (USE_INTPTR_T && (__SIZEOF_POINTER__ == 4))
-static void hexdump(char *label, int_t *addr, size_t cnt) {
-    fprintf(stderr, "%s: %04"PxI"..", label, (NAT(addr) >> 16));
-    for (nat_t n = 0; n < cnt; ++n) {
-        if ((n & 0x7) == 0x0) {
-            fprintf(stderr, "\n..%04"PxI":", (NAT(addr) & 0xFFFF));
-        }
-        fprintf(stderr, " %08"PxI"", NAT(*addr++) & 0xFFFFFFFF);
-    }
-    fprintf(stderr, "\n");
-}
-#endif
-#if USE_INT64_T || (USE_INTPTR_T && (__SIZEOF_POINTER__ == 8))
-static void hexdump(char *label, int_t *addr, size_t cnt) {
-    fprintf(stderr, "%s: %08"PxI"..", label, (NAT(addr) >> 32));
-    for (nat_t n = 0; n < cnt; ++n) {
-        if ((n & 0x3) == 0x0) {
-            fprintf(stderr, "\n..%08"PxI":", (NAT(addr) & 0xFFFFFFFF));
-        }
-        fprintf(stderr, " %016"PxI"", NAT(*addr++));
-    }
-    fprintf(stderr, "\n");
-}
-#endif
-
 #endif // INCLUDE_DEBUG
+
+#define ASSERT(cond)    if (!(cond)) return failure(__FILE__, __LINE__)
 
 /*
  * native code procedures
@@ -749,10 +704,50 @@ PROC_DECL(vm_getc) {
 }
 
 /*
- * bootstrap
+ * debugging tools
  */
-
 #if INCLUDE_DEBUG
+
+#if USE_INT16_T || (USE_INTPTR_T && (__SIZEOF_POINTER__ == 2))
+void hexdump(char *label, int_t *addr, size_t cnt) {
+    fprintf(stderr, "%s:", label);
+    for (nat_t n = 0; n < cnt; ++n) {
+        if ((n & 0x7) == 0x0) {
+            fprintf(stderr, "\n%04"PxI":", NAT(addr));
+        }
+        if ((n & 0x3) == 0x0) {
+            fprintf(stderr, " ");
+        }
+        fprintf(stderr, " %04"PxI"", NAT(*addr++));
+    }
+    fprintf(stderr, "\n");
+}
+#endif
+#if USE_INT32_T || (USE_INTPTR_T && (__SIZEOF_POINTER__ == 4))
+void hexdump(char *label, int_t *addr, size_t cnt) {
+    fprintf(stderr, "%s: %04"PxI"..", label, (NAT(addr) >> 16));
+    for (nat_t n = 0; n < cnt; ++n) {
+        if ((n & 0x7) == 0x0) {
+            fprintf(stderr, "\n..%04"PxI":", (NAT(addr) & 0xFFFF));
+        }
+        fprintf(stderr, " %08"PxI"", NAT(*addr++) & 0xFFFFFFFF);
+    }
+    fprintf(stderr, "\n");
+}
+#endif
+#if USE_INT64_T || (USE_INTPTR_T && (__SIZEOF_POINTER__ == 8))
+void hexdump(char *label, int_t *addr, size_t cnt) {
+    fprintf(stderr, "%s: %08"PxI"..", label, (NAT(addr) >> 32));
+    for (nat_t n = 0; n < cnt; ++n) {
+        if ((n & 0x3) == 0x0) {
+            fprintf(stderr, "\n..%08"PxI":", (NAT(addr) & 0xFFFFFFFF));
+        }
+        fprintf(stderr, " %016"PxI"", NAT(*addr++));
+    }
+    fprintf(stderr, "\n");
+}
+#endif
+
 void debug_print(char *label, int_t addr) {
     fprintf(stderr, "%s: ", label);
     fprintf(stderr, "%s[%"PdI"]", cell_label(addr), addr);
@@ -827,7 +822,11 @@ void disassemble(int_t ip, int_t n) {
         ++ip;
     }
 }
-#endif
+#endif // INCLUDE_DEBUG
+
+/*
+ * bootstrap
+ */
 
 int main(int argc, char const *argv[])
 {
@@ -837,7 +836,7 @@ int main(int argc, char const *argv[])
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
     DEBUG(disassemble(0, 32));
-    DEBUG(fprintf(stderr, "free_cnt=%"PuI" cell_top=%"PuI"\n", gc_free_cnt, cell_top));
+    DEBUG(fprintf(stderr, "free_cnt=%"PdI" cell_top=%"PdI"\n", gc_free_cnt, cell_top));
     return 0;
 }
 
