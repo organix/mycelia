@@ -124,7 +124,7 @@ PROC_DECL(vm_drop);
 PROC_DECL(vm_pick);
 PROC_DECL(vm_dup);
 PROC_DECL(vm_alu);
-PROC_DECL(vm_eqv);
+PROC_DECL(vm_eq);
 PROC_DECL(vm_cmp);
 PROC_DECL(vm_if);
 PROC_DECL(vm_msg);
@@ -151,7 +151,7 @@ PROC_DECL(vm_getc);
 #define VM_pick     (-17)
 #define VM_dup      (-18)
 #define VM_alu      (-19)
-#define VM_eqv      (-20)
+#define VM_eq       (-20)
 #define VM_cmp      (-21)
 #define VM_if       (-22)
 #define VM_msg      (-23)
@@ -167,7 +167,7 @@ proc_t proc_table[] = {
     vm_msg,
     vm_if,
     vm_cmp,
-    vm_eqv,
+    vm_eq,
     vm_alu,
     vm_dup,
     vm_pick,
@@ -212,7 +212,7 @@ static char *proc_label(int_t proc) {
         "VM_pick",
         "VM_dup",
         "VM_alu",
-        "VM_eqv",
+        "VM_eq",
         "VM_cmp",
         "VM_if",
         "VM_msg",
@@ -309,7 +309,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_act,        .x=ACT_BECOME,  .y=START+11,    .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_getc,       .x=UNDEF,       .y=START+13,    .z=UNDEF        },  // +12
-    { .t=VM_dup,        .x=1,           .y=START+14,    .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=START+14,    .z=UNDEF        },
     { .t=VM_push,       .x='\0',        .y=START+15,    .z=UNDEF        },
     { .t=VM_cmp,        .x=CMP_LT,      .y=START+16,    .z=UNDEF        },
     { .t=VM_if,         .x=START+22,    .y=START+17,    .z=UNDEF        },
@@ -320,7 +320,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_drop,       .x=1,           .y=START+21,    .z=UNDEF        },
 /**/
-    { .t=VM_pick,       .x=1,           .y=START+32,    .z=UNDEF        },  // unused
+    { .t=VM_eq,         .x=-1,          .y=START+32,    .z=UNDEF        },  // unused
     { .t=VM_pair,       .x=UNDEF,       .y=START+32,    .z=UNDEF        },  // unused
     { .t=VM_part,       .x=UNDEF,       .y=START+32,    .z=UNDEF        },  // unused
     { .t=VM_alu,        .x=ALU_MUL,     .y=START+32,    .z=UNDEF        },  // unused
@@ -747,10 +747,10 @@ PROC_DECL(vm_alu) {
     return get_y(self);
 }
 
-PROC_DECL(vm_eqv) {
-    int_t y = stack_pop();
-    int_t x = stack_pop();
-    stack_push(equal(x, y));
+PROC_DECL(vm_eq) {
+    int_t n = get_x(self);
+    int_t m = stack_pop();
+    stack_push((n == m) ? TRUE : FALSE);
     return get_y(self);
 }
 
@@ -987,7 +987,7 @@ static void print_inst(int_t ip) {
         case VM_pick: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_dup:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_alu:  fprintf(stderr, "{op:%s,k:%"PdI"}", operation_label(get_x(ip)), get_y(ip)); break;
-        case VM_eqv:  fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
+        case VM_eq:   fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_cmp:  fprintf(stderr, "{r:%s,k:%"PdI"}", relation_label(get_x(ip)), get_y(ip)); break;
         case VM_if:   fprintf(stderr, "{t:%"PdI",f:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_msg:  fprintf(stderr, "{i:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;

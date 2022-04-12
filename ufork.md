@@ -151,7 +151,7 @@ _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t=VM_dup, x=_n_, y=_K_} |_v_<sub>_n_</s
 _n_ _m_         | {t=VM_alu, x=ADD, y=_K_}      | _n_+_m_ | sum of _n_ and _m_
 _n_ _m_         | {t=VM_alu, x=SUB, y=_K_}      | _n_-_m_ | difference of _n_ and _m_
 _n_ _m_         | {t=VM_alu, x=MUL, y=_K_}      | _n_\*_m_ | product of _n_ and _m_
-_x_ _y_         | {t=VM_eqv, y=_K_}             | _bool_  | `TRUE` if _x_ and _y_ are equivalent, otherwise `FALSE`
+_m_             | {t=VM_eq, x=_n_ y=_K_}        | _bool_  | `TRUE` if _n_ == _m_, otherwise `FALSE`
 _n_ _m_         | {t=VM_cmp, x=EQ, y=_K_}       | _bool_  | `TRUE` if _n_ == _m_, otherwise `FALSE`
 _n_ _m_         | {t=VM_cmp, x=GE, y=_K_}       | _bool_  | `TRUE` if _n_ >= _m_, otherwise `FALSE`
 _n_ _m_         | {t=VM_cmp, x=GT, y=_K_}       | _bool_  | `TRUE` if _n_ > _m_, otherwise `FALSE`
