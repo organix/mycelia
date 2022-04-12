@@ -142,15 +142,15 @@ _cell_ _T_      | {t=VM_set, x=T, y=_K_}        | _cell'_ | set _t_ to _T_ in _c
 _cell_ _X_      | {t=VM_set, x=X, y=_K_}        | _cell'_ | set _x_ to _X_ in _cell_
 _cell_ _Y_      | {t=VM_set, x=Y, y=_K_}        | _cell'_ | set _y_ to _Y_ in _cell_
 _cell_ _Z_      | {t=VM_set, x=Z, y=_K_}        | _cell'_ | set _z_ to _Z_ in _cell_
+_tail_ _head_   | {t=VM_pair, y=_K_}            | _pair_  | create {t=Pair_T, x=_head_, y=_tail_}
+_pair_          | {t=VM_part, y=_K_}            | _tail_ _head_ | split _pair_ into _head_ and _tail_
 &mdash;         | {t=VM_push, x=_value_, y=_K_} | _value_ | push literal _value_ on stack
 _v_<sub>n</sub> ... _v_<sub>1</sub> | {t=VM_drop, x=_n_, y=_K_} | &mdash; | remove _n_ items from stack
 _v_<sub>n</sub> ... _v_<sub>1</sub> | {t=VM_pick, x=_n_, y=_K_} | _v_<sub>n</sub> ... _v_<sub>1</sub> _v_<sub>n</sub> | copy item _n_ to top of stack
 _v_<sub>n</sub> ... _v_<sub>1</sub> | {t=VM_dup, x=_n_, y=_K_} |_v_<sub>n</sub> ... _v_<sub>1</sub> _v_<sub>n</sub> ... _v_<sub>1</sub> | duplicate _n_ items on stack
-_tail_ _head_   | {t=VM_pair, y=_K_}            | _pair_  | create {t=Pair_T, x=_head_, y=_tail_}
-_pair_          | {t=VM_part, y=_K_}            | _tail_ _head_ | split _pair_ into _head_ and _tail_
-_n_ _m_         | {t=VM_alu, x=ADD, y=_K_}      | _n_ + _m_ | sum of _n_ and _m_
-_n_ _m_         | {t=VM_alu, x=SUB, y=_K_}      | _n_ - _m_ | difference of _n_ and _m_
-_n_ _m_         | {t=VM_alu, x=MUL, y=_K_}      | _n_ * _m_ | product of _n_ and _m_
+_n_ _m_         | {t=VM_alu, x=ADD, y=_K_}      | _n_+_m_ | sum of _n_ and _m_
+_n_ _m_         | {t=VM_alu, x=SUB, y=_K_}      | _n_-_m_ | difference of _n_ and _m_
+_n_ _m_         | {t=VM_alu, x=MUL, y=_K_}      | _n_\*_m_ | product of _n_ and _m_
 _x_ _y_         | {t=VM_eqv, y=_K_}             | _bool_  | `TRUE` if _x_ and _y_ are equivalent, otherwise `FALSE`
 _n_ _m_         | {t=VM_cmp, x=EQ, y=_K_}       | _bool_  | `TRUE` if _n_ == _m_, otherwise `FALSE`
 _n_ _m_         | {t=VM_cmp, x=GE, y=_K_}       | _bool_  | `TRUE` if _n_ >= _m_, otherwise `FALSE`
@@ -159,8 +159,8 @@ _n_ _m_         | {t=VM_cmp, x=LT, y=_K_}       | _bool_  | `TRUE` if _n_ < _m_,
 _n_ _m_         | {t=VM_cmp, x=LE, y=_K_}       | _bool_  | `TRUE` if _n_ <= _m_, otherwise `FALSE`
 _n_ _m_         | {t=VM_cmp, x=NE, y=_K_}       | _bool_  | `TRUE` if _n_ != _m_, otherwise `FALSE`
 _bool_          | {t=VM_if, x=_T_, y=_F_}       | &mdash; | continue _F_ if `FALSE`, otherwise continue _T_
-&mdash;         | {t=VM_msg, x=0, y=_K_}        | _m_<sub>1</sub> ... _m_<sub>n</sub> | copy entire message to stack
-&mdash;         | {t=VM_msg, x=_i_, y=_K_}      | _m_<sub>i</sub> | copy message item _i_ to stack
+&mdash;         | {t=VM_msg, x=0, y=_K_}        | _m_<sub>1</sub> ... _m_<sub>_n_</sub> | copy entire message to stack
+&mdash;         | {t=VM_msg, x=_i_, y=_K_}      | _m_<sub>_i_</sub> | copy message item _i_ to stack
 &mdash;         | {t=VM_act, x=SELF, y=_K_}     | _actor_ | push current _actor_ on stack
 _msg_ _target_  | {t=VM_act, x=SEND, y=_K_}     | &mdash; | send _msg_ to _target_ actor
 _beh_           | {t=VM_act, x=CREATE, y=_K_}   | _actor_ | create new actor with behavior _beh_

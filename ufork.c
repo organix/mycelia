@@ -117,12 +117,12 @@ PROC_DECL(Free);  // FIXME: consider using FALSE instead?
 PROC_DECL(vm_cell);
 PROC_DECL(vm_get);
 PROC_DECL(vm_set);
+PROC_DECL(vm_pair);
+PROC_DECL(vm_part);
 PROC_DECL(vm_push);
 PROC_DECL(vm_drop);
 PROC_DECL(vm_pick);
 PROC_DECL(vm_dup);
-PROC_DECL(vm_pair);
-PROC_DECL(vm_part);
 PROC_DECL(vm_alu);
 PROC_DECL(vm_eqv);
 PROC_DECL(vm_cmp);
@@ -144,12 +144,12 @@ PROC_DECL(vm_getc);
 #define VM_cell     (-10)
 #define VM_get      (-11)
 #define VM_set      (-12)
-#define VM_push     (-13)
-#define VM_drop     (-14)
-#define VM_pick     (-15)
-#define VM_dup      (-16)
-#define VM_pair     (-17)
-#define VM_part     (-18)
+#define VM_pair     (-13)
+#define VM_part     (-14)
+#define VM_push     (-15)
+#define VM_drop     (-16)
+#define VM_pick     (-17)
+#define VM_dup      (-18)
 #define VM_alu      (-19)
 #define VM_eqv      (-20)
 #define VM_cmp      (-21)
@@ -169,12 +169,12 @@ proc_t proc_table[] = {
     vm_cmp,
     vm_eqv,
     vm_alu,
-    vm_part,
-    vm_pair,
     vm_dup,
     vm_pick,
     vm_drop,
     vm_push,
+    vm_part,
+    vm_pair,
     vm_set,
     vm_get,
     vm_cell,
@@ -205,12 +205,12 @@ static char *proc_label(int_t proc) {
         "VM_cell",
         "VM_get",
         "VM_set",
+        "VM_pair",
+        "VM_part",
         "VM_push",
         "VM_drop",
         "VM_pick",
         "VM_dup",
-        "VM_pair",
-        "VM_part",
         "VM_alu",
         "VM_eqv",
         "VM_cmp",
@@ -680,6 +680,22 @@ PROC_DECL(vm_set) {
     return get_y(self);
 }
 
+PROC_DECL(vm_pair) {
+    int_t h = stack_pop();
+    int_t t = stack_pop();
+    stack_push(cons(h, t));
+    return get_y(self);
+}
+
+PROC_DECL(vm_part) {
+    int_t c = stack_pop();
+    int_t h = car(c);
+    int_t t = cdr(c);
+    stack_push(t);
+    stack_push(h);
+    return get_y(self);
+}
+
 PROC_DECL(vm_push) {
     int_t v = get_x(self);
     stack_push(v);
@@ -715,22 +731,6 @@ PROC_DECL(vm_dup) {
         sp = cdr(sp);
     }
     SET_SP(append_reverse(dup, GET_SP()));
-    return get_y(self);
-}
-
-PROC_DECL(vm_pair) {
-    int_t h = stack_pop();
-    int_t t = stack_pop();
-    stack_push(cons(h, t));
-    return get_y(self);
-}
-
-PROC_DECL(vm_part) {
-    int_t c = stack_pop();
-    int_t h = car(c);
-    int_t t = cdr(c);
-    stack_push(t);
-    stack_push(h);
     return get_y(self);
 }
 
@@ -980,12 +980,12 @@ static void print_inst(int_t ip) {
         case VM_cell: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_get:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(get_x(ip)), get_y(ip)); break;
         case VM_set:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(get_x(ip)), get_y(ip)); break;
+        case VM_pair: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
+        case VM_part: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_push: fprintf(stderr, "{v:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_drop: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_pick: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_dup:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_pair: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
-        case VM_part: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_alu:  fprintf(stderr, "{op:%s,k:%"PdI"}", operation_label(get_x(ip)), get_y(ip)); break;
         case VM_eqv:  fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_cmp:  fprintf(stderr, "{r:%s,k:%"PdI"}", relation_label(get_x(ip)), get_y(ip)); break;
