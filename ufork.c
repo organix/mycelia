@@ -113,13 +113,14 @@ PROC_DECL(Boolean);
 PROC_DECL(Unit);
 PROC_DECL(Actor);
 PROC_DECL(Event);
-PROC_DECL(Free);  // FIXME: consider using FALSE instead?
+PROC_DECL(Free);
 PROC_DECL(vm_cell);
 PROC_DECL(vm_get);
 PROC_DECL(vm_set);
 PROC_DECL(vm_pair);
 PROC_DECL(vm_part);
 PROC_DECL(vm_push);
+PROC_DECL(vm_depth);
 PROC_DECL(vm_drop);
 PROC_DECL(vm_pick);
 PROC_DECL(vm_dup);
@@ -147,17 +148,18 @@ PROC_DECL(vm_getc);
 #define VM_pair     (-13)
 #define VM_part     (-14)
 #define VM_push     (-15)
-#define VM_drop     (-16)
-#define VM_pick     (-17)
-#define VM_dup      (-18)
-#define VM_alu      (-19)
-#define VM_eq       (-20)
-#define VM_cmp      (-21)
-#define VM_if       (-22)
-#define VM_msg      (-23)
-#define VM_act      (-24)
-#define VM_putc     (-25)
-#define VM_getc     (-26)
+#define VM_depth    (-16)
+#define VM_drop     (-17)
+#define VM_pick     (-18)
+#define VM_dup      (-19)
+#define VM_alu      (-20)
+#define VM_eq       (-21)
+#define VM_cmp      (-22)
+#define VM_if       (-23)
+#define VM_msg      (-24)
+#define VM_act      (-25)
+#define VM_putc     (-26)
+#define VM_getc     (-27)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
@@ -172,6 +174,7 @@ proc_t proc_table[] = {
     vm_dup,
     vm_pick,
     vm_drop,
+    vm_depth,
     vm_push,
     vm_part,
     vm_pair,
@@ -208,6 +211,7 @@ static char *proc_label(int_t proc) {
         "VM_pair",
         "VM_part",
         "VM_push",
+        "VM_depth",
         "VM_drop",
         "VM_pick",
         "VM_dup",
@@ -340,6 +344,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_act,        .x=ACT_SEND,    .y=A_BOOT+20,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // +21
     { .t=VM_drop,       .x=1,           .y=A_BOOT+20,   .z=UNDEF        },
+/**/
+    { .t=VM_depth,      .x=UNDEF,       .y=A_EMPTY,     .z=UNDEF        },
 /**/
     { .t=Actor_T,       .x=A_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },  // <--- A_EMPTY
     { .t=VM_push,       .x=UNDEF,       .y=A_EMPTY+2,   .z=UNDEF        },
@@ -701,6 +707,17 @@ PROC_DECL(vm_push) {
     return get_y(self);
 }
 
+PROC_DECL(vm_depth) {
+    int_t v = 0;
+    int_t sp = GET_SP();
+    while (IS_PAIR(sp)) {  // count items on stack
+        ++v;
+        sp = cdr(sp);
+    }
+    stack_push(v);
+    return get_y(self);
+}
+
 PROC_DECL(vm_drop) {
     int_t n = get_x(self);
     while (n-- > 0) {
@@ -982,6 +999,7 @@ static void print_inst(int_t ip) {
         case VM_pair: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_part: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_push: fprintf(stderr, "{v:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_depth:fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_drop: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_pick: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_dup:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
