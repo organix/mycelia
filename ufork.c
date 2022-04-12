@@ -272,7 +272,8 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define UNDEF       (3)
 #define UNIT        (4)
 #define START       (5)
-#define A_BOOT      (6)
+#define A_BOOT      (6)  // START+1
+#define A_EMPTY     (28) // START+23
 
 #if INCLUDE_DEBUG
 static char *cell_label(int_t cell) {
@@ -297,38 +298,35 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     { .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START
-    { .t=Actor_T,       .x=START+2,     .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
-    { .t=VM_push,       .x='>',         .y=START+3,     .z=UNDEF        },
-    { .t=VM_putc,       .x=UNDEF,       .y=START+4,     .z=UNDEF        },
-    { .t=VM_push,       .x=' ',         .y=START+5,     .z=UNDEF        },
-    { .t=VM_putc,       .x=UNDEF,       .y=START+6,     .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=START+7,     .z=UNDEF        },  // +6
-    { .t=VM_act,        .x=ACT_SELF,    .y=START+8,     .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SEND,    .y=START+9,     .z=UNDEF        },
-    { .t=VM_push,       .x=START+12,    .y=START+10,    .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_BECOME,  .y=START+11,    .z=UNDEF        },
+    { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
+    { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
+    { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+3,    .z=UNDEF        },
+    { .t=VM_push,       .x=' ',         .y=A_BOOT+4,    .z=UNDEF        },
+    { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+5,    .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=A_BOOT+6,    .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_SELF,    .y=A_BOOT+7,    .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_SEND,    .y=A_BOOT+8,    .z=UNDEF        },
+    { .t=VM_push,       .x=A_BOOT+11,   .y=A_BOOT+9,    .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_BECOME,  .y=A_BOOT+10,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_getc,       .x=UNDEF,       .y=START+13,    .z=UNDEF        },  // +12
-    { .t=VM_pick,       .x=1,           .y=START+14,    .z=UNDEF        },
-    { .t=VM_push,       .x='\0',        .y=START+15,    .z=UNDEF        },
-    { .t=VM_cmp,        .x=CMP_LT,      .y=START+16,    .z=UNDEF        },
-    { .t=VM_if,         .x=START+22,    .y=START+17,    .z=UNDEF        },
-    { .t=VM_putc,       .x=UNDEF,       .y=START+18,    .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=START+19,    .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SELF,    .y=START+20,    .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SEND,    .y=START+21,    .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_drop,       .x=1,           .y=START+21,    .z=UNDEF        },
+    { .t=VM_getc,       .x=UNDEF,       .y=A_BOOT+12,   .z=UNDEF        },  // +11
+    { .t=VM_pick,       .x=1,           .y=A_BOOT+13,   .z=UNDEF        },
+    { .t=VM_push,       .x='\0',        .y=A_BOOT+14,   .z=UNDEF        },
+    { .t=VM_cmp,        .x=CMP_LT,      .y=A_BOOT+15,   .z=UNDEF        },
+    { .t=VM_if,         .x=A_BOOT+21,   .y=A_BOOT+16,   .z=UNDEF        },
+    { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+17,   .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=A_BOOT+18,   .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_SELF,    .y=A_BOOT+19,   .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_SEND,    .y=A_BOOT+20,   .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // +21
+    { .t=VM_drop,       .x=1,           .y=A_BOOT+20,   .z=UNDEF        },
 /**/
-    { .t=VM_eq,         .x=-1,          .y=START+32,    .z=UNDEF        },  // unused
-    { .t=VM_pair,       .x=UNDEF,       .y=START+32,    .z=UNDEF        },  // unused
-    { .t=VM_part,       .x=UNDEF,       .y=START+32,    .z=UNDEF        },  // unused
-    { .t=VM_alu,        .x=ALU_MUL,     .y=START+32,    .z=UNDEF        },  // unused
-/*
-    { .t=VM_push,       .x=UNDEF,       .y=START+24,    .z=UNDEF        },  // +23 empty_env
-    { .t=VM_msg,        .x=1,           .y=START+25,    .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SEND,    .y=START+26,    .z=UNDEF        },
+    { .t=Actor_T,       .x=A_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },  // <--- A_EMPTY
+    { .t=VM_push,       .x=UNDEF,       .y=A_EMPTY+2,   .z=UNDEF        },
+    { .t=VM_msg,        .x=1,           .y=A_EMPTY+3,   .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_SEND,    .y=A_EMPTY+4,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
+/*
     { .t=VM_msg,        .x=2,           .y=START+28,    .z=UNDEF        },  // +27 bound_beh
     { .t=VM_push,       .x=0,           .y=START+29,    .z=UNDEF        },
     { .t=VM_cmp,        .x=CMP_LE,      .y=START+30,    .z=UNDEF        },
