@@ -290,6 +290,26 @@ static char *cell_label(int_t cell) {
 }
 #endif
 
+/* (cust, index) -> lookup variable by De Bruijn index */
+#define bound_beh(BASE, _value_, _next_)                                    \
+    { .t=VM_msg,        .x=2,           .y=BASE+1,      .z=UNDEF        },  \
+    { .t=VM_push,       .x=1,           .y=BASE+2,      .z=UNDEF        },  \
+    { .t=VM_alu,        .x=ALU_SUB,     .y=BASE+3,      .z=UNDEF        },  \
+    { .t=VM_pick,       .x=1,           .y=BASE+4,      .z=UNDEF        },  \
+    { .t=VM_eq,         .x=0,           .y=BASE+5,      .z=UNDEF        },  \
+    { .t=VM_if,         .x=BASE+15,     .y=BASE+6,      .z=UNDEF        },  \
+    { .t=VM_push,       .x=NIL,         .y=BASE+7,      .z=UNDEF        },  \
+    { .t=VM_pick,       .x=2,           .y=BASE+8,      .z=UNDEF        },  \
+    { .t=VM_pair,       .x=UNDEF,       .y=BASE+9,      .z=UNDEF        },  \
+    { .t=VM_msg,        .x=1,           .y=BASE+10,     .z=UNDEF        },  \
+    { .t=VM_pair,       .x=UNDEF,       .y=BASE+11,     .z=UNDEF        },  \
+    { .t=VM_push,       .x=_next_,      .y=BASE+12,     .z=UNDEF        },  \
+    { .t=VM_act,        .x=ACT_SEND,    .y=BASE+13,     .z=UNDEF        },  \
+    { .t=VM_drop,       .x=1,           .y=BASE+14,     .z=UNDEF        },  \
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  \
+    { .t=VM_push,       .x=_value_,     .y=BASE+16,     .z=UNDEF        },  \
+    { .t=VM_msg,        .x=1,           .y=BASE+12,     .z=UNDEF        },  // bound_beh #17
+
 #define CELL_MAX NAT(1<<10)  // 1K cells
 cell_t cell_table[CELL_MAX] = {
     { .t=Boolean_T,     .x=FALSE,       .y=FALSE,       .z=UNDEF        },
@@ -326,29 +346,10 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=1,           .y=A_EMPTY+3,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SEND,    .y=A_EMPTY+4,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
-/*
-    { .t=VM_msg,        .x=2,           .y=START+28,    .z=UNDEF        },  // +27 bound_beh
-    { .t=VM_push,       .x=0,           .y=START+29,    .z=UNDEF        },
-    { .t=VM_cmp,        .x=CMP_LE,      .y=START+30,    .z=UNDEF        },
-    { .t=VM_if,         .x=START+33,    .y=START+31,    .z=UNDEF        },
-    { .t=VM_push,       .x=UNDEF,       .y=START+32,    .z=UNDEF        },  // .x=value
-    { .t=VM_msg,        .x=1,           .y=START+41,    .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=START+34,    .z=UNDEF        },  // start msg
-    { .t=VM_msg,        .x=2,           .y=START+35,    .z=UNDEF        },
-    { .t=VM_push,       .x=1,           .y=START+36,    .z=UNDEF        },
-    { .t=VM_alu,        .x=ALU_SUB,     .y=START+37,    .z=UNDEF        },
-    { .t=VM_pair,       .x=UNDEF,       .y=START+38,    .z=UNDEF        },
-    { .t=VM_msg,        .x=1,           .y=START+39,    .z=UNDEF        },
-    { .t=VM_pair,       .x=UNDEF,       .y=START+40,    .z=UNDEF        },
-    { .t=VM_push,       .x=UNDEF,       .y=START+41,    .z=UNDEF        },  // .x=next
-    { .t=VM_act,        .x=ACT_SEND,    .y=START+42,    .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
-*/
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
 int_t cell_top = START+23; // limit of allocated cell memory
-//int_t cell_top = START+43; // limit of allocated cell memory
 
 #define get_t(n) (cell_zero[(n)].t)
 #define get_x(n) (cell_zero[(n)].x)
