@@ -145,9 +145,9 @@ _cell_ _Z_      | {t=VM_set, x=Z, y=_K_}        | _cell'_ | set _z_ to _Z_ in _c
 _tail_ _head_   | {t=VM_pair, y=_K_}            | _pair_  | create {t=Pair_T, x=_head_, y=_tail_}
 _pair_          | {t=VM_part, y=_K_}            | _tail_ _head_ | split _pair_ into _head_ and _tail_
 &mdash;         | {t=VM_push, x=_value_, y=_K_} | _value_ | push literal _value_ on stack
-_v_<sub>n</sub> ... _v_<sub>1</sub> | {t=VM_drop, x=_n_, y=_K_} | &mdash; | remove _n_ items from stack
-_v_<sub>n</sub> ... _v_<sub>1</sub> | {t=VM_pick, x=_n_, y=_K_} | _v_<sub>n</sub> ... _v_<sub>1</sub> _v_<sub>n</sub> | copy item _n_ to top of stack
-_v_<sub>n</sub> ... _v_<sub>1</sub> | {t=VM_dup, x=_n_, y=_K_} |_v_<sub>n</sub> ... _v_<sub>1</sub> _v_<sub>n</sub> ... _v_<sub>1</sub> | duplicate _n_ items on stack
+_v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t=VM_drop, x=_n_, y=_K_} | &mdash; | remove _n_ items from stack
+_v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t=VM_pick, x=_n_, y=_K_} | _v_<sub>_n_</sub> ... _v_<sub>1</sub> _v_<sub>_n_</sub> | copy item _n_ to top of stack
+_v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t=VM_dup, x=_n_, y=_K_} |_v_<sub>_n_</sub> ... _v_<sub>1</sub> _v_<sub>_n_</sub> ... _v_<sub>1</sub> | duplicate _n_ items on stack
 _n_ _m_         | {t=VM_alu, x=ADD, y=_K_}      | _n_+_m_ | sum of _n_ and _m_
 _n_ _m_         | {t=VM_alu, x=SUB, y=_K_}      | _n_-_m_ | difference of _n_ and _m_
 _n_ _m_         | {t=VM_alu, x=MUL, y=_K_}      | _n_\*_m_ | product of _n_ and _m_
