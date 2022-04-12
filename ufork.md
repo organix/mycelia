@@ -134,6 +134,14 @@ _T_             | {t=VM_cell, x=1, y=_K_}       | _cell_  | create cell {t=_T_}
 _T_ _X_         | {t=VM_cell, x=2, y=_K_}       | _cell_  | create cell {t=_T_, x=_X_}
 _T_ _X_ _Y_     | {t=VM_cell, x=3, y=_K_}       | _cell_  | create cell {t=_T_, x=_X_, y=_Y_}
 _T_ _X_ _Y_ _Z_ | {t=VM_cell, x=4, y=_K_}       | _cell_  | create cell {t=_T_, x=_X_, y=_Y_, z=_Z_}
+_cell_          | {t=VM_get, x=T, y=_K_}        | _t_     | get _t_ from _cell_
+_cell_          | {t=VM_get, x=X, y=_K_}        | _x_     | get _x_ from _cell_
+_cell_          | {t=VM_get, x=Y, y=_K_}        | _y_     | get _y_ from _cell_
+_cell_          | {t=VM_get, x=Z, y=_K_}        | _z_     | get _z_ from _cell_
+_cell_ _T_      | {t=VM_set, x=T, y=_K_}        | _cell'_ | set _t_ to _T_ in _cell_
+_cell_ _X_      | {t=VM_set, x=X, y=_K_}        | _cell'_ | set _x_ to _X_ in _cell_
+_cell_ _Y_      | {t=VM_set, x=Y, y=_K_}        | _cell'_ | set _y_ to _Y_ in _cell_
+_cell_ _Z_      | {t=VM_set, x=Z, y=_K_}        | _cell'_ | set _z_ to _Z_ in _cell_
 &mdash;         | {t=VM_push, x=_value_, y=_K_} | _value_ | push literal _value_ on stack
 _v_<sub>n</sub> ... _v_<sub>1</sub> | {t=VM_drop, x=_n_, y=_K_} | &mdash; | remove _n_ items from stack
 _v_<sub>n</sub> ... _v_<sub>1</sub> | {t=VM_dup, x=_n_, y=_K_} |_v_<sub>n</sub> ... _v_<sub>1</sub> _v_<sub>n</sub> ... _v_<sub>1</sub> | duplicate _n_ items on stack

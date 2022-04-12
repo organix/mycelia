@@ -115,6 +115,8 @@ PROC_DECL(Actor);
 PROC_DECL(Event);
 PROC_DECL(Free);  // FIXME: consider using FALSE instead?
 PROC_DECL(vm_cell);
+PROC_DECL(vm_get);
+PROC_DECL(vm_set);
 PROC_DECL(vm_push);
 PROC_DECL(vm_drop);
 PROC_DECL(vm_dup);
@@ -136,16 +138,18 @@ PROC_DECL(vm_getc);
 #define Event_T     (-8)
 #define Free_T      (-9)
 #define VM_cell     (-10)
-#define VM_push     (-11)
-#define VM_drop     (-12)
-#define VM_dup      (-13)
-#define VM_eqv      (-14)
-#define VM_cmp      (-15)
-#define VM_if       (-16)
-#define VM_msg      (-17)
-#define VM_act      (-18)
-#define VM_putc     (-19)
-#define VM_getc     (-20)
+#define VM_get      (-11)
+#define VM_set      (-12)
+#define VM_push     (-13)
+#define VM_drop     (-14)
+#define VM_dup      (-15)
+#define VM_eqv      (-16)
+#define VM_cmp      (-17)
+#define VM_if       (-18)
+#define VM_msg      (-19)
+#define VM_act      (-20)
+#define VM_putc     (-21)
+#define VM_getc     (-22)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
@@ -159,6 +163,8 @@ proc_t proc_table[] = {
     vm_dup,
     vm_drop,
     vm_push,
+    vm_set,
+    vm_get,
     vm_cell,
     Free,  // free-cell marker
     Event,
@@ -185,6 +191,8 @@ static char *proc_label(int_t proc) {
         "Event_T",
         "Free_T",
         "VM_cell",
+        "VM_get",
+        "VM_set",
         "VM_push",
         "VM_drop",
         "VM_dup",
@@ -209,6 +217,12 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
     int_t result = (proc_zero[proc])(self, arg);
     return result;
 }
+
+// VM_get/VM_set fields
+#define FLD_T       (0)
+#define FLD_X       (1)
+#define FLD_Y       (2)
+#define FLD_Z       (3)
 
 // VM_cmp relations
 #define CMP_EQ      (0)
@@ -282,12 +296,40 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=NIL,         .y=START+19,    .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SELF,    .y=START+20,    .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SEND,    .y=START+21,    .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF,       },
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_drop,       .x=1,           .y=START+21,    .z=UNDEF        },
+/**/
+    { .t=VM_msg,        .x=0,           .y=START+32,    .z=UNDEF        },  // unused
+    { .t=VM_set,        .x=FLD_Y,       .y=START+32,    .z=UNDEF        },  // unused
+    { .t=VM_get,        .x=FLD_X,       .y=START+32,    .z=UNDEF        },  // unused
+    { .t=VM_push,       .x=UNIT,        .y=START+32,    .z=UNDEF        },  // unused
+/*
+    { .t=VM_push,       .x=UNDEF,       .y=START+24,    .z=UNDEF        },  // +23 empty_env
+    { .t=VM_msg,        .x=1,           .y=START+25,    .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_SEND,    .y=START+26,    .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=2,           .y=START+28,    .z=UNDEF        },  // +27 bound_beh
+    { .t=VM_push,       .x=0,           .y=START+29,    .z=UNDEF        },
+    { .t=VM_cmp,        .x=CMP_LE,      .y=START+30,    .z=UNDEF        },
+    { .t=VM_if,         .x=START+33,    .y=START+31,    .z=UNDEF        },
+    { .t=VM_push,       .x=UNDEF,       .y=START+32,    .z=UNDEF        },  // .x=value
+    { .t=VM_msg,        .x=1,           .y=START+41,    .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=START+34,    .z=UNDEF        },  // start msg
+    { .t=VM_msg,        .x=2,           .y=START+35,    .z=UNDEF        },
+    { .t=VM_push,       .x=1,           .y=START+36,    .z=UNDEF        },
+    { .t=VM_alu,        .x=ALU_SUB,     .y=START+37,    .z=UNDEF        },
+    { .t=VM_pair,       .x=UNDEF,       .y=START+38,    .z=UNDEF        },
+    { .t=VM_msg,        .x=1,           .y=START+39,    .z=UNDEF        },
+    { .t=VM_pair,       .x=UNDEF,       .y=START+40,    .z=UNDEF        },
+    { .t=VM_push,       .x=UNDEF,       .y=START+41,    .z=UNDEF        },  // .x=next
+    { .t=VM_act,        .x=ACT_SEND,    .y=START+42,    .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
+*/
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
 int_t cell_top = START+23; // limit of allocated cell memory
+//int_t cell_top = START+43; // limit of allocated cell memory
 
 #define get_t(n) (cell_zero[(n)].t)
 #define get_x(n) (cell_zero[(n)].x)
@@ -300,8 +342,11 @@ int_t cell_top = START+23; // limit of allocated cell memory
 #define set_z(n,v) (cell_zero[(n)].z = (v))
 
 #define IS_PROC(n)  ((n) < 0)
-#define IS_PAIR(n)  (!IS_PROC(n) && (get_t(n) == Pair_T))
 #define IS_BOOL(n)  (((n) == FALSE) || ((n) == TRUE))
+
+#define TYPEQ(t,n)  (!IS_PROC(n) && (get_t(n) == (t)))
+#define IS_PAIR(n)  TYPEQ(Pair_T,(n))
+#define IS_ACTOR(n) TYPEQ(Actor_T,(n))
 
 PROC_DECL(Free) {
     return panic("DISPATCH TO FREE CELL!");
@@ -472,7 +517,9 @@ int_t cont_q_pop() {
 
 int_t stack_push(int_t value) {
     XTRACE(debug_print("stack push", value));
-    SET_SP(cons(value, GET_SP()));
+    int_t sp = GET_SP();
+    sp = cons(value, sp);
+    SET_SP(sp);
     return value;
 }
 
@@ -496,6 +543,7 @@ int_t runtime() {
         if (event != UNDEF) {
             // spawn new "thread" to handle event
             int_t actor = get_x(event);
+            ASSERT(IS_ACTOR(actor));
             if (get_y(actor) == UNDEF) {  // actor ready
                 set_y(actor, NIL);  // begin actor transaction
                 set_z(actor, UNDEF);  // no BECOME
@@ -580,6 +628,37 @@ PROC_DECL(vm_cell) {
     return get_y(self);
 }
 
+PROC_DECL(vm_get) {
+    int_t f = get_x(self);
+    int_t cell = stack_pop();
+    int_t v = UNDEF;
+    switch (f) {
+        case FLD_T:     v = get_t(cell);    break;
+        case FLD_X:     v = get_x(cell);    break;
+        case FLD_Y:     v = get_y(cell);    break;
+        case FLD_Z:     v = get_z(cell);    break;
+        default:        return error("unknown field");
+    }
+    stack_push(v);
+    return get_y(self);
+}
+
+PROC_DECL(vm_set) {
+    int_t f = get_x(self);
+    int_t v = stack_pop();
+    int_t sp = GET_SP();
+    if (!IS_PAIR(sp)) return error("set requires a cell");
+    int_t cell = car(sp);
+    switch (f) {
+        case FLD_T:     set_t(cell, v);     break;
+        case FLD_X:     set_x(cell, v);     break;
+        case FLD_Y:     set_y(cell, v);     break;
+        case FLD_Z:     set_z(cell, v);     break;
+        default:        return error("unknown field");
+    }
+    return get_y(self);
+}
+
 PROC_DECL(vm_push) {
     int_t v = get_x(self);
     stack_push(v);
@@ -658,16 +737,19 @@ PROC_DECL(vm_msg) {
 PROC_DECL(vm_act) {
     int_t e = get_x(self);
     int_t ep = GET_EP();
+    int_t me = get_x(ep);
     switch (e) {
         case ACT_SELF: {
-            int_t me = get_x(ep);
             stack_push(me);
             break;
         }
         case ACT_SEND: {
             int_t a = stack_pop();  // target
+            if (!IS_ACTOR(a)) {
+                set_y(me, UNDEF);  // abort actor transaction
+                return error("SEND requires an Actor");  // terminate thread
+            }
             int_t m = stack_pop();  // message
-            int_t me = get_x(ep);
             int_t ev = cell_new(Event_T, a, m, get_y(me));
             set_y(me, ev);
             break;
@@ -680,20 +762,17 @@ PROC_DECL(vm_act) {
         }
         case ACT_BECOME: {
             int_t b = stack_pop();  // behavior
-            int_t me = get_x(ep);
             ASSERT(get_z(me) == UNDEF);  // BECOME only allowed once
             set_z(me, b);
             break;
         }
         case ACT_ABORT: {
             int_t r = stack_pop();  // reason
-            int_t me = get_x(ep);
             DEBUG(debug_print("ABORT!", r));
             set_y(me, UNDEF);  // abort actor transaction
             return FALSE;  // terminate thread
         }
         case ACT_COMMIT: {
-            int_t me = get_x(ep);
             int_t b = get_z(me);
             if (b != UNDEF) {
                 set_x(me, b);  // BECOME new behavior
@@ -793,6 +872,15 @@ static void print_stack(int_t sp) {
         fprintf(stderr, "%+"PdI" ", item);
     }
 }
+static char *field_label(int_t f) {
+    switch (f) {
+        case FLD_T:     return "T";
+        case FLD_X:     return "X";
+        case FLD_Y:     return "Y";
+        case FLD_Z:     return "Z";
+    }
+    return "<unknown>";
+}
 static char *relation_label(int_t r) {
     switch (r) {
         case CMP_EQ:    return "EQ";
@@ -820,6 +908,8 @@ static void print_inst(int_t ip) {
     fprintf(stderr, "%s", cell_label(proc));
     switch (proc) {
         case VM_cell: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_get:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(get_x(ip)), get_y(ip)); break;
+        case VM_set:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(get_x(ip)), get_y(ip)); break;
         case VM_push: fprintf(stderr, "{v:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_drop: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_dup:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
