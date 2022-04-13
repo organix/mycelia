@@ -2393,7 +2393,7 @@ static PROC_DECL(prim_print) {  // (print object)
         if (opnd == NIL) {
             print(obj);
             fflush(stdout);
-            return obj;
+            return UNIT;
         }
     }
     return error("print expected 1 argument");
@@ -2428,7 +2428,7 @@ static PROC_DECL(prim_debug_print) {  // (debug-print object)
         opnd = cdr(opnd);
         if (opnd == NIL) {
             debug_print("", obj);
-            return obj;
+            return UNIT;
         }
     }
     return error("print expected 1 argument");
@@ -2449,9 +2449,9 @@ const cell_t a_ground_env;  // FORWARD DECLARATION
 #if META_ACTORS
 static PROC_DECL(fold_effect) {
     int_t zero = self;
-    XDEBUG(debug_print("fold_effect zero", zero));
+    DEBUG(debug_print("fold_effect zero", zero));
     int_t one = arg;
-    XDEBUG(debug_print("fold_effect one", one));
+    DEBUG(debug_print("fold_effect one", one));
     // merge effect `one` into effects `zero`
     if (IS_PAIR(one) && IS_PAIR(zero) && (car(zero) != UNDEF)) {
         int_t events = car(zero);
@@ -2624,7 +2624,9 @@ static PROC_DECL(prim_CREATE) {  // (CREATE beh)
         if (!is_meta_beh(beh)) return error("CREATE requires Behavior");
         opnd = cdr(opnd);
         if (opnd == NIL) {
-            return CREATE(MK_PROC(Actor), beh);
+            int_t actor = CREATE(MK_PROC(Actor), beh);
+            ATRACE(debug_print("prim_CREATE meta-actor", actor));
+            return actor;
         }
     }
     return error("CREATE expected 1 argument");
@@ -2643,7 +2645,9 @@ static PROC_DECL(prim_SEND) {  // (SEND target msg)
             int_t msg = car(opnd);
             opnd = cdr(opnd);
             if (opnd == NIL) {
-                return cons(cons(target, msg), NIL);
+                int_t event = cons(target, msg);
+                ATRACE(debug_print("prim_SEND meta-event", event));
+                return cons(event, NIL);
             }
         }
     }
@@ -2660,6 +2664,7 @@ static PROC_DECL(prim_BECOME) {  // (BECOME beh)
         if (!is_meta_beh(beh)) return error("BECOME requires Behavior");
         opnd = cdr(opnd);
         if (opnd == NIL) {
+            ATRACE(debug_print("prim_BECOME meta-become", beh));
             return cons(NIL, beh);
         }
     }
@@ -2675,6 +2680,7 @@ static PROC_DECL(prim_FAIL) {  // (FAIL reason)
         int_t reason = car(opnd);
         opnd = cdr(opnd);
         if (opnd == NIL) {
+            ATRACE(debug_print("prim_FAIL meta-fail", reason));
             return cons(UNDEF, reason);
         }
     }
