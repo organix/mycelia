@@ -107,7 +107,7 @@ usually via some late-bound named-reference.
 
 ## Representation
 
-The primary data-structure in **uFork** consists of four integers.
+The primary internal data-structure in **uFork** consists of four integers.
 
  t        | x        | y        | z
 ----------|----------|----------|----------
@@ -119,6 +119,7 @@ proc/type | head/car | tail/cdr | link/next
 
  Structure                            | Description
 --------------------------------------|---------------------------------
+{t=Pair_T, x=car, y=cdr}              | pair-lists of user data
 {t=Free_T, z=next}                    | cell in the free-list
 {t=Pair_T, x=item, y=rest}            | stack entry holding _item_
 {t=IP, x=SP, y=EP, z=next}            | continuation queue entry
@@ -160,7 +161,7 @@ _n_ _m_         | {t=VM_cmp, x=LT, y=_K_}       | _bool_  | `TRUE` if _n_ < _m_,
 _n_ _m_         | {t=VM_cmp, x=LE, y=_K_}       | _bool_  | `TRUE` if _n_ <= _m_, otherwise `FALSE`
 _n_ _m_         | {t=VM_cmp, x=NE, y=_K_}       | _bool_  | `TRUE` if _n_ != _m_, otherwise `FALSE`
 _bool_          | {t=VM_if, x=_T_, y=_F_}       | &mdash; | continue _F_ if `FALSE`, otherwise continue _T_
-&mdash;         | {t=VM_msg, x=0, y=_K_}        | _m_<sub>1</sub> ... _m_<sub>_n_</sub> | copy entire message to stack
+&mdash;         | {t=VM_msg, x=0, y=_K_}        | _msg_   | copy event message to stack
 &mdash;         | {t=VM_msg, x=_i_, y=_K_}      | _m_<sub>_i_</sub> | copy message item _i_ to stack
 &mdash;         | {t=VM_act, x=SELF, y=_K_}     | _actor_ | push current _actor_ on stack
 _msg_ _target_  | {t=VM_act, x=SEND, y=_K_}     | &mdash; | send _msg_ to _target_ actor
@@ -177,6 +178,12 @@ _char_          | {t=VM_putc, y=_K_}            | &mdash; | write _char_ to cons
 e_queue: [head,tail]--------------------------+
           |                                   V
           +-->[Event,to,msg,next]---> ... -->[Event,to,msg,NIL]
+                     |  |
+                     |  +--> actor message content
+                     V
+                    [Actor,beh,?,?]
+                           |
+                           +--> actor behavior code (initial IP)
 
 k_queue: [head,tail]--------------------+
           |                             V
