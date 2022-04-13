@@ -1,28 +1,6 @@
 #
 # Lambda Calculus
-#
-
-#
-# De Bruijn indexed variables
-#
-
-CREATE a_empty WITH \(cust, _).[ SEND ? TO cust ]
-LET bound_beh(value, next) = \(cust, index).[
-	LET index' = $sub(index, 1) IN
-	CASE sub(index, 1) OF
-	0 : [ SEND value TO cust ]
-	_ : [ SEND (cust, index') TO next ]
-	END
-]
-
-LET EVAL = 0
-LET APPLY = 1
-
-LET const_beh(value) = \(cust, $EVAL, _).[ SEND value TO cust ]
-LET var_beh(index) = \(cust, $EVAL, env).[ SEND (cust, index) TO env ]
-
-#
-# separate behaviors for each continuation
+# w/ separate behaviors for each continuation
 #
 
 CREATE a_undef WITH \_.[]
