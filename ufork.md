@@ -162,7 +162,7 @@ _n_ _m_         | {t=VM_cmp, x=LE, y=_K_}       | _bool_  | `TRUE` if _n_ <= _m_
 _n_ _m_         | {t=VM_cmp, x=NE, y=_K_}       | _bool_  | `TRUE` if _n_ != _m_, otherwise `FALSE`
 _bool_          | {t=VM_if, x=_T_, y=_F_}       | &mdash; | continue _F_ if `FALSE`, otherwise continue _T_
 &mdash;         | {t=VM_msg, x=0, y=_K_}        | _msg_   | copy event message to stack
-&mdash;         | {t=VM_msg, x=_i_, y=_K_}      | _m_<sub>_i_</sub> | copy message item _i_ to stack
+&mdash;         | {t=VM_msg, x=_i_, y=_K_}      | _msg_<sub>_i_</sub> | copy message item _i_ to stack
 &mdash;         | {t=VM_act, x=SELF, y=_K_}     | _actor_ | push current _actor_ on stack
 _msg_ _target_  | {t=VM_act, x=SEND, y=_K_}     | &mdash; | send _msg_ to _target_ actor
 _beh_           | {t=VM_act, x=CREATE, y=_K_}   | _actor_ | create new actor with behavior _beh_
@@ -201,13 +201,13 @@ k_queue: [head,tail]--------------------+
                |       V
                |      item
                V
-              [CMP,EQ,k,?]
-                      |
-                      +--> [IF,t,f,?]
-                               | |
-                               | +--> ...
-                               V
-                               ...
+              [EQ,0,k,?]
+                    |
+                    +--> [IF,t,f,?]
+                             | |
+                             | +--> ...
+                             V
+                             ...
 ```
 
 ## Inspiration
