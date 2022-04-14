@@ -294,25 +294,24 @@ static char *cell_label(int_t cell) {
 }
 #endif
 
-/* (cust, index) -> lookup variable by De Bruijn index */
+/* (cust, index) -> lookup variable by De Bruijn index {x=value, y=next} */
 #define bound_beh(BASE, _value_, _next_)                                    \
     { .t=VM_msg,        .x=2,           .y=BASE+1,      .z=UNDEF        },  \
     { .t=VM_push,       .x=1,           .y=BASE+2,      .z=UNDEF        },  \
     { .t=VM_alu,        .x=ALU_SUB,     .y=BASE+3,      .z=UNDEF        },  \
     { .t=VM_pick,       .x=1,           .y=BASE+4,      .z=UNDEF        },  \
     { .t=VM_eq,         .x=0,           .y=BASE+5,      .z=UNDEF        },  \
-    { .t=VM_if,         .x=BASE+15,     .y=BASE+6,      .z=UNDEF        },  \
+    { .t=VM_if,         .x=BASE+14,     .y=BASE+6,      .z=UNDEF        },  \
     { .t=VM_push,       .x=NIL,         .y=BASE+7,      .z=UNDEF        },  \
     { .t=VM_pick,       .x=2,           .y=BASE+8,      .z=UNDEF        },  \
     { .t=VM_pair,       .x=UNDEF,       .y=BASE+9,      .z=UNDEF        },  \
     { .t=VM_msg,        .x=1,           .y=BASE+10,     .z=UNDEF        },  \
     { .t=VM_pair,       .x=UNDEF,       .y=BASE+11,     .z=UNDEF        },  \
-    { .t=VM_push,       .x=_next_,      .y=BASE+12,     .z=UNDEF        },  \
+    { .t=VM_pick,       .x=3,           .y=BASE+12,     .z=UNDEF        },  \
     { .t=VM_act,        .x=ACT_SEND,    .y=BASE+13,     .z=UNDEF        },  \
-    { .t=VM_drop,       .x=1,           .y=BASE+14,     .z=UNDEF        },  \
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  \
-    { .t=VM_push,       .x=_value_,     .y=BASE+16,     .z=UNDEF        },  \
-    { .t=VM_msg,        .x=1,           .y=BASE+12,     .z=UNDEF        },  // bound_beh #17
+    { .t=VM_pick,       .x=3,           .y=BASE+16,     .z=UNDEF        },  \
+    { .t=VM_msg,        .x=1,           .y=BASE+12,     .z=UNDEF        },  // bound_beh #16
 
 #define CELL_MAX NAT(1<<10)  // 1K cells
 cell_t cell_table[CELL_MAX] = {
@@ -562,6 +561,15 @@ int_t stack_pop() {
     }
     XTRACE(debug_print("stack pop", item));
     return item;
+}
+
+int_t stack_clear() {
+    int_t sp = GET_SP();
+    while (IS_PAIR(sp)) {
+        int_t rest = cdr(sp);
+        XFREE(sp);
+    }
+    return SET_SP(NIL);
 }
 
 int_t runtime() {
@@ -849,10 +857,12 @@ PROC_DECL(vm_act) {
         case ACT_ABORT: {
             int_t r = stack_pop();  // reason
             DEBUG(debug_print("ABORT!", r));
+            stack_clear();
             set_y(me, UNDEF);  // abort actor transaction
             return FALSE;  // terminate thread
         }
         case ACT_COMMIT: {
+            stack_clear();
             int_t b = get_z(me);
             if (b != UNDEF) {
                 set_x(me, b);  // BECOME new behavior
@@ -863,7 +873,6 @@ PROC_DECL(vm_act) {
                 event_q_put(e);
                 e = es;
             }
-            DEBUG(if (GET_SP() != NIL) debug_print("STACK NOT EMPTY!", GET_SP()));
             set_y(me, UNDEF);  // commit actor transaction
             return TRUE;  // terminate thread
         }
@@ -1017,6 +1026,7 @@ static void print_inst(int_t ip) {
     }
 }
 void continuation_trace() {
+    fprintf(stderr, "%"PdI": ", GET_IP());
     print_stack(GET_SP());
     print_inst(GET_IP());
     //print_event(GET_EP());
@@ -1024,7 +1034,7 @@ void continuation_trace() {
 }
 void disassemble(int_t ip, int_t n) {
     while (n-- > 0) {
-        fprintf(stderr, "cell[%"PdI"] = ", ip);
+        fprintf(stderr, "%"PdI": ", ip);
         print_inst(ip);
         fprintf(stderr, "\n");
         ++ip;
