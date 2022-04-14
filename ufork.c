@@ -277,7 +277,7 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define UNIT        (4)
 #define START       (5)
 #define A_BOOT      (6)  // START+1
-#define A_EMPTY     (28) // START+23
+#define EMPTY_ENV   (28) // START+23
 
 #if INCLUDE_DEBUG
 static char *cell_label(int_t cell) {
@@ -345,13 +345,15 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // +21
     { .t=VM_drop,       .x=1,           .y=A_BOOT+20,   .z=UNDEF        },
 /**/
-    { .t=VM_depth,      .x=UNDEF,       .y=A_EMPTY,     .z=UNDEF        },
-/**/
-    { .t=Actor_T,       .x=A_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },  // <--- A_EMPTY
-    { .t=VM_push,       .x=UNDEF,       .y=A_EMPTY+2,   .z=UNDEF        },
-    { .t=VM_msg,        .x=1,           .y=A_EMPTY+3,   .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SEND,    .y=A_EMPTY+4,   .z=UNDEF        },
+    { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },  // <--- EMPTY_ENV
+    { .t=VM_push,       .x=UNDEF,       .y=EMPTY_ENV+2, .z=UNDEF        },
+    { .t=VM_msg,        .x=1,           .y=EMPTY_ENV+3, .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_SEND,    .y=EMPTY_ENV+4, .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
+/**/
+#define BOUND_42 (33)
+    { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },  // <--- BOUND_42
+    bound_beh(BOUND_42+1, 42, EMPTY_ENV)
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
@@ -807,7 +809,7 @@ PROC_DECL(vm_msg) {
             }
             m = cdr(m);
         }
-    }
+    } /* FIXME: consider using -i to select the i-th tail? */
     stack_push(v);
     return get_y(self);
 }
@@ -1038,7 +1040,7 @@ int main(int argc, char const *argv[])
 {
     DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
     DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 32*4));
-    DEBUG(disassemble(0, 32));
+    DEBUG(disassemble(0, 48));
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
     DEBUG(disassemble(0, 32));
