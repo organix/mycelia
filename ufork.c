@@ -953,6 +953,19 @@ void debug_print(char *label, int_t addr) {
     fprintf(stderr, "\n");
 }
 
+static void print_event(int_t ep) {
+    fprintf(stderr, "(%"PdI"", get_x(ep));  // target actor
+    int_t msg = get_y(ep);  // actor message
+    while (IS_PAIR(msg)) {
+        fprintf(stderr, " %+"PdI"", car(msg));
+        msg = cdr(msg);
+    }
+    if (msg == NIL) {
+        fprintf(stderr, ") ");
+    } else {
+        fprintf(stderr, " . %+"PdI") ", msg);
+    }
+}
 static void print_stack(int_t sp) {
     if (IS_PAIR(sp)) {
         print_stack(cdr(sp));
@@ -1026,10 +1039,10 @@ static void print_inst(int_t ip) {
     }
 }
 void continuation_trace() {
+    print_event(GET_EP());
     fprintf(stderr, "%"PdI": ", GET_IP());
     print_stack(GET_SP());
     print_inst(GET_IP());
-    //print_event(GET_EP());
     fprintf(stderr, "\n");
 }
 void disassemble(int_t ip, int_t n) {
