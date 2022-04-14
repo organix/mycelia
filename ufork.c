@@ -16,6 +16,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #include <time.h>       // for clock_t, clock(), etc.
 
 #define INCLUDE_DEBUG 1 // include debugging facilities
+#define RUN_DEBUGGER  1 // run program under interactive debugger
 #define EXPLICIT_FREE 1 // explicitly free leaked memory
 
 #if INCLUDE_DEBUG
@@ -96,6 +97,7 @@ int_t failure(char *_file_, int _line_);
 void hexdump(char *label, int_t *addr, size_t cnt);
 void debug_print(char *label, int_t addr);
 void continuation_trace();
+int_t debugger();
 #endif // INCLUDE_DEBUG
 
 #define ASSERT(cond)    if (!(cond)) return failure(__FILE__, __LINE__)
@@ -597,7 +599,11 @@ int_t runtime() {
         // execute next continuation
         int_t ip = GET_IP();
         int_t proc = get_t(ip);
-        ITRACE(continuation_trace());
+#if INCLUDE_DEBUG
+        if (!debugger()) {
+            break;  // debugger quit
+        }
+#endif
         ip = call_proc(proc, ip, GET_EP());  // FIXME: EP is already available
         SET_IP(ip);  // update IP
         int_t cont = cont_q_pop();
@@ -1052,6 +1058,55 @@ void disassemble(int_t ip, int_t n) {
         fprintf(stderr, "\n");
         ++ip;
     }
+}
+
+static char *db_cmd_token(char **pp) {
+    char *p = *pp;
+    while (*p > ' ') {
+        ++p;
+    }
+    if (*p && (*p <= ' ')) {
+        *p++ = '\0';
+    }
+    char *q = *pp;
+    *pp = p;
+    return q;
+}
+static int db_cmd_eq(char *actual, char *expect) {
+    while (*expect) {
+        if (*expect++ != *actual++) return 0;
+    }
+    return !(*actual);
+}
+int_t debugger() {
+#if RUN_DEBUGGER
+    static int_t run = FALSE;   // free running flag
+#else
+    static int_t run = TRUE;    // free running flag
+#endif
+    static char buf[32];        // command buffer
+
+    if (run) {
+        ITRACE(continuation_trace());
+        return TRUE;  // continue
+    }
+    continuation_trace();
+    while (1) {
+        fprintf(stderr, "# ");  // debugger prompt
+        char *p = fgets(buf, sizeof(buf), stdin);
+        if (!p) break;
+        char *cmd = db_cmd_token(&p);
+        if (*cmd == 'q') return FALSE;      // quit
+        if (*cmd == 's') return TRUE;       // step
+        if (*cmd == 'n') return TRUE;       // next
+        if (*cmd == 'c') {                  // continue
+            run = TRUE;
+            return TRUE;
+        }
+        fprintf(stderr, "h[elp] c[ontinue] s[tep] n[ext] q[uit]\n");
+    }
+    fprintf(stderr, "\n");
+    return FALSE;  // exit
 }
 #endif // INCLUDE_DEBUG
 
