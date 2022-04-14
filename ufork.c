@@ -21,7 +21,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
-#define ITRACE(x)   x   // include/exclude instruction trace
+#define ITRACE(x)       // include/exclude instruction trace
 #define XTRACE(x)       // include/exclude execution trace
 #else
 #define DEBUG(x)        // exclude debug instrumentation
@@ -1072,21 +1072,38 @@ static char *db_cmd_token(char **pp) {
     *pp = p;
     return q;
 }
-static int db_cmd_eq(char *actual, char *expect) {
+static int_t db_cmd_eq(char *actual, char *expect) {
     while (*expect) {
-        if (*expect++ != *actual++) return 0;
+        if (*expect++ != *actual++) return FALSE;
     }
-    return !(*actual);
+    return (*actual ? FALSE : TRUE);
+}
+static int_t db_num_cmd(char *cmd) {
+    int_t n = 0;
+    nat_t d;
+    while ((d = NAT(*cmd++ - '0')) < 10) {
+        n = (n * 10) + d;
+    }
+    return n;
 }
 int_t debugger() {
 #if RUN_DEBUGGER
-    static int_t run = FALSE;   // free running flag
+    static int_t run = FALSE;   // single-stepping
 #else
-    static int_t run = TRUE;    // free running flag
+    static int_t run = TRUE;    // free-running
 #endif
+    static int_t s_cnt = 0;
+    static int_t n_cnt = 0;
     static char buf[32];        // command buffer
 
-    if (run) {
+    int_t skip = (run ? TRUE : FALSE);
+    if (!skip && (s_cnt > 0)) {
+        if (--s_cnt) skip = TRUE;
+    }
+    if (!skip && (n_cnt > 0)) {
+        if (--n_cnt) skip = TRUE;
+    }
+    if (skip) {
         ITRACE(continuation_trace());
         return TRUE;  // continue
     }
@@ -1094,19 +1111,30 @@ int_t debugger() {
     while (1) {
         fprintf(stderr, "# ");  // debugger prompt
         char *p = fgets(buf, sizeof(buf), stdin);
-        if (!p) break;
+        if (!p) {
+            fprintf(stderr, "\n");
+            return FALSE;                   // exit
+        }
         char *cmd = db_cmd_token(&p);
         if (*cmd == 'q') return FALSE;      // quit
-        if (*cmd == 's') return TRUE;       // step
-        if (*cmd == 'n') return TRUE;       // next
+        if (*cmd == 's') {                  // step
+            cmd = db_cmd_token(&p);
+            int cnt = db_num_cmd(cmd);
+            s_cnt = ((cnt < 1) ? 1 : cnt);
+            return TRUE;
+        }
+        if (*cmd == 'n') {                  // next
+            cmd = db_cmd_token(&p);
+            int cnt = db_num_cmd(cmd);
+            n_cnt = ((cnt < 1) ? 1 : cnt);
+            return TRUE;
+        }
         if (*cmd == 'c') {                  // continue
             run = TRUE;
             return TRUE;
         }
         fprintf(stderr, "h[elp] c[ontinue] s[tep] n[ext] q[uit]\n");
     }
-    fprintf(stderr, "\n");
-    return FALSE;  // exit
 }
 #endif // INCLUDE_DEBUG
 
