@@ -1095,25 +1095,31 @@ int_t debugger() {
     static int_t bp_ip = 0;
     static int_t s_cnt = 0;
     static int_t n_cnt = 0;
+    static int_t n_ep = 0;
     static char buf[32];        // command buffer
 
     int_t skip = (run ? TRUE : FALSE);
     if (!skip && (s_cnt > 0)) {
         if (--s_cnt) skip = TRUE;
     }
-    if (!skip && (n_cnt > 0)) {
-        if (--n_cnt) skip = TRUE;
+    if (!skip && n_ep) {
+        if (n_ep != GET_EP()) {
+            skip = TRUE;
+        } else if (n_cnt > 0) {
+            if (--n_cnt) skip = TRUE;
+        }
     }
     if (GET_IP() == bp_ip) {
-        run = FALSE;
-        s_cnt = 0;
-        n_cnt = 0;
         skip = FALSE;
     }
     if (skip) {
         ITRACE(continuation_trace());
         return TRUE;  // continue
     }
+    run = FALSE;
+    s_cnt = 0;
+    n_cnt = 0;
+    n_ep = 0;
     while (1) {
         continuation_trace();
         fprintf(stderr, "# ");  // debugger prompt
@@ -1144,6 +1150,7 @@ int_t debugger() {
             cmd = db_cmd_token(&p);
             int cnt = db_num_cmd(cmd);
             n_cnt = ((cnt < 1) ? 1 : cnt);
+            n_ep = GET_EP();
             return TRUE;
         }
         if (*cmd == 'd') {                  // disasm
