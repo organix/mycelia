@@ -1092,6 +1092,7 @@ int_t debugger() {
 #else
     static int_t run = TRUE;    // free-running
 #endif
+    static int_t bp_ip = 0;
     static int_t s_cnt = 0;
     static int_t n_cnt = 0;
     static char buf[32];        // command buffer
@@ -1103,12 +1104,18 @@ int_t debugger() {
     if (!skip && (n_cnt > 0)) {
         if (--n_cnt) skip = TRUE;
     }
+    if (GET_IP() == bp_ip) {
+        run = FALSE;
+        s_cnt = 0;
+        n_cnt = 0;
+        skip = FALSE;
+    }
     if (skip) {
         ITRACE(continuation_trace());
         return TRUE;  // continue
     }
-    continuation_trace();
     while (1) {
+        continuation_trace();
         fprintf(stderr, "# ");  // debugger prompt
         char *p = fgets(buf, sizeof(buf), stdin);
         if (!p) {
@@ -1117,6 +1124,16 @@ int_t debugger() {
         }
         char *cmd = db_cmd_token(&p);
         if (*cmd == 'q') return FALSE;      // quit
+        if (*cmd == 'b') {                  // break(point)
+            cmd = db_cmd_token(&p);
+            int ip = GET_IP();
+            if (*cmd) {
+                ip = db_num_cmd(cmd);
+            }
+            bp_ip = ip;
+            fprintf(stderr, "break at ip=%"PdI"\n", bp_ip);
+            continue;
+        }
         if (*cmd == 's') {                  // step
             cmd = db_cmd_token(&p);
             int cnt = db_num_cmd(cmd);
@@ -1129,11 +1146,28 @@ int_t debugger() {
             n_cnt = ((cnt < 1) ? 1 : cnt);
             return TRUE;
         }
+        if (*cmd == 'd') {                  // disasm
+            cmd = db_cmd_token(&p);
+            int cnt = db_num_cmd(cmd);
+            cnt = ((cnt < 1) ? 1 : cnt);
+            cmd = db_cmd_token(&p);
+            int ip = GET_IP();
+            if (*cmd) {
+                ip = db_num_cmd(cmd);
+            }
+            disassemble(ip, cnt);
+            continue;
+        }
+        if (*cmd == 'r') {                  // regs
+            fprintf(stderr, "ip=%"PdI" sp=%"PdI" ep=%"PdI"\n",
+                GET_IP(), GET_SP(), GET_EP());
+            continue;
+        }
         if (*cmd == 'c') {                  // continue
             run = TRUE;
             return TRUE;
         }
-        fprintf(stderr, "h[elp] c[ontinue] s[tep] n[ext] q[uit]\n");
+        fprintf(stderr, "h[elp] b[reak] c[ontinue] s[tep] n[ext] d[isasm] r[egs] q[uit]\n");
     }
 }
 #endif // INCLUDE_DEBUG
@@ -1146,10 +1180,8 @@ int main(int argc, char const *argv[])
 {
     DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
     DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 32*4));
-    DEBUG(disassemble(0, 48));
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
-    DEBUG(disassemble(0, 32));
     DEBUG(fprintf(stderr, "free_cnt=%"PdI" cell_top=%"PdI"\n", gc_free_cnt, cell_top));
     return 0;
 }
