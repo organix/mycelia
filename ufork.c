@@ -574,49 +574,59 @@ int_t stack_clear() {
     return SET_SP(NIL);
 }
 
-int_t runtime() {
-    while (1) {
-        int_t event = event_q_pop();
-        XTRACE(debug_print("runtime event", event));
-        if (event != UNDEF) {
-            // spawn new "thread" to handle event
-            int_t actor = get_x(event);
-            ASSERT(IS_ACTOR(actor));
-            if (get_y(actor) == UNDEF) {  // actor ready
-                set_y(actor, NIL);  // begin actor transaction
-                set_z(actor, UNDEF);  // no BECOME
-                int_t cont = cell_new(get_x(actor), get_y(event), event, NIL);
-                ITRACE(debug_print("runtime spawn", cont));
-                cont_q_put(cont);  // enqueue continuation
-            } else {  // actor busy
-                event_q_put(event);  // re-queue event
-            }
-        }
-        XTRACE(debug_print("runtime cont", k_queue_head));
-        if (cont_q_empty()) {
-            break;  // no more instructions to execute...
-        }
-        // execute next continuation
-        int_t ip = GET_IP();
-        int_t proc = get_t(ip);
+static int_t dispatch() {
+    int_t event = event_q_pop();
+    XTRACE(debug_print("runtime event", event));
+    if (event == UNDEF) {  // event queue empty
+        return UNDEF;
+    }
+    int_t actor = get_x(event);
+    ASSERT(IS_ACTOR(actor));
+    if (get_y(actor) != UNDEF) {  // actor busy
+        event_q_put(event);  // re-queue event
+        return FALSE;
+    }
+    // spawn new "thread" to handle event
+    set_y(actor, NIL);  // begin actor transaction
+    set_z(actor, UNDEF);  // no BECOME
+    int_t cont = cell_new(get_x(actor), get_y(event), event, NIL);
+    ITRACE(debug_print("runtime spawn", cont));
+    cont_q_put(cont);  // enqueue continuation
+    return event;
+}
+static int_t execute() {
+    XTRACE(debug_print("runtime cont", k_queue_head));
+    if (cont_q_empty()) {
+        return UNDEF;  // no more instructions to execute...
+    }
+    // execute next continuation
+    int_t ip = GET_IP();
+    int_t proc = get_t(ip);
 #if INCLUDE_DEBUG
-        if (!debugger()) {
-            break;  // debugger quit
-        }
+    if (!debugger()) {
+        return FALSE;  // debugger quit
+    }
 #endif
-        ip = call_proc(proc, ip, GET_EP());  // FIXME: EP is already available
-        SET_IP(ip);  // update IP
-        int_t cont = cont_q_pop();
-        XTRACE(debug_print("runtime done", cont));
-        if (ip >= START) {
-            cont_q_put(cont);  // enqueue continuation
-        } else {
-            // if "thread" is dead, free cont and event
-            XFREE(get_y(cont));
-            XFREE(cont);
-        }
+    ip = call_proc(proc, ip, GET_EP());  // FIXME: EP is already available
+    SET_IP(ip);  // update IP
+    int_t cont = cont_q_pop();
+    XTRACE(debug_print("runtime done", cont));
+    if (ip >= START) {
+        cont_q_put(cont);  // enqueue continuation
+    } else {
+        // if "thread" is dead, free cont and event
+        XFREE(get_y(cont));
+        XFREE(cont);
     }
     return UNIT;
+}
+int_t runtime() {
+    int_t rv = UNIT;
+    while (rv == UNIT) {
+        rv = dispatch();    // dispatch a pending event (if any)
+        rv = execute();     // execute next VM instruction
+    }
+    return rv;
 }
 
 /*
