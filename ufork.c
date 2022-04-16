@@ -89,6 +89,9 @@ typedef struct cell {
 
 typedef PROC_DECL((*proc_t));
 
+int_t sane = 0;  // run-away loop prevention
+#define SANITY (420)
+
 // FORWARD DECLARATIONS
 int_t panic(char *reason);
 int_t error(char *reason);
@@ -324,17 +327,20 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_act,        .x=ACT_SELF,    .y=A_BOOT+19,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SEND,    .y=A_BOOT+20,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // +21
-    { .t=VM_drop,       .x=1,           .y=A_BOOT+20,   .z=UNDEF        },
-/**/
-#define EMPTY_ENV (A_BOOT+22)
-    { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },  // <--- EMPTY_ENV
+    { .t=VM_drop,       .x=1,           .y=A_BOOT+20,   .z=UNDEF        },  // A_BOOT #22
+#define A_CLOCK (A_BOOT+22)
+    { .t=Actor_T,       .x=A_CLOCK+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x='.',         .y=A_CLOCK+2,   .z=UNDEF        },
+    { .t=VM_putc,       .x=UNDEF,       .y=A_CLOCK+3,   .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_CLOCK #4
+#define EMPTY_ENV (A_CLOCK+4)
+    { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=UNDEF,       .y=EMPTY_ENV+2, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=EMPTY_ENV+3, .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SEND,    .y=EMPTY_ENV+4, .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // EMPTY_ENV #5
-/**/
 #define BOUND_42 (EMPTY_ENV+5)
-    { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },  // <--- BOUND_42
+    { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=42,          .y=BOUND_42+2,  .z=UNDEF        },  // value = 42
     { .t=VM_push,       .x=EMPTY_ENV,   .y=BOUND_42+3,  .z=UNDEF        },  // next = EMPTY_ENV
 /* (cust, index) -> lookup variable by De Bruijn index */
@@ -452,20 +458,24 @@ int_t equal(int_t x, int_t y) {
 
 int_t list_len(int_t val) {
     int_t len = 0;
+    sane = SANITY;
     while (IS_PAIR(val)) {
         ++len;
         val = cdr(val);
+        if (sane-- == 0) return panic("insane list_len");
     }
     return len;
 }
 
 // WARNING! destuctive reverse in-place and append
 int_t append_reverse(int_t head, int_t tail) {
+    sane = SANITY;
     while (IS_PAIR(head)) {
         int_t rest = cdr(head);
         set_cdr(head, tail);
         tail = head;
         head = rest;
+        if (sane-- == 0) return panic("insane append_reverse");
     }
     return tail;
 }
@@ -501,6 +511,21 @@ int_t event_q_pop() {
     return event;
 }
 
+#if INCLUDE_DEBUG
+static int_t event_q_dump() {
+    debug_print("e_queue_head", e_queue_head);
+    int_t ep = e_queue_head;
+    sane = SANITY;
+    while (ep != NIL) {
+        fprintf(stderr, "-> %"PdI"{act=%"PdI",msg=%"PdI"}%s",
+            ep, get_x(ep), get_y(ep), ((get_z(ep)==NIL)?"\n":""));
+        ep = get_z(ep);
+        if (sane-- == 0) return panic("insane event_q_dump");
+    }
+    return UNIT;
+}
+#endif
+
 /*
  * VM continuation-queue
  */
@@ -533,6 +558,21 @@ int_t cont_q_pop() {
     }
     return cont;
 }
+
+#if INCLUDE_DEBUG
+static int_t cont_q_dump() {
+    debug_print("k_queue_head", k_queue_head);
+    int_t kp = k_queue_head;
+    sane = SANITY;
+    while (kp != NIL) {
+        fprintf(stderr, "-> %"PdI"{ip=%"PdI",sp=%"PdI",ep=%"PdI"}%s",
+            kp, get_t(kp), get_x(kp), get_y(kp), ((get_z(kp)==NIL)?"\n":""));
+        kp = get_z(kp);
+        if (sane-- == 0) return panic("insane cont_q_dump");
+    }
+    return UNIT;
+}
+#endif
 
 /*
  * runtime (virtual machine engine)
@@ -569,14 +609,44 @@ int_t stack_pop() {
 
 int_t stack_clear() {
     int_t sp = GET_SP();
+    sane = SANITY;
     while (IS_PAIR(sp)) {
         int_t rest = cdr(sp);
         XFREE(sp);
+        if (sane-- == 0) return panic("insane stack_clear");
     }
     return SET_SP(NIL);
 }
 
+typedef long clk_t;  // **MUST** be a _signed_ type to represent past/future
+#define CLKS_PER_SEC ((clk_t)(CLOCKS_PER_SEC))
+static clk_t clk_ticks() {
+    return (clk_t)clock();
+}
+clk_t clk_timeout = 0;
+static int_t interrupt() {
+    clk_t now = clk_ticks();
+    clk_t dt = (now - clk_timeout);
+    XTRACE(fprintf(stderr, "clock (%ld - %ld) = %ld\n", (long)now, (long)clk_timeout, (long)dt));
+    if (dt < 0) {
+        return FALSE;
+    }
+    sane = SANITY;
+    while (dt > 0) {
+        XTRACE(fprintf(stderr, "clock (%ld - %ld) = %ld <%d>\n",
+            (long)now, (long)clk_timeout, (long)dt, (dt > 0)));
+        clk_timeout += CLKS_PER_SEC;
+        dt = (now - clk_timeout);
+        if (sane-- == 0) return panic("insane clk_timeout");
+    }
+    int_t sec = (now / CLKS_PER_SEC);
+    int_t ev = cell_new(Event_T, A_CLOCK, sec, NIL);
+    XTRACE(debug_print("clock event", ev));
+    event_q_put(ev);
+    return TRUE;
+}
 static int_t dispatch() {
+    DEBUG(event_q_dump());
     int_t event = event_q_pop();
     XTRACE(debug_print("runtime event", event));
     if (event == UNDEF) {  // event queue empty
@@ -591,17 +661,18 @@ static int_t dispatch() {
     // spawn new "thread" to handle event
     set_y(actor, NIL);  // begin actor transaction
     set_z(actor, UNDEF);  // no BECOME
-    int_t cont = cell_new(get_x(actor), get_y(event), event, NIL);
+    int_t cont = cell_new(get_x(actor), NIL, event, NIL);
     ITRACE(debug_print("runtime spawn", cont));
     cont_q_put(cont);  // enqueue continuation
     return event;
 }
 static int_t execute() {
-    XTRACE(debug_print("runtime cont", k_queue_head));
+    DEBUG(cont_q_dump());
     if (cont_q_empty()) {
         return UNDEF;  // no more instructions to execute...
     }
     // execute next continuation
+    XTRACE(debug_print("runtime cont", k_queue_head));
     int_t ip = GET_IP();
     int_t proc = get_t(ip);
 #if INCLUDE_DEBUG
@@ -625,7 +696,8 @@ static int_t execute() {
 int_t runtime() {
     int_t rv = UNIT;
     while (rv == UNIT) {
-        rv = dispatch();    // dispatch a pending event (if any)
+        rv = interrupt();   // service interrupts (if any)
+        rv = dispatch();    // dispatch next event (if any)
         rv = execute();     // execute next VM instruction
     }
     return rv;
@@ -738,9 +810,11 @@ PROC_DECL(vm_push) {
 PROC_DECL(vm_depth) {
     int_t v = 0;
     int_t sp = GET_SP();
+    sane = SANITY;
     while (IS_PAIR(sp)) {  // count items on stack
         ++v;
         sp = cdr(sp);
+        if (sane-- == 0) return panic("insane vm_depth");
     }
     stack_push(v);
     return get_y(self);
@@ -748,8 +822,10 @@ PROC_DECL(vm_depth) {
 
 PROC_DECL(vm_drop) {
     int_t n = get_x(self);
+    sane = SANITY;
     while (n-- > 0) {
         stack_pop();
+        if (sane-- == 0) return panic("insane vm_drop");
     }
     return get_y(self);
 }
@@ -758,9 +834,11 @@ PROC_DECL(vm_pick) {
     int_t n = get_x(self);
     int_t v = UNDEF;
     int_t sp = GET_SP();
+    sane = SANITY;
     while (n-- > 0) {  // copy n-th item to top of stack
         v = car(sp);
         sp = cdr(sp);
+        if (sane-- == 0) return panic("insane vm_pick");
     }
     stack_push(v);
     return get_y(self);
@@ -770,9 +848,11 @@ PROC_DECL(vm_dup) {
     int_t n = get_x(self);
     int_t dup = NIL;
     int_t sp = GET_SP();
+    sane = SANITY;
     while (n-- > 0) {  // copy n items from stack
         dup = cons(car(sp), dup);
         sp = cdr(sp);
+        if (sane-- == 0) return panic("insane vm_dup");
     }
     SET_SP(append_reverse(dup, GET_SP()));
     return get_y(self);
@@ -828,12 +908,14 @@ PROC_DECL(vm_msg) {
     if (i == 0) {  // entire message
         v = m;
     } else if (i > 0) {  // message item at index
+        sane = SANITY;
         while (IS_PAIR(m)) {
             if (--i == 0) {
                 v = car(m);
                 break;
             }
             m = cdr(m);
+            if (sane-- == 0) return panic("insane vm_msg");
         }
     } /* FIXME: consider using -i to select the i-th tail? */
     stack_push(v);
@@ -886,10 +968,12 @@ PROC_DECL(vm_act) {
                 set_x(me, b);  // BECOME new behavior
             }
             int_t e = get_y(me);
+            sane = SANITY;
             while (e != NIL) {
                 int_t es = get_z(e);
                 event_q_put(e);
                 e = es;
+                if (sane-- == 0) return panic("insane vm_act COMMIT");
             }
             set_y(me, UNDEF);  // commit actor transaction
             return TRUE;  // terminate thread
@@ -974,9 +1058,11 @@ void debug_print(char *label, int_t addr) {
 static void print_event(int_t ep) {
     fprintf(stderr, "(%"PdI"", get_x(ep));  // target actor
     int_t msg = get_y(ep);  // actor message
+    sane = SANITY;
     while (IS_PAIR(msg)) {
         fprintf(stderr, " %+"PdI"", car(msg));
         msg = cdr(msg);
+        if (sane-- == 0) panic("insane print_event");
     }
     if (msg == NIL) {
         fprintf(stderr, ") ");
@@ -1053,7 +1139,15 @@ static void print_inst(int_t ip) {
         case VM_act:  fprintf(stderr, "{e:%s,k:%"PdI"}", effect_label(get_x(ip)), get_y(ip)); break;
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_getc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
-        default:      fprintf(stderr, "{x:%"PdI",y:%"PdI",z:%"PdI"}", get_x(ip), get_y(ip), get_z(ip)); break;
+        default: {
+            if (IS_PROC(proc)) {
+                fprintf(stderr, "{x:%"PdI",y:%"PdI",z:%"PdI"}", get_x(ip), get_y(ip), get_z(ip));
+            } else {
+                fprintf(stderr, "{t:%"PdI",x:%"PdI",y:%"PdI",z:%"PdI"}",
+                    get_t(ip), get_x(ip), get_y(ip), get_z(ip));
+            }
+            break;
+        }
     }
 }
 void continuation_trace() {
@@ -1064,11 +1158,13 @@ void continuation_trace() {
     fprintf(stderr, "\n");
 }
 void disassemble(int_t ip, int_t n) {
+    sane = SANITY;
     while (n-- > 0) {
         fprintf(stderr, "%"PdI": ", ip);
         print_inst(ip);
         fprintf(stderr, "\n");
         ++ip;
+        if (sane-- == 0) panic("insane disassemble");
     }
 }
 
@@ -1085,16 +1181,20 @@ static char *db_cmd_token(char **pp) {
     return q;
 }
 static int_t db_cmd_eq(char *actual, char *expect) {
+    sane = SANITY;
     while (*expect) {
         if (*expect++ != *actual++) return FALSE;
+        if (sane-- == 0) return panic("insane db_cmd_eq");
     }
     return (*actual ? FALSE : TRUE);
 }
 static int_t db_num_cmd(char *cmd) {
     int_t n = 0;
     nat_t d;
+    sane = SANITY;
     while ((d = NAT(*cmd++ - '0')) < 10) {
         n = (n * 10) + d;
+        if (sane-- == 0) return panic("insane db_num_cmd");
     }
     return n;
 }
@@ -1199,6 +1299,7 @@ int main(int argc, char const *argv[])
 {
     DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
     DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 16*4));
+    clk_timeout = clk_ticks();
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
     DEBUG(fprintf(stderr, "free_cnt=%"PdI" cell_top=%"PdI"\n", gc_free_cnt, cell_top));
