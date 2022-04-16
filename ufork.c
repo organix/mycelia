@@ -279,7 +279,6 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define UNIT        (4)
 #define START       (5)
 #define A_BOOT      (6)  // START+1
-#define EMPTY_ENV   (28) // START+23
 
 #if INCLUDE_DEBUG
 static char *cell_label(int_t cell) {
@@ -295,27 +294,6 @@ static char *cell_label(int_t cell) {
     return "cell";
 }
 #endif
-
-/* (cust, index) -> lookup variable by De Bruijn index */
-#define bound_beh(BASE)                                                     \
-  /*{ .t=VM_push,       .x=value,       .y=BASE-1,      .z=UNDEF        },*/\
-  /*{ .t=VM_push,       .x=next,        .y=BASE+0,      .z=UNDEF        },*/\
-    { .t=VM_msg,        .x=2,           .y=BASE+1,      .z=UNDEF        },  \
-    { .t=VM_push,       .x=1,           .y=BASE+2,      .z=UNDEF        },  \
-    { .t=VM_alu,        .x=ALU_SUB,     .y=BASE+3,      .z=UNDEF        },  \
-    { .t=VM_pick,       .x=1,           .y=BASE+4,      .z=UNDEF        },  \
-    { .t=VM_eq,         .x=0,           .y=BASE+5,      .z=UNDEF        },  \
-    { .t=VM_if,         .x=BASE+14,     .y=BASE+6,      .z=UNDEF        },  \
-    { .t=VM_push,       .x=NIL,         .y=BASE+7,      .z=UNDEF        },  \
-    { .t=VM_pick,       .x=2,           .y=BASE+8,      .z=UNDEF        },  \
-    { .t=VM_pair,       .x=UNDEF,       .y=BASE+9,      .z=UNDEF        },  \
-    { .t=VM_msg,        .x=1,           .y=BASE+10,     .z=UNDEF        },  \
-    { .t=VM_pair,       .x=UNDEF,       .y=BASE+11,     .z=UNDEF        },  \
-    { .t=VM_pick,       .x=3,           .y=BASE+12,     .z=UNDEF        },  \
-    { .t=VM_act,        .x=ACT_SEND,    .y=BASE+13,     .z=UNDEF        },  \
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  \
-    { .t=VM_pick,       .x=3,           .y=BASE+16,     .z=UNDEF        },  \
-    { .t=VM_msg,        .x=1,           .y=BASE+12,     .z=UNDEF        },  // bound_beh #16+2
 
 #define CELL_MAX NAT(1<<10)  // 1K cells
 cell_t cell_table[CELL_MAX] = {
@@ -348,21 +326,41 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // +21
     { .t=VM_drop,       .x=1,           .y=A_BOOT+20,   .z=UNDEF        },
 /**/
+#define EMPTY_ENV (A_BOOT+22)
     { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },  // <--- EMPTY_ENV
     { .t=VM_push,       .x=UNDEF,       .y=EMPTY_ENV+2, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=EMPTY_ENV+3, .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SEND,    .y=EMPTY_ENV+4, .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // EMPTY_ENV #5
 /**/
-#define BOUND_42 (33)
+#define BOUND_42 (EMPTY_ENV+5)
     { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },  // <--- BOUND_42
     { .t=VM_push,       .x=42,          .y=BOUND_42+2,  .z=UNDEF        },  // value = 42
     { .t=VM_push,       .x=EMPTY_ENV,   .y=BOUND_42+3,  .z=UNDEF        },  // next = EMPTY_ENV
-    bound_beh(BOUND_42+3)
+/* (cust, index) -> lookup variable by De Bruijn index */
+#define BOUND_BEH (BOUND_42+3)
+//  { .t=VM_push,       .x=value,       .y=BOUND_BEH-1, .z=UNDEF        },
+//  { .t=VM_push,       .x=next,        .y=BOUND_BEH+0, .z=UNDEF        },
+    { .t=VM_msg,        .x=2,           .y=BOUND_BEH+1, .z=UNDEF        },
+    { .t=VM_push,       .x=1,           .y=BOUND_BEH+2, .z=UNDEF        },
+    { .t=VM_alu,        .x=ALU_SUB,     .y=BOUND_BEH+3, .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=BOUND_BEH+4, .z=UNDEF        },
+    { .t=VM_eq,         .x=0,           .y=BOUND_BEH+5, .z=UNDEF        },
+    { .t=VM_if,         .x=BOUND_BEH+14,.y=BOUND_BEH+6, .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=BOUND_BEH+7, .z=UNDEF        },
+    { .t=VM_pick,       .x=2,           .y=BOUND_BEH+8, .z=UNDEF        },
+    { .t=VM_pair,       .x=UNDEF,       .y=BOUND_BEH+9, .z=UNDEF        },
+    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+10,.z=UNDEF        },
+    { .t=VM_pair,       .x=UNDEF,       .y=BOUND_BEH+11,.z=UNDEF        },
+    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+12,.z=UNDEF        },
+    { .t=VM_act,        .x=ACT_SEND,    .y=BOUND_BEH+13,.z=UNDEF        },
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+16,.z=UNDEF        },
+    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+12,.z=UNDEF        },  // bound_beh #16+2
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
-int_t cell_top = START+23; // limit of allocated cell memory
+int_t cell_top = BOUND_BEH+16; // limit of allocated cell memory
 
 #define get_t(n) (cell_zero[(n)].t)
 #define get_x(n) (cell_zero[(n)].x)
@@ -1180,8 +1178,8 @@ int_t debugger() {
             continue;
         }
         if (*cmd == 'r') {                  // regs
-            fprintf(stderr, "ip=%"PdI" sp=%"PdI" ep=%"PdI"\n",
-                GET_IP(), GET_SP(), GET_EP());
+            fprintf(stderr, "ip=%"PdI" sp=%"PdI" ep=%"PdI" free=%"PdI"\n",
+                GET_IP(), GET_SP(), GET_EP(), cell_next);
             continue;
         }
         if (*cmd == 'c') {                  // continue
@@ -1200,7 +1198,7 @@ int_t debugger() {
 int main(int argc, char const *argv[])
 {
     DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
-    DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 32*4));
+    DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 16*4));
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
     DEBUG(fprintf(stderr, "free_cnt=%"PdI" cell_top=%"PdI"\n", gc_free_cnt, cell_top));
