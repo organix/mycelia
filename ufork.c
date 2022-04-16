@@ -296,8 +296,10 @@ static char *cell_label(int_t cell) {
 }
 #endif
 
-/* (cust, index) -> lookup variable by De Bruijn index {x=value, y=next} */
-#define bound_beh(BASE, _value_, _next_)                                    \
+/* (cust, index) -> lookup variable by De Bruijn index */
+#define bound_beh(BASE)                                                     \
+  /*{ .t=VM_push,       .x=value,       .y=BASE-1,      .z=UNDEF        },*/\
+  /*{ .t=VM_push,       .x=next,        .y=BASE+0,      .z=UNDEF        },*/\
     { .t=VM_msg,        .x=2,           .y=BASE+1,      .z=UNDEF        },  \
     { .t=VM_push,       .x=1,           .y=BASE+2,      .z=UNDEF        },  \
     { .t=VM_alu,        .x=ALU_SUB,     .y=BASE+3,      .z=UNDEF        },  \
@@ -313,7 +315,7 @@ static char *cell_label(int_t cell) {
     { .t=VM_act,        .x=ACT_SEND,    .y=BASE+13,     .z=UNDEF        },  \
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  \
     { .t=VM_pick,       .x=3,           .y=BASE+16,     .z=UNDEF        },  \
-    { .t=VM_msg,        .x=1,           .y=BASE+12,     .z=UNDEF        },  // bound_beh #16
+    { .t=VM_msg,        .x=1,           .y=BASE+12,     .z=UNDEF        },  // bound_beh #16+2
 
 #define CELL_MAX NAT(1<<10)  // 1K cells
 cell_t cell_table[CELL_MAX] = {
@@ -350,11 +352,13 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=UNDEF,       .y=EMPTY_ENV+2, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=EMPTY_ENV+3, .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SEND,    .y=EMPTY_ENV+4, .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // EMPTY_ENV #5
 /**/
 #define BOUND_42 (33)
     { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },  // <--- BOUND_42
-    bound_beh(BOUND_42+1, 42, EMPTY_ENV)
+    { .t=VM_push,       .x=42,          .y=BOUND_42+2,  .z=UNDEF        },  // value = 42
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=BOUND_42+3,  .z=UNDEF        },  // next = EMPTY_ENV
+    bound_beh(BOUND_42+3)
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
