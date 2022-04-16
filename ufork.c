@@ -317,7 +317,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=A_BOOT+11,   .y=A_BOOT+9,    .z=UNDEF        },
     { .t=VM_act,        .x=ACT_BECOME,  .y=A_BOOT+10,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_getc,       .x=UNDEF,       .y=A_BOOT+12,   .z=UNDEF        },  // +11
+//    { .t=VM_getc,       .x=UNDEF,       .y=A_BOOT+12,   .z=UNDEF        },  // +11
+    { .t=VM_push,       .x=-1,          .y=A_BOOT+12,   .z=UNDEF        },  // +11
     { .t=VM_pick,       .x=1,           .y=A_BOOT+13,   .z=UNDEF        },
     { .t=VM_push,       .x='\0',        .y=A_BOOT+14,   .z=UNDEF        },
     { .t=VM_cmp,        .x=CMP_LT,      .y=A_BOOT+15,   .z=UNDEF        },
@@ -623,6 +624,7 @@ typedef long clk_t;  // **MUST** be a _signed_ type to represent past/future
 static clk_t clk_ticks() {
     return (clk_t)clock();
 }
+int_t clk_handler = A_CLOCK;
 clk_t clk_timeout = 0;
 static int_t interrupt() {
     clk_t now = clk_ticks();
@@ -640,13 +642,15 @@ static int_t interrupt() {
         if (sane-- == 0) return panic("insane clk_timeout");
     }
     int_t sec = (now / CLKS_PER_SEC);
-    int_t ev = cell_new(Event_T, A_CLOCK, sec, NIL);
-    XTRACE(debug_print("clock event", ev));
-    event_q_put(ev);
+    if (IS_ACTOR(clk_handler)) {
+        int_t ev = cell_new(Event_T, clk_handler, sec, NIL);
+        XTRACE(debug_print("clock event", ev));
+        event_q_put(ev);
+    }
     return TRUE;
 }
 static int_t dispatch() {
-    DEBUG(event_q_dump());
+    XTRACE(event_q_dump());
     int_t event = event_q_pop();
     XTRACE(debug_print("runtime event", event));
     if (event == UNDEF) {  // event queue empty
@@ -667,9 +671,9 @@ static int_t dispatch() {
     return event;
 }
 static int_t execute() {
-    DEBUG(cont_q_dump());
+    XTRACE(cont_q_dump());
     if (cont_q_empty()) {
-        return UNDEF;  // no more instructions to execute...
+        return error("no live threads");  // no more instructions to execute...
     }
     // execute next continuation
     XTRACE(debug_print("runtime cont", k_queue_head));
