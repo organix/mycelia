@@ -309,7 +309,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Null_T,        .x=NIL,         .y=NIL,         .z=UNDEF        },
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
-    { .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START
+//    { .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START
+    { .t=Event_T,       .x=60/*A_TEST*/,.y=NIL,         .z=NIL          },  // <--- START
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+3,    .z=UNDEF        },
@@ -326,8 +327,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x='\0',        .y=A_BOOT+14,   .z=UNDEF        },
     { .t=VM_cmp,        .x=CMP_LT,      .y=A_BOOT+15,   .z=UNDEF        },
     { .t=VM_if,         .x=A_BOOT+21,   .y=A_BOOT+16,   .z=UNDEF        },
-//    { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+17,   .z=UNDEF        },
-    { .t=VM_debug,      .x=7331,        .y=A_BOOT+17,   .z=UNDEF        },
+    { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+17,   .z=UNDEF        },
+//    { .t=VM_debug,      .x=7331,        .y=A_BOOT+17,   .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=A_BOOT+18,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SELF,    .y=A_BOOT+19,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SEND,    .y=A_BOOT+20,   .z=UNDEF        },
@@ -338,7 +339,12 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x='.',         .y=A_CLOCK+2,   .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_CLOCK+3,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_CLOCK #4
-#define EMPTY_ENV (A_CLOCK+4)
+#define A_PRINT (A_CLOCK+4)
+    { .t=Actor_T,       .x=A_PRINT+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=A_PRINT+2,   .z=UNDEF        },
+    { .t=VM_debug,      .x=7331,        .y=A_PRINT+3,   .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_PRINT #4
+#define EMPTY_ENV (A_PRINT+4)
     { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=UNDEF,       .y=EMPTY_ENV+2, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=EMPTY_ENV+3, .z=UNDEF        },
@@ -348,10 +354,10 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=42,          .y=BOUND_42+2,  .z=UNDEF        },  // value = 42
     { .t=VM_push,       .x=EMPTY_ENV,   .y=BOUND_42+3,  .z=UNDEF        },  // next = EMPTY_ENV
-/* (cust, index) -> lookup variable by De Bruijn index */
+/* (cust index) -> lookup variable by De Bruijn index */
 #define BOUND_BEH (BOUND_42+3)
-//  { .t=VM_push,       .x=value,       .y=BOUND_BEH-1, .z=UNDEF        },
-//  { .t=VM_push,       .x=next,        .y=BOUND_BEH+0, .z=UNDEF        },
+//  { .t=VM_push,       .x=_value_,     .y=BOUND_BEH-1, .z=UNDEF        },
+//  { .t=VM_push,       .x=_next_,      .y=BOUND_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=2,           .y=BOUND_BEH+1, .z=UNDEF        },
     { .t=VM_push,       .x=1,           .y=BOUND_BEH+2, .z=UNDEF        },
     { .t=VM_alu,        .x=ALU_SUB,     .y=BOUND_BEH+3, .z=UNDEF        },
@@ -366,12 +372,22 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=3,           .y=BOUND_BEH+12,.z=UNDEF        },
     { .t=VM_act,        .x=ACT_SEND,    .y=BOUND_BEH+13,.z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+16,.z=UNDEF        },
+    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+15,.z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=BOUND_BEH+12,.z=UNDEF        },  // bound_beh #16+2
+#define A_TEST (BOUND_BEH+16)
+    { .t=Actor_T,       .x=A_TEST+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=A_TEST+2,    .z=UNDEF        },  // ()
+    { .t=VM_push,       .x=1,           .y=A_TEST+3,    .z=UNDEF        },
+    { .t=VM_pair,       .x=UNDEF,       .y=A_TEST+4,    .z=UNDEF        },  // (1)
+    { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+5,    .z=UNDEF        },
+    { .t=VM_pair,       .x=UNDEF,       .y=A_TEST+6,    .z=UNDEF        },  // (A_PRINT 1)
+    { .t=VM_push,       .x=BOUND_42,    .y=A_TEST+7,    .z=UNDEF        },
+    { .t=VM_act,        .x=ACT_SEND,    .y=A_TEST+8,    .z=UNDEF        },  // (BOUND_42 A_PRINT 1)
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_TEST #9
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
-int_t cell_top = BOUND_BEH+16; // limit of allocated cell memory
+int_t cell_top = A_TEST+9; // limit of allocated cell memory
 
 #define get_t(n) (cell_zero[(n)].t)
 #define get_x(n) (cell_zero[(n)].x)
