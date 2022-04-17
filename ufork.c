@@ -1282,7 +1282,11 @@ int_t debugger() {
                 ip = db_num_cmd(cmd);
             }
             bp_ip = ip;
-            fprintf(stderr, "break at ip=%"PdI"\n", bp_ip);
+            if (bp_ip) {
+                fprintf(stderr, "break at ip=%"PdI"\n", bp_ip);
+            } else {
+                fprintf(stderr, "no breakpoint\n");
+            }
             continue;
         }
         if (*cmd == 's') {                  // step
@@ -1310,16 +1314,42 @@ int_t debugger() {
             disassemble(ip, cnt);
             continue;
         }
-        if (*cmd == 'r') {                  // regs
-            fprintf(stderr, "ip=%"PdI" sp=%"PdI" ep=%"PdI" free=%"PdI"\n",
-                GET_IP(), GET_SP(), GET_EP(), cell_next);
+        if (*cmd == 'i') {
+            char *cmd = db_cmd_token(&p);
+            if (*cmd == 'r') {              // info regs
+                fprintf(stderr, "ip=%"PdI" sp=%"PdI" ep=%"PdI" free=%"PdI"\n",
+                    GET_IP(), GET_SP(), GET_EP(), cell_next);
+                continue;
+            }
+            if (*cmd == 't') {              // info threads
+                cont_q_dump();
+                continue;
+            }
+            if (*cmd == 'e') {              // info events
+                event_q_dump();
+                continue;
+            }
+            fprintf(stderr, "info: r[egs] t[hreads] e[vents]\n");
             continue;
         }
         if (*cmd == 'c') {                  // continue
             run = TRUE;
             return TRUE;
         }
-        fprintf(stderr, "h[elp] b[reak] c[ontinue] s[tep] n[ext] d[isasm] r[egs] q[uit]\n");
+        if (*cmd == 'h') {
+            char *cmd = db_cmd_token(&p);
+            switch (*cmd) {
+                case 'h' : fprintf(stderr, "h[elp] <command> -- get help on <command>\n"); continue;
+                case 'b' : fprintf(stderr, "b[reak] <inst> -- set breakpoint at <inst> (0=none, default: IP)\n"); continue;
+                case 'c' : fprintf(stderr, "c[ontinue] -- continue running freely\n"); continue;
+                case 's' : fprintf(stderr, "s[tep] <n> -- set <n> instructions (default: 1)\n"); continue;
+                case 'n' : fprintf(stderr, "n[ext] <n> -- next <n> instructions in thread (default: 1)\n"); continue;
+                case 'd' : fprintf(stderr, "d[isasm] <n> <inst> -- disassemble <n> instructions (defaults: 1 IP)\n"); continue;
+                case 'i' : fprintf(stderr, "i[nfo] <topic> -- get information on <topic>\n"); continue;
+                case 'q' : fprintf(stderr, "q[uit] -- quit runtime\n"); continue;
+            }
+        }
+        fprintf(stderr, "h[elp] b[reak] c[ontinue] s[tep] n[ext] d[isasm] i[nfo] q[uit]\n");
     }
 }
 #endif // INCLUDE_DEBUG
