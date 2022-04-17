@@ -21,11 +21,9 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
-#define ITRACE(x)   x   // include/exclude instruction trace
 #define XTRACE(x)       // include/exclude execution trace
 #else
 #define DEBUG(x)        // exclude debug instrumentation
-#define ITRACE(x)       // exclude instruction trace
 #define XTRACE(x)       // exclude execution trace
 #endif
 
@@ -599,6 +597,8 @@ static int_t cont_q_dump() {
  * runtime (virtual machine engine)
  */
 
+int_t runtime_trace = FALSE;
+
 #define GET_IP() get_t(k_queue_head)
 #define GET_SP() get_x(k_queue_head)
 #define GET_EP() get_y(k_queue_head)
@@ -672,7 +672,7 @@ static int_t interrupt() {
 static int_t dispatch() {
     XTRACE(event_q_dump());
     int_t event = event_q_pop();
-    XTRACE(debug_print("runtime event", event));
+    XTRACE(debug_print("dispatch event", event));
     if (event == UNDEF) {  // event queue empty
         return UNDEF;
     }
@@ -686,7 +686,10 @@ static int_t dispatch() {
     set_y(actor, NIL);  // begin actor transaction
     set_z(actor, UNDEF);  // no BECOME
     int_t cont = cell_new(get_x(actor), NIL, event, NIL);
-    ITRACE(debug_print("runtime spawn", cont));
+    if (runtime_trace) {
+        fprintf(stderr, "thread spawn: %"PdI"{ip=%"PdI",sp=%"PdI",ep=%"PdI"}\n",
+            cont, get_t(cont), get_x(cont), get_y(cont));
+    }
     cont_q_put(cont);  // enqueue continuation
     return event;
 }
@@ -696,18 +699,16 @@ static int_t execute() {
         return error("no live threads");  // no more instructions to execute...
     }
     // execute next continuation
-    XTRACE(debug_print("runtime cont", k_queue_head));
+    XTRACE(debug_print("execute cont", k_queue_head));
     int_t ip = GET_IP();
     int_t proc = get_t(ip);
 #if INCLUDE_DEBUG
-    if (!debugger()) {
-        return FALSE;  // debugger quit
-    }
+    if (!debugger()) return FALSE;  // debugger quit
 #endif
     ip = call_proc(proc, ip, GET_EP());  // FIXME: EP is already available
     SET_IP(ip);  // update IP
     int_t cont = cont_q_pop();
-    XTRACE(debug_print("runtime done", cont));
+    XTRACE(debug_print("execute done", cont));
     if (ip >= START) {
         cont_q_put(cont);  // enqueue continuation
     } else {
@@ -1258,7 +1259,9 @@ int_t debugger() {
         skip = FALSE;
     }
     if (skip) {
-        ITRACE(continuation_trace());
+        if (runtime_trace) {
+            continuation_trace();
+        }
         return TRUE;  // continue
     }
     run = FALSE;
@@ -1314,6 +1317,12 @@ int_t debugger() {
             disassemble(ip, cnt);
             continue;
         }
+        if (*cmd == 't') {                  // trace
+            runtime_trace = (runtime_trace ? FALSE : TRUE);
+            fprintf(stderr, "instruction tracing %s\n",
+                (runtime_trace ? "on" : "off"));
+            continue;
+        }
         if (*cmd == 'i') {
             char *cmd = db_cmd_token(&p);
             if (*cmd == 'r') {              // info regs
@@ -1345,11 +1354,12 @@ int_t debugger() {
                 case 's' : fprintf(stderr, "s[tep] <n> -- set <n> instructions (default: 1)\n"); continue;
                 case 'n' : fprintf(stderr, "n[ext] <n> -- next <n> instructions in thread (default: 1)\n"); continue;
                 case 'd' : fprintf(stderr, "d[isasm] <n> <inst> -- disassemble <n> instructions (defaults: 1 IP)\n"); continue;
+                case 't' : fprintf(stderr, "t[race] -- toggle instruction tracing (default: off)\n"); continue;
                 case 'i' : fprintf(stderr, "i[nfo] <topic> -- get information on <topic>\n"); continue;
                 case 'q' : fprintf(stderr, "q[uit] -- quit runtime\n"); continue;
             }
         }
-        fprintf(stderr, "h[elp] b[reak] c[ontinue] s[tep] n[ext] d[isasm] i[nfo] q[uit]\n");
+        fprintf(stderr, "h[elp] b[reak] c[ontinue] s[tep] n[ext] d[isasm] t[race] i[nfo] q[uit]\n");
     }
 }
 #endif // INCLUDE_DEBUG
