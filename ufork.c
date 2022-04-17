@@ -597,7 +597,11 @@ static int_t cont_q_dump() {
  * runtime (virtual machine engine)
  */
 
+#if RUN_DEBUGGER
+int_t runtime_trace = TRUE;
+#else
 int_t runtime_trace = FALSE;
+#endif
 
 #define GET_IP() get_t(k_queue_head)
 #define GET_SP() get_x(k_queue_head)
@@ -676,22 +680,22 @@ static int_t dispatch() {
     if (event == UNDEF) {  // event queue empty
         return UNDEF;
     }
-    int_t actor = get_x(event);
-    ASSERT(IS_ACTOR(actor));
-    if (get_y(actor) != UNDEF) {  // actor busy
+    int_t target = get_x(event);
+    int_t proc = get_t(target);
+    ASSERT(IS_PROC(proc));
+    int_t cont = call_proc(proc, target, event);
+    if (cont == FALSE) {  // target busy
         event_q_put(event);  // re-queue event
         return FALSE;
     }
-    // spawn new "thread" to handle event
-    set_y(actor, NIL);  // begin actor transaction
-    set_z(actor, UNDEF);  // no BECOME
-    int_t cont = cell_new(get_x(actor), NIL, event, NIL);
+#if INCLUDE_DEBUG
     if (runtime_trace) {
         fprintf(stderr, "thread spawn: %"PdI"{ip=%"PdI",sp=%"PdI",ep=%"PdI"}\n",
             cont, get_t(cont), get_x(cont), get_y(cont));
     }
+#endif
     cont_q_put(cont);  // enqueue continuation
-    return event;
+    return cont;
 }
 static int_t execute() {
     XTRACE(cont_q_dump());
@@ -702,10 +706,11 @@ static int_t execute() {
     XTRACE(debug_print("execute cont", k_queue_head));
     int_t ip = GET_IP();
     int_t proc = get_t(ip);
+    ASSERT(IS_PROC(proc));
 #if INCLUDE_DEBUG
     if (!debugger()) return FALSE;  // debugger quit
 #endif
-    ip = call_proc(proc, ip, GET_EP());  // FIXME: EP is already available
+    ip = call_proc(proc, ip, GET_EP());
     SET_IP(ip);  // update IP
     int_t cont = cont_q_pop();
     XTRACE(debug_print("execute done", cont));
@@ -757,7 +762,18 @@ PROC_DECL(Unit) {
 }
 
 PROC_DECL(Actor) {
-    return error("Actor message not understood");
+//    return error("Actor message not understood");
+    int_t actor = self;
+    int_t event = arg;
+    ASSERT(actor == get_x(event));
+    if (get_y(actor) != UNDEF) return FALSE;  // actor busy
+    int_t beh = get_x(actor);  // actor behavior (initial IP)
+    // begin actor transaction
+    set_y(actor, NIL);  // empty set of new events
+    set_z(actor, UNDEF);  // no BECOME (yet...)
+    // spawn new "thread" to handle event
+    int_t cont = cell_new(beh, NIL, event, NIL);  // ip=beh, sp=(), ep=event
+    return cont;
 }
 
 PROC_DECL(Event) {
@@ -1354,7 +1370,7 @@ int_t debugger() {
                 case 's' : fprintf(stderr, "s[tep] <n> -- set <n> instructions (default: 1)\n"); continue;
                 case 'n' : fprintf(stderr, "n[ext] <n> -- next <n> instructions in thread (default: 1)\n"); continue;
                 case 'd' : fprintf(stderr, "d[isasm] <n> <inst> -- disassemble <n> instructions (defaults: 1 IP)\n"); continue;
-                case 't' : fprintf(stderr, "t[race] -- toggle instruction tracing (default: off)\n"); continue;
+                case 't' : fprintf(stderr, "t[race] -- toggle instruction tracing (default: on)\n"); continue;
                 case 'i' : fprintf(stderr, "i[nfo] <topic> -- get information on <topic>\n"); continue;
                 case 'q' : fprintf(stderr, "q[uit] -- quit runtime\n"); continue;
             }
