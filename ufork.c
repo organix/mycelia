@@ -137,6 +137,7 @@ PROC_DECL(vm_msg);
 PROC_DECL(vm_act);
 PROC_DECL(vm_putc);
 PROC_DECL(vm_getc);
+PROC_DECL(vm_debug);
 
 #define Undef_T     (-1)
 #define Null_T      (-2)
@@ -165,9 +166,11 @@ PROC_DECL(vm_getc);
 #define VM_act      (-25)
 #define VM_putc     (-26)
 #define VM_getc     (-27)
+#define VM_debug    (-28)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
+    vm_debug,
     vm_getc,
     vm_putc,
     vm_act,
@@ -228,6 +231,7 @@ static char *proc_label(int_t proc) {
         "VM_act",
         "VM_putc",
         "VM_getc",
+        "VM_debug",
     };
     nat_t ofs = NAT(-1 - proc);
     if (ofs < PROC_MAX) return label[ofs];
@@ -317,20 +321,20 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=A_BOOT+11,   .y=A_BOOT+9,    .z=UNDEF        },
     { .t=VM_act,        .x=ACT_BECOME,  .y=A_BOOT+10,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
-//    { .t=VM_getc,       .x=UNDEF,       .y=A_BOOT+12,   .z=UNDEF        },  // +11
-    { .t=VM_push,       .x=-1,          .y=A_BOOT+12,   .z=UNDEF        },  // +11
+    { .t=VM_getc,       .x=UNDEF,       .y=A_BOOT+12,   .z=UNDEF        },  // +11
     { .t=VM_pick,       .x=1,           .y=A_BOOT+13,   .z=UNDEF        },
     { .t=VM_push,       .x='\0',        .y=A_BOOT+14,   .z=UNDEF        },
     { .t=VM_cmp,        .x=CMP_LT,      .y=A_BOOT+15,   .z=UNDEF        },
     { .t=VM_if,         .x=A_BOOT+21,   .y=A_BOOT+16,   .z=UNDEF        },
-    { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+17,   .z=UNDEF        },
+//    { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+17,   .z=UNDEF        },
+    { .t=VM_debug,      .x=7331,        .y=A_BOOT+17,   .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=A_BOOT+18,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SELF,    .y=A_BOOT+19,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SEND,    .y=A_BOOT+20,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // +21
     { .t=VM_drop,       .x=1,           .y=A_BOOT+20,   .z=UNDEF        },  // A_BOOT #22
 #define A_CLOCK (A_BOOT+22)
-    { .t=Actor_T,       .x=A_CLOCK+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=Actor_T,       .x=A_CLOCK+3,   .y=UNDEF,       .z=UNDEF        },  // note: skipping output...
     { .t=VM_push,       .x='.',         .y=A_CLOCK+2,   .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_CLOCK+3,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_CLOCK #4
@@ -644,7 +648,7 @@ static int_t interrupt() {
     int_t sec = (now / CLKS_PER_SEC);
     if (IS_ACTOR(clk_handler)) {
         int_t ev = cell_new(Event_T, clk_handler, sec, NIL);
-        XTRACE(debug_print("clock event", ev));
+        DEBUG(debug_print("clock event", ev));
         event_q_put(ev);
     }
     return TRUE;
@@ -1001,6 +1005,14 @@ PROC_DECL(vm_getc) {
     return get_y(self);
 }
 
+PROC_DECL(vm_debug) {
+    int_t x = get_x(self);
+    int_t v = stack_pop();
+    fprintf(stderr, "%"PdI"", x);
+    debug_print("", v);
+    return get_y(self);
+}
+
 /*
  * debugging tools
  */
@@ -1143,6 +1155,7 @@ static void print_inst(int_t ip) {
         case VM_act:  fprintf(stderr, "{e:%s,k:%"PdI"}", effect_label(get_x(ip)), get_y(ip)); break;
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_getc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
+        case VM_debug:fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         default: {
             if (IS_PROC(proc)) {
                 fprintf(stderr, "{x:%"PdI",y:%"PdI",z:%"PdI"}", get_x(ip), get_y(ip), get_z(ip));

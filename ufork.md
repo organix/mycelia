@@ -171,6 +171,7 @@ _reason_        | {t=VM_act, x=ABORT}           | &mdash; | abort actor transact
 &mdash;         | {t=VM_act, x=COMMIT}          | &mdash; | commit actor transaction
 _char_          | {t=VM_putc, y=_K_}            | &mdash; | write _char_ to console
 &mdash;         | {t=VM_getc, y=_K_}            | _char_  | read _char_ from console
+_value_         | {t=VM_debug, x=_tag_, y=_K_}  | &mdash; | debug_print _tag_: _value_ to console
 
 ### Object Graph
 
