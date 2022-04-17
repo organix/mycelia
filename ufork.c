@@ -21,7 +21,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
-#define ITRACE(x)       // include/exclude instruction trace
+#define ITRACE(x)   x   // include/exclude instruction trace
 #define XTRACE(x)       // include/exclude execution trace
 #else
 #define DEBUG(x)        // exclude debug instrumentation
@@ -358,22 +358,22 @@ cell_t cell_table[CELL_MAX] = {
 #define BOUND_BEH (BOUND_42+3)
 //  { .t=VM_push,       .x=_value_,     .y=BOUND_BEH-1, .z=UNDEF        },
 //  { .t=VM_push,       .x=_next_,      .y=BOUND_BEH+0, .z=UNDEF        },
-    { .t=VM_msg,        .x=2,           .y=BOUND_BEH+1, .z=UNDEF        },
+    { .t=VM_msg,        .x=2,           .y=BOUND_BEH+1, .z=UNDEF        },  // index
     { .t=VM_push,       .x=1,           .y=BOUND_BEH+2, .z=UNDEF        },
-    { .t=VM_alu,        .x=ALU_SUB,     .y=BOUND_BEH+3, .z=UNDEF        },
+    { .t=VM_alu,        .x=ALU_SUB,     .y=BOUND_BEH+3, .z=UNDEF        },  // index-1
     { .t=VM_pick,       .x=1,           .y=BOUND_BEH+4, .z=UNDEF        },
-    { .t=VM_eq,         .x=0,           .y=BOUND_BEH+5, .z=UNDEF        },
+    { .t=VM_eq,         .x=0,           .y=BOUND_BEH+5, .z=UNDEF        },  // index-1 == 0
     { .t=VM_if,         .x=BOUND_BEH+14,.y=BOUND_BEH+6, .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=BOUND_BEH+7, .z=UNDEF        },
-    { .t=VM_pick,       .x=2,           .y=BOUND_BEH+8, .z=UNDEF        },
-    { .t=VM_pair,       .x=UNDEF,       .y=BOUND_BEH+9, .z=UNDEF        },
-    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+10,.z=UNDEF        },
-    { .t=VM_pair,       .x=UNDEF,       .y=BOUND_BEH+11,.z=UNDEF        },
-    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+12,.z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SEND,    .y=BOUND_BEH+13,.z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=BOUND_BEH+7, .z=UNDEF        },  // ()
+    { .t=VM_pick,       .x=2,           .y=BOUND_BEH+8, .z=UNDEF        },  // index-1
+    { .t=VM_pair,       .x=UNDEF,       .y=BOUND_BEH+9, .z=UNDEF        },  // (index-1)
+    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+10,.z=UNDEF        },  // cust
+    { .t=VM_pair,       .x=UNDEF,       .y=BOUND_BEH+11,.z=UNDEF        },  // (cust index-1)
+    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+12,.z=UNDEF        },  // next
+    { .t=VM_act,        .x=ACT_SEND,    .y=BOUND_BEH+13,.z=UNDEF        },  // (next cust index-1) | (cust value)
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+15,.z=UNDEF        },
-    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+12,.z=UNDEF        },  // bound_beh #16+2
+    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+15,.z=UNDEF        },  // value
+    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+12,.z=UNDEF        },  // cust -- bound_beh #16+2
 #define A_TEST (BOUND_BEH+16)
     { .t=Actor_T,       .x=A_TEST+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=A_TEST+2,    .z=UNDEF        },  // ()
