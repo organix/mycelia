@@ -308,7 +308,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
 //    { .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START
-    { .t=Event_T,       .x=60/*A_TEST*/,.y=NIL,         .z=NIL          },  // <--- START
+    { .t=Event_T,       .x=75/*A_TEST*/,.y=NIL,         .z=NIL          },  // <--- START
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+3,    .z=UNDEF        },
@@ -342,24 +342,34 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=0,           .y=A_PRINT+2,   .z=UNDEF        },
     { .t=VM_debug,      .x=7331,        .y=A_PRINT+3,   .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_PRINT #4
+/*
+(define empty-env
+  (CREATE
+    (BEH (cust _index)
+      (SEND cust #undefined))))
+*/
 #define EMPTY_ENV (A_PRINT+4)
     { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=UNDEF,       .y=EMPTY_ENV+2, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=EMPTY_ENV+3, .z=UNDEF        },
     { .t=VM_act,        .x=ACT_SEND,    .y=EMPTY_ENV+4, .z=UNDEF        },
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // EMPTY_ENV #5
-#define BOUND_42 (EMPTY_ENV+5)
-    { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=42,          .y=BOUND_42+2,  .z=UNDEF        },  // value = 42
-    { .t=VM_push,       .x=EMPTY_ENV,   .y=BOUND_42+3,  .z=UNDEF        },  // next = EMPTY_ENV
-/* (cust index) -> lookup variable by De Bruijn index */
-#define BOUND_BEH (BOUND_42+3)
+/*
+(define bound-beh  ; lookup variable by De Bruijn index
+  (lambda (value next)
+    (BEH (cust index)
+      (define index (- index 1))
+      (if (zero? index)
+        (SEND cust value)
+        (SEND next (list cust index))))))
+*/
+#define BOUND_BEH (EMPTY_ENV+5)
 //  { .t=VM_push,       .x=_value_,     .y=BOUND_BEH-1, .z=UNDEF        },
 //  { .t=VM_push,       .x=_next_,      .y=BOUND_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=2,           .y=BOUND_BEH+1, .z=UNDEF        },  // index
-    { .t=VM_push,       .x=1,           .y=BOUND_BEH+2, .z=UNDEF        },
+    { .t=VM_push,       .x=1,           .y=BOUND_BEH+2, .z=UNDEF        },  // 1
     { .t=VM_alu,        .x=ALU_SUB,     .y=BOUND_BEH+3, .z=UNDEF        },  // index-1
-    { .t=VM_pick,       .x=1,           .y=BOUND_BEH+4, .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=BOUND_BEH+4, .z=UNDEF        },  // index-1 index-1
     { .t=VM_eq,         .x=0,           .y=BOUND_BEH+5, .z=UNDEF        },  // index-1 == 0
     { .t=VM_if,         .x=BOUND_BEH+14,.y=BOUND_BEH+6, .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=BOUND_BEH+7, .z=UNDEF        },  // ()
@@ -372,15 +382,52 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_pick,       .x=3,           .y=BOUND_BEH+15,.z=UNDEF        },  // value
     { .t=VM_msg,        .x=1,           .y=BOUND_BEH+12,.z=UNDEF        },  // cust -- bound_beh #16+2
-#define A_TEST (BOUND_BEH+16)
+/*
+(define const-beh
+  (lambda (value)
+    (BEH (cust _)             ; eval
+      (SEND cust value))))
+*/
+#define CONST_BEH (BOUND_BEH+16)
+//  { .t=VM_push,       .x=_value_,     .y=CONST_BEH+0, .z=UNDEF        },
+    { .t=VM_msg,        .x=1,           .y=CONST_BEH+1, .z=UNDEF        },  // cust
+    { .t=VM_act,        .x=ACT_SEND,    .y=CONST_BEH+2, .z=UNDEF        },  // (cust . value)
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // CONST_BEH #3
+#define CONST_7 (CONST_BEH+3)
+    { .t=Actor_T,       .x=CONST_7+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=7,           .y=CONST_BEH,   .z=UNDEF        },  // value = 7
+/*
+(define var-beh
+  (lambda (index)
+    (BEH (cust env)           ; eval
+      (SEND env (list cust index)))))
+*/
+#define VAR_BEH (CONST_7+2)
+//  { .t=VM_push,       .x=_index_,     .y=VAR_BEH+0,   .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=VAR_BEH+1,   .z=UNDEF        },  // ()
+    { .t=VM_pick,       .x=2,           .y=VAR_BEH+2,   .z=UNDEF        },  // index
+    { .t=VM_pair,       .x=UNDEF,       .y=VAR_BEH+3,   .z=UNDEF        },  // (index)
+    { .t=VM_msg,        .x=1,           .y=VAR_BEH+4,   .z=UNDEF        },  // cust
+    { .t=VM_pair,       .x=UNDEF,       .y=VAR_BEH+5,   .z=UNDEF        },  // (cust index)
+    { .t=VM_msg,        .x=2,           .y=VAR_BEH+6,   .z=UNDEF        },  // env
+    { .t=VM_act,        .x=ACT_SEND,    .y=VAR_BEH+7,   .z=UNDEF        },  // (env cust index)
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // VAR_BEH #8
+#define VAR_1 (VAR_BEH+8)
+    { .t=Actor_T,       .x=VAR_1+1,     .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=1,           .y=VAR_BEH,     .z=UNDEF        },  // index = 1
+#define BOUND_42 (VAR_1+2)
+    { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=42,          .y=BOUND_42+2,  .z=UNDEF        },  // value = 42
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=BOUND_BEH,   .z=UNDEF        },  // next = EMPTY_ENV
+#define A_TEST (BOUND_42+3)
     { .t=Actor_T,       .x=A_TEST+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=A_TEST+2,    .z=UNDEF        },  // ()
-    { .t=VM_push,       .x=1,           .y=A_TEST+3,    .z=UNDEF        },
-    { .t=VM_pair,       .x=UNDEF,       .y=A_TEST+4,    .z=UNDEF        },  // (1)
-    { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+5,    .z=UNDEF        },
-    { .t=VM_pair,       .x=UNDEF,       .y=A_TEST+6,    .z=UNDEF        },  // (A_PRINT 1)
-    { .t=VM_push,       .x=BOUND_42,    .y=A_TEST+7,    .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SEND,    .y=A_TEST+8,    .z=UNDEF        },  // (BOUND_42 A_PRINT 1)
+    { .t=VM_push,       .x=BOUND_42,    .y=A_TEST+3,    .z=UNDEF        },  // BOUND_42
+    { .t=VM_pair,       .x=UNDEF,       .y=A_TEST+4,    .z=UNDEF        },  // (BOUND_42)
+    { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+5,    .z=UNDEF        },  // A_PRINT
+    { .t=VM_pair,       .x=UNDEF,       .y=A_TEST+6,    .z=UNDEF        },  // (A_PRINT BOUND_42)
+    { .t=VM_push,       .x=VAR_1,       .y=A_TEST+7,    .z=UNDEF        },  // VAR_1
+    { .t=VM_act,        .x=ACT_SEND,    .y=A_TEST+8,    .z=UNDEF        },  // (VAR_1 A_PRINT BOUND_42)
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_TEST #9
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
