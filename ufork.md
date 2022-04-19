@@ -131,10 +131,10 @@ proc/type | head/car | tail/cdr | link/next
 
  Input          | Instruction                   | Output  | Description
 ----------------|-------------------------------|---------|------------------------------
-_T_             | {t=VM_cell, x=1, y=_K_}       | _cell_  | create cell {t=_T_}
-_T_ _X_         | {t=VM_cell, x=2, y=_K_}       | _cell_  | create cell {t=_T_, x=_X_}
-_T_ _X_ _Y_     | {t=VM_cell, x=3, y=_K_}       | _cell_  | create cell {t=_T_, x=_X_, y=_Y_}
-_T_ _X_ _Y_ _Z_ | {t=VM_cell, x=4, y=_K_}       | _cell_  | create cell {t=_T_, x=_X_, y=_Y_, z=_Z_}
+_T_             | {t=VM_cell, x=1, y=_K_}       | _cell_  | create cell {t:_T_}
+_T_ _X_         | {t=VM_cell, x=2, y=_K_}       | _cell_  | create cell {t:_T_, x:_X_}
+_T_ _X_ _Y_     | {t=VM_cell, x=3, y=_K_}       | _cell_  | create cell {t:_T_, x:_X_, y:_Y_}
+_T_ _X_ _Y_ _Z_ | {t=VM_cell, x=4, y=_K_}       | _cell_  | create cell {t:_T_, x:_X_, y:_Y_, z:_Z_}
 _cell_          | {t=VM_get, x=T, y=_K_}        | _t_     | get _t_ from _cell_
 _cell_          | {t=VM_get, x=X, y=_K_}        | _x_     | get _x_ from _cell_
 _cell_          | {t=VM_get, x=Y, y=_K_}        | _y_     | get _y_ from _cell_
@@ -143,7 +143,7 @@ _cell_ _T_      | {t=VM_set, x=T, y=_K_}        | _cell'_ | set _t_ to _T_ in _c
 _cell_ _X_      | {t=VM_set, x=X, y=_K_}        | _cell'_ | set _x_ to _X_ in _cell_
 _cell_ _Y_      | {t=VM_set, x=Y, y=_K_}        | _cell'_ | set _y_ to _Y_ in _cell_
 _cell_ _Z_      | {t=VM_set, x=Z, y=_K_}        | _cell'_ | set _z_ to _Z_ in _cell_
-... _tail_ _head_ | {t=VM_pair, x=_n_, y=_K_}   | _pair_  | create {t=Pair_T, x=_head_, y=_tail_} (_n_ times)
+... _tail_ _head_ | {t=VM_pair, x=_n_, y=_K_}   | _pair_  | create {t:Pair_T, x:_head_, y:_tail_} (_n_ times)
 _pair_          | {t=VM_part, x=_n_, y=_K_}     | ... _tail_ _head_ | split _pair_ into _head_ and _tail_ (_n_ times)
 &mdash;         | {t=VM_push, x=_value_, y=_K_} | _value_ | push literal _value_ on stack
 _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t=VM_depth, y=_K_} | _v_<sub>_n_</sub> ... _v_<sub>1</sub> _n_ | count items on stack
