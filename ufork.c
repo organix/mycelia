@@ -448,37 +448,38 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=VM_push,       .x=_env_,       .y=APPL_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=APPL_BEH+1,  .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=APPL_BEH+2,  .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=APPL_BEH+3,  .y=APPL_BEH+7,  .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SELF,    .y=APPL_BEH+4,  .z=UNDEF        },  // SELF
-    { .t=VM_msg,        .x=1,           .y=APPL_BEH+5,  .z=UNDEF        },  // cust
-    { .t=VM_act,        .x=ACT_SEND,    .y=APPL_BEH+6,  .z=UNDEF        },  // (cust . SELF) | (param k_apply env)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // APPL_BEH #7
+    { .t=VM_if,         .x=APPL_BEH+21, .y=APPL_BEH+3,  .z=UNDEF        },
 
 //  { .t=VM_push,       .x=_env_,       .y=K_APPLY+0,   .z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=APPL_BEH+8,  .z=UNDEF        },  // VM_push
-    { .t=VM_pick,       .x=2,           .y=APPL_BEH+9,  .z=UNDEF        },  // env
-    { .t=VM_push,       .x=K_APPLY,     .y=APPL_BEH+10, .z=UNDEF        },  // K_APPLY
-    { .t=VM_cell,       .x=3,           .y=APPL_BEH+11, .z=UNDEF        },  // {t:VM_push, x:env, y:K_APPLY}
+    { .t=VM_push,       .x=VM_push,     .y=APPL_BEH+4,  .z=UNDEF        },  // VM_push
+    { .t=VM_pick,       .x=2,           .y=APPL_BEH+5,  .z=UNDEF        },  // env
+    { .t=VM_push,       .x=K_APPLY,     .y=APPL_BEH+6,  .z=UNDEF        },  // K_APPLY
+    { .t=VM_cell,       .x=3,           .y=APPL_BEH+7,  .z=UNDEF        },  // {t:VM_push, x:env, y:K_APPLY}
 
 //  { .t=VM_push,       .x=_oper_,      .y=K_APPLY-1,   .z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=APPL_BEH+12, .z=UNDEF        },  // VM_push
-    { .t=VM_pick,       .x=4,           .y=APPL_BEH+13, .z=UNDEF        },  // oper
-    { .t=VM_pick,       .x=3,           .y=APPL_BEH+14, .z=UNDEF        },  // K_APPLY-1
-    { .t=VM_cell,       .x=3,           .y=APPL_BEH+15, .z=UNDEF        },  // {t:VM_push, x:oper, y:K_APPLY-1}
+    { .t=VM_push,       .x=VM_push,     .y=APPL_BEH+8,  .z=UNDEF        },  // VM_push
+    { .t=VM_pick,       .x=4,           .y=APPL_BEH+9,  .z=UNDEF        },  // oper
+    { .t=VM_pick,       .x=3,           .y=APPL_BEH+10, .z=UNDEF        },  // K_APPLY-1
+    { .t=VM_cell,       .x=3,           .y=APPL_BEH+11, .z=UNDEF        },  // {t:VM_push, x:oper, y:K_APPLY-1}
 
 //  { .t=VM_push,       .x=_cust_,      .y=K_APPLY-2,   .z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=APPL_BEH+16, .z=UNDEF        },  // VM_push
-    { .t=VM_msg,        .x=1,           .y=APPL_BEH+17, .z=UNDEF        },  // cust
-    { .t=VM_pick,       .x=3,           .y=APPL_BEH+18, .z=UNDEF        },  // K_APPLY-2
-    { .t=VM_cell,       .x=3,           .y=APPL_BEH+19, .z=UNDEF        },  // {t:VM_push, x:cust, y:K_APPLY-2}
+    { .t=VM_push,       .x=VM_push,     .y=APPL_BEH+12, .z=UNDEF        },  // VM_push
+    { .t=VM_msg,        .x=1,           .y=APPL_BEH+13, .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=3,           .y=APPL_BEH+14, .z=UNDEF        },  // K_APPLY-2
+    { .t=VM_cell,       .x=3,           .y=APPL_BEH+15, .z=UNDEF        },  // {t:VM_push, x:cust, y:K_APPLY-2}
 
-    { .t=VM_act,        .x=ACT_CREATE,  .y=APPL_BEH+20, .z=UNDEF        },  // k_apply
+    { .t=VM_act,        .x=ACT_CREATE,  .y=APPL_BEH+16, .z=UNDEF        },  // k_apply
 
-    { .t=VM_push,       .x=NIL,         .y=APPL_BEH+21, .z=UNDEF        },  // ()
-    { .t=VM_msg,        .x=3,           .y=APPL_BEH+22, .z=UNDEF        },  // env
-    { .t=VM_pick,       .x=3,           .y=APPL_BEH+23, .z=UNDEF        },  // k_apply
-    { .t=VM_pair,       .x=2,           .y=APPL_BEH+24, .z=UNDEF        },  // (k_apply env)
-    { .t=VM_msg,        .x=2,           .y=APPL_BEH+5,  .z=UNDEF        },  // param -- APPL_BEH #25
+    { .t=VM_push,       .x=NIL,         .y=APPL_BEH+17, .z=UNDEF        },  // ()
+    { .t=VM_msg,        .x=3,           .y=APPL_BEH+18, .z=UNDEF        },  // env
+    { .t=VM_pick,       .x=3,           .y=APPL_BEH+19, .z=UNDEF        },  // k_apply
+    { .t=VM_pair,       .x=2,           .y=APPL_BEH+20, .z=UNDEF        },  // (k_apply env)
+    { .t=VM_msg,        .x=2,           .y=APPL_BEH+23, .z=UNDEF        },  // param
+
+    { .t=VM_act,        .x=ACT_SELF,    .y=APPL_BEH+22, .z=UNDEF        },  // SELF
+    { .t=VM_msg,        .x=1,           .y=APPL_BEH+23, .z=UNDEF        },  // cust
+    { .t=VM_act,        .x=ACT_SEND,    .y=APPL_BEH+24, .z=UNDEF        },  // (cust . SELF) | (param k_apply env)
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // APPL_BEH #25
 
 /*
 (define oper-beh
@@ -494,31 +495,32 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=VM_push,       .x=_body_,      .y=OPER_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=OPER_BEH+1,  .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=OPER_BEH+2,  .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=OPER_BEH+3,  .y=OPER_BEH+7,  .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SELF,    .y=OPER_BEH+4,  .z=UNDEF        },  // SELF
-    { .t=VM_msg,        .x=1,           .y=OPER_BEH+5,  .z=UNDEF        },  // cust
-    { .t=VM_act,        .x=ACT_SEND,    .y=OPER_BEH+6,  .z=UNDEF        },  // (cust . SELF) | (body cust ext-env)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // OPER_BEH #7
+    { .t=VM_if,         .x=OPER_BEH+17, .y=OPER_BEH+3,  .z=UNDEF        },
 
 //  { .t=VM_push,       .x=_next_,      .y=BOUND_BEH+0, .z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=OPER_BEH+8,  .z=UNDEF        },  // VM_push
-    { .t=VM_msg,        .x=3,           .y=OPER_BEH+9,  .z=UNDEF        },  // next = env
-    { .t=VM_push,       .x=BOUND_BEH,   .y=OPER_BEH+10, .z=UNDEF        },  // BOUND_BEH
-    { .t=VM_cell,       .x=3,           .y=OPER_BEH+11, .z=UNDEF        },  // {t:VM_push, x:next, y:BOUND_BEH}
+    { .t=VM_push,       .x=VM_push,     .y=OPER_BEH+4,  .z=UNDEF        },  // VM_push
+    { .t=VM_msg,        .x=3,           .y=OPER_BEH+5,  .z=UNDEF        },  // next = env
+    { .t=VM_push,       .x=BOUND_BEH,   .y=OPER_BEH+6,  .z=UNDEF        },  // BOUND_BEH
+    { .t=VM_cell,       .x=3,           .y=OPER_BEH+7,  .z=UNDEF        },  // {t:VM_push, x:next, y:BOUND_BEH}
 
 //  { .t=VM_push,       .x=_value_,     .y=BOUND_BEH-1, .z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=OPER_BEH+12, .z=UNDEF        },  // VM_push
-    { .t=VM_msg,        .x=2,           .y=OPER_BEH+13, .z=UNDEF        },  // value = arg
-    { .t=VM_pick,       .x=3,           .y=OPER_BEH+14, .z=UNDEF        },  // BOUND_BEH-1
-    { .t=VM_cell,       .x=3,           .y=OPER_BEH+15, .z=UNDEF        },  // {t:VM_push, x:value, y:BOUND_BEH-1}
+    { .t=VM_push,       .x=VM_push,     .y=OPER_BEH+8,  .z=UNDEF        },  // VM_push
+    { .t=VM_msg,        .x=2,           .y=OPER_BEH+9,  .z=UNDEF        },  // value = arg
+    { .t=VM_pick,       .x=3,           .y=OPER_BEH+10, .z=UNDEF        },  // BOUND_BEH-1
+    { .t=VM_cell,       .x=3,           .y=OPER_BEH+11, .z=UNDEF        },  // {t:VM_push, x:value, y:BOUND_BEH-1}
 
-    { .t=VM_act,        .x=ACT_CREATE,  .y=OPER_BEH+16, .z=UNDEF        },  // ext-env
+    { .t=VM_act,        .x=ACT_CREATE,  .y=OPER_BEH+12, .z=UNDEF        },  // ext-env
 
-    { .t=VM_push,       .x=NIL,         .y=OPER_BEH+17, .z=UNDEF        },  // ()
-    { .t=VM_pick,       .x=2,           .y=OPER_BEH+18, .z=UNDEF        },  // ext-env
+    { .t=VM_push,       .x=NIL,         .y=OPER_BEH+13, .z=UNDEF        },  // ()
+    { .t=VM_pick,       .x=2,           .y=OPER_BEH+14, .z=UNDEF        },  // ext-env
+    { .t=VM_msg,        .x=1,           .y=OPER_BEH+15, .z=UNDEF        },  // cust
+    { .t=VM_pair,       .x=2,           .y=OPER_BEH+16, .z=UNDEF        },  // (cust ext-env)
+    { .t=VM_pick,       .x=4,           .y=OPER_BEH+19, .z=UNDEF        },  // body
+
+    { .t=VM_act,        .x=ACT_SELF,    .y=OPER_BEH+18, .z=UNDEF        },  // SELF
     { .t=VM_msg,        .x=1,           .y=OPER_BEH+19, .z=UNDEF        },  // cust
-    { .t=VM_pair,       .x=2,           .y=OPER_BEH+20, .z=UNDEF        },  // (cust ext-env)
-    { .t=VM_pick,       .x=4,           .y=OPER_BEH+5,  .z=UNDEF        },  // body -- OPER_BEH #21
+    { .t=VM_act,        .x=ACT_SEND,    .y=OPER_BEH+20, .z=UNDEF        },  // (cust . SELF) | (body cust ext-env)
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // OPER_BEH #21
 
 /*
 (define op-lambda             ; (lambda <body>)
