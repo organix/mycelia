@@ -308,7 +308,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
 //    { .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START
-    { .t=Event_T,       .x=75/*A_TEST*/,.y=NIL,         .z=NIL          },  // <--- START
+    { .t=Event_T,       .x=74/*A_TEST*/,.y=NIL,         .z=NIL          },  // <--- START
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+3,    .z=UNDEF        },
@@ -374,9 +374,9 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_if,         .x=BOUND_BEH+14,.y=BOUND_BEH+6, .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=BOUND_BEH+7, .z=UNDEF        },  // ()
     { .t=VM_pick,       .x=2,           .y=BOUND_BEH+8, .z=UNDEF        },  // index-1
-    { .t=VM_pair,       .x=UNDEF,       .y=BOUND_BEH+9, .z=UNDEF        },  // (index-1)
+    { .t=VM_pair,       .x=1,           .y=BOUND_BEH+9, .z=UNDEF        },  // (index-1)
     { .t=VM_msg,        .x=1,           .y=BOUND_BEH+10,.z=UNDEF        },  // cust
-    { .t=VM_pair,       .x=UNDEF,       .y=BOUND_BEH+11,.z=UNDEF        },  // (cust index-1)
+    { .t=VM_pair,       .x=1,           .y=BOUND_BEH+11,.z=UNDEF        },  // (cust index-1)
     { .t=VM_pick,       .x=3,           .y=BOUND_BEH+12,.z=UNDEF        },  // next
     { .t=VM_act,        .x=ACT_SEND,    .y=BOUND_BEH+13,.z=UNDEF        },  // (next cust index-1) | (cust value)
     { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
@@ -406,13 +406,12 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=VM_push,       .x=_index_,     .y=VAR_BEH+0,   .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=VAR_BEH+1,   .z=UNDEF        },  // ()
     { .t=VM_pick,       .x=2,           .y=VAR_BEH+2,   .z=UNDEF        },  // index
-    { .t=VM_pair,       .x=UNDEF,       .y=VAR_BEH+3,   .z=UNDEF        },  // (index)
-    { .t=VM_msg,        .x=1,           .y=VAR_BEH+4,   .z=UNDEF        },  // cust
-    { .t=VM_pair,       .x=UNDEF,       .y=VAR_BEH+5,   .z=UNDEF        },  // (cust index)
-    { .t=VM_msg,        .x=2,           .y=VAR_BEH+6,   .z=UNDEF        },  // env
-    { .t=VM_act,        .x=ACT_SEND,    .y=VAR_BEH+7,   .z=UNDEF        },  // (env cust index)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // VAR_BEH #8
-#define VAR_1 (VAR_BEH+8)
+    { .t=VM_msg,        .x=1,           .y=VAR_BEH+3,   .z=UNDEF        },  // cust
+    { .t=VM_pair,       .x=2,           .y=VAR_BEH+4,   .z=UNDEF        },  // (cust index)
+    { .t=VM_msg,        .x=2,           .y=VAR_BEH+5,   .z=UNDEF        },  // env
+    { .t=VM_act,        .x=ACT_SEND,    .y=VAR_BEH+6,   .z=UNDEF        },  // (env cust index)
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // VAR_BEH #7
+#define VAR_1 (VAR_BEH+7)
     { .t=Actor_T,       .x=VAR_1+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=1,           .y=VAR_BEH,     .z=UNDEF        },  // index = 1
 #define BOUND_42 (VAR_1+2)
@@ -423,12 +422,11 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=A_TEST+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=A_TEST+2,    .z=UNDEF        },  // ()
     { .t=VM_push,       .x=BOUND_42,    .y=A_TEST+3,    .z=UNDEF        },  // BOUND_42
-    { .t=VM_pair,       .x=UNDEF,       .y=A_TEST+4,    .z=UNDEF        },  // (BOUND_42)
-    { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+5,    .z=UNDEF        },  // A_PRINT
-    { .t=VM_pair,       .x=UNDEF,       .y=A_TEST+6,    .z=UNDEF        },  // (A_PRINT BOUND_42)
-    { .t=VM_push,       .x=VAR_1,       .y=A_TEST+7,    .z=UNDEF        },  // VAR_1
-    { .t=VM_act,        .x=ACT_SEND,    .y=A_TEST+8,    .z=UNDEF        },  // (VAR_1 A_PRINT BOUND_42)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_TEST #9
+    { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+4,    .z=UNDEF        },  // A_PRINT
+    { .t=VM_pair,       .x=2,           .y=A_TEST+5,    .z=UNDEF        },  // (A_PRINT BOUND_42)
+    { .t=VM_push,       .x=VAR_1,       .y=A_TEST+6,    .z=UNDEF        },  // VAR_1
+    { .t=VM_act,        .x=ACT_SEND,    .y=A_TEST+7,    .z=UNDEF        },  // (VAR_1 A_PRINT BOUND_42)
+    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_TEST #8
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
@@ -873,19 +871,37 @@ PROC_DECL(vm_set) {
     return get_y(self);
 }
 
+static int_t pop_pairs(int_t n) {
+    int_t c;
+    if (n > 0) {
+        int_t h = stack_pop();
+        int_t t = pop_pairs(n - 1);
+        c = cons(h, t);
+    } else {
+        c = stack_pop();
+    }
+    return c;
+}
 PROC_DECL(vm_pair) {
-    int_t h = stack_pop();
-    int_t t = stack_pop();
-    stack_push(cons(h, t));
+    int_t n = get_x(self);
+    int_t c = pop_pairs(n);
+    stack_push(c);
     return get_y(self);
 }
 
+static void push_parts(int_t n, int_t xs) {
+    if (n > 0) {
+        push_parts((n - 1), cdr(xs));
+        int_t x = car(xs);
+        stack_push(x);
+    } else {
+        stack_push(xs);
+    }
+}
 PROC_DECL(vm_part) {
+    int_t n = get_x(self);
     int_t c = stack_pop();
-    int_t h = car(c);
-    int_t t = cdr(c);
-    stack_push(t);
-    stack_push(h);
+    push_parts(n, c);
     return get_y(self);
 }
 
@@ -1005,7 +1021,15 @@ PROC_DECL(vm_msg) {
             m = cdr(m);
             if (sane-- == 0) return panic("insane vm_msg");
         }
-    } /* FIXME: consider using -i to select the i-th tail? */
+    } else {  // use -i to select the i-th tail
+        sane = SANITY;
+        while (IS_PAIR(m)) {
+            m = cdr(m);
+            if (++i == 0) break;
+            if (sane-- == 0) return panic("insane vm_msg");
+        }
+        v = m;
+    }
     stack_push(v);
     return get_y(self);
 }
@@ -1220,8 +1244,8 @@ static void print_inst(int_t ip) {
         case VM_cell: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_get:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(get_x(ip)), get_y(ip)); break;
         case VM_set:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(get_x(ip)), get_y(ip)); break;
-        case VM_pair: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
-        case VM_part: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
+        case VM_pair: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_part: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_push: fprintf(stderr, "{v:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_depth:fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_drop: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
