@@ -73,13 +73,12 @@
     (BEH (cust env)           ; eval
       ;(seq (print 'comb-beh) (debug-print (list comb param)))
       (SEND comb
-        (list (CREATE (k-call-beh cust param env)) env)))))
+        (list (CREATE (k-call-beh (list cust param env))) env)))))
 (define k-call-beh
-  (lambda (cust param denv)
+  (lambda (msg)
     (BEH oper
       ;(seq (print 'k-call-beh) (debug-print oper))
-      (SEND oper
-        (list cust param denv)))))
+      (SEND oper msg))))
 
 ;
 ; testcase: ((lambda (var 1)) (const 42))
