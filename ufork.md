@@ -166,7 +166,9 @@ _bool_          | {t:VM_if, x:_T_, y:_F_}       | &mdash; | continue _F_ if `FAL
 &mdash;         | {t:VM_msg, x:-_i_, y:_K_}     | _tail_<sub>_i_</sub> | copy message tail _i_ to stack
 &mdash;         | {t:VM_self, y:_K_}            | _actor_ | push current _actor_ on stack
 _msg_ _actor_   | {t:VM_send, x:0, y:_K_}       | &mdash; | send _msg_ to _actor_
+_m_<sub>_n_</sub> ... _m_<sub>1</sub> _actor_ | {t:VM_send, x:_n_, y:_K_}   | &mdash; | send (_m_<sub>1</sub> ... _m_<sub>_n_</sub>) to _actor_
 _beh_           | {t:VM_new, x:0, y:_K_}        | _actor_ | create new _actor_ with behavior _beh_
+_v_<sub>1</sub> ... _v_<sub>_n_</sub> _beh_ | {t:VM_new, x:_n_, y:_K_} | _actor_ | create new _actor_ with behavior (_v_<sub>1</sub> ... _v_<sub>_n_</sub> . _beh_)
 _beh_           | {t:VM_beh, x:0, y:_K_}        | &mdash; | replace current behavior with _beh_
 _reason_        | {t:VM_end, x:ABORT}           | &mdash; | abort actor transaction with _reason_
 &mdash;         | {t:VM_end, x:STOP}            | &mdash; | stop current continuation (thread)

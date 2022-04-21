@@ -321,7 +321,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
 //    { .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    { .t=Event_T,       .x=179,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    { .t=Event_T,       .x=173,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+3,    .z=UNDEF        },
@@ -557,7 +557,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=OP_LAMBDA+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=OP_LAMBDA+2, .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=OP_LAMBDA+3, .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=OP_LAMBDA+18,.y=OP_LAMBDA+4, .z=UNDEF        },
+    //{ .t=VM_if,         .x=OP_LAMBDA+18,.y=OP_LAMBDA+4, .z=UNDEF        },
+    { .t=VM_if,         .x=OP_LAMBDA+12,.y=OP_LAMBDA+4, .z=UNDEF        },
 
 //  { .t=VM_push,       .x=_body_,      .y=OPER_BEH+0,  .z=UNDEF        },
     { .t=VM_push,       .x=VM_push,     .y=OP_LAMBDA+5, .z=UNDEF        },  // VM_push
@@ -567,6 +568,7 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_new,        .x=0,           .y=OP_LAMBDA+9, .z=UNDEF        },  // oper
 
+#if 0
 //  { .t=VM_push,       .x=_env_,       .y=APPL_BEH+0,  .z=UNDEF        },
     { .t=VM_push,       .x=VM_push,     .y=OP_LAMBDA+10,.z=UNDEF        },  // VM_push
     { .t=VM_msg,        .x=3,           .y=OP_LAMBDA+11,.z=UNDEF        },  // env
@@ -577,7 +579,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=VM_push,     .y=OP_LAMBDA+14,.z=UNDEF        },  // VM_push
     { .t=VM_pick,       .x=3,           .y=OP_LAMBDA+15,.z=UNDEF        },  // oper
     { .t=VM_pick,       .x=3,           .y=OP_LAMBDA+16,.z=UNDEF        },  // APPL_BEH-1
-    { .t=VM_cell,       .x=3,           .y=OP_LAMBDA+17,.z=UNDEF        },  // {t:VM_push, x:env, y:APPL_BEH-1}
+    { .t=VM_cell,       .x=3,           .y=OP_LAMBDA+17,.z=UNDEF        },  // {t:VM_push, x:oper, y:APPL_BEH-1}
 
     { .t=VM_new,        .x=0,           .y=OP_LAMBDA+19,.z=UNDEF        },  // appl
 
@@ -585,6 +587,17 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=1,           .y=OP_LAMBDA+20,.z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=OP_LAMBDA+21,.z=UNDEF        },  // (cust . SELF) | (cust . appl)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // OP_LAMBDA #22
+#else
+    //{ .t=VM_pick,       .x=1,           .y=OP_LAMBDA+10,.z=UNDEF        },  // oper
+    { .t=VM_msg,        .x=3,           .y=OP_LAMBDA+10,.z=UNDEF        },  // env
+    { .t=VM_push,       .x=APPL_BEH,    .y=OP_LAMBDA+11,.z=UNDEF        },  // APPL_BEH
+    { .t=VM_new,        .x=2,           .y=OP_LAMBDA+13,.z=UNDEF        },  // appl
+
+    { .t=VM_self,       .x=UNDEF,       .y=OP_LAMBDA+13,.z=UNDEF        },  // SELF
+    { .t=VM_msg,        .x=1,           .y=OP_LAMBDA+14,.z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=OP_LAMBDA+15,.z=UNDEF        },  // (cust . SELF) | (cust . appl)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // OP_LAMBDA #16
+#endif
 
 /*
 (define k-call-beh
@@ -592,7 +605,8 @@ cell_t cell_table[CELL_MAX] = {
     (BEH oper
       (SEND oper msg))))
 */
-#define K_CALL (OP_LAMBDA+22)
+//#define K_CALL (OP_LAMBDA+22)
+#define K_CALL (OP_LAMBDA+16)
 //  { .t=VM_push,       .x=_msg_,       .y=K_CALL+0,    .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_CALL+1,    .z=UNDEF        },  // oper
     { .t=VM_send,       .x=0,           .y=K_CALL+2,    .z=UNDEF        },  // (oper . msg)
@@ -652,24 +666,15 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=EMPTY_ENV,   .y=BOUND_BEH,   .z=UNDEF        },  // next = EMPTY_ENV
 #define A_TEST (BOUND_42+3)
     { .t=Actor_T,       .x=A_TEST+1,    .y=UNDEF,       .z=UNDEF        },
-#if 0
-    { .t=VM_push,       .x=NIL,         .y=A_TEST+2,    .z=UNDEF        },  // ()
-    { .t=VM_push,       .x=BOUND_42,    .y=A_TEST+3,    .z=UNDEF        },  // BOUND_42
-    { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+4,    .z=UNDEF        },  // A_PRINT
-    { .t=VM_pair,       .x=2,           .y=A_TEST+5,    .z=UNDEF        },  // (A_PRINT BOUND_42)
-    { .t=VM_push,       .x=EXPR_I,      .y=A_TEST+6,    .z=UNDEF        },  // EXPR_I
-    { .t=VM_send,       .x=0,           .y=A_TEST+7,    .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
-#else
     { .t=VM_push,       .x=BOUND_42,    .y=A_TEST+2,    .z=UNDEF        },  // BOUND_42
     { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+3,    .z=UNDEF        },  // A_PRINT
     { .t=VM_push,       .x=EXPR_I,      .y=A_TEST+4,    .z=UNDEF        },  // EXPR_I
     { .t=VM_send,       .x=2,           .y=A_TEST+5,    .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
-#endif
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_TEST #8
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_TEST #6
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
-int_t cell_top = A_TEST+8; // limit of allocated cell memory
+int_t cell_top = A_TEST+6; // limit of allocated cell memory
 
 static struct { int_t addr; char *label; } symbol_table[] = {
     { FALSE, "FALSE" },
@@ -1360,13 +1365,15 @@ PROC_DECL(vm_send) {
 
 PROC_DECL(vm_new) {
     int_t n = get_x(self);
-    if (n == 0) {
-        int_t b = stack_pop();  // behavior
-        int_t a = cell_new(Actor_T, b, UNDEF, UNDEF);
-        stack_push(a);
-    } else {
-        return error("vm_new (n != 0) not implemented");
+    if (n < 0) return error("vm_new (n < 0) invalid");
+    int_t b = stack_pop();  // behavior
+    while (n--) {
+        // compose behavior
+        int_t v = stack_pop();  // value
+        b = cell_new(VM_push, v, b, UNDEF);
     }
+    int_t a = cell_new(Actor_T, b, UNDEF, UNDEF);
+    stack_push(a);
     return get_y(self);
 }
 
