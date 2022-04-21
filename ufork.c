@@ -321,7 +321,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
 //    { .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    { .t=Event_T,       .x=173,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    { .t=Event_T,       .x=171,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+3,    .z=UNDEF        },
@@ -557,47 +557,21 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=OP_LAMBDA+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=OP_LAMBDA+2, .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=OP_LAMBDA+3, .z=UNDEF        },  // opt-env == ()
-    //{ .t=VM_if,         .x=OP_LAMBDA+18,.y=OP_LAMBDA+4, .z=UNDEF        },
-    { .t=VM_if,         .x=OP_LAMBDA+12,.y=OP_LAMBDA+4, .z=UNDEF        },
+    { .t=VM_if,         .x=OP_LAMBDA+10,.y=OP_LAMBDA+4, .z=UNDEF        },
 
-//  { .t=VM_push,       .x=_body_,      .y=OPER_BEH+0,  .z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=OP_LAMBDA+5, .z=UNDEF        },  // VM_push
-    { .t=VM_msg,        .x=2,           .y=OP_LAMBDA+6, .z=UNDEF        },  // body
-    { .t=VM_push,       .x=OPER_BEH,    .y=OP_LAMBDA+7, .z=UNDEF        },  // OPER_BEH
-    { .t=VM_cell,       .x=3,           .y=OP_LAMBDA+8, .z=UNDEF        },  // {t:VM_push, x:body, y:OPER_BEH}
+    { .t=VM_msg,        .x=2,           .y=OP_LAMBDA+5, .z=UNDEF        },  // body
+    { .t=VM_push,       .x=OPER_BEH,    .y=OP_LAMBDA+6, .z=UNDEF        },  // OPER_BEH
+    { .t=VM_new,        .x=1,           .y=OP_LAMBDA+7, .z=UNDEF        },  // oper
 
-    { .t=VM_new,        .x=0,           .y=OP_LAMBDA+9, .z=UNDEF        },  // oper
+    //{ .t=VM_pick,       .x=1,           .y=OP_LAMBDA+0, .z=UNDEF        },  // oper
+    { .t=VM_msg,        .x=3,           .y=OP_LAMBDA+8,.z=UNDEF        },  // env
+    { .t=VM_push,       .x=APPL_BEH,    .y=OP_LAMBDA+9,.z=UNDEF        },  // APPL_BEH
+    { .t=VM_new,        .x=2,           .y=OP_LAMBDA+11,.z=UNDEF        },  // appl
 
-#if 0
-//  { .t=VM_push,       .x=_env_,       .y=APPL_BEH+0,  .z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=OP_LAMBDA+10,.z=UNDEF        },  // VM_push
-    { .t=VM_msg,        .x=3,           .y=OP_LAMBDA+11,.z=UNDEF        },  // env
-    { .t=VM_push,       .x=APPL_BEH,    .y=OP_LAMBDA+12,.z=UNDEF        },  // APPL_BEH
-    { .t=VM_cell,       .x=3,           .y=OP_LAMBDA+13,.z=UNDEF        },  // {t:VM_push, x:env, y:APPL_BEH}
-
-//  { .t=VM_push,       .x=_oper_,      .y=APPL_BEH-1,  .z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=OP_LAMBDA+14,.z=UNDEF        },  // VM_push
-    { .t=VM_pick,       .x=3,           .y=OP_LAMBDA+15,.z=UNDEF        },  // oper
-    { .t=VM_pick,       .x=3,           .y=OP_LAMBDA+16,.z=UNDEF        },  // APPL_BEH-1
-    { .t=VM_cell,       .x=3,           .y=OP_LAMBDA+17,.z=UNDEF        },  // {t:VM_push, x:oper, y:APPL_BEH-1}
-
-    { .t=VM_new,        .x=0,           .y=OP_LAMBDA+19,.z=UNDEF        },  // appl
-
-    { .t=VM_self,       .x=UNDEF,       .y=OP_LAMBDA+19,.z=UNDEF        },  // SELF
-    { .t=VM_msg,        .x=1,           .y=OP_LAMBDA+20,.z=UNDEF        },  // cust
-    { .t=VM_send,       .x=0,           .y=OP_LAMBDA+21,.z=UNDEF        },  // (cust . SELF) | (cust . appl)
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // OP_LAMBDA #22
-#else
-    //{ .t=VM_pick,       .x=1,           .y=OP_LAMBDA+10,.z=UNDEF        },  // oper
-    { .t=VM_msg,        .x=3,           .y=OP_LAMBDA+10,.z=UNDEF        },  // env
-    { .t=VM_push,       .x=APPL_BEH,    .y=OP_LAMBDA+11,.z=UNDEF        },  // APPL_BEH
-    { .t=VM_new,        .x=2,           .y=OP_LAMBDA+13,.z=UNDEF        },  // appl
-
-    { .t=VM_self,       .x=UNDEF,       .y=OP_LAMBDA+13,.z=UNDEF        },  // SELF
-    { .t=VM_msg,        .x=1,           .y=OP_LAMBDA+14,.z=UNDEF        },  // cust
-    { .t=VM_send,       .x=0,           .y=OP_LAMBDA+15,.z=UNDEF        },  // (cust . SELF) | (cust . appl)
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // OP_LAMBDA #16
-#endif
+    { .t=VM_self,       .x=UNDEF,       .y=OP_LAMBDA+11,.z=UNDEF        },  // SELF
+    { .t=VM_msg,        .x=1,           .y=OP_LAMBDA+12,.z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=OP_LAMBDA+13,.z=UNDEF        },  // (cust . SELF) | (cust . appl)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // OP_LAMBDA #14
 
 /*
 (define k-call-beh
@@ -605,8 +579,7 @@ cell_t cell_table[CELL_MAX] = {
     (BEH oper
       (SEND oper msg))))
 */
-//#define K_CALL (OP_LAMBDA+22)
-#define K_CALL (OP_LAMBDA+16)
+#define K_CALL (OP_LAMBDA+14)
 //  { .t=VM_push,       .x=_msg_,       .y=K_CALL+0,    .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_CALL+1,    .z=UNDEF        },  // oper
     { .t=VM_send,       .x=0,           .y=K_CALL+2,    .z=UNDEF        },  // (oper . msg)
