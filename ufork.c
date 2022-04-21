@@ -132,6 +132,11 @@ PROC_DECL(vm_eq);
 PROC_DECL(vm_cmp);
 PROC_DECL(vm_if);
 PROC_DECL(vm_msg);
+PROC_DECL(vm_self);
+PROC_DECL(vm_send);
+PROC_DECL(vm_new);
+PROC_DECL(vm_beh);
+PROC_DECL(vm_end);
 PROC_DECL(vm_act);
 PROC_DECL(vm_putc);
 PROC_DECL(vm_getc);
@@ -161,10 +166,15 @@ PROC_DECL(vm_debug);
 #define VM_cmp      (-22)
 #define VM_if       (-23)
 #define VM_msg      (-24)
-#define VM_act      (-25)
-#define VM_putc     (-26)
-#define VM_getc     (-27)
-#define VM_debug    (-28)
+#define VM_self     (-25)
+#define VM_send     (-26)
+#define VM_new      (-27)
+#define VM_beh      (-28)
+#define VM_end      (-29)
+#define VM_act      (-30)
+#define VM_putc     (-31)
+#define VM_getc     (-32)
+#define VM_debug    (-33)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
@@ -172,6 +182,11 @@ proc_t proc_table[] = {
     vm_getc,
     vm_putc,
     vm_act,
+    vm_end,
+    vm_beh,
+    vm_new,
+    vm_send,
+    vm_self,
     vm_msg,
     vm_if,
     vm_cmp,
@@ -226,6 +241,11 @@ static char *proc_label(int_t proc) {
         "VM_cmp",
         "VM_if",
         "VM_msg",
+        "VM_self",
+        "VM_send",
+        "VM_new",
+        "VM_beh",
+        "VM_end",
         "VM_act",
         "VM_putc",
         "VM_getc",
@@ -263,6 +283,11 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define CMP_LT      (3)
 #define CMP_LE      (4)
 #define CMP_NE      (5)
+
+// VM_end thread action
+#define END_ABORT   (-1)
+#define END_STOP    (0)
+#define END_COMMIT  (+1)
 
 // VM_act effects
 #define ACT_SELF    (0)
@@ -644,8 +669,10 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+4,    .z=UNDEF        },  // A_PRINT
     { .t=VM_pair,       .x=2,           .y=A_TEST+5,    .z=UNDEF        },  // (A_PRINT BOUND_42)
     { .t=VM_push,       .x=EXPR_I,      .y=A_TEST+6,    .z=UNDEF        },  // EXPR_I
-    { .t=VM_act,        .x=ACT_SEND,    .y=A_TEST+7,    .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_TEST #8
+    //{ .t=VM_act,        .x=ACT_SEND,    .y=A_TEST+7,    .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
+    { .t=VM_send,       .x=0,           .y=A_TEST+7,    .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
+    //{ .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_TEST #8
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_TEST #8
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
@@ -1298,6 +1325,89 @@ PROC_DECL(vm_msg) {
     return get_y(self);
 }
 
+PROC_DECL(vm_self) {
+    int_t ep = GET_EP();
+    int_t me = get_x(ep);
+    stack_push(me);
+    return get_y(self);
+}
+
+PROC_DECL(vm_send) {
+    int_t n = get_x(self);
+    int_t ep = GET_EP();
+    int_t me = get_x(ep);
+    if (n == 0) {
+        int_t a = stack_pop();  // target
+        if (!IS_ACTOR(a)) {
+            set_y(me, UNDEF);  // abort actor transaction
+            return error("SEND requires an Actor");  // terminate thread
+        }
+        int_t m = stack_pop();  // message
+        int_t ev = cell_new(Event_T, a, m, get_y(me));
+        set_y(me, ev);
+    } else {
+        return error("(n != 0) not implemented");
+    }
+    return get_y(self);
+}
+
+PROC_DECL(vm_new) {
+    int_t n = get_x(self);
+    if (n == 0) {
+        int_t b = stack_pop();  // behavior
+        int_t a = cell_new(Actor_T, b, UNDEF, UNDEF);
+        stack_push(a);
+    } else {
+        return error("(n != 0) not implemented");
+    }
+    return get_y(self);
+}
+
+PROC_DECL(vm_beh) {
+    int_t n = get_x(self);
+    int_t ep = GET_EP();
+    int_t me = get_x(ep);
+    if (n == 0) {
+        int_t b = stack_pop();  // behavior
+        ASSERT(get_z(me) == UNDEF);  // BECOME only allowed once
+        set_z(me, b);
+    } else {
+        return error("(n != 0) not implemented");
+    }
+    return get_y(self);
+}
+
+PROC_DECL(vm_end) {
+    int_t n = get_x(self);
+    int_t ep = GET_EP();
+    int_t me = get_x(ep);
+    int_t rv = UNIT;  // STOP
+    if (n < 0) {  // ABORT
+        int_t r = stack_pop();  // reason
+        DEBUG(debug_print("ABORT!", r));
+        stack_clear();
+        set_y(me, UNDEF);  // abort actor transaction
+        rv = FALSE;
+    } else if (n > 0) {  // COMMIT
+        stack_clear();
+        int_t b = get_z(me);
+        if (b != UNDEF) {
+            set_x(me, b);  // BECOME new behavior
+        }
+        int_t e = get_y(me);
+        sane = SANITY;
+        while (e != NIL) {
+            int_t es = get_z(e);
+            event_q_put(e);
+            e = es;
+            if (sane-- == 0) return panic("insane vm_act COMMIT");
+        }
+        set_y(me, UNDEF);  // commit actor transaction
+        rv = TRUE;
+    }
+    return rv;  // terminate thread
+}
+
 PROC_DECL(vm_act) {
     int_t e = get_x(self);
     int_t ep = GET_EP();
@@ -1490,6 +1600,11 @@ static char *relation_label(int_t r) {
     }
     return "<unknown>";
 }
+static char *end_label(int_t t) {
+    if (t < 0) return "ABORT";
+    if (t > 0) return "COMMIT";
+    return "STOP";
+}
 static char *effect_label(int_t e) {
     switch (e) {
         case ACT_SELF:      return "SELF";
@@ -1520,6 +1635,11 @@ static void print_inst(int_t ip) {
         case VM_cmp:  fprintf(stderr, "{r:%s,k:%"PdI"}", relation_label(get_x(ip)), get_y(ip)); break;
         case VM_if:   fprintf(stderr, "{t:%"PdI",f:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_msg:  fprintf(stderr, "{i:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_self: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
+        case VM_send: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_new:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_beh:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_end:  fprintf(stderr, "{t:%s}", end_label(get_x(ip))); break;
         case VM_act:  fprintf(stderr, "{e:%s,k:%"PdI"}", effect_label(get_x(ip)), get_y(ip)); break;
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_getc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
