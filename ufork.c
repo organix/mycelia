@@ -296,7 +296,8 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define UNDEF       (3)
 #define UNIT        (4)
 #define START       (5)
-#define A_BOOT      (6)  // START+1
+#define COMMIT      (6)
+#define A_BOOT      (7)  // START+2
 
 #if INCLUDE_DEBUG
 static char *cell_label(int_t cell) {
@@ -320,8 +321,9 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Null_T,        .x=NIL,         .y=NIL,         .z=UNDEF        },
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
-//    { .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    { .t=Event_T,       .x=171,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    { .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
+//    { .t=Event_T,       .x=148,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+3,    .z=UNDEF        },
@@ -330,46 +332,41 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=NIL,         .y=A_BOOT+6,    .z=UNDEF        },
     { .t=VM_self,       .x=UNDEF,       .y=A_BOOT+7,    .z=UNDEF        },
     { .t=VM_send,       .x=0,           .y=A_BOOT+8,    .z=UNDEF        },
-    { .t=VM_push,       .x=A_BOOT+11,   .y=A_BOOT+9,    .z=UNDEF        },
-    { .t=VM_beh,        .x=0,           .y=A_BOOT+10,   .z=UNDEF        },
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_getc,       .x=UNDEF,       .y=A_BOOT+12,   .z=UNDEF        },  // +11
-    { .t=VM_pick,       .x=1,           .y=A_BOOT+13,   .z=UNDEF        },
-    { .t=VM_push,       .x='\0',        .y=A_BOOT+14,   .z=UNDEF        },
-    { .t=VM_cmp,        .x=CMP_LT,      .y=A_BOOT+15,   .z=UNDEF        },
-    { .t=VM_if,         .x=A_BOOT+21,   .y=A_BOOT+16,   .z=UNDEF        },
-    { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+17,   .z=UNDEF        },
-//    { .t=VM_debug,      .x=7331,        .y=A_BOOT+17,   .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=A_BOOT+18,   .z=UNDEF        },
-    { .t=VM_self,       .x=UNDEF,       .y=A_BOOT+19,   .z=UNDEF        },
-    { .t=VM_send,       .x=0,           .y=A_BOOT+20,   .z=UNDEF        },
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // +21
-    { .t=VM_drop,       .x=1,           .y=A_BOOT+20,   .z=UNDEF        },  // A_BOOT #22
+    { .t=VM_push,       .x=A_BOOT+10,   .y=A_BOOT+9,    .z=UNDEF        },
+    { .t=VM_beh,        .x=0,           .y=COMMIT,      .z=UNDEF        },
+    { .t=VM_getc,       .x=UNDEF,       .y=A_BOOT+11,   .z=UNDEF        },  // +10
+    { .t=VM_pick,       .x=1,           .y=A_BOOT+12,   .z=UNDEF        },
+    { .t=VM_push,       .x='\0',        .y=A_BOOT+13,   .z=UNDEF        },
+    { .t=VM_cmp,        .x=CMP_LT,      .y=A_BOOT+14,   .z=UNDEF        },
+    { .t=VM_if,         .x=COMMIT,      .y=A_BOOT+15,   .z=UNDEF        },
+    { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+16,   .z=UNDEF        },
+//    { .t=VM_debug,      .x=7331,        .y=A_BOOT+16,   .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=A_BOOT+17,   .z=UNDEF        },
+    { .t=VM_self,       .x=UNDEF,       .y=A_BOOT+18,   .z=UNDEF        },
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // A_BOOT #19
 
-#define A_CLOCK (A_BOOT+22)
+#define A_CLOCK (A_BOOT+19)
     { .t=Actor_T,       .x=A_CLOCK+3,   .y=UNDEF,       .z=UNDEF        },  // note: skipping output...
     { .t=VM_push,       .x='.',         .y=A_CLOCK+2,   .z=UNDEF        },
-    { .t=VM_putc,       .x=UNDEF,       .y=A_CLOCK+3,   .z=UNDEF        },
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_CLOCK #4
+    { .t=VM_putc,       .x=UNDEF,       .y=COMMIT,      .z=UNDEF        },  // A_CLOCK #3
 
-#define A_PRINT (A_CLOCK+4)
+#define A_PRINT (A_CLOCK+3)
     { .t=Actor_T,       .x=A_PRINT+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=A_PRINT+2,   .z=UNDEF        },
-    { .t=VM_debug,      .x=7331,        .y=A_PRINT+3,   .z=UNDEF        },
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_PRINT #4
+    { .t=VM_debug,      .x=7331,        .y=COMMIT,      .z=UNDEF        },  // A_PRINT #3
+
 /*
 (define empty-env
   (CREATE
     (BEH (cust _index)
       (SEND cust #undefined))))
 */
-
-#define EMPTY_ENV (A_PRINT+4)
+#define EMPTY_ENV (A_PRINT+3)
     { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=UNDEF,       .y=EMPTY_ENV+2, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=EMPTY_ENV+3, .z=UNDEF        },
-    { .t=VM_send,       .x=0,           .y=EMPTY_ENV+4, .z=UNDEF        },
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // EMPTY_ENV #5
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // EMPTY_ENV #4
+
 /*
 (define bound-beh  ; lookup variable by De Bruijn index
   (lambda (value next)
@@ -379,8 +376,7 @@ cell_t cell_table[CELL_MAX] = {
         (SEND cust value)
         (SEND next (list cust index))))))
 */
-
-#define BOUND_BEH (EMPTY_ENV+5)
+#define BOUND_BEH (EMPTY_ENV+4)
 //  { .t=VM_push,       .x=_value_,     .y=BOUND_BEH-1, .z=UNDEF        },
 //  { .t=VM_push,       .x=_next_,      .y=BOUND_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=2,           .y=BOUND_BEH+1, .z=UNDEF        },  // index
@@ -388,25 +384,25 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_alu,        .x=ALU_SUB,     .y=BOUND_BEH+3, .z=UNDEF        },  // index-1
     { .t=VM_pick,       .x=1,           .y=BOUND_BEH+4, .z=UNDEF        },  // index-1 index-1
     { .t=VM_eq,         .x=0,           .y=BOUND_BEH+5, .z=UNDEF        },  // index-1 == 0
-    { .t=VM_if,         .x=BOUND_BEH+14,.y=BOUND_BEH+6, .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=BOUND_BEH+7, .z=UNDEF        },  // ()
-    { .t=VM_pick,       .x=2,           .y=BOUND_BEH+8, .z=UNDEF        },  // index-1
-    { .t=VM_pair,       .x=1,           .y=BOUND_BEH+9, .z=UNDEF        },  // (index-1)
-    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+10,.z=UNDEF        },  // cust
-    { .t=VM_pair,       .x=1,           .y=BOUND_BEH+11,.z=UNDEF        },  // (cust index-1)
-    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+12,.z=UNDEF        },  // next
-    { .t=VM_send,       .x=0,           .y=BOUND_BEH+13,.z=UNDEF        },  // (next cust index-1) | (cust value)
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+15,.z=UNDEF        },  // value
-    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+12,.z=UNDEF        },  // cust -- BOUND_BEH #16+2
+    { .t=VM_if,         .x=BOUND_BEH+9, .y=BOUND_BEH+6, .z=UNDEF        },
+
+    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+7, .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+8, .z=UNDEF        },  // next
+    { .t=VM_send,       .x=2,           .y=BOUND_BEH+12,.z=UNDEF        },  // (next cust index-1)
+
+    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+10,.z=UNDEF        },  // value
+    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+11,.z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=BOUND_BEH+12,.z=UNDEF        },  // (cust . value)
+
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // BOUND_BEH #13
+
 /*
 (define const-beh
   (lambda (value)
     (BEH (cust _)             ; eval
       (SEND cust value))))
 */
-
-#define CONST_BEH (BOUND_BEH+16)
+#define CONST_BEH (BOUND_BEH+13)
 //  { .t=VM_push,       .x=_value_,     .y=CONST_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=CONST_BEH+1, .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=CONST_BEH+2, .z=UNDEF        },  // (cust . value)
@@ -414,25 +410,23 @@ cell_t cell_table[CELL_MAX] = {
 #define CONST_7 (CONST_BEH+3)
     { .t=Actor_T,       .x=CONST_7+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=7,           .y=CONST_BEH,   .z=UNDEF        },  // value = 7
+
 /*
 (define var-beh
   (lambda (index)
     (BEH (cust env)           ; eval
       (SEND env (list cust index)))))
 */
-
 #define VAR_BEH (CONST_7+2)
 //  { .t=VM_push,       .x=_index_,     .y=VAR_BEH+0,   .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=VAR_BEH+1,   .z=UNDEF        },  // ()
-    { .t=VM_pick,       .x=2,           .y=VAR_BEH+2,   .z=UNDEF        },  // index
-    { .t=VM_msg,        .x=1,           .y=VAR_BEH+3,   .z=UNDEF        },  // cust
-    { .t=VM_pair,       .x=2,           .y=VAR_BEH+4,   .z=UNDEF        },  // (cust index)
-    { .t=VM_msg,        .x=2,           .y=VAR_BEH+5,   .z=UNDEF        },  // env
-    { .t=VM_send,       .x=0,           .y=VAR_BEH+6,   .z=UNDEF        },  // (env cust index)
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // VAR_BEH #7
-#define VAR_1 (VAR_BEH+7)
+    { .t=VM_msg,        .x=1,           .y=VAR_BEH+1,   .z=UNDEF        },  // cust
+    { .t=VM_msg,        .x=2,           .y=VAR_BEH+2,   .z=UNDEF        },  // env
+    { .t=VM_send,       .x=2,           .y=VAR_BEH+3,   .z=UNDEF        },  // (env cust index)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // VAR_BEH #4
+#define VAR_1 (VAR_BEH+4)
     { .t=Actor_T,       .x=VAR_1+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=1,           .y=VAR_BEH,     .z=UNDEF        },  // index = 1
+
 /*
 (define k-apply-beh
   (lambda (cust oper env)
@@ -440,19 +434,15 @@ cell_t cell_table[CELL_MAX] = {
       (SEND oper
         (list cust arg env)))))
 */
-
 #define K_APPLY (VAR_1+2)
 //  { .t=VM_push,       .x=_cust_,      .y=K_APPLY-2,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_oper_,      .y=K_APPLY-1,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_env_,       .y=K_APPLY+0,   .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=K_APPLY+1,   .z=UNDEF        },  // ()
-    { .t=VM_pick,       .x=2,           .y=K_APPLY+2,   .z=UNDEF        },  // env
-    { .t=VM_msg,        .x=0,           .y=K_APPLY+3,   .z=UNDEF        },  // arg
-    { .t=VM_pick,       .x=6,           .y=K_APPLY+4,   .z=UNDEF        },  // cust
-    { .t=VM_pair,       .x=3,           .y=K_APPLY+5,   .z=UNDEF        },  // (cust arg env)
-    { .t=VM_pick,       .x=3,           .y=K_APPLY+6,   .z=UNDEF        },  // oper
-    { .t=VM_send,       .x=0,           .y=K_APPLY+7,   .z=UNDEF        },  // (oper cust arg env)
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // K_APPLY #8
+    { .t=VM_msg,        .x=0,           .y=K_APPLY+1,   .z=UNDEF        },  // arg
+    { .t=VM_pick,       .x=4,           .y=K_APPLY+2,   .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=4,           .y=K_APPLY+3,   .z=UNDEF        },  // oper
+    { .t=VM_send,       .x=3,           .y=K_APPLY+4,   .z=UNDEF        },  // (oper cust arg env)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // K_APPLY #5
 
 /*
 (define appl-beh
@@ -464,43 +454,28 @@ cell_t cell_table[CELL_MAX] = {
           (list (CREATE (k-apply-beh cust oper senv)) (car opt-env)))
       ))))
 */
-#define APPL_BEH (K_APPLY+8)
+#define APPL_BEH (K_APPLY+5)
 //  { .t=VM_push,       .x=_oper_,      .y=APPL_BEH-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_env_,       .y=APPL_BEH+0,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_senv_,      .y=APPL_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=APPL_BEH+1,  .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=APPL_BEH+2,  .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=APPL_BEH+21, .y=APPL_BEH+3,  .z=UNDEF        },
+    { .t=VM_if,         .x=APPL_BEH+12, .y=APPL_BEH+3,  .z=UNDEF        },
 
-//  { .t=VM_push,       .x=_env_,       .y=K_APPLY+0,   .z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=APPL_BEH+4,  .z=UNDEF        },  // VM_push
-    { .t=VM_pick,       .x=2,           .y=APPL_BEH+5,  .z=UNDEF        },  // env
-    { .t=VM_push,       .x=K_APPLY,     .y=APPL_BEH+6,  .z=UNDEF        },  // K_APPLY
-    { .t=VM_cell,       .x=3,           .y=APPL_BEH+7,  .z=UNDEF        },  // {t:VM_push, x:env, y:K_APPLY}
+    { .t=VM_msg,        .x=1,           .y=APPL_BEH+4,  .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=3,           .y=APPL_BEH+5,  .z=UNDEF        },  // oper
+    { .t=VM_pick,       .x=3,           .y=APPL_BEH+6,  .z=UNDEF        },  // senv
+    { .t=VM_push,       .x=K_APPLY,     .y=APPL_BEH+7,  .z=UNDEF        },  // K_APPLY
+    { .t=VM_new,        .x=3,           .y=APPL_BEH+8,  .z=UNDEF        },  // k_apply
 
-//  { .t=VM_push,       .x=_oper_,      .y=K_APPLY-1,   .z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=APPL_BEH+8,  .z=UNDEF        },  // VM_push
-    { .t=VM_pick,       .x=4,           .y=APPL_BEH+9,  .z=UNDEF        },  // oper
-    { .t=VM_pick,       .x=3,           .y=APPL_BEH+10, .z=UNDEF        },  // K_APPLY-1
-    { .t=VM_cell,       .x=3,           .y=APPL_BEH+11, .z=UNDEF        },  // {t:VM_push, x:oper, y:K_APPLY-1}
+    { .t=VM_msg,        .x=3,           .y=APPL_BEH+9,  .z=UNDEF        },  // denv
+    { .t=VM_pick,       .x=2,           .y=APPL_BEH+10, .z=UNDEF        },  // k_apply
+    { .t=VM_msg,        .x=2,           .y=APPL_BEH+11, .z=UNDEF        },  // param
+    { .t=VM_send,       .x=2,           .y=APPL_BEH+14, .z=UNDEF        },  // (param k_apply denv)
 
-//  { .t=VM_push,       .x=_cust_,      .y=K_APPLY-2,   .z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=APPL_BEH+12, .z=UNDEF        },  // VM_push
-    { .t=VM_msg,        .x=1,           .y=APPL_BEH+13, .z=UNDEF        },  // cust
-    { .t=VM_pick,       .x=3,           .y=APPL_BEH+14, .z=UNDEF        },  // K_APPLY-2
-    { .t=VM_cell,       .x=3,           .y=APPL_BEH+15, .z=UNDEF        },  // {t:VM_push, x:cust, y:K_APPLY-2}
-
-    { .t=VM_new,        .x=0,           .y=APPL_BEH+16, .z=UNDEF        },  // k_apply
-
-    { .t=VM_push,       .x=NIL,         .y=APPL_BEH+17, .z=UNDEF        },  // ()
-    { .t=VM_msg,        .x=3,           .y=APPL_BEH+18, .z=UNDEF        },  // env
-    { .t=VM_pick,       .x=3,           .y=APPL_BEH+19, .z=UNDEF        },  // k_apply
-    { .t=VM_pair,       .x=2,           .y=APPL_BEH+20, .z=UNDEF        },  // (k_apply env)
-    { .t=VM_msg,        .x=2,           .y=APPL_BEH+23, .z=UNDEF        },  // param
-
-    { .t=VM_self,       .x=UNDEF,       .y=APPL_BEH+22, .z=UNDEF        },  // SELF
-    { .t=VM_msg,        .x=1,           .y=APPL_BEH+23, .z=UNDEF        },  // cust
-    { .t=VM_send,       .x=0,           .y=APPL_BEH+24, .z=UNDEF        },  // (cust . SELF) | (param k_apply env)
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // APPL_BEH #25
+    { .t=VM_self,       .x=UNDEF,       .y=APPL_BEH+13, .z=UNDEF        },  // SELF
+    { .t=VM_msg,        .x=1,           .y=APPL_BEH+14, .z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=APPL_BEH+15, .z=UNDEF        },  // (cust . SELF)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // APPL_BEH #16
 
 /*
 (define oper-beh
@@ -512,7 +487,7 @@ cell_t cell_table[CELL_MAX] = {
           (list cust (CREATE (bound-beh arg (car opt-env)))))
       ))))
 */
-#define OPER_BEH (APPL_BEH+25)
+#define OPER_BEH (APPL_BEH+16)
 //  { .t=VM_push,       .x=_body_,      .y=OPER_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=OPER_BEH+1,  .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=OPER_BEH+2,  .z=UNDEF        },  // opt-env == ()
@@ -563,9 +538,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=OPER_BEH,    .y=OP_LAMBDA+6, .z=UNDEF        },  // OPER_BEH
     { .t=VM_new,        .x=1,           .y=OP_LAMBDA+7, .z=UNDEF        },  // oper
 
-    //{ .t=VM_pick,       .x=1,           .y=OP_LAMBDA+0, .z=UNDEF        },  // oper
-    { .t=VM_msg,        .x=3,           .y=OP_LAMBDA+8,.z=UNDEF        },  // env
-    { .t=VM_push,       .x=APPL_BEH,    .y=OP_LAMBDA+9,.z=UNDEF        },  // APPL_BEH
+    { .t=VM_msg,        .x=3,           .y=OP_LAMBDA+8, .z=UNDEF        },  // env
+    { .t=VM_push,       .x=APPL_BEH,    .y=OP_LAMBDA+9, .z=UNDEF        },  // APPL_BEH
     { .t=VM_new,        .x=2,           .y=OP_LAMBDA+11,.z=UNDEF        },  // appl
 
     { .t=VM_self,       .x=UNDEF,       .y=OP_LAMBDA+11,.z=UNDEF        },  // SELF
@@ -656,6 +630,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { UNDEF, "UNDEF" },
     { UNIT, "UNIT" },
     { START, "START" },
+    { COMMIT, "COMMIT" },
     { A_BOOT, "A_BOOT" },
     { A_CLOCK, "A_CLOCK" },
     { A_PRINT, "A_PRINT" },
