@@ -652,12 +652,19 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=EMPTY_ENV,   .y=BOUND_BEH,   .z=UNDEF        },  // next = EMPTY_ENV
 #define A_TEST (BOUND_42+3)
     { .t=Actor_T,       .x=A_TEST+1,    .y=UNDEF,       .z=UNDEF        },
+#if 0
     { .t=VM_push,       .x=NIL,         .y=A_TEST+2,    .z=UNDEF        },  // ()
     { .t=VM_push,       .x=BOUND_42,    .y=A_TEST+3,    .z=UNDEF        },  // BOUND_42
     { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+4,    .z=UNDEF        },  // A_PRINT
     { .t=VM_pair,       .x=2,           .y=A_TEST+5,    .z=UNDEF        },  // (A_PRINT BOUND_42)
     { .t=VM_push,       .x=EXPR_I,      .y=A_TEST+6,    .z=UNDEF        },  // EXPR_I
     { .t=VM_send,       .x=0,           .y=A_TEST+7,    .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
+#else
+    { .t=VM_push,       .x=BOUND_42,    .y=A_TEST+2,    .z=UNDEF        },  // BOUND_42
+    { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+3,    .z=UNDEF        },  // A_PRINT
+    { .t=VM_push,       .x=EXPR_I,      .y=A_TEST+4,    .z=UNDEF        },  // EXPR_I
+    { .t=VM_send,       .x=2,           .y=A_TEST+5,    .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
+#endif
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_TEST #8
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
@@ -1318,22 +1325,36 @@ PROC_DECL(vm_self) {
     return get_y(self);
 }
 
+static int_t pop_list(int_t n) {
+    int_t c;
+    if (n > 0) {
+        int_t h = stack_pop();
+        int_t t = pop_list(n - 1);
+        c = cons(h, t);
+    } else {
+        c = NIL;
+    }
+    return c;
+}
 PROC_DECL(vm_send) {
     int_t n = get_x(self);
     int_t ep = GET_EP();
     int_t me = get_x(ep);
-    if (n == 0) {
-        int_t a = stack_pop();  // target
-        if (!IS_ACTOR(a)) {
-            set_y(me, UNDEF);  // abort actor transaction
-            return error("SEND requires an Actor");  // terminate thread
-        }
-        int_t m = stack_pop();  // message
-        int_t ev = cell_new(Event_T, a, m, get_y(me));
-        set_y(me, ev);
-    } else {
-        return error("vm_send (n != 0) not implemented");
+    int_t a = stack_pop();  // target
+    if (!IS_ACTOR(a)) {
+        set_y(me, UNDEF);  // abort actor transaction
+        return error("SEND requires an Actor");
     }
+    int_t m = NIL;
+    if (n == 0) {
+        m = stack_pop();  // message
+    } else if (n > 0) {
+        m = pop_list(n);  // compose message
+    } else {
+        return error("vm_send (n < 0) invalid");
+    }
+    int_t ev = cell_new(Event_T, a, m, get_y(me));
+    set_y(me, ev);
     return get_y(self);
 }
 
