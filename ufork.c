@@ -137,7 +137,6 @@ PROC_DECL(vm_send);
 PROC_DECL(vm_new);
 PROC_DECL(vm_beh);
 PROC_DECL(vm_end);
-PROC_DECL(vm_act);
 PROC_DECL(vm_putc);
 PROC_DECL(vm_getc);
 PROC_DECL(vm_debug);
@@ -171,17 +170,15 @@ PROC_DECL(vm_debug);
 #define VM_new      (-27)
 #define VM_beh      (-28)
 #define VM_end      (-29)
-#define VM_act      (-30)
-#define VM_putc     (-31)
-#define VM_getc     (-32)
-#define VM_debug    (-33)
+#define VM_putc     (-30)
+#define VM_getc     (-31)
+#define VM_debug    (-32)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
     vm_debug,
     vm_getc,
     vm_putc,
-    vm_act,
     vm_end,
     vm_beh,
     vm_new,
@@ -246,7 +243,6 @@ static char *proc_label(int_t proc) {
         "VM_new",
         "VM_beh",
         "VM_end",
-        "VM_act",
         "VM_putc",
         "VM_getc",
         "VM_debug",
@@ -288,14 +284,6 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define END_ABORT   (-1)
 #define END_STOP    (0)
 #define END_COMMIT  (+1)
-
-// VM_act effects
-#define ACT_SELF    (0)
-#define ACT_SEND    (1)
-#define ACT_CREATE  (2)
-#define ACT_BECOME  (3)
-#define ACT_ABORT   (4)
-#define ACT_COMMIT  (5)
 
 /*
  * heap memory management (cells)
@@ -340,11 +328,11 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=' ',         .y=A_BOOT+4,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+5,    .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=A_BOOT+6,    .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SELF,    .y=A_BOOT+7,    .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SEND,    .y=A_BOOT+8,    .z=UNDEF        },
+    { .t=VM_self,       .x=UNDEF,       .y=A_BOOT+7,    .z=UNDEF        },
+    { .t=VM_send,       .x=0,           .y=A_BOOT+8,    .z=UNDEF        },
     { .t=VM_push,       .x=A_BOOT+11,   .y=A_BOOT+9,    .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_BECOME,  .y=A_BOOT+10,   .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_beh,        .x=0,           .y=A_BOOT+10,   .z=UNDEF        },
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_getc,       .x=UNDEF,       .y=A_BOOT+12,   .z=UNDEF        },  // +11
     { .t=VM_pick,       .x=1,           .y=A_BOOT+13,   .z=UNDEF        },
     { .t=VM_push,       .x='\0',        .y=A_BOOT+14,   .z=UNDEF        },
@@ -353,22 +341,22 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+17,   .z=UNDEF        },
 //    { .t=VM_debug,      .x=7331,        .y=A_BOOT+17,   .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=A_BOOT+18,   .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SELF,    .y=A_BOOT+19,   .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SEND,    .y=A_BOOT+20,   .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // +21
+    { .t=VM_self,       .x=UNDEF,       .y=A_BOOT+19,   .z=UNDEF        },
+    { .t=VM_send,       .x=0,           .y=A_BOOT+20,   .z=UNDEF        },
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // +21
     { .t=VM_drop,       .x=1,           .y=A_BOOT+20,   .z=UNDEF        },  // A_BOOT #22
 
 #define A_CLOCK (A_BOOT+22)
     { .t=Actor_T,       .x=A_CLOCK+3,   .y=UNDEF,       .z=UNDEF        },  // note: skipping output...
     { .t=VM_push,       .x='.',         .y=A_CLOCK+2,   .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_CLOCK+3,   .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_CLOCK #4
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_CLOCK #4
 
 #define A_PRINT (A_CLOCK+4)
     { .t=Actor_T,       .x=A_PRINT+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=A_PRINT+2,   .z=UNDEF        },
     { .t=VM_debug,      .x=7331,        .y=A_PRINT+3,   .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_PRINT #4
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_PRINT #4
 /*
 (define empty-env
   (CREATE
@@ -380,8 +368,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=UNDEF,       .y=EMPTY_ENV+2, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=EMPTY_ENV+3, .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_SEND,    .y=EMPTY_ENV+4, .z=UNDEF        },
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // EMPTY_ENV #5
+    { .t=VM_send,       .x=0,           .y=EMPTY_ENV+4, .z=UNDEF        },
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // EMPTY_ENV #5
 /*
 (define bound-beh  ; lookup variable by De Bruijn index
   (lambda (value next)
@@ -407,8 +395,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=1,           .y=BOUND_BEH+10,.z=UNDEF        },  // cust
     { .t=VM_pair,       .x=1,           .y=BOUND_BEH+11,.z=UNDEF        },  // (cust index-1)
     { .t=VM_pick,       .x=3,           .y=BOUND_BEH+12,.z=UNDEF        },  // next
-    { .t=VM_act,        .x=ACT_SEND,    .y=BOUND_BEH+13,.z=UNDEF        },  // (next cust index-1) | (cust value)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_send,       .x=0,           .y=BOUND_BEH+13,.z=UNDEF        },  // (next cust index-1) | (cust value)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_pick,       .x=3,           .y=BOUND_BEH+15,.z=UNDEF        },  // value
     { .t=VM_msg,        .x=1,           .y=BOUND_BEH+12,.z=UNDEF        },  // cust -- BOUND_BEH #16+2
 /*
@@ -421,8 +409,8 @@ cell_t cell_table[CELL_MAX] = {
 #define CONST_BEH (BOUND_BEH+16)
 //  { .t=VM_push,       .x=_value_,     .y=CONST_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=CONST_BEH+1, .z=UNDEF        },  // cust
-    { .t=VM_act,        .x=ACT_SEND,    .y=CONST_BEH+2, .z=UNDEF        },  // (cust . value)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // CONST_BEH #3
+    { .t=VM_send,       .x=0,           .y=CONST_BEH+2, .z=UNDEF        },  // (cust . value)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // CONST_BEH #3
 #define CONST_7 (CONST_BEH+3)
     { .t=Actor_T,       .x=CONST_7+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=7,           .y=CONST_BEH,   .z=UNDEF        },  // value = 7
@@ -440,8 +428,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=1,           .y=VAR_BEH+3,   .z=UNDEF        },  // cust
     { .t=VM_pair,       .x=2,           .y=VAR_BEH+4,   .z=UNDEF        },  // (cust index)
     { .t=VM_msg,        .x=2,           .y=VAR_BEH+5,   .z=UNDEF        },  // env
-    { .t=VM_act,        .x=ACT_SEND,    .y=VAR_BEH+6,   .z=UNDEF        },  // (env cust index)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // VAR_BEH #7
+    { .t=VM_send,       .x=0,           .y=VAR_BEH+6,   .z=UNDEF        },  // (env cust index)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // VAR_BEH #7
 #define VAR_1 (VAR_BEH+7)
     { .t=Actor_T,       .x=VAR_1+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=1,           .y=VAR_BEH,     .z=UNDEF        },  // index = 1
@@ -463,8 +451,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=6,           .y=K_APPLY+4,   .z=UNDEF        },  // cust
     { .t=VM_pair,       .x=3,           .y=K_APPLY+5,   .z=UNDEF        },  // (cust arg env)
     { .t=VM_pick,       .x=3,           .y=K_APPLY+6,   .z=UNDEF        },  // oper
-    { .t=VM_act,        .x=ACT_SEND,    .y=K_APPLY+7,   .z=UNDEF        },  // (oper cust arg env)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // K_APPLY #8
+    { .t=VM_send,       .x=0,           .y=K_APPLY+7,   .z=UNDEF        },  // (oper cust arg env)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // K_APPLY #8
 
 /*
 (define appl-beh
@@ -501,7 +489,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=3,           .y=APPL_BEH+14, .z=UNDEF        },  // K_APPLY-2
     { .t=VM_cell,       .x=3,           .y=APPL_BEH+15, .z=UNDEF        },  // {t:VM_push, x:cust, y:K_APPLY-2}
 
-    { .t=VM_act,        .x=ACT_CREATE,  .y=APPL_BEH+16, .z=UNDEF        },  // k_apply
+    { .t=VM_new,        .x=0,           .y=APPL_BEH+16, .z=UNDEF        },  // k_apply
 
     { .t=VM_push,       .x=NIL,         .y=APPL_BEH+17, .z=UNDEF        },  // ()
     { .t=VM_msg,        .x=3,           .y=APPL_BEH+18, .z=UNDEF        },  // env
@@ -509,10 +497,10 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pair,       .x=2,           .y=APPL_BEH+20, .z=UNDEF        },  // (k_apply env)
     { .t=VM_msg,        .x=2,           .y=APPL_BEH+23, .z=UNDEF        },  // param
 
-    { .t=VM_act,        .x=ACT_SELF,    .y=APPL_BEH+22, .z=UNDEF        },  // SELF
+    { .t=VM_self,       .x=UNDEF,       .y=APPL_BEH+22, .z=UNDEF        },  // SELF
     { .t=VM_msg,        .x=1,           .y=APPL_BEH+23, .z=UNDEF        },  // cust
-    { .t=VM_act,        .x=ACT_SEND,    .y=APPL_BEH+24, .z=UNDEF        },  // (cust . SELF) | (param k_apply env)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // APPL_BEH #25
+    { .t=VM_send,       .x=0,           .y=APPL_BEH+24, .z=UNDEF        },  // (cust . SELF) | (param k_apply env)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // APPL_BEH #25
 
 /*
 (define oper-beh
@@ -542,7 +530,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=3,           .y=OPER_BEH+10, .z=UNDEF        },  // BOUND_BEH-1
     { .t=VM_cell,       .x=3,           .y=OPER_BEH+11, .z=UNDEF        },  // {t:VM_push, x:value, y:BOUND_BEH-1}
 
-    { .t=VM_act,        .x=ACT_CREATE,  .y=OPER_BEH+12, .z=UNDEF        },  // ext-env
+    { .t=VM_new,        .x=0,           .y=OPER_BEH+12, .z=UNDEF        },  // ext-env
 
     { .t=VM_push,       .x=NIL,         .y=OPER_BEH+13, .z=UNDEF        },  // ()
     { .t=VM_pick,       .x=2,           .y=OPER_BEH+14, .z=UNDEF        },  // ext-env
@@ -550,10 +538,10 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pair,       .x=2,           .y=OPER_BEH+16, .z=UNDEF        },  // (cust ext-env)
     { .t=VM_pick,       .x=4,           .y=OPER_BEH+19, .z=UNDEF        },  // body
 
-    { .t=VM_act,        .x=ACT_SELF,    .y=OPER_BEH+18, .z=UNDEF        },  // SELF
+    { .t=VM_self,       .x=UNDEF,       .y=OPER_BEH+18, .z=UNDEF        },  // SELF
     { .t=VM_msg,        .x=1,           .y=OPER_BEH+19, .z=UNDEF        },  // cust
-    { .t=VM_act,        .x=ACT_SEND,    .y=OPER_BEH+20, .z=UNDEF        },  // (cust . SELF) | (body cust ext-env)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // OPER_BEH #21
+    { .t=VM_send,       .x=0,           .y=OPER_BEH+20, .z=UNDEF        },  // (cust . SELF) | (body cust ext-env)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // OPER_BEH #21
 
 /*
 (define op-lambda             ; (lambda <body>)
@@ -577,7 +565,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=OPER_BEH,    .y=OP_LAMBDA+7, .z=UNDEF        },  // OPER_BEH
     { .t=VM_cell,       .x=3,           .y=OP_LAMBDA+8, .z=UNDEF        },  // {t:VM_push, x:body, y:OPER_BEH}
 
-    { .t=VM_act,        .x=ACT_CREATE,  .y=OP_LAMBDA+9, .z=UNDEF        },  // oper
+    { .t=VM_new,        .x=0,           .y=OP_LAMBDA+9, .z=UNDEF        },  // oper
 
 //  { .t=VM_push,       .x=_env_,       .y=APPL_BEH+0,  .z=UNDEF        },
     { .t=VM_push,       .x=VM_push,     .y=OP_LAMBDA+10,.z=UNDEF        },  // VM_push
@@ -591,12 +579,12 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=3,           .y=OP_LAMBDA+16,.z=UNDEF        },  // APPL_BEH-1
     { .t=VM_cell,       .x=3,           .y=OP_LAMBDA+17,.z=UNDEF        },  // {t:VM_push, x:env, y:APPL_BEH-1}
 
-    { .t=VM_act,        .x=ACT_CREATE,  .y=OP_LAMBDA+19,.z=UNDEF        },  // appl
+    { .t=VM_new,        .x=0,           .y=OP_LAMBDA+19,.z=UNDEF        },  // appl
 
-    { .t=VM_act,        .x=ACT_SELF,    .y=OP_LAMBDA+19,.z=UNDEF        },  // SELF
+    { .t=VM_self,       .x=UNDEF,       .y=OP_LAMBDA+19,.z=UNDEF        },  // SELF
     { .t=VM_msg,        .x=1,           .y=OP_LAMBDA+20,.z=UNDEF        },  // cust
-    { .t=VM_act,        .x=ACT_SEND,    .y=OP_LAMBDA+21,.z=UNDEF        },  // (cust . SELF) | (cust . appl)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // OP_LAMBDA #22
+    { .t=VM_send,       .x=0,           .y=OP_LAMBDA+21,.z=UNDEF        },  // (cust . SELF) | (cust . appl)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // OP_LAMBDA #22
 
 /*
 (define k-call-beh
@@ -607,8 +595,8 @@ cell_t cell_table[CELL_MAX] = {
 #define K_CALL (OP_LAMBDA+22)
 //  { .t=VM_push,       .x=_msg_,       .y=K_CALL+0,    .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_CALL+1,    .z=UNDEF        },  // oper
-    { .t=VM_act,        .x=ACT_SEND,    .y=K_CALL+2,    .z=UNDEF        },  // (oper . msg)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // K_CALL #3
+    { .t=VM_send,       .x=0,           .y=K_CALL+2,    .z=UNDEF        },  // (oper . msg)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // K_CALL #3
 
 /*
 (define comb-beh
@@ -633,12 +621,12 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=K_CALL,      .y=COMB_BEH+9,  .z=UNDEF        },  // K_CALL
     { .t=VM_cell,       .x=3,           .y=COMB_BEH+10, .z=UNDEF        },  // {t:VM_push, x:msg, y:K_CALL}
 
-    { .t=VM_act,        .x=ACT_CREATE,  .y=COMB_BEH+11, .z=UNDEF        },  // k_call
+    { .t=VM_new,        .x=0,           .y=COMB_BEH+11, .z=UNDEF        },  // k_call
 
     { .t=VM_pair,       .x=2,           .y=COMB_BEH+12, .z=UNDEF        },  // (k_call env)
     { .t=VM_pick,       .x=3,           .y=COMB_BEH+13, .z=UNDEF        },  // comb
-    { .t=VM_act,        .x=ACT_SEND,    .y=COMB_BEH+14, .z=UNDEF        },  // (comb k_call env)
-    { .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // COMB_BEH #15
+    { .t=VM_send,       .x=0,           .y=COMB_BEH+14, .z=UNDEF        },  // (comb k_call env)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // COMB_BEH #15
 
 #define OP_I (COMB_BEH+15)
     { .t=Actor_T,       .x=OP_I+1,      .y=UNDEF,       .z=UNDEF        },
@@ -669,9 +657,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+4,    .z=UNDEF        },  // A_PRINT
     { .t=VM_pair,       .x=2,           .y=A_TEST+5,    .z=UNDEF        },  // (A_PRINT BOUND_42)
     { .t=VM_push,       .x=EXPR_I,      .y=A_TEST+6,    .z=UNDEF        },  // EXPR_I
-    //{ .t=VM_act,        .x=ACT_SEND,    .y=A_TEST+7,    .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
     { .t=VM_send,       .x=0,           .y=A_TEST+7,    .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
-    //{ .t=VM_act,        .x=ACT_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_TEST #8
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_TEST #8
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
@@ -1346,7 +1332,7 @@ PROC_DECL(vm_send) {
         int_t ev = cell_new(Event_T, a, m, get_y(me));
         set_y(me, ev);
     } else {
-        return error("(n != 0) not implemented");
+        return error("vm_send (n != 0) not implemented");
     }
     return get_y(self);
 }
@@ -1358,7 +1344,7 @@ PROC_DECL(vm_new) {
         int_t a = cell_new(Actor_T, b, UNDEF, UNDEF);
         stack_push(a);
     } else {
-        return error("(n != 0) not implemented");
+        return error("vm_new (n != 0) not implemented");
     }
     return get_y(self);
 }
@@ -1372,7 +1358,7 @@ PROC_DECL(vm_beh) {
         ASSERT(get_z(me) == UNDEF);  // BECOME only allowed once
         set_z(me, b);
     } else {
-        return error("(n != 0) not implemented");
+        return error("vm_beh (n != 0) not implemented");
     }
     return get_y(self);
 }
@@ -1400,75 +1386,12 @@ PROC_DECL(vm_end) {
             int_t es = get_z(e);
             event_q_put(e);
             e = es;
-            if (sane-- == 0) return panic("insane vm_act COMMIT");
+            if (sane-- == 0) return panic("insane COMMIT");
         }
         set_y(me, UNDEF);  // commit actor transaction
         rv = TRUE;
     }
     return rv;  // terminate thread
-}
-
-PROC_DECL(vm_act) {
-    int_t e = get_x(self);
-    int_t ep = GET_EP();
-    int_t me = get_x(ep);
-    switch (e) {
-        case ACT_SELF: {
-            stack_push(me);
-            break;
-        }
-        case ACT_SEND: {
-            int_t a = stack_pop();  // target
-            if (!IS_ACTOR(a)) {
-                set_y(me, UNDEF);  // abort actor transaction
-                return error("SEND requires an Actor");  // terminate thread
-            }
-            int_t m = stack_pop();  // message
-            int_t ev = cell_new(Event_T, a, m, get_y(me));
-            set_y(me, ev);
-            break;
-        }
-        case ACT_CREATE: {
-            int_t b = stack_pop();  // behavior
-            int_t a = cell_new(Actor_T, b, UNDEF, UNDEF);
-            stack_push(a);
-            break;
-        }
-        case ACT_BECOME: {
-            int_t b = stack_pop();  // behavior
-            ASSERT(get_z(me) == UNDEF);  // BECOME only allowed once
-            set_z(me, b);
-            break;
-        }
-        case ACT_ABORT: {
-            int_t r = stack_pop();  // reason
-            DEBUG(debug_print("ABORT!", r));
-            stack_clear();
-            set_y(me, UNDEF);  // abort actor transaction
-            return FALSE;  // terminate thread
-        }
-        case ACT_COMMIT: {
-            stack_clear();
-            int_t b = get_z(me);
-            if (b != UNDEF) {
-                set_x(me, b);  // BECOME new behavior
-            }
-            int_t e = get_y(me);
-            sane = SANITY;
-            while (e != NIL) {
-                int_t es = get_z(e);
-                event_q_put(e);
-                e = es;
-                if (sane-- == 0) return panic("insane vm_act COMMIT");
-            }
-            set_y(me, UNDEF);  // commit actor transaction
-            return TRUE;  // terminate thread
-        }
-        default: {
-            return error("unknown effect");
-        }
-    }
-    return get_y(self);
 }
 
 PROC_DECL(vm_putc) {
@@ -1605,17 +1528,6 @@ static char *end_label(int_t t) {
     if (t > 0) return "COMMIT";
     return "STOP";
 }
-static char *effect_label(int_t e) {
-    switch (e) {
-        case ACT_SELF:      return "SELF";
-        case ACT_SEND:      return "SEND";
-        case ACT_CREATE:    return "CREATE";
-        case ACT_BECOME:    return "BECOME";
-        case ACT_ABORT:     return "ABORT";
-        case ACT_COMMIT:    return "COMMIT";
-    }
-    return "<unknown>";
-}
 static void print_inst(int_t ip) {
     int_t proc = get_t(ip);
     fprintf(stderr, "%s", cell_label(proc));
@@ -1640,7 +1552,6 @@ static void print_inst(int_t ip) {
         case VM_new:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_beh:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_end:  fprintf(stderr, "{t:%s}", end_label(get_x(ip))); break;
-        case VM_act:  fprintf(stderr, "{e:%s,k:%"PdI"}", effect_label(get_x(ip)), get_y(ip)); break;
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_getc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_debug:fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
