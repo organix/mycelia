@@ -614,7 +614,7 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=VM_push,       .x=_value_,     .y=G_NEXT_K+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=G_NEXT_K+1,  .z=UNDEF        },  // in
     { .t=VM_pick,       .x=2,           .y=G_NEXT_K+2,  .z=UNDEF        },  // value
-    { .t=VM_pair,       .x=0,           .y=G_NEXT_K+3,  .z=UNDEF        },  // (value . in)
+    { .t=VM_pair,       .x=1,           .y=G_NEXT_K+3,  .z=UNDEF        },  // (value . in)
     { .t=VM_pick,       .x=3,           .y=G_NEXT_K+4,  .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust value . in)
 
@@ -687,9 +687,9 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=G_ANY,       .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_ANY
     { .t=VM_push,       .x=G_START,     .y=G_TEST+6,    .z=UNDEF        },  // G_START
     { .t=VM_new,        .x=2,           .y=G_TEST+7,    .z=UNDEF        },  // start
-    { .t=VM_push,       .x=S_EMPTY,     .y=G_TEST+8,    .z=UNDEF        },  // src = S_EMPTY
-    //{ .t=VM_push,       .x=S_GETC,      .y=G_TEST+8,    .z=UNDEF        },  // S_GETC
-    //{ .t=VM_new,        .x=0,           .y=G_TEST+9,    .z=UNDEF        },  // src
+    //{ .t=VM_push,       .x=S_EMPTY,     .y=G_TEST+8,    .z=UNDEF        },  // src = S_EMPTY
+    { .t=VM_push,       .x=S_GETC,      .y=G_TEST+8,    .z=UNDEF        },  // S_GETC
+    { .t=VM_new,        .x=0,           .y=G_TEST+9,    .z=UNDEF        },  // src
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (src . start)
 
 };
