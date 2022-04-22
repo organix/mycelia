@@ -216,6 +216,38 @@ k_queue: [head,tail]--------------------+
                              ...
 ```
 
+### PEG Structures
+
+Message to Grammar:
+```
+             custs    accum    in (or NIL)
+message: --->[*|*]--->[*|*]--->[*|*]---> next
+              |        |        |
+              v        v        v
+             [*|*]    value    token
+             /   \
+            v     v
+           ok    fail
+```
+
+Reply to _ok_:
+```
+             accum    in (or NIL)
+message: --->[*|*]--->[*|*]---> next
+              |        |
+              v        v
+             value    token
+```
+
+Reply to _fail_:
+```
+             in (or NIL)
+message: --->[*|*]---> next
+              |
+              v
+             token
+```
+
 ## Inspiration
 
  * [Parsing Expression Grammars: A Recognition-Based Syntactic Foundation](https://bford.info/pub/lang/peg.pdf)
