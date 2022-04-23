@@ -323,7 +323,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    { .t=Event_T,       .x=222,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=239,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
@@ -667,7 +667,30 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=3,           .y=G_EQ_B+20,   .z=UNDEF        },  // fail
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (fail . in)
 
-#define S_VALUE (G_EQ_B+21)
+#define G_OR_F (G_EQ_B+21)
+//  { .t=VM_push,       .x=_restart_,   .y=G_EQ_B-1,    .z=UNDEF        },
+//  { .t=VM_push,       .x=_rest_,      .y=G_EQ_B+0,    .z=UNDEF        },
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (rest . restart)
+
+#define G_OR_B (G_OR_F+1)
+//  { .t=VM_push,       .x=_first_,     .y=G_OR_B-1,    .z=UNDEF        },
+//  { .t=VM_push,       .x=_rest_,      .y=G_OR_B+0,    .z=UNDEF        },
+    { .t=VM_msg,        .x=-1,          .y=G_OR_B+1,    .z=UNDEF        },  // resume = (value . in)
+
+    { .t=VM_msg,        .x=0,           .y=G_OR_B+2,    .z=UNDEF        },  // restart = (custs value . in)
+    { .t=VM_pick,       .x=3,           .y=G_OR_B+3,    .z=UNDEF        },  // rest
+    { .t=VM_push,       .x=G_OR_F,      .y=G_OR_B+4,    .z=UNDEF        },  // G_OR_F
+    { .t=VM_new,        .x=2,           .y=G_OR_B+5,    .z=UNDEF        },  // or_fail
+
+    { .t=VM_msg,        .x=1,           .y=G_OR_B+6,    .z=UNDEF        },  // custs
+    { .t=VM_get,        .x=FLD_X,       .y=G_OR_B+7,    .z=UNDEF        },  // ok
+    { .t=VM_pair,       .x=1,           .y=G_OR_B+8,    .z=UNDEF        },  // (ok . or_fail)
+    { .t=VM_pair,       .x=1,           .y=G_OR_B+9,    .z=UNDEF        },  // ((ok . or_fail) . resume)
+
+    { .t=VM_pick,       .x=3,           .y=G_OR_B+10,   .z=UNDEF        },  // first
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (first (ok . or_fail) . resume)
+
+#define S_VALUE (G_OR_B+11)
 //  { .t=VM_push,       .x=_in_,        .y=S_VALUE+0,   .z=UNDEF        },  // (token . next) -or- NIL
     { .t=VM_msg,        .x=0,           .y=S_VALUE+1,   .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . in)
@@ -715,11 +738,20 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=2,           .y=G_START+5,   .z=UNDEF        },  // ptrn
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (ptrn custs value . in)
 
-#define G_PTRN (G_START+6)
-    { .t=Actor_T,       .x=G_PTRN+1,    .y=UNDEF,       .z=UNDEF        },
+#define G_LC_A (G_START+6)
+    { .t=Actor_T,       .x=G_LC_A+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x='a',         .y=G_EQ_B,      .z=UNDEF        },  // value = 'a' = 97
 
-#define G_TEST (G_PTRN+2)
+#define G_UC_A (G_LC_A+2)
+    { .t=Actor_T,       .x=G_UC_A+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x='A',         .y=G_EQ_B,      .z=UNDEF        },  // value = 'A' = 65
+
+#define G_PTRN (G_UC_A+2)
+    { .t=Actor_T,       .x=G_PTRN+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=G_LC_A,      .y=G_PTRN+2,    .z=UNDEF        },  // first = 'a'
+    { .t=VM_push,       .x=G_UC_A,      .y=G_OR_B,      .z=UNDEF        },  // rest = 'A'
+
+#define G_TEST (G_PTRN+3)
     { .t=Actor_T,       .x=G_TEST+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=A_FAIL,      .y=G_TEST+2,    .z=UNDEF        },  // fail = A_FAIL
     { .t=VM_push,       .x=A_OK,        .y=G_TEST+3,    .z=UNDEF        },  // ok = A_OK
@@ -774,12 +806,16 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_NEXT_K, "G_NEXT_K" },
     { G_ANY, "G_ANY" },
     { G_EQ_B, "G_EQ_B" },
+    { G_OR_F, "G_OR_F" },
+    { G_OR_B, "G_OR_B" },
     { S_VALUE, "S_VALUE" },
     { S_EMPTY, "S_EMPTY" },
     { S_GETC, "S_GETC" },
     { A_OK, "A_OK" },
     { A_FAIL, "A_FAIL" },
     { G_START, "G_START" },
+    { G_LC_A, "G_LC_A" },
+    { G_UC_A, "G_UC_A" },
     { G_PTRN, "G_PTRN" },
     { G_TEST, "G_TEST" },
     { -1, "" },
@@ -1674,6 +1710,30 @@ static void print_inst(int_t ip) {
         }
     }
 }
+static void print_list(int_t xs) {
+    fprintf(stderr, "%"PdI": ", xs);
+    if (!IS_PAIR(xs)) {
+        print_inst(xs);  // non-list value
+        fprintf(stderr, "\n");
+        return;
+    }
+    fprintf(stderr, "(%+"PdI"", car(xs));
+    xs = cdr(xs);
+    int limit = 8;
+    while (IS_PAIR(xs)) {
+        fprintf(stderr, " %+"PdI"", car(xs));
+        xs = cdr(xs);
+        if (limit-- == 0) {
+            fprintf(stderr, " ...\n");
+            return;
+        }
+    }
+    if (xs == NIL) {
+        fprintf(stderr, ")\n");
+    } else {
+        fprintf(stderr, " . %+"PdI")\n", xs);
+    }
+}
 void continuation_trace() {
     print_event(GET_EP());
     fprintf(stderr, "%"PdI": ", GET_IP());
@@ -1815,6 +1875,12 @@ int_t debugger() {
             disassemble(ip, cnt);
             continue;
         }
+        if (*cmd == 'p') {                  // print
+            cmd = db_cmd_token(&p);
+            int_t addr = db_num_cmd(cmd);
+            print_list(addr);
+            continue;
+        }
         if (*cmd == 't') {                  // trace
             runtime_trace = (runtime_trace ? FALSE : TRUE);
             fprintf(stderr, "instruction tracing %s\n",
@@ -1852,12 +1918,13 @@ int_t debugger() {
                 case 's' : fprintf(stderr, "s[tep] <n> -- set <n> instructions (default: 1)\n"); continue;
                 case 'n' : fprintf(stderr, "n[ext] <n> -- next <n> instructions in thread (default: 1)\n"); continue;
                 case 'd' : fprintf(stderr, "d[isasm] <n> <inst> -- disassemble <n> instructions (defaults: 1 IP)\n"); continue;
+                case 'p' : fprintf(stderr, "p[rint] <addr> -- print list at <addr>\n"); continue;
                 case 't' : fprintf(stderr, "t[race] -- toggle instruction tracing (default: on)\n"); continue;
                 case 'i' : fprintf(stderr, "i[nfo] <topic> -- get information on <topic>\n"); continue;
                 case 'q' : fprintf(stderr, "q[uit] -- quit runtime\n"); continue;
             }
         }
-        fprintf(stderr, "h[elp] b[reak] c[ontinue] s[tep] n[ext] d[isasm] t[race] i[nfo] q[uit]\n");
+        fprintf(stderr, "h[elp] b[reak] c[ontinue] s[tep] n[ext] d[isasm] p[rint] t[race] i[nfo] q[uit]\n");
     }
 }
 #endif // INCLUDE_DEBUG
