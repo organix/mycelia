@@ -323,7 +323,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    { .t=Event_T,       .x=239,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=276,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
@@ -668,10 +668,9 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (fail . in)
 
 #define G_OR_F (G_EQ_B+21)
-//  { .t=VM_push,       .x=_restart_,   .y=G_EQ_B-1,    .z=UNDEF        },
-//  { .t=VM_push,       .x=_rest_,      .y=G_EQ_B+0,    .z=UNDEF        },
+//  { .t=VM_push,       .x=_restart_,   .y=G_OR_F-1,    .z=UNDEF        },
+//  { .t=VM_push,       .x=_rest_,      .y=G_OR_F+0,    .z=UNDEF        },
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (rest . restart)
-
 #define G_OR_B (G_OR_F+1)
 //  { .t=VM_push,       .x=_first_,     .y=G_OR_B-1,    .z=UNDEF        },
 //  { .t=VM_push,       .x=_rest_,      .y=G_OR_B+0,    .z=UNDEF        },
@@ -690,7 +689,60 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=3,           .y=G_OR_B+10,   .z=UNDEF        },  // first
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (first (ok . or_fail) . resume)
 
-#define S_VALUE (G_OR_B+11)
+#define G_AND_PR (G_OR_B+11)
+//  { .t=VM_push,       .x=_cust_,      .y=G_AND_PR-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_head_,      .y=G_AND_PR+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=G_AND_PR+1,  .z=UNDEF        },  // (value . in)
+    { .t=VM_part,       .x=1,           .y=G_AND_PR+2,  .z=UNDEF        },  // in tail
+    { .t=VM_pick,       .x=3,           .y=G_AND_PR+3,  .z=UNDEF        },  // head
+    { .t=VM_pair,       .x=1,           .y=G_AND_PR+4,  .z=UNDEF        },  // (head . tail)
+    { .t=VM_pair,       .x=1,           .y=G_AND_PR+5,  .z=UNDEF        },  // ((head . tail) . in)
+    { .t=VM_pick,       .x=3,           .y=G_AND_PR+6,  .z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust (head . tail) . in)
+#define G_AND_OK (G_AND_PR+7)
+//  { .t=VM_push,       .x=_custs_,     .y=G_AND_OK-1,  .z=UNDEF        },  // (ok . and_fail)
+//  { .t=VM_push,       .x=_rest_,      .y=G_AND_OK+0,  .z=UNDEF        },
+    { .t=VM_pick,       .x=2,           .y=G_AND_OK+1,  .z=UNDEF        },  // custs
+    { .t=VM_part,       .x=1,           .y=G_AND_OK+2,  .z=UNDEF        },  // and_fail ok
+    { .t=VM_msg,        .x=1,           .y=G_AND_OK+3,  .z=UNDEF        },  // value
+    { .t=VM_push,       .x=G_AND_PR,    .y=G_AND_OK+4,  .z=UNDEF        },  // G_AND_PR
+    { .t=VM_new,        .x=2,           .y=G_AND_OK+5,  .z=UNDEF        },  // and_pair
+    { .t=VM_msg,        .x=0,           .y=G_AND_OK+6,  .z=UNDEF        },  // resume = (value . in)
+    { .t=VM_pick,       .x=3,           .y=G_AND_OK+7,  .z=UNDEF        },  // and_fail
+    { .t=VM_pick,       .x=3,           .y=G_AND_OK+8,  .z=UNDEF        },  // and_pair
+    { .t=VM_pair,       .x=1,           .y=G_AND_OK+9,  .z=UNDEF        },  // (and_pair . and_fail)
+    { .t=VM_pair,       .x=1,           .y=G_AND_OK+10, .z=UNDEF        },  // ((and_pair . and_fail) . resume)
+    { .t=VM_pick,       .x=4,           .y=G_AND_OK+11, .z=UNDEF        },  // rest
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (rest (and_pair . and_fail) . resume)
+#define G_AND_F (G_AND_OK+12)
+//  { .t=VM_push,       .x=_restart_,   .y=G_AND_F-1,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_rest_,      .y=G_AND_F+0,   .z=UNDEF        },
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (rest . restart)
+#define G_AND_B (G_AND_F+1)
+//  { .t=VM_push,       .x=_first_,     .y=G_AND_B-1,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_rest_,      .y=G_AND_B+0,   .z=UNDEF        },
+    { .t=VM_msg,        .x=-1,          .y=G_AND_B+1,   .z=UNDEF        },  // resume = (value . in)
+    { .t=VM_msg,        .x=1,           .y=G_AND_B+2,   .z=UNDEF        },  // custs
+    { .t=VM_get,        .x=FLD_Y,       .y=G_AND_B+3,   .z=UNDEF        },  // fail
+
+    { .t=VM_msg,        .x=0,           .y=G_AND_B+4,   .z=UNDEF        },  // restart = (custs value . in)
+    { .t=VM_pick,       .x=4,           .y=G_AND_B+5,   .z=UNDEF        },  // rest
+    { .t=VM_push,       .x=G_AND_F,     .y=G_AND_B+6,   .z=UNDEF        },  // G_AND_F
+    { .t=VM_new,        .x=2,           .y=G_AND_B+7,   .z=UNDEF        },  // and_fail
+
+    { .t=VM_msg,        .x=1,           .y=G_AND_B+8,   .z=UNDEF        },  // custs
+    { .t=VM_get,        .x=FLD_X,       .y=G_AND_B+9,   .z=UNDEF        },  // ok
+    { .t=VM_pair,       .x=1,           .y=G_AND_B+10,  .z=UNDEF        },  // (ok . and_fail)
+    { .t=VM_pick,       .x=4,           .y=G_AND_B+11,  .z=UNDEF        },  // rest
+    { .t=VM_push,       .x=G_AND_OK,    .y=G_AND_B+12,  .z=UNDEF        },  // G_AND_OK
+    { .t=VM_new,        .x=2,           .y=G_AND_B+13,  .z=UNDEF        },  // and_ok
+
+    { .t=VM_pair,       .x=1,           .y=G_AND_B+14,  .z=UNDEF        },  // (and_ok . fail)
+    { .t=VM_pair,       .x=1,           .y=G_AND_B+15,  .z=UNDEF        },  // ((and_ok . fail) . resume)
+    { .t=VM_pick,       .x=3,           .y=G_AND_B+16,  .z=UNDEF        },  // first
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (first (and_ok . fail) . resume)
+
+#define S_VALUE (G_AND_B+17)
 //  { .t=VM_push,       .x=_in_,        .y=S_VALUE+0,   .z=UNDEF        },  // (token . next) -or- NIL
     { .t=VM_msg,        .x=0,           .y=S_VALUE+1,   .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . in)
@@ -748,8 +800,8 @@ cell_t cell_table[CELL_MAX] = {
 
 #define G_PTRN (G_UC_A+2)
     { .t=Actor_T,       .x=G_PTRN+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=G_LC_A,      .y=G_PTRN+2,    .z=UNDEF        },  // first = 'a'
-    { .t=VM_push,       .x=G_UC_A,      .y=G_OR_B,      .z=UNDEF        },  // rest = 'A'
+    { .t=VM_push,       .x=G_UC_A,      .y=G_PTRN+2,    .z=UNDEF        },  // first = 'A'
+    { .t=VM_push,       .x=G_LC_A,      .y=G_AND_B,     .z=UNDEF        },  // rest = 'a'
 
 #define G_TEST (G_PTRN+3)
     { .t=Actor_T,       .x=G_TEST+1,    .y=UNDEF,       .z=UNDEF        },
@@ -808,6 +860,10 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_EQ_B, "G_EQ_B" },
     { G_OR_F, "G_OR_F" },
     { G_OR_B, "G_OR_B" },
+    { G_AND_PR, "G_AND_PR" },
+    { G_AND_OK, "G_AND_OK" },
+    { G_AND_F, "G_AND_F" },
+    { G_AND_B, "G_AND_B" },
     { S_VALUE, "S_VALUE" },
     { S_EMPTY, "S_EMPTY" },
     { S_GETC, "S_GETC" },
