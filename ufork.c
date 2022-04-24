@@ -97,6 +97,7 @@ int_t failure(char *_file_, int _line_);
 #if INCLUDE_DEBUG
 void hexdump(char *label, int_t *addr, size_t cnt);
 void debug_print(char *label, int_t addr);
+void print_list(int_t xs);
 void continuation_trace();
 int_t debugger();
 #endif // INCLUDE_DEBUG
@@ -323,7 +324,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    { .t=Event_T,       .x=276,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=300,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
@@ -742,7 +743,42 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=3,           .y=G_AND_B+16,  .z=UNDEF        },  // first
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (first (and_ok . fail) . resume)
 
-#define S_VALUE (G_AND_B+17)
+/*
+Optional(pattern) = Or(And(pattern, Empty), Empty)
+Plus(pattern) = And(pattern, Star(pattern))
+Star(pattern) = Or(Plus(pattern), Empty)
+*/
+#define G_OPT_B (RESEND+3)
+#define G_PLUS_B (G_OPT_B+6)
+#define G_STAR_B (G_PLUS_B+5)
+#define RESEND (G_AND_B+17)
+    { .t=VM_msg,        .x=0,           .y=RESEND+1,    .z=UNDEF        },  // msg
+    { .t=VM_self,       .x=UNDEF,       .y=RESEND+2,    .z=UNDEF        },  // SELF
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (SELF . msg)
+
+//  { .t=VM_push,       .x=_ptrn_,      .y=G_OPT_B+0,   .z=UNDEF        },
+    { .t=VM_push,       .x=G_EMPTY,     .y=G_OPT_B+1,   .z=UNDEF        },  // G_EMPTY
+    { .t=VM_push,       .x=G_AND_B,     .y=G_OPT_B+2,   .z=UNDEF        },  // G_AND_B
+    { .t=VM_new,        .x=2,           .y=G_OPT_B+3,   .z=UNDEF        },  // ptrn' = (And ptrn Empty)
+    { .t=VM_push,       .x=G_EMPTY,     .y=G_OPT_B+4,   .z=UNDEF        },  // G_EMPTY
+    { .t=VM_push,       .x=G_OR_B,      .y=G_OPT_B+5,   .z=UNDEF        },  // G_OR_B
+    { .t=VM_beh,        .x=2,           .y=RESEND,      .z=UNDEF        },  // BECOME (Or ptrn' Empty)
+
+//  { .t=VM_push,       .x=_ptrn_,      .y=G_PLUS_B+0,  .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=G_PLUS_B+1,  .z=UNDEF        },  // ptrn
+    { .t=VM_push,       .x=G_STAR_B,    .y=G_PLUS_B+2,  .z=UNDEF        },  // G_STAR_B
+    { .t=VM_new,        .x=1,           .y=G_PLUS_B+3,  .z=UNDEF        },  // star = (Star ptrn)
+    { .t=VM_push,       .x=G_AND_B,     .y=G_PLUS_B+4,  .z=UNDEF        },  // G_AND_B
+    { .t=VM_beh,        .x=2,           .y=RESEND,      .z=UNDEF        },  // BECOME (And ptrn star)
+
+//  { .t=VM_push,       .x=_ptrn_,      .y=G_STAR_B+0,  .z=UNDEF        },
+    { .t=VM_push,       .x=G_PLUS_B,    .y=G_STAR_B+1,  .z=UNDEF        },  // G_PLUS_B
+    { .t=VM_new,        .x=1,           .y=G_STAR_B+2,  .z=UNDEF        },  // plus = (Plus ptrn)
+    { .t=VM_push,       .x=G_EMPTY,     .y=G_STAR_B+3,  .z=UNDEF        },  // G_EMPTY
+    { .t=VM_push,       .x=G_OR_B,      .y=G_STAR_B+4,  .z=UNDEF        },  // G_OR_B
+    { .t=VM_beh,        .x=2,           .y=RESEND,      .z=UNDEF        },  // BECOME (Or plus Empty)
+
+#define S_VALUE (G_STAR_B+5)
 //  { .t=VM_push,       .x=_in_,        .y=S_VALUE+0,   .z=UNDEF        },  // (token . next) -or- NIL
     { .t=VM_msg,        .x=0,           .y=S_VALUE+1,   .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . in)
@@ -764,13 +800,9 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_push,       .x=NIL,         .y=S_GETC+10,   .z=UNDEF        },  // in = ()
     { .t=VM_push,       .x=S_VALUE,     .y=S_GETC+11,   .z=UNDEF        },  // S_VALUE
-    { .t=VM_beh,        .x=1,           .y=S_GETC+12,   .z=UNDEF        },  // BECOME (S_VALUE in)
+    { .t=VM_beh,        .x=1,           .y=RESEND,      .z=UNDEF        },  // BECOME (S_VALUE in)
 
-    { .t=VM_msg,        .x=0,           .y=S_GETC+13,   .z=UNDEF        },  // cust
-    { .t=VM_self,       .x=UNDEF,       .y=S_GETC+14,   .z=UNDEF        },  // SELF
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (SELF . cust)
-
-#define A_OK (S_GETC+15)
+#define A_OK (S_GETC+12)
     { .t=Actor_T,       .x=A_OK+1,      .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=A_OK+2,      .z=UNDEF        },
     { .t=VM_debug,      .x=777,         .y=COMMIT,      .z=UNDEF        },
@@ -790,18 +822,34 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=2,           .y=G_START+5,   .z=UNDEF        },  // ptrn
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (ptrn custs value . in)
 
-#define G_LC_A (G_START+6)
-    { .t=Actor_T,       .x=G_LC_A+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x='a',         .y=G_EQ_B,      .z=UNDEF        },  // value = 'a' = 97
+#define G_SGN (G_START+6)
+    { .t=Actor_T,       .x=G_SGN+1,     .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x='-',         .y=G_EQ_B,      .z=UNDEF        },  // value = '-' = 45
 
-#define G_UC_A (G_LC_A+2)
-    { .t=Actor_T,       .x=G_UC_A+1,    .y=UNDEF,       .z=UNDEF        },
+#define G_DGT (G_SGN+2)
+    { .t=Actor_T,       .x=G_DGT+1,     .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x='0',         .y=G_EQ_B,      .z=UNDEF        },  // value = '0' = 48
+
+#define G_UPR (G_DGT+2)
+    { .t=Actor_T,       .x=G_UPR+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x='A',         .y=G_EQ_B,      .z=UNDEF        },  // value = 'A' = 65
 
-#define G_PTRN (G_UC_A+2)
+#define G_LWR (G_UPR+2)
+    { .t=Actor_T,       .x=G_LWR+1,     .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x='a',         .y=G_EQ_B,      .z=UNDEF        },  // value = 'a' = 97
+
+#define G_SGN_O (G_LWR+2)
+    { .t=Actor_T,       .x=G_SGN_O+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=G_SGN,       .y=G_OPT_B,     .z=UNDEF        },  // (Opt Sgn)
+
+#define G_DGT_P (G_SGN_O+2)
+    { .t=Actor_T,       .x=G_DGT_P+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=G_DGT,       .y=G_PLUS_B,    .z=UNDEF        },  // (Plus Dgt)
+
+#define G_PTRN (G_DGT_P+2)
     { .t=Actor_T,       .x=G_PTRN+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=G_UC_A,      .y=G_PTRN+2,    .z=UNDEF        },  // first = 'A'
-    { .t=VM_push,       .x=G_LC_A,      .y=G_AND_B,     .z=UNDEF        },  // rest = 'a'
+    { .t=VM_push,       .x=G_SGN_O,     .y=G_PTRN+2,    .z=UNDEF        },  // first = (Opt Sgn)
+    { .t=VM_push,       .x=G_DGT_P,     .y=G_AND_B,     .z=UNDEF        },  // rest = (Plus Dgt)
 
 #define G_TEST (G_PTRN+3)
     { .t=Actor_T,       .x=G_TEST+1,    .y=UNDEF,       .z=UNDEF        },
@@ -811,6 +859,8 @@ cell_t cell_table[CELL_MAX] = {
     //{ .t=VM_push,       .x=G_EMPTY,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_EMPTY
     //{ .t=VM_push,       .x=G_FAIL,      .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_FAIL
     //{ .t=VM_push,       .x=G_ANY,       .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_ANY
+    //{ .t=VM_push,       .x=G_SGN_O,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_SGN_O
+    //{ .t=VM_push,       .x=G_DGT_P,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_DGT_P
     { .t=VM_push,       .x=G_PTRN,      .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_PTRN
     { .t=VM_push,       .x=G_START,     .y=G_TEST+6,    .z=UNDEF        },  // G_START
     { .t=VM_new,        .x=2,           .y=G_TEST+7,    .z=UNDEF        },  // start
@@ -864,14 +914,22 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_AND_OK, "G_AND_OK" },
     { G_AND_F, "G_AND_F" },
     { G_AND_B, "G_AND_B" },
+    { RESEND, "RESEND" },
+    { G_OPT_B, "G_OPT_B" },
+    { G_PLUS_B, "G_PLUS_B" },
+    { G_STAR_B, "G_STAR_B" },
     { S_VALUE, "S_VALUE" },
     { S_EMPTY, "S_EMPTY" },
     { S_GETC, "S_GETC" },
     { A_OK, "A_OK" },
     { A_FAIL, "A_FAIL" },
     { G_START, "G_START" },
-    { G_LC_A, "G_LC_A" },
-    { G_UC_A, "G_UC_A" },
+    { G_SGN, "G_SGN" },
+    { G_DGT, "G_DGT" },
+    { G_UPR, "G_UPR" },
+    { G_LWR, "G_LWR" },
+    { G_SGN_O, "G_SGN_O" },
+    { G_DGT_P, "G_DGT_P" },
     { G_PTRN, "G_PTRN" },
     { G_TEST, "G_TEST" },
     { -1, "" },
@@ -1609,8 +1667,13 @@ PROC_DECL(vm_getc) {
 PROC_DECL(vm_debug) {
     int_t x = get_x(self);
     int_t v = stack_pop();
-    fprintf(stderr, "%"PdI"", x);
-    debug_print("", v);
+    fprintf(stderr, "[%"PdI"] ", x);
+#if INCLUDE_DEBUG
+    //debug_print("", v);
+    print_list(v);
+#else
+    fprintf(stderr, "%+"PdI"\n", v);
+#endif
     return get_y(self);
 }
 
@@ -1766,7 +1829,7 @@ static void print_inst(int_t ip) {
         }
     }
 }
-static void print_list(int_t xs) {
+void print_list(int_t xs) {
     fprintf(stderr, "%"PdI": ", xs);
     if (!IS_PAIR(xs)) {
         print_inst(xs);  // non-list value

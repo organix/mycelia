@@ -96,7 +96,7 @@ This is because they can be trivially defined in primitive terms.
 
 Derived PEGs include:
 
-  * Optional(_pattern_) = Or(_pattern_, Empty)
+  * Optional(_pattern_) = Or(And(_pattern_, Empty), Empty)
   * Plus(_pattern_) = And(_pattern_, Star(_pattern_))
   * Star(_pattern_) = Or(Plus(_pattern_), Empty)
 
