@@ -155,7 +155,7 @@ _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t:VM_pick, x:_n_, y:_K_} | _v_<sub>_n_<
 _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t:VM_dup, x:_n_, y:_K_} |_v_<sub>_n_</sub> ... _v_<sub>1</sub> _v_<sub>_n_</sub> ... _v_<sub>1</sub> | duplicate _n_ items on stack
 _n_             | {t:VM_alu, x:NOT, y:_K_}      | ~_n_    | bitwise not _n_
 _n_ _m_         | {t:VM_alu, x:AND, y:_K_}      | _n_&_m_ | bitwise _n_ and _m_
-_n_ _m_         | {t:VM_alu, x:OR, y:_K_}       | _n_|_m_ | bitwise _n_ or _m_
+_n_ _m_         | {t:VM_alu, x:OR, y:_K_}       | _n_\|_m_ | bitwise _n_ or _m_
 _n_ _m_         | {t:VM_alu, x:XOR, y:_K_}      | _n_^_m_ | bitwise _n_ exclusive-or _m_
 _n_ _m_         | {t:VM_alu, x:ADD, y:_K_}      | _n_+_m_ | sum of _n_ and _m_
 _n_ _m_         | {t:VM_alu, x:SUB, y:_K_}      | _n_-_m_ | difference of _n_ and _m_
