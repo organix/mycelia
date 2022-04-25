@@ -84,6 +84,7 @@ but simple, tool for describing unambiguous parsers.
 PEG primitives include:
 
   * Empty
+  * Fail
   * Match(_predicate_)
   * Or(_first_, _rest_)
   * And(_first_, _rest_)
@@ -99,6 +100,8 @@ Derived PEGs include:
   * Optional(_pattern_) = Or(And(_pattern_, Empty), Empty)
   * Plus(_pattern_) = And(_pattern_, Star(_pattern_))
   * Star(_pattern_) = Or(Plus(_pattern_), Empty)
+  * Seq(_p_<sub>1</sub>, ..., _p_<sub>_n_</sub>) = And(_p_<sub>1</sub>, ... And(_p_<sub>_n_</sub>, Empty) ...)
+  * Alt(_p_<sub>1</sub>, ..., _p_<sub>_n_</sub>) = Or(_p_<sub>1</sub>, ... Or(_p_<sub>_n_</sub>, Fail) ...)
 
 It is clearly important to be able to express loops
 (or recursive references) in the grammar.
