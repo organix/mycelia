@@ -377,7 +377,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    { .t=Event_T,       .x=362,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=366,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
@@ -950,7 +950,15 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_pick,       .x=2,           .y=G_START+5,   .z=UNDEF        },  // ptrn
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (ptrn custs value . in)
 
-#define G_SGN (G_START+6)
+#define G_WSP (G_START+6)
+    { .t=Actor_T,       .x=G_WSP+1,     .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=WSP,         .y=G_CLS_B,     .z=UNDEF        },  // class = whitespace
+
+#define G_WSP_S (G_WSP+2)
+    { .t=Actor_T,       .x=G_WSP_S+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=G_WSP,       .y=G_STAR_B,    .z=UNDEF        },  // (Star Wsp)
+
+#define G_SGN (G_WSP_S+2)
     { .t=Actor_T,       .x=G_SGN+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x='-',         .y=G_EQ_B,      .z=UNDEF        },  // value = '-' = 45
 
@@ -988,8 +996,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_DGT_P,     .y=G_PTRN+3,    .z=UNDEF        },  // (Plus Dgt)
     { .t=VM_push,       .x=G_LWR,       .y=G_PTRN+4,    .z=UNDEF        },  // Lwr
     { .t=VM_push,       .x=G_UPR,       .y=G_PTRN+5,    .z=UNDEF        },  // Upr
-    { .t=VM_push,       .x=G_SGN_O,     .y=G_PTRN+6,    .z=UNDEF        },  // (Opt Sgn)
-    { .t=VM_pair,       .x=4,           .y=G_SEQ_B,     .z=UNDEF        },  // ((Opt Sgn) Upr Lwr (Plus Dgt))
+    { .t=VM_push,       .x=G_WSP_S,     .y=G_PTRN+6,    .z=UNDEF        },  // (Star Wsp)
+    { .t=VM_pair,       .x=4,           .y=G_SEQ_B,     .z=UNDEF        },  // ((Star Wsp) Upr Lwr (Plus Dgt))
 
 #define G_TEST (G_PTRN+7)
     { .t=Actor_T,       .x=G_TEST+1,    .y=UNDEF,       .z=UNDEF        },
@@ -1067,6 +1075,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { A_OK, "A_OK" },
     { A_FAIL, "A_FAIL" },
     { G_START, "G_START" },
+    { G_WSP, "G_WSP" },
+    { G_WSP_S, "G_WSP_S" },
     { G_SGN, "G_SGN" },
     { G_DGT, "G_DGT" },
     { G_UPR, "G_UPR" },
