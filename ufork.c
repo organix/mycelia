@@ -269,9 +269,13 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define FLD_Z       (3)
 
 // VM_alu operations
-#define ALU_ADD     (0)
-#define ALU_SUB     (1)
-#define ALU_MUL     (2)
+#define ALU_NOT     (0)
+#define ALU_AND     (1)
+#define ALU_OR      (2)
+#define ALU_XOR     (3)
+#define ALU_ADD     (4)
+#define ALU_SUB     (5)
+#define ALU_MUL     (6)
 
 // VM_cmp relations
 #define CMP_EQ      (0)
@@ -280,11 +284,60 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define CMP_LT      (3)
 #define CMP_LE      (4)
 #define CMP_NE      (5)
+#define CMP_CLS     (6)
 
 // VM_end thread action
 #define END_ABORT   (-1)
 #define END_STOP    (0)
 #define END_COMMIT  (+1)
+
+/*
+ * character classes
+ */
+
+#define CTL (1<<0)  /* control */
+#define DGT (1<<1)  /* digit */
+#define UPR (1<<2)  /* uppercase */
+#define LWR (1<<3)  /* lowercase */
+#define DLM (1<<4)  /* "'(),;[]`{|} */
+#define SYM (1<<5)  /* symbol (non-DLM) */
+#define HEX (1<<6)  /* hexadecimal */
+#define WSP (1<<7)  /* whitespace */
+
+static unsigned char char_class[128] = {
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*0_*/  CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*0_*/  CTL,     CTL|WSP, CTL|WSP, CTL|WSP, CTL|WSP, CTL|WSP, CTL,     CTL,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*1_*/  CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*1_*/  CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,     CTL,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*2_*/  WSP,     SYM,     DLM,     SYM,     SYM,     SYM,     SYM,     DLM,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*2_*/  DLM,     DLM,     SYM,     SYM,     DLM,     SYM,     SYM,     SYM,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*3_*/  DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX, DGT|HEX,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*3_*/  DGT|HEX, DGT|HEX, SYM,     DLM,     SYM,     SYM,     SYM,     SYM,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*4_*/  SYM,     UPR|HEX, UPR|HEX, UPR|HEX, UPR|HEX, UPR|HEX, UPR|HEX, UPR,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*4_*/  UPR,     UPR,     UPR,     UPR,     UPR,     UPR,     UPR,     UPR,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*5_*/  UPR,     UPR,     UPR,     UPR,     UPR,     UPR,     UPR,     UPR,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*5_*/  UPR,     UPR,     UPR,     DLM,     SYM,     DLM,     SYM,     SYM,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*6_*/  DLM,     LWR|HEX, LWR|HEX, LWR|HEX, LWR|HEX, LWR|HEX, LWR|HEX, LWR,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*6_*/  LWR,     LWR,     LWR,     LWR,     LWR,     LWR,     LWR,     LWR,
+/*      _0       _1       _2       _3       _4       _5       _6       _7    */
+/*7_*/  LWR,     LWR,     LWR,     LWR,     LWR,     LWR,     LWR,     LWR,
+/*      _8       _9       _A       _B       _C       _D       _E       _F    */
+/*7_*/  LWR,     LWR,     LWR,     DLM,     DLM,     DLM,     SYM,     CTL,
+};
 
 /*
  * heap memory management (cells)
@@ -324,7 +377,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    { .t=Event_T,       .x=340,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=362,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
@@ -824,7 +877,36 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_EMPTY_B,   .y=G_SEQ_B+14,  .z=UNDEF        },  // G_EMPTY_B
     { .t=VM_beh,        .x=0,           .y=RESEND,      .z=UNDEF        },  // BECOME
 
-#define S_VALUE (G_SEQ_B+15)
+#define G_CLS_B (G_SEQ_B+15)
+//  { .t=VM_push,       .x=_class_,     .y=G_CLS_B+0,    .z=UNDEF       },
+    { .t=VM_msg,        .x=1,           .y=G_CLS_B+1,    .z=UNDEF       },  // custs = (ok . fail)
+    { .t=VM_part,       .x=1,           .y=G_CLS_B+2,    .z=UNDEF       },  // fail ok
+    { .t=VM_msg,        .x=-2,          .y=G_CLS_B+3,    .z=UNDEF       },  // in
+    { .t=VM_eq,         .x=NIL,         .y=G_CLS_B+4,    .z=UNDEF       },  // in == ()
+    { .t=VM_if,         .x=G_CLS_B+19,  .y=G_CLS_B+5,    .z=UNDEF       },
+
+    { .t=VM_msg,        .x=-2,          .y=G_CLS_B+6,    .z=UNDEF       },  // in
+    { .t=VM_part,       .x=1,           .y=G_CLS_B+7,    .z=UNDEF       },  // next token
+    { .t=VM_pick,       .x=1,           .y=G_CLS_B+8,    .z=UNDEF       },  // token token
+    { .t=VM_pick,       .x=6,           .y=G_CLS_B+9,    .z=UNDEF       },  // class
+    { .t=VM_cmp,        .x=CMP_CLS,     .y=G_CLS_B+10,   .z=UNDEF       },  // token in class
+    { .t=VM_eq,         .x=FALSE,       .y=G_CLS_B+11,   .z=UNDEF       },  // token ~in class
+    { .t=VM_if,         .x=G_CLS_B+18,  .y=G_CLS_B+12,   .z=UNDEF       },
+
+    { .t=VM_pick,       .x=3,           .y=G_CLS_B+13,   .z=UNDEF       },  // ok
+    { .t=VM_pick,       .x=2,           .y=G_CLS_B+14,   .z=UNDEF       },  // token
+    { .t=VM_push,       .x=G_NEXT_K,    .y=G_CLS_B+15,   .z=UNDEF       },  // G_NEXT_K
+    { .t=VM_new,        .x=2,           .y=G_CLS_B+16,   .z=UNDEF       },  // k_next
+    { .t=VM_pick,       .x=3,           .y=G_CLS_B+17,   .z=UNDEF       },  // next
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (next . k_next)
+
+    { .t=VM_drop,       .x=2,           .y=G_CLS_B+19,   .z=UNDEF       },  // fail ok
+
+    { .t=VM_msg,        .x=-2,          .y=G_CLS_B+20,   .z=UNDEF       },  // in
+    { .t=VM_pick,       .x=3,           .y=G_CLS_B+21,   .z=UNDEF       },  // fail
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (fail . in)
+
+#define S_VALUE (G_CLS_B+22)
 //  { .t=VM_push,       .x=_in_,        .y=S_VALUE+0,   .z=UNDEF        },  // (token . next) -or- NIL
     { .t=VM_msg,        .x=0,           .y=S_VALUE+1,   .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . in)
@@ -874,21 +956,21 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
 #define G_DGT (G_SGN+2)
     { .t=Actor_T,       .x=G_DGT+1,     .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x='0',         .y=G_EQ_B,      .z=UNDEF        },  // value = '0' = 48
+    { .t=VM_push,       .x=DGT,         .y=G_CLS_B,     .z=UNDEF        },  // class = [0-9]
 
 #define G_UPR (G_DGT+2)
     { .t=Actor_T,       .x=G_UPR+1,     .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x='A',         .y=G_EQ_B,      .z=UNDEF        },  // value = 'A' = 65
+    { .t=VM_push,       .x=UPR,         .y=G_CLS_B,     .z=UNDEF        },  // class = [A-Z]
 
 #define G_LWR (G_UPR+2)
     { .t=Actor_T,       .x=G_LWR+1,     .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x='a',         .y=G_EQ_B,      .z=UNDEF        },  // value = 'a' = 97
+    { .t=VM_push,       .x=LWR,         .y=G_CLS_B,     .z=UNDEF        },  // class = [a-z]
 
 #define G_SGN_O (G_LWR+2)
     { .t=Actor_T,       .x=G_SGN_O+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_SGN_O+2,   .z=UNDEF        },  // ()
     { .t=VM_push,       .x=G_EMPTY,     .y=G_SGN_O+3,   .z=UNDEF        },  // Empty
-    { .t=VM_push,       .x='+',         .y=G_SGN_O+4,   .z=UNDEF        },  // '+' = 43
+    { .t=VM_push,       .x='+',         .y=G_SGN_O+4,   .z=UNDEF        },  // value = '+' = 43
     { .t=VM_push,       .x=G_EQ_B,      .y=G_SGN_O+5,   .z=UNDEF        },  // G_EQ_B
     { .t=VM_new,        .x=1,           .y=G_SGN_O+6,   .z=UNDEF        },  // (Eq '+')
     { .t=VM_push,       .x=G_SGN,       .y=G_SGN_O+7,   .z=UNDEF        },  // (Eq '-')
@@ -978,6 +1060,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_STAR_B, "G_STAR_B" },
     { G_ALT_B, "G_ALT_B" },
     { G_SEQ_B, "G_SEQ_B" },
+    { G_CLS_B, "G_CLS_B" },
     { S_VALUE, "S_VALUE" },
     { S_EMPTY, "S_EMPTY" },
     { S_GETC, "S_GETC" },
@@ -1541,9 +1624,17 @@ PROC_DECL(vm_dup) {
 
 PROC_DECL(vm_alu) {
     int_t op = get_x(self);
+    if (op == ALU_NOT) {  // special case for unary NOT
+        int_t n = stack_pop();
+        stack_push(~n);
+        return get_y(self);
+    }
     int_t m = stack_pop();
     int_t n = stack_pop();
     switch (op) {
+        case ALU_AND:   stack_push(n & m);      break;
+        case ALU_OR:    stack_push(n | m);      break;
+        case ALU_XOR:   stack_push(n ^ m);      break;
         case ALU_ADD:   stack_push(n + m);      break;
         case ALU_SUB:   stack_push(n - m);      break;
         case ALU_MUL:   stack_push(n * m);      break;
@@ -1566,10 +1657,18 @@ PROC_DECL(vm_cmp) {
     switch (r) {
         case CMP_EQ:    stack_push((n == m) ? TRUE : FALSE);    break;
         case CMP_GE:    stack_push((n >= m) ? TRUE : FALSE);    break;
-        case CMP_GT:    stack_push((n > m) ? TRUE : FALSE);     break;
-        case CMP_LT:    stack_push((n < m) ? TRUE : FALSE);     break;
+        case CMP_GT:    stack_push((n > m)  ? TRUE : FALSE);    break;
+        case CMP_LT:    stack_push((n < m)  ? TRUE : FALSE);    break;
         case CMP_LE:    stack_push((n <= m) ? TRUE : FALSE);    break;
         case CMP_NE:    stack_push((n != m) ? TRUE : FALSE);    break;
+        case CMP_CLS: {  // character in class
+            if ((!(n & ~0x7F)) && (char_class[n] & m)) {
+                stack_push(TRUE);
+            } else {
+                stack_push(FALSE);
+            }
+            break;
+        }
         default:        return error("unknown relation");
     }
     return get_y(self);
@@ -1829,6 +1928,10 @@ static char *field_label(int_t f) {
 }
 static char *operation_label(int_t op) {
     switch (op) {
+        case ALU_NOT:   return "NOT";
+        case ALU_AND:   return "AND";
+        case ALU_OR:    return "OR";
+        case ALU_XOR:   return "XOR";
         case ALU_ADD:   return "ADD";
         case ALU_SUB:   return "SUB";
         case ALU_MUL:   return "MUL";
@@ -1843,6 +1946,7 @@ static char *relation_label(int_t r) {
         case CMP_LT:    return "LT";
         case CMP_LE:    return "LE";
         case CMP_NE:    return "NE";
+        case CMP_CLS:   return "CLS";
     }
     return "<unknown>";
 }

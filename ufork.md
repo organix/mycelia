@@ -153,6 +153,10 @@ _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t:VM_depth, y:_K_} | _v_<sub>_n_</sub> 
 _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t:VM_drop, x:_n_, y:_K_} | &mdash; | remove _n_ items from stack
 _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t:VM_pick, x:_n_, y:_K_} | _v_<sub>_n_</sub> ... _v_<sub>1</sub> _v_<sub>_n_</sub> | copy item _n_ to top of stack
 _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t:VM_dup, x:_n_, y:_K_} |_v_<sub>_n_</sub> ... _v_<sub>1</sub> _v_<sub>_n_</sub> ... _v_<sub>1</sub> | duplicate _n_ items on stack
+_n_             | {t:VM_alu, x:NOT, y:_K_}      | ~_n_    | bitwise not _n_
+_n_ _m_         | {t:VM_alu, x:AND, y:_K_}      | _n_&_m_ | bitwise _n_ and _m_
+_n_ _m_         | {t:VM_alu, x:OR, y:_K_}       | _n_|_m_ | bitwise _n_ or _m_
+_n_ _m_         | {t:VM_alu, x:XOR, y:_K_}      | _n_^_m_ | bitwise _n_ exclusive-or _m_
 _n_ _m_         | {t:VM_alu, x:ADD, y:_K_}      | _n_+_m_ | sum of _n_ and _m_
 _n_ _m_         | {t:VM_alu, x:SUB, y:_K_}      | _n_-_m_ | difference of _n_ and _m_
 _n_ _m_         | {t:VM_alu, x:MUL, y:_K_}      | _n_\*_m_ | product of _n_ and _m_
@@ -163,6 +167,7 @@ _n_ _m_         | {t:VM_cmp, x:GT, y:_K_}       | _bool_  | `TRUE` if _n_ > _m_,
 _n_ _m_         | {t:VM_cmp, x:LT, y:_K_}       | _bool_  | `TRUE` if _n_ < _m_, otherwise `FALSE`
 _n_ _m_         | {t:VM_cmp, x:LE, y:_K_}       | _bool_  | `TRUE` if _n_ <= _m_, otherwise `FALSE`
 _n_ _m_         | {t:VM_cmp, x:NE, y:_K_}       | _bool_  | `TRUE` if _n_ != _m_, otherwise `FALSE`
+_n_ _c_         | {t:VM_cmp, x:CLS, y:_K_}      | _bool_  | `TRUE` if _n_ in _c_, otherwise `FALSE`
 _bool_          | {t:VM_if, x:_T_, y:_F_}       | &mdash; | continue _F_ if `FALSE`, otherwise continue _T_
 &mdash;         | {t:VM_msg, x:0, y:_K_}        | _msg_   | copy event message to stack
 &mdash;         | {t:VM_msg, x:_i_, y:_K_}      | _msg_<sub>_i_</sub> | copy message item _i_ to stack
