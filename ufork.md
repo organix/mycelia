@@ -133,59 +133,60 @@ proc/type | head/car | tail/cdr | link/next
 
 #### Instructions
 
- Input          | Instruction                   | Output  | Description
-----------------|-------------------------------|---------|------------------------------
-_T_             | {t:VM_cell, x:1, y:_K_}       | _cell_  | create cell {t:_T_}
-_T_ _X_         | {t:VM_cell, x:2, y:_K_}       | _cell_  | create cell {t:_T_, x:_X_}
-_T_ _X_ _Y_     | {t:VM_cell, x:3, y:_K_}       | _cell_  | create cell {t:_T_, x:_X_, y:_Y_}
-_T_ _X_ _Y_ _Z_ | {t:VM_cell, x:4, y:_K_}       | _cell_  | create cell {t:_T_, x:_X_, y:_Y_, z:_Z_}
-_cell_          | {t:VM_get, x:T, y:_K_}        | _t_     | get _t_ from _cell_
-_cell_          | {t:VM_get, x:X, y:_K_}        | _x_     | get _x_ from _cell_
-_cell_          | {t:VM_get, x:Y, y:_K_}        | _y_     | get _y_ from _cell_
-_cell_          | {t:VM_get, x:Z, y:_K_}        | _z_     | get _z_ from _cell_
-_cell_ _T_      | {t:VM_set, x:T, y:_K_}        | _cell'_ | set _t_ to _T_ in _cell_
-_cell_ _X_      | {t:VM_set, x:X, y:_K_}        | _cell'_ | set _x_ to _X_ in _cell_
-_cell_ _Y_      | {t:VM_set, x:Y, y:_K_}        | _cell'_ | set _y_ to _Y_ in _cell_
-_cell_ _Z_      | {t:VM_set, x:Z, y:_K_}        | _cell'_ | set _z_ to _Z_ in _cell_
-... _tail_ _head_ | {t:VM_pair, x:_n_, y:_K_}   | _pair_  | create {t:Pair_T, x:_head_, y:_tail_} (_n_ times)
-_pair_          | {t:VM_part, x:_n_, y:_K_}     | ... _tail_ _head_ | split _pair_ into _head_ and _tail_ (_n_ times)
-&mdash;         | {t:VM_push, x:_value_, y:_K_} | _value_ | push literal _value_ on stack
+ Input            | Instruction                   | Output   | Description
+------------------|-------------------------------|----------|------------------------------
+_T_               | {t:VM_cell, x:1, y:_K_}       | _cell_   | create cell {t:_T_}
+_T_ _X_           | {t:VM_cell, x:2, y:_K_}       | _cell_   | create cell {t:_T_, x:_X_}
+_T_ _X_ _Y_       | {t:VM_cell, x:3, y:_K_}       | _cell_   | create cell {t:_T_, x:_X_, y:_Y_}
+_T_ _X_ _Y_ _Z_   | {t:VM_cell, x:4, y:_K_}       | _cell_   | create cell {t:_T_, x:_X_, y:_Y_, z:_Z_}
+_cell_            | {t:VM_get, x:T, y:_K_}        | _t_      | get _t_ from _cell_
+_cell_            | {t:VM_get, x:X, y:_K_}        | _x_      | get _x_ from _cell_
+_cell_            | {t:VM_get, x:Y, y:_K_}        | _y_      | get _y_ from _cell_
+_cell_            | {t:VM_get, x:Z, y:_K_}        | _z_      | get _z_ from _cell_
+_cell_ _T_        | {t:VM_set, x:T, y:_K_}        | _cell'_  | set _t_ to _T_ in _cell_
+_cell_ _X_        | {t:VM_set, x:X, y:_K_}        | _cell'_  | set _x_ to _X_ in _cell_
+_cell_ _Y_        | {t:VM_set, x:Y, y:_K_}        | _cell'_  | set _y_ to _Y_ in _cell_
+_cell_ _Z_        | {t:VM_set, x:Z, y:_K_}        | _cell'_  | set _z_ to _Z_ in _cell_
+... _tail_ _head_ | {t:VM_pair, x:_n_, y:_K_}   | _pair_   | create {t:Pair_T, x:_head_, y:_tail_} (_n_ times)
+_pair_            | {t:VM_part, x:_n_, y:_K_}     | ... _tail_ _head_ | split _pair_ into _head_ and _tail_ (_n_ times)
+&mdash;           | {t:VM_push, x:_value_, y:_K_} | _value_  | push literal _value_ on stack
 _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t:VM_depth, y:_K_} | _v_<sub>_n_</sub> ... _v_<sub>1</sub> _n_ | count items on stack
 _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t:VM_drop, x:_n_, y:_K_} | &mdash; | remove _n_ items from stack
 _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t:VM_pick, x:_n_, y:_K_} | _v_<sub>_n_</sub> ... _v_<sub>1</sub> _v_<sub>_n_</sub> | copy item _n_ to top of stack
 _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t:VM_dup, x:_n_, y:_K_} |_v_<sub>_n_</sub> ... _v_<sub>1</sub> _v_<sub>_n_</sub> ... _v_<sub>1</sub> | duplicate _n_ items on stack
-_n_             | {t:VM_alu, x:NOT, y:_K_}      | ~_n_    | bitwise not _n_
-_n_ _m_         | {t:VM_alu, x:AND, y:_K_}      | _n_&_m_ | bitwise _n_ and _m_
-_n_ _m_         | {t:VM_alu, x:OR, y:_K_}       | _n_\|_m_ | bitwise _n_ or _m_
-_n_ _m_         | {t:VM_alu, x:XOR, y:_K_}      | _n_^_m_ | bitwise _n_ exclusive-or _m_
-_n_ _m_         | {t:VM_alu, x:ADD, y:_K_}      | _n_+_m_ | sum of _n_ and _m_
-_n_ _m_         | {t:VM_alu, x:SUB, y:_K_}      | _n_-_m_ | difference of _n_ and _m_
-_n_ _m_         | {t:VM_alu, x:MUL, y:_K_}      | _n_\*_m_ | product of _n_ and _m_
-_m_             | {t:VM_eq, x:_n_, y:_K_}       | _bool_  | `TRUE` if _n_ == _m_, otherwise `FALSE`
-_n_ _m_         | {t:VM_cmp, x:EQ, y:_K_}       | _bool_  | `TRUE` if _n_ == _m_, otherwise `FALSE`
-_n_ _m_         | {t:VM_cmp, x:GE, y:_K_}       | _bool_  | `TRUE` if _n_ >= _m_, otherwise `FALSE`
-_n_ _m_         | {t:VM_cmp, x:GT, y:_K_}       | _bool_  | `TRUE` if _n_ > _m_, otherwise `FALSE`
-_n_ _m_         | {t:VM_cmp, x:LT, y:_K_}       | _bool_  | `TRUE` if _n_ < _m_, otherwise `FALSE`
-_n_ _m_         | {t:VM_cmp, x:LE, y:_K_}       | _bool_  | `TRUE` if _n_ <= _m_, otherwise `FALSE`
-_n_ _m_         | {t:VM_cmp, x:NE, y:_K_}       | _bool_  | `TRUE` if _n_ != _m_, otherwise `FALSE`
-_n_ _c_         | {t:VM_cmp, x:CLS, y:_K_}      | _bool_  | `TRUE` if _n_ in _c_, otherwise `FALSE`
-_bool_          | {t:VM_if, x:_T_, y:_F_}       | &mdash; | continue _F_ if `FALSE`, otherwise continue _T_
-&mdash;         | {t:VM_msg, x:0, y:_K_}        | _msg_   | copy event message to stack
-&mdash;         | {t:VM_msg, x:_i_, y:_K_}      | _msg_<sub>_i_</sub> | copy message item _i_ to stack
-&mdash;         | {t:VM_msg, x:-_i_, y:_K_}     | _tail_<sub>_i_</sub> | copy message tail _i_ to stack
-&mdash;         | {t:VM_self, y:_K_}            | _actor_ | push current _actor_ on stack
-_msg_ _actor_   | {t:VM_send, x:0, y:_K_}       | &mdash; | send _msg_ to _actor_
+_n_               | {t:VM_alu, x:NOT, y:_K_}      | ~_n_     | bitwise not _n_
+_n_ _m_           | {t:VM_alu, x:AND, y:_K_}      | _n_&_m_  | bitwise _n_ and _m_
+_n_ _m_           | {t:VM_alu, x:OR, y:_K_}       | _n_\|_m_ | bitwise _n_ or _m_
+_n_ _m_           | {t:VM_alu, x:XOR, y:_K_}      | _n_^_m_  | bitwise _n_ exclusive-or _m_
+_n_ _m_           | {t:VM_alu, x:ADD, y:_K_}      | _n_+_m_  | sum of _n_ and _m_
+_n_ _m_           | {t:VM_alu, x:SUB, y:_K_}      | _n_-_m_  | difference of _n_ and _m_
+_n_ _m_           | {t:VM_alu, x:MUL, y:_K_}      | _n_\*_m_ | product of _n_ and _m_
+_m_               | {t:VM_eq, x:_n_, y:_K_}       | _bool_   | `TRUE` if _n_ == _m_, otherwise `FALSE`
+_n_ _m_           | {t:VM_cmp, x:EQ, y:_K_}       | _bool_   | `TRUE` if _n_ == _m_, otherwise `FALSE`
+_n_ _m_           | {t:VM_cmp, x:GE, y:_K_}       | _bool_   | `TRUE` if _n_ >= _m_, otherwise `FALSE`
+_n_ _m_           | {t:VM_cmp, x:GT, y:_K_}       | _bool_   | `TRUE` if _n_ > _m_, otherwise `FALSE`
+_n_ _m_           | {t:VM_cmp, x:LT, y:_K_}       | _bool_   | `TRUE` if _n_ < _m_, otherwise `FALSE`
+_n_ _m_           | {t:VM_cmp, x:LE, y:_K_}       | _bool_   | `TRUE` if _n_ <= _m_, otherwise `FALSE`
+_n_ _m_           | {t:VM_cmp, x:NE, y:_K_}       | _bool_   | `TRUE` if _n_ != _m_, otherwise `FALSE`
+_n_ _c_           | {t:VM_cmp, x:CLS, y:_K_}      | _bool_   | `TRUE` if _n_ in _c_, otherwise `FALSE`
+_bool_            | {t:VM_if, x:_T_, y:_F_}       | &mdash;  | continue _F_ if `FALSE`, otherwise continue _T_
+&mdash;           | {t:VM_msg, x:0, y:_K_}        | _msg_    | copy event message to stack
+&mdash;           | {t:VM_msg, x:_i_, y:_K_}      | _msg_<sub>_i_</sub> | copy message item _i_ to stack
+&mdash;           | {t:VM_msg, x:-_i_, y:_K_}     | _tail_<sub>_i_</sub> | copy message tail _i_ to stack
+&mdash;           | {t:VM_self, y:_K_}            | _actor_  | push current _actor_ on stack
+_msg_ _actor_     | {t:VM_send, x:0, y:_K_}       | &mdash;  | send _msg_ to _actor_
 _m_<sub>_n_</sub> ... _m_<sub>1</sub> _actor_ | {t:VM_send, x:_n_, y:_K_}   | &mdash; | send (_m_<sub>1</sub> ... _m_<sub>_n_</sub>) to _actor_
-_beh_           | {t:VM_new, x:0, y:_K_}        | _actor_ | create new _actor_ with behavior _beh_
+_beh_             | {t:VM_new, x:0, y:_K_}        | _actor_  | create new _actor_ with behavior _beh_
 _v_<sub>1</sub> ... _v_<sub>_n_</sub> _beh_ | {t:VM_new, x:_n_, y:_K_} | _actor_ | create new _actor_ with (_v_<sub>1</sub> ... _v_<sub>_n_</sub> . _beh_)
-_beh_           | {t:VM_beh, x:0, y:_K_}        | &mdash; | replace behavior with _beh_
+_beh_             | {t:VM_beh, x:0, y:_K_}        | &mdash;  | replace behavior with _beh_
 _v_<sub>1</sub> ... _v_<sub>_n_</sub> _beh_ | {t:VM_beh, x:_n_, y:_K_} | &mdash; | replace behavior with (_v_<sub>1</sub> ... _v_<sub>_n_</sub> . _beh_)
-_reason_        | {t:VM_end, x:ABORT}           | &mdash; | abort actor transaction with _reason_
-&mdash;         | {t:VM_end, x:STOP}            | &mdash; | stop current continuation (thread)
-&mdash;         | {t:VM_end, x:COMMIT}          | &mdash; | commit actor transaction
-_char_          | {t:VM_putc, y:_K_}            | &mdash; | write _char_ to console
-&mdash;         | {t:VM_getc, y:_K_}            | _char_  | read _char_ from console
-_value_         | {t:VM_debug, x:_tag_, y:_K_}  | &mdash; | debug_print _tag_: _value_ to console
+_reason_          | {t:VM_end, x:ABORT}           | &mdash;  | abort actor transaction with _reason_
+&mdash;           | {t:VM_end, x:STOP}            | &mdash;  | stop current continuation (thread)
+&mdash;           | {t:VM_end, x:COMMIT}          | &mdash;  | commit actor transaction
+_chars_           | {t:VM_cvt, x:LST_SYM, y:_K_}  | _symbol_ | convert _chars_ to _symbol_
+_char_            | {t:VM_putc, y:_K_}            | &mdash;  | write _char_ to console
+&mdash;           | {t:VM_getc, y:_K_}            | _char_   | read _char_ from console
+_value_           | {t:VM_debug, x:_tag_, y:_K_}  | &mdash;  | debug_print _tag_: _value_ to console
 
 ### Object Graph
 

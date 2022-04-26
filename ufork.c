@@ -97,6 +97,7 @@ int_t failure(char *_file_, int _line_);
 #if INCLUDE_DEBUG
 void hexdump(char *label, int_t *addr, size_t cnt);
 void debug_print(char *label, int_t addr);
+void print_inst(int_t ip);
 void print_list(int_t xs);
 void continuation_trace();
 int_t debugger();
@@ -138,6 +139,7 @@ PROC_DECL(vm_send);
 PROC_DECL(vm_new);
 PROC_DECL(vm_beh);
 PROC_DECL(vm_end);
+PROC_DECL(vm_cvt);
 PROC_DECL(vm_putc);
 PROC_DECL(vm_getc);
 PROC_DECL(vm_debug);
@@ -171,15 +173,17 @@ PROC_DECL(vm_debug);
 #define VM_new      (-27)
 #define VM_beh      (-28)
 #define VM_end      (-29)
-#define VM_putc     (-30)
-#define VM_getc     (-31)
-#define VM_debug    (-32)
+#define VM_cvt      (-30)
+#define VM_putc     (-31)
+#define VM_getc     (-32)
+#define VM_debug    (-33)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
     vm_debug,
     vm_getc,
     vm_putc,
+    vm_cvt,
     vm_end,
     vm_beh,
     vm_new,
@@ -244,6 +248,7 @@ static char *proc_label(int_t proc) {
         "VM_new",
         "VM_beh",
         "VM_end",
+        "VM_cvt",
         "VM_putc",
         "VM_getc",
         "VM_debug",
@@ -290,6 +295,9 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define END_ABORT   (-1)
 #define END_STOP    (0)
 #define END_COMMIT  (+1)
+
+// VM_cvt conversions
+#define CVT_LST_SYM (0)
 
 /*
  * character classes
@@ -377,7 +385,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    { .t=Event_T,       .x=394,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=410,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
@@ -983,7 +991,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=LWR,         .y=G_CLS_B,     .z=UNDEF        },  // class = [a-z]
 
 #define G_ATOM (G_LWR+2)
-    { .t=Actor_T,       .x=G_ATOM+1,     .y=UNDEF,       .z=UNDEF        },
+    { .t=Actor_T,       .x=G_ATOM+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,   .x=DGT|LWR|UPR|SYM, .y=G_CLS_B,     .z=UNDEF        },  // class = [0-9A-Za-z...]
 
 #define G_SGN_O (G_ATOM+2)
@@ -1000,22 +1008,43 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=G_DGT_P+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=G_DGT,       .y=G_PLUS_B,    .z=UNDEF        },  // (Plus Dgt)
 
-#define G_ATOM_P (G_DGT_P+2)
+#define G_ATOM_OK (G_DGT_P+2)
+//  { .t=VM_push,       .x=_cust_,      .y=G_ATOM_OK+0, .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=G_ATOM_OK+1, .z=UNDEF        },  // (value . in)
+    { .t=VM_part,       .x=1,           .y=G_ATOM_OK+2, .z=UNDEF        },  // in value
+    { .t=VM_cvt,        .x=CVT_LST_SYM, .y=G_ATOM_OK+3, .z=UNDEF        },  // symbol
+    { .t=VM_pair,       .x=1,           .y=G_ATOM_OK+4, .z=UNDEF        },  // (symbol . in)
+    { .t=VM_pick,       .x=2,           .y=G_ATOM_OK+5, .z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust symbol . in)
+
+#define G_ATOM_P (G_ATOM_OK+6)
     { .t=Actor_T,       .x=G_ATOM_P+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=G_ATOM,      .y=G_PLUS_B,    .z=UNDEF        },  // (Plus Atom)
+
+#define G_SYMBOL (G_ATOM_P+2)
+    { .t=Actor_T,       .x=G_SYMBOL+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=G_SYMBOL+2,  .z=UNDEF        },  // (custs . resume)
+    { .t=VM_part,       .x=1,           .y=G_SYMBOL+3,  .z=UNDEF        },  // resume custs
+    { .t=VM_part,       .x=1,           .y=G_SYMBOL+4,  .z=UNDEF        },  // fail ok
+    { .t=VM_push,       .x=G_ATOM_OK,   .y=G_SYMBOL+5,  .z=UNDEF        },  // G_ATOM_OK
+    { .t=VM_new,        .x=1,           .y=G_SYMBOL+6,  .z=UNDEF        },  // ok'
+    { .t=VM_pair,       .x=1,           .y=G_SYMBOL+7,  .z=UNDEF        },  // custs = (ok' . fail)
+    { .t=VM_pair,       .x=1,           .y=G_SYMBOL+8,  .z=UNDEF        },  // msg = (custs . resume)
+    { .t=VM_push,       .x=G_ATOM_P,    .y=G_SYMBOL+9,  .z=UNDEF        },  // G_ATOM_P
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (G_ATOM_P (ok' . fail) . resume)
 
 /*
 alt_ex = Alt(list, Plus(Dgt), Plus(Atom))
 sexpr = Seq(Star(Wsp), alt_ex)
 list = Seq('(', Star(sexpr), Star(Wsp), ')')
 */
-#define G_ALT_EX (G_ATOM_P+2)
+#define G_ALT_EX (G_SYMBOL+10)
 #define G_SEXPR (G_ALT_EX+6)
 #define G_SEXPR_S (G_SEXPR+5)
 #define G_LIST (G_SEXPR_S+2)
     { .t=Actor_T,       .x=G_ALT_EX+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_ALT_EX+2,  .z=UNDEF        },  // ()
-    { .t=VM_push,       .x=G_ATOM_P,    .y=G_ALT_EX+3,  .z=UNDEF        },  // (Plus Atom)
+    { .t=VM_push,       .x=G_SYMBOL,    .y=G_ALT_EX+3,  .z=UNDEF        },  // Symbol
     { .t=VM_push,       .x=G_DGT_P,     .y=G_ALT_EX+4,  .z=UNDEF        },  // (Plus Dgt)
     { .t=VM_push,       .x=G_LIST,      .y=G_ALT_EX+5,  .z=UNDEF        },  // List
     { .t=VM_pair,       .x=3,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt List (Plus Dgt) (Plus Atom))
@@ -1133,9 +1162,12 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_DGT, "G_DGT" },
     { G_UPR, "G_UPR" },
     { G_LWR, "G_LWR" },
+    { G_ATOM, "G_ATOM" },
     { G_SGN_O, "G_SGN_O" },
     { G_DGT_P, "G_DGT_P" },
+    { G_ATOM_OK, "G_ATOM_OK" },
     { G_ATOM_P, "G_ATOM_P" },
+    { G_SYMBOL, "G_SYMBOL" },
     { G_ALT_EX, "G_ALT_EX" },
     { G_SEXPR, "G_SEXPR" },
     { G_SEXPR_S, "G_SEXPR_S" },
@@ -1383,7 +1415,7 @@ int_t symbol(int_t str) {
         chain = NIL;
         sym_intern[slot] = chain;  // fix static init
     }
-    while (chain != NIL) {
+    while (IS_SYM(chain)) {
         if ((hash == get_x(chain)) && equal(str, get_y(chain))) {
             cell_free(sym);
             return chain;  // found interned symbol
@@ -1396,6 +1428,20 @@ int_t symbol(int_t str) {
     return sym;
 }
 
+void print_symbol(int_t symbol) {
+    if (IS_SYM(symbol)) {
+        for (int_t p = get_y(symbol); IS_PAIR(p); p = cdr(p)) {
+            int_t ch = car(p);
+            char c = '~';
+            if ((ch >= ' ') || (ch < 0x7F)) {
+                c = (ch & 0x7F);
+            }
+            fprintf(stderr, "%c", c);
+        }
+    } else {
+        print_inst(symbol);
+    }
+}
 static void print_intern(int_t hash) {
     int_t slot = hash & SYM_MASK;
     int_t chain = sym_intern[slot];
@@ -1403,18 +1449,10 @@ static void print_intern(int_t hash) {
         fprintf(stderr, "--\n");
     } else {
         char c = '(';
-        while (chain != NIL) {
+        while (IS_SYM(chain)) {
             fprintf(stderr, "%c", c);
             fprintf(stderr, "%"PxI":", get_x(chain));
-            for (int_t p = get_y(chain); IS_PAIR(p); p = cdr(p)) {
-                int_t ch = car(p);
-                if ((ch < ' ') || (ch >= 0x7F)) {
-                    c = '~';
-                } else {
-                    c = (ch & 0x7F);
-                }
-                fprintf(stderr, "%c", c);
-            }
+            print_symbol(chain);
             c = ' ';
             chain = get_z(chain);
         }
@@ -2111,6 +2149,18 @@ PROC_DECL(vm_end) {
     return rv;  // terminate thread
 }
 
+PROC_DECL(vm_cvt) {
+    int_t c = get_x(self);
+    int_t w = stack_pop();
+    int_t v = UNDEF;
+    switch (c) {
+        case CVT_LST_SYM:   v = symbol(w);      break;
+        default:            v = error("unknown conversion");
+    }
+    stack_push(v);
+    return get_y(self);
+}
+
 PROC_DECL(vm_putc) {
     int_t c = stack_pop();
     putchar(c);
@@ -2255,7 +2305,13 @@ static char *end_label(int_t t) {
     if (t > 0) return "COMMIT";
     return "STOP";
 }
-static void print_inst(int_t ip) {
+static char *conversion_label(int_t f) {
+    switch (f) {
+        case CVT_LST_SYM:   return "LST_SYM";
+    }
+    return "<unknown>";
+}
+void print_inst(int_t ip) {
     int_t proc = get_t(ip);
     fprintf(stderr, "%s", cell_label(proc));
     switch (proc) {
@@ -2279,6 +2335,7 @@ static void print_inst(int_t ip) {
         case VM_new:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_beh:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_end:  fprintf(stderr, "{t:%s}", end_label(get_x(ip))); break;
+        case VM_cvt:  fprintf(stderr, "{c:%s}", conversion_label(get_x(ip))); break;
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_getc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_debug:fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
@@ -2525,9 +2582,9 @@ int main(int argc, char const *argv[])
 #else
     DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
     //DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 16*4));
-    //DEBUG(dump_symbol_table());
-    DEBUG(test_symbol_intern());
-    DEBUG(hexdump("cell memory", ((int_t *)&cell_table[500]), 16*4));
+    DEBUG(dump_symbol_table());
+    //DEBUG(test_symbol_intern());
+    //DEBUG(hexdump("cell memory", ((int_t *)&cell_table[500]), 16*4));
     clk_timeout = clk_ticks();
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
