@@ -80,9 +80,9 @@ typedef void *ptr_t;
 #define MSB1   NAT(MSB(1))
 #define MSB2   NAT(MSB1>>1)
 
+#define TO_INT(x) INT(INT((x) << 1) >> 1)
+#define TO_FIX(n) INT(TO_INT(n) + MSB1)
 #define IS_FIX(n) (NAT((n) - MSB2) < MSB1)
-#define TO_FIX(n) INT((n) + MSB1)
-#define TO_INT(x) INT((x) - MSB1)
 
 typedef struct cell {
     int_t       t;      // proc/type (code offset from proc_zero)
