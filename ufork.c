@@ -368,7 +368,7 @@ static char *cell_label(int_t cell) {
 }
 #endif
 
-#define CELL_MAX NAT(1<<10)  // 1K cells
+#define CELL_MAX NAT(1<<12)  // 4K cells
 cell_t cell_table[CELL_MAX] = {
     { .t=Boolean_T,     .x=FALSE,       .y=FALSE,       .z=UNDEF        },
     { .t=Boolean_T,     .x=TRUE,        .y=TRUE,        .z=UNDEF        },
@@ -377,7 +377,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    { .t=Event_T,       .x=366,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=394,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
@@ -962,7 +962,15 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=G_SGN+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x='-',         .y=G_EQ_B,      .z=UNDEF        },  // value = '-' = 45
 
-#define G_DGT (G_SGN+2)
+#define G_OPEN (G_SGN+2)
+    { .t=Actor_T,       .x=G_OPEN+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x='(',         .y=G_EQ_B,      .z=UNDEF        },  // value = '(' = 40
+
+#define G_CLOSE (G_OPEN+2)
+    { .t=Actor_T,       .x=G_CLOSE+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=')',         .y=G_EQ_B,      .z=UNDEF        },  // value = ')' = 41
+
+#define G_DGT (G_CLOSE+2)
     { .t=Actor_T,       .x=G_DGT+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=DGT,         .y=G_CLS_B,     .z=UNDEF        },  // class = [0-9]
 
@@ -974,7 +982,11 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=G_LWR+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=LWR,         .y=G_CLS_B,     .z=UNDEF        },  // class = [a-z]
 
-#define G_SGN_O (G_LWR+2)
+#define G_ATOM (G_LWR+2)
+    { .t=Actor_T,       .x=G_ATOM+1,     .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,   .x=DGT|LWR|UPR|SYM, .y=G_CLS_B,     .z=UNDEF        },  // class = [0-9A-Za-z...]
+
+#define G_SGN_O (G_ATOM+2)
     { .t=Actor_T,       .x=G_SGN_O+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_SGN_O+2,   .z=UNDEF        },  // ()
     { .t=VM_push,       .x=G_EMPTY,     .y=G_SGN_O+3,   .z=UNDEF        },  // Empty
@@ -988,7 +1000,44 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=G_DGT_P+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=G_DGT,       .y=G_PLUS_B,    .z=UNDEF        },  // (Plus Dgt)
 
-#define G_PTRN (G_DGT_P+2)
+#define G_ATOM_P (G_DGT_P+2)
+    { .t=Actor_T,       .x=G_ATOM_P+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=G_ATOM,      .y=G_PLUS_B,    .z=UNDEF        },  // (Plus Atom)
+
+/*
+alt_ex = Alt(list, Plus(Dgt), Plus(Atom))
+sexpr = Seq(Star(Wsp), alt_ex)
+list = Seq('(', Star(sexpr), Star(Wsp), ')')
+*/
+#define G_ALT_EX (G_ATOM_P+2)
+#define G_SEXPR (G_ALT_EX+6)
+#define G_SEXPR_S (G_SEXPR+5)
+#define G_LIST (G_SEXPR_S+2)
+    { .t=Actor_T,       .x=G_ALT_EX+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=G_ALT_EX+2,  .z=UNDEF        },  // ()
+    { .t=VM_push,       .x=G_ATOM_P,    .y=G_ALT_EX+3,  .z=UNDEF        },  // (Plus Atom)
+    { .t=VM_push,       .x=G_DGT_P,     .y=G_ALT_EX+4,  .z=UNDEF        },  // (Plus Dgt)
+    { .t=VM_push,       .x=G_LIST,      .y=G_ALT_EX+5,  .z=UNDEF        },  // List
+    { .t=VM_pair,       .x=3,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt List (Plus Dgt) (Plus Atom))
+
+    { .t=Actor_T,       .x=G_SEXPR+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=G_SEXPR+2,   .z=UNDEF        },  // ()
+    { .t=VM_push,       .x=G_ALT_EX,    .y=G_SEXPR+3,   .z=UNDEF        },  // G_ALT_EX
+    { .t=VM_push,       .x=G_WSP_S,     .y=G_SEXPR+4,   .z=UNDEF        },  // (Star Wsp)
+    { .t=VM_pair,       .x=2,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq (Star Wsp) (Alt ...))
+
+    { .t=Actor_T,       .x=G_SEXPR_S+1, .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=G_SEXPR,     .y=G_STAR_B,    .z=UNDEF        },  // (Star Sexpr)
+
+    { .t=Actor_T,       .x=G_LIST+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=G_LIST+2,    .z=UNDEF        },  // ()
+    { .t=VM_push,       .x=G_CLOSE,     .y=G_LIST+3,    .z=UNDEF        },  // ')'
+    { .t=VM_push,       .x=G_WSP_S,     .y=G_LIST+4,    .z=UNDEF        },  // (Star Wsp)
+    { .t=VM_push,       .x=G_SEXPR_S,   .y=G_LIST+5,    .z=UNDEF        },  // (Star Sexpr)
+    { .t=VM_push,       .x=G_OPEN,      .y=G_LIST+6,    .z=UNDEF        },  // '('
+    { .t=VM_pair,       .x=4,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq '(' (Star Sexpr) (Star Wsp) ')')
+
+#define G_PTRN (G_LIST+7)
     { .t=Actor_T,       .x=G_PTRN+1,    .y=UNDEF,       .z=UNDEF        },
     //{ .t=VM_push,       .x=G_SGN_O,     .y=G_PTRN+2,    .z=UNDEF        },  // first = (Opt Sgn)
     //{ .t=VM_push,       .x=G_DGT_P,     .y=G_AND_B,     .z=UNDEF        },  // rest = (Plus Dgt)
@@ -1009,7 +1058,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     //{ .t=VM_push,       .x=G_ANY,       .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_ANY
     //{ .t=VM_push,       .x=G_SGN_O,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_SGN_O
     //{ .t=VM_push,       .x=G_DGT_P,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_DGT_P
-    { .t=VM_push,       .x=G_PTRN,      .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_PTRN
+    { .t=VM_push,       .x=G_SEXPR,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_SEXPR
+    //{ .t=VM_push,       .x=G_PTRN,      .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_PTRN
     { .t=VM_push,       .x=G_START,     .y=G_TEST+6,    .z=UNDEF        },  // G_START
     { .t=VM_new,        .x=2,           .y=G_TEST+7,    .z=UNDEF        },  // start
     //{ .t=VM_push,       .x=S_EMPTY,     .y=G_TEST+8,    .z=UNDEF        },  // src = S_EMPTY
@@ -1078,11 +1128,18 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_WSP, "G_WSP" },
     { G_WSP_S, "G_WSP_S" },
     { G_SGN, "G_SGN" },
+    { G_OPEN, "G_OPEN" },
+    { G_CLOSE, "G_CLOSE" },
     { G_DGT, "G_DGT" },
     { G_UPR, "G_UPR" },
     { G_LWR, "G_LWR" },
     { G_SGN_O, "G_SGN_O" },
     { G_DGT_P, "G_DGT_P" },
+    { G_ATOM_P, "G_ATOM_P" },
+    { G_ALT_EX, "G_ALT_EX" },
+    { G_SEXPR, "G_SEXPR" },
+    { G_SEXPR_S, "G_SEXPR_S" },
+    { G_LIST, "G_LIST" },
     { G_PTRN, "G_PTRN" },
     { G_TEST, "G_TEST" },
     { -1, "" },
