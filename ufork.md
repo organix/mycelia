@@ -120,15 +120,16 @@ proc/type | head/car | tail/cdr | link/next
 
 #### Data Structures
 
- Structure                            | Description
---------------------------------------|---------------------------------
-{t:Pair_T, x:car, y:cdr}              | pair-lists of user data
-{t:Free_T, z:next}                    | cell in the free-list
-{t:Pair_T, x:item, y:rest}            | stack entry holding _item_
-{t:IP, x:SP, y:EP, z:next}            | continuation queue entry
-{t:Event_T, x:target, y:msg, z:next } | actor event queue entry
-{t:Actor_T, x:beh, y:?, z:?}          | idle actor
-{t:Actor_T, x:beh, y:events', z:beh'} | busy actor, intially {y:(), z:?}
+ Structure                              | Description
+----------------------------------------|---------------------------------
+{t:Pair_T, x:car, y:cdr}                | pair-lists of user data
+{t:Free_T, z:next}                      | cell in the free-list
+{t:Pair_T, x:item, y:rest}              | stack entry holding _item_
+{t:IP, x:SP, y:EP, z:next}              | continuation queue entry
+{t:Event_T, x:target, y:msg, z:next }   | actor event queue entry
+{t:Actor_T, x:beh, y:?, z:?}            | idle actor
+{t:Actor_T, x:beh, y:events', z:beh'}   | busy actor, intially {y:(), z:?}
+{t:Symbol_T, x:hash, y:string, z:next } | immutable symbolic-name
 
 #### Instructions
 
