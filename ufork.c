@@ -1175,6 +1175,7 @@ char *get_symbol_label(int_t addr) {
 #define TYPEQ(t,n)  (!IS_PROC(n) && (get_t(n) == (t)))
 #define IS_PAIR(n)  TYPEQ(Pair_T,(n))
 #define IS_ACTOR(n) TYPEQ(Actor_T,(n))
+#define IS_SYM(n)   TYPEQ(Symbol_T,(n))
 
 PROC_DECL(Free) {
     return panic("DISPATCH TO FREE CELL!");
@@ -1375,23 +1376,132 @@ static int_t sym_intern[SYM_MAX];
 // return interned symbol for character string
 int_t symbol(int_t str) {
     int_t sym = sym_new(str);
-    int_t hash = get_x(sym) & SYM_MASK;
-    int_t chain = sym_intern[hash];
+    int_t hash = get_x(sym);
+    int_t slot = hash & SYM_MASK;
+    int_t chain = sym_intern[slot];
     if (!chain) {
         chain = NIL;
-        sym_intern[hash] = chain;  // fix static init
+        sym_intern[slot] = chain;  // fix static init
     }
     while (chain != NIL) {
-        if (equal(str, get_y(chain))) {
+        if ((hash == get_x(chain)) && equal(str, get_y(chain))) {
             cell_free(sym);
             return chain;  // found interned symbol
         }
         chain = get_z(chain);
     }
     // add symbol to hash-chain
-    set_z(sym, sym_intern[hash]);
-    sym_intern[hash] = sym;
+    set_z(sym, sym_intern[slot]);
+    sym_intern[slot] = sym;
     return sym;
+}
+
+static void print_intern(int_t hash) {
+    int_t slot = hash & SYM_MASK;
+    int_t chain = sym_intern[slot];
+    if (!chain) {
+        fprintf(stderr, "--\n");
+    } else {
+        char c = '(';
+        while (chain != NIL) {
+            fprintf(stderr, "%c", c);
+            fprintf(stderr, "%"PxI":", get_x(chain));
+            for (int_t p = get_y(chain); IS_PAIR(p); p = cdr(p)) {
+                int_t ch = car(p);
+                if ((ch < ' ') || (ch >= 0x7F)) {
+                    c = '~';
+                } else {
+                    c = (ch & 0x7F);
+                }
+                fprintf(stderr, "%c", c);
+            }
+            c = ' ';
+            chain = get_z(chain);
+        }
+        fprintf(stderr, ")\n");
+    }
+}
+#define cstr_intern(s) symbol(cstr_to_list(s))
+static int_t test_symbol_intern() {
+    cstr_intern("_");
+    cstr_intern("quote");
+    cstr_intern("typeq");
+    cstr_intern("eval");
+    cstr_intern("apply");
+    cstr_intern("map");
+    cstr_intern("list");
+    cstr_intern("cons");
+    cstr_intern("car");
+    cstr_intern("cdr");
+    cstr_intern("if");
+    cstr_intern("and");
+    cstr_intern("or");
+    cstr_intern("eq?");
+    cstr_intern("equal?");
+    cstr_intern("seq");
+    cstr_intern("lambda");
+    cstr_intern("macro");
+    cstr_intern("vau");
+    cstr_intern("define");
+    cstr_intern("boolean?");
+    cstr_intern("null?");
+    cstr_intern("pair?");
+    cstr_intern("symbol?");
+    cstr_intern("number?");
+    cstr_intern("+");
+    cstr_intern("-");
+    cstr_intern("*");
+    cstr_intern("<");
+    cstr_intern("<=");
+    cstr_intern("=");
+    cstr_intern(">=");
+    cstr_intern(">");
+    cstr_intern("list->number");
+    cstr_intern("list->symbol");
+    cstr_intern("print");
+    cstr_intern("emit");
+    cstr_intern("debug-print");
+    cstr_intern("fold");
+    cstr_intern("foldr");
+    cstr_intern("bind");
+    cstr_intern("lookup");
+    cstr_intern("content");
+    cstr_intern("BEH");
+    cstr_intern("SELF");
+    cstr_intern("CREATE");
+    cstr_intern("SEND");
+    cstr_intern("BECOME");
+    cstr_intern("FAIL");
+    cstr_intern("x");
+    cstr_intern("xs");
+    cstr_intern("y");
+    cstr_intern("z");
+    cstr_intern("t");
+    cstr_intern("i");
+    cstr_intern("j");
+    cstr_intern("k");
+    cstr_intern("cust");
+    cstr_intern("msg");
+    cstr_intern("req");
+    cstr_intern("h");
+    cstr_intern("t");
+    cstr_intern("head");
+    cstr_intern("tail");
+    cstr_intern("first");
+    cstr_intern("next");
+    cstr_intern("rest");
+    cstr_intern("in");
+    cstr_intern("ok");
+    cstr_intern("fail");
+    cstr_intern("token");
+    cstr_intern("_");
+    cstr_intern("_");
+    cstr_intern("_");
+    ASSERT(cstr_intern("_") == cstr_intern("_"));
+    for (int_t slot = 0; slot < SYM_MAX; ++slot) {
+        print_intern(slot);
+    }
+    return UNIT;
 }
 
 /*
@@ -2408,14 +2518,16 @@ int_t debugger() {
 
 int main(int argc, char const *argv[])
 {
-#if 1
+#if 0
     // compare with: echo 'ufork' | cksum
     int_t str = cstr_to_list("ufork\n");
     fprintf(stderr, "%"PRIu32" %"PdI"\n", list_crc(str), list_len(str));
 #else
     DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
     //DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 16*4));
-    DEBUG(dump_symbol_table());
+    //DEBUG(dump_symbol_table());
+    DEBUG(test_symbol_intern());
+    DEBUG(hexdump("cell memory", ((int_t *)&cell_table[500]), 16*4));
     clk_timeout = clk_ticks();
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
