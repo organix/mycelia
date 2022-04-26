@@ -76,6 +76,14 @@ typedef void *ptr_t;
 #define NAT(n) ((nat_t)(n))
 #define PTR(n) ((ptr_t)(n))
 
+#define MSB(n) NAT(~(NAT(-1)>>(n)))
+#define MSB1   NAT(MSB(1))
+#define MSB2   NAT(MSB1>>1)
+
+#define IS_FIX(n) (NAT((n) - MSB2) < MSB1)
+#define TO_FIX(n) INT((n) + MSB1)
+#define TO_INT(x) INT((x) - MSB1)
+
 typedef struct cell {
     int_t       t;      // proc/type (code offset from proc_zero)
     int_t       x;      // head/car  (data offset from cell_zero)
@@ -97,6 +105,7 @@ int_t failure(char *_file_, int _line_);
 #if INCLUDE_DEBUG
 void hexdump(char *label, int_t *addr, size_t cnt);
 void debug_print(char *label, int_t addr);
+void print_addr(char *prefix, int_t addr);
 void print_inst(int_t ip);
 void print_list(int_t xs);
 void continuation_trace();
@@ -370,6 +379,7 @@ static char *cell_label(int_t cell) {
         "UNDEF",
         "UNIT",
     };
+    if (IS_FIX(cell)) return "FIX";
     if (cell < 0) return proc_label(cell);
     if (cell < START) return label[cell];
     return "cell";
@@ -925,8 +935,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define S_GETC (S_EMPTY+2)
     { .t=VM_getc,       .x=UNDEF,       .y=S_GETC+1,    .z=UNDEF        },  // ch
     { .t=VM_pick,       .x=1,           .y=S_GETC+2,    .z=UNDEF        },  // ch ch
-    { .t=VM_push,       .x='\0',        .y=S_GETC+3,    .z=UNDEF        },
-    { .t=VM_cmp,        .x=CMP_LT,      .y=S_GETC+4,    .z=UNDEF        },  // ch == 0
+    { .t=VM_push,       .x=TO_FIX('\0'),.y=S_GETC+3,    .z=UNDEF        },
+    { .t=VM_cmp,        .x=CMP_LT,      .y=S_GETC+4,    .z=UNDEF        },  // ch == '\0'
     { .t=VM_if,         .x=S_GETC+9,    .y=S_GETC+5,    .z=UNDEF        },
 
     { .t=VM_push,       .x=S_GETC,      .y=S_GETC+6,    .z=UNDEF        },  // S_GETC
@@ -968,15 +978,15 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
 #define G_SGN (G_WSP_S+2)
     { .t=Actor_T,       .x=G_SGN+1,     .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x='-',         .y=G_EQ_B,      .z=UNDEF        },  // value = '-' = 45
+    { .t=VM_push,       .x=TO_FIX('-'), .y=G_EQ_B,      .z=UNDEF        },  // value = '-' = 45
 
 #define G_OPEN (G_SGN+2)
     { .t=Actor_T,       .x=G_OPEN+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x='(',         .y=G_EQ_B,      .z=UNDEF        },  // value = '(' = 40
+    { .t=VM_push,       .x=TO_FIX('('), .y=G_EQ_B,      .z=UNDEF        },  // value = '(' = 40
 
 #define G_CLOSE (G_OPEN+2)
     { .t=Actor_T,       .x=G_CLOSE+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=')',         .y=G_EQ_B,      .z=UNDEF        },  // value = ')' = 41
+    { .t=VM_push,       .x=TO_FIX(')'), .y=G_EQ_B,      .z=UNDEF        },  // value = ')' = 41
 
 #define G_DGT (G_CLOSE+2)
     { .t=Actor_T,       .x=G_DGT+1,     .y=UNDEF,       .z=UNDEF        },
@@ -998,7 +1008,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=G_SGN_O+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_SGN_O+2,   .z=UNDEF        },  // ()
     { .t=VM_push,       .x=G_EMPTY,     .y=G_SGN_O+3,   .z=UNDEF        },  // Empty
-    { .t=VM_push,       .x='+',         .y=G_SGN_O+4,   .z=UNDEF        },  // value = '+' = 43
+    { .t=VM_push,       .x=TO_FIX('+'), .y=G_SGN_O+4,   .z=UNDEF        },  // value = '+' = 43
     { .t=VM_push,       .x=G_EQ_B,      .y=G_SGN_O+5,   .z=UNDEF        },  // G_EQ_B
     { .t=VM_new,        .x=1,           .y=G_SGN_O+6,   .z=UNDEF        },  // (Eq '+')
     { .t=VM_push,       .x=G_SGN,       .y=G_SGN_O+7,   .z=UNDEF        },  // (Eq '-')
@@ -1201,10 +1211,10 @@ char *get_symbol_label(int_t addr) {
 #define set_y(n,v) (cell_zero[(n)].y = (v))
 #define set_z(n,v) (cell_zero[(n)].z = (v))
 
-#define IS_PROC(n)  ((n) < 0)
+#define IS_PROC(n)  (((n) < 0) && !IS_FIX(n))
 #define IS_BOOL(n)  (((n) == FALSE) || ((n) == TRUE))
 
-#define TYPEQ(t,n)  (!IS_PROC(n) && (get_t(n) == (t)))
+#define TYPEQ(t,n)  (((n) >= 0) && !IS_FIX(n) && (get_t(n) == (t)))
 #define IS_PAIR(n)  TYPEQ(Pair_T,(n))
 #define IS_ACTOR(n) TYPEQ(Actor_T,(n))
 #define IS_SYM(n)   TYPEQ(Symbol_T,(n))
@@ -1374,7 +1384,8 @@ uint32_t list_crc(int_t val) {
     sane = SANITY;
     // compute crc from octets
     while (IS_PAIR(val)) {
-        crc = add_crc(crc, (uint8_t)car(val));
+        int_t ch = TO_INT(car(val));
+        crc = add_crc(crc, (uint8_t)ch);
         ++len;
         val = cdr(val);
         if (sane-- == 0) return panic("insane list_crc");
@@ -1390,7 +1401,7 @@ uint32_t list_crc(int_t val) {
 int_t cstr_to_list(char *s) {
     int_t xs = NIL;
     while (s && *s) {
-        int_t c = (0xFF & *s++);
+        int_t c = TO_FIX(0xFF & *s++);
         xs = cons(c, xs);
     }
     return append_reverse(xs, NIL);
@@ -1428,10 +1439,11 @@ int_t symbol(int_t str) {
     return sym;
 }
 
+#if INCLUDE_DEBUG
 void print_symbol(int_t symbol) {
     if (IS_SYM(symbol)) {
         for (int_t p = get_y(symbol); IS_PAIR(p); p = cdr(p)) {
-            int_t ch = car(p);
+            int_t ch = TO_INT(car(p));
             char c = '~';
             if ((ch >= ' ') || (ch < 0x7F)) {
                 c = (ch & 0x7F);
@@ -1439,7 +1451,7 @@ void print_symbol(int_t symbol) {
             fprintf(stderr, "%c", c);
         }
     } else {
-        print_inst(symbol);
+        print_addr("", symbol);
     }
 }
 static void print_intern(int_t hash) {
@@ -1541,6 +1553,7 @@ static int_t test_symbol_intern() {
     }
     return UNIT;
 }
+#endif // INCLUDE_DEBUG
 
 /*
  * actor event-queue
@@ -1970,12 +1983,12 @@ PROC_DECL(vm_alu) {
     int_t m = stack_pop();
     int_t n = stack_pop();
     switch (op) {
-        case ALU_AND:   stack_push(n & m);      break;
-        case ALU_OR:    stack_push(n | m);      break;
-        case ALU_XOR:   stack_push(n ^ m);      break;
-        case ALU_ADD:   stack_push(n + m);      break;
-        case ALU_SUB:   stack_push(n - m);      break;
-        case ALU_MUL:   stack_push(n * m);      break;
+        case ALU_AND:   stack_push(n & m);  break;
+        case ALU_OR:    stack_push(n | m);  break;
+        case ALU_XOR:   stack_push(n ^ m);  break;
+        case ALU_ADD:   stack_push(n + m);  break;
+        case ALU_SUB:   stack_push(n - m);  break;
+        case ALU_MUL:   stack_push(n * m);  break;  // FIXME: handle FIXNUM scaling
         default:        return error("unknown operation");
     }
     return get_y(self);
@@ -2000,7 +2013,8 @@ PROC_DECL(vm_cmp) {
         case CMP_LE:    stack_push((n <= m) ? TRUE : FALSE);    break;
         case CMP_NE:    stack_push((n != m) ? TRUE : FALSE);    break;
         case CMP_CLS: {  // character in class
-            if ((!(n & ~0x7F)) && (char_class[n] & m)) {
+            int_t ch = TO_INT(n);
+            if ((!(ch & ~0x7F)) && (char_class[ch] & m)) {
                 stack_push(TRUE);
             } else {
                 stack_push(FALSE);
@@ -2163,12 +2177,15 @@ PROC_DECL(vm_cvt) {
 
 PROC_DECL(vm_putc) {
     int_t c = stack_pop();
+    ASSERT(IS_FIX(c));
+    c = TO_INT(c);
     putchar(c);
     return get_y(self);
 }
 
 PROC_DECL(vm_getc) {
     int_t c = getchar();
+    c = TO_FIX(c);
     stack_push(c);
     return get_y(self);
 }
@@ -2231,40 +2248,52 @@ void hexdump(char *label, int_t *addr, size_t cnt) {
 }
 #endif
 
+void print_addr(char *prefix, int_t addr) {
+    if (IS_FIX(addr)) {
+        fprintf(stderr, "%s%+"PdI"", prefix, TO_INT(addr));
+    } else {
+        fprintf(stderr, "%s^%"PdI"", prefix, addr);
+    }
+}
+void print_labelled(char *prefix, int_t addr) {
+    fprintf(stderr, "%s%s(%"PdI")", prefix, cell_label(addr), addr);
+}
 void debug_print(char *label, int_t addr) {
     fprintf(stderr, "%s: ", label);
     fprintf(stderr, "%s[%"PdI"]", cell_label(addr), addr);
-    if (addr >= 0) {
-        fprintf(stderr, " = ");
-        fprintf(stderr, "{t:%s(%"PdI"),", cell_label(get_t(addr)), get_t(addr));
-        fprintf(stderr, " x:%s(%"PdI"),", cell_label(get_x(addr)), get_x(addr));
-        fprintf(stderr, " y:%s(%"PdI"),", cell_label(get_y(addr)), get_y(addr));
-        fprintf(stderr, " z:%s(%"PdI")}", cell_label(get_z(addr)), get_z(addr));
+    if (IS_FIX(addr)) {
+        print_addr(" = ", addr);
+    } else if (addr >= 0) {
+        fprintf(stderr, " =");
+        print_labelled(" {t:", get_t(addr));
+        print_labelled(", x:", get_x(addr));
+        print_labelled(", y:", get_y(addr));
+        print_labelled(", z:", get_z(addr));
+        fprintf(stderr, "}");
     }
     fprintf(stderr, "\n");
 }
 
 static void print_event(int_t ep) {
-    fprintf(stderr, "(%"PdI"", get_x(ep));  // target actor
+    print_addr("(", get_x(ep));  // target actor
     int_t msg = get_y(ep);  // actor message
     sane = SANITY;
     while (IS_PAIR(msg)) {
-        fprintf(stderr, " %+"PdI"", car(msg));
+        print_addr(" ", car(msg));
         msg = cdr(msg);
         if (sane-- == 0) panic("insane print_event");
     }
-    if (msg == NIL) {
-        fprintf(stderr, ") ");
-    } else {
-        fprintf(stderr, " . %+"PdI") ", msg);
+    if (msg != NIL) {
+        print_addr(" . ", msg);
     }
+    fprintf(stderr, ") ");
 }
 static void print_stack(int_t sp) {
     if (IS_PAIR(sp)) {
         print_stack(cdr(sp));
         int_t item = car(sp);
-        //fprintf(stderr, "%s[%"PdI"] ", cell_label(item), item);
-        fprintf(stderr, "%+"PdI" ", item);
+        //fprintf(stderr, " %s[%"PdI"]", cell_label(item), item);
+        print_addr(" ", item);
     }
 }
 static char *field_label(int_t f) {
@@ -2312,6 +2341,10 @@ static char *conversion_label(int_t f) {
     return "<unknown>";
 }
 void print_inst(int_t ip) {
+    if (IS_FIX(ip) || (ip < 0)) {
+        fprintf(stderr, "<non-inst:%"PdI">", ip);
+        return;
+    }
     int_t proc = get_t(ip);
     fprintf(stderr, "%s", cell_label(proc));
     switch (proc) {
@@ -2357,29 +2390,36 @@ void print_list(int_t xs) {
         fprintf(stderr, "\n");
         return;
     }
-    fprintf(stderr, "(%+"PdI"", car(xs));
+    print_addr("(", car(xs));
     xs = cdr(xs);
     int limit = 8;
     while (IS_PAIR(xs)) {
-        fprintf(stderr, " %+"PdI"", car(xs));
+        print_addr(" ", car(xs));
         xs = cdr(xs);
         if (limit-- == 0) {
             fprintf(stderr, " ...\n");
             return;
         }
     }
-    if (xs == NIL) {
-        fprintf(stderr, ")\n");
-    } else {
-        fprintf(stderr, " . %+"PdI")\n", xs);
+    if (xs != NIL) {
+        print_addr(" . ", xs);
     }
+    fprintf(stderr, ")\n");
 }
 void continuation_trace() {
     print_event(GET_EP());
-    fprintf(stderr, "%"PdI": ", GET_IP());
+    fprintf(stderr, "%"PdI":", GET_IP());
     print_stack(GET_SP());
+    fprintf(stderr, " ");
     print_inst(GET_IP());
     fprintf(stderr, "\n");
+}
+static void print_fixed(int width, int_t value) {
+    if (IS_FIX(value)) {
+        fprintf(stderr, "%+*"PdI"", width, TO_INT(value));
+    } else {
+        fprintf(stderr, "%*"PdI"", width, value);
+    }
 }
 void disassemble(int_t ip, int_t n) {
     sane = SANITY;
@@ -2388,11 +2428,16 @@ void disassemble(int_t ip, int_t n) {
         if (*label) {
             fprintf(stderr, "%s\n", label);
         }
-        fprintf(stderr, "%5"PdI": ", ip);
-        fprintf(stderr, "%5"PdI" ", get_t(ip));
-        fprintf(stderr, "%5"PdI" ", get_x(ip));
-        fprintf(stderr, "%5"PdI" ", get_y(ip));
-        fprintf(stderr, "%5"PdI"  ", get_z(ip));
+        print_fixed(6, ip);
+        fprintf(stderr, ": ");
+        print_fixed(6, get_t(ip));
+        fprintf(stderr, " ");
+        print_fixed(6, get_x(ip));
+        fprintf(stderr, " ");
+        print_fixed(6, get_y(ip));
+        fprintf(stderr, " ");
+        print_fixed(6, get_z(ip));
+        fprintf(stderr, "  ");
         print_inst(ip);
         fprintf(stderr, "\n");
         ++ip;
@@ -2582,9 +2627,12 @@ int main(int argc, char const *argv[])
 #else
     DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
     //DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 16*4));
+#if 1
     DEBUG(dump_symbol_table());
-    //DEBUG(test_symbol_intern());
-    //DEBUG(hexdump("cell memory", ((int_t *)&cell_table[500]), 16*4));
+#else
+    DEBUG(test_symbol_intern());
+    DEBUG(hexdump("cell memory", ((int_t *)&cell_table[500]), 16*4));
+#endif
     clk_timeout = clk_ticks();
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
