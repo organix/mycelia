@@ -306,7 +306,8 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define END_COMMIT  (+1)
 
 // VM_cvt conversions
-#define CVT_LST_SYM (0)
+#define CVT_LST_NUM (0)
+#define CVT_LST_SYM (1)
 
 /*
  * character classes
@@ -356,6 +357,10 @@ static unsigned char char_class[128] = {
 /*7_*/  LWR,     LWR,     LWR,     DLM,     DLM,     DLM,     SYM,     CTL,
 };
 
+int_t char_in_class(int_t n, int_t c) {
+    return (((n & ~0x7F) == 0) && ((char_class[n] & c) != 0));
+}
+
 /*
  * heap memory management (cells)
  */
@@ -394,13 +399,13 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    { .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    //{ .t=Event_T,       .x=410,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    //{ .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    { .t=Event_T,       .x=426,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
-    { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('>'), .y=A_BOOT+2,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+3,    .z=UNDEF        },
-    { .t=VM_push,       .x=' ',         .y=A_BOOT+4,    .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX(' '), .y=A_BOOT+4,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+5,    .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=A_BOOT+6,    .z=UNDEF        },
     { .t=VM_self,       .x=UNDEF,       .y=A_BOOT+7,    .z=UNDEF        },
@@ -1014,11 +1019,32 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_SGN,       .y=G_SGN_O+7,   .z=UNDEF        },  // (Eq '-')
     { .t=VM_pair,       .x=3,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt (Eq '-') (Eq '+') Empty)
 
-#define G_DGT_P (G_SGN_O+8)
+#define G_DGT_OK (G_SGN_O+8)
+//  { .t=VM_push,       .x=_cust_,      .y=G_DGT_OK+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=G_DGT_OK+1,  .z=UNDEF        },  // (value . in)
+    { .t=VM_part,       .x=1,           .y=G_DGT_OK+2,  .z=UNDEF        },  // in value
+    { .t=VM_cvt,        .x=CVT_LST_NUM, .y=G_DGT_OK+3,  .z=UNDEF        },  // fixnum
+    { .t=VM_pair,       .x=1,           .y=G_DGT_OK+4,  .z=UNDEF        },  // (fixnum . in)
+    { .t=VM_pick,       .x=2,           .y=G_DGT_OK+5,  .z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust fixnum . in)
+
+#define G_DGT_P (G_DGT_OK+6)
     { .t=Actor_T,       .x=G_DGT_P+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=G_DGT,       .y=G_PLUS_B,    .z=UNDEF        },  // (Plus Dgt)
 
-#define G_ATOM_OK (G_DGT_P+2)
+#define G_FIXNUM (G_DGT_P+2)
+    { .t=Actor_T,       .x=G_FIXNUM+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=G_FIXNUM+2,  .z=UNDEF        },  // (custs . resume)
+    { .t=VM_part,       .x=1,           .y=G_FIXNUM+3,  .z=UNDEF        },  // resume custs
+    { .t=VM_part,       .x=1,           .y=G_FIXNUM+4,  .z=UNDEF        },  // fail ok
+    { .t=VM_push,       .x=G_DGT_OK,    .y=G_FIXNUM+5,  .z=UNDEF        },  // G_DGT_OK
+    { .t=VM_new,        .x=1,           .y=G_FIXNUM+6,  .z=UNDEF        },  // ok'
+    { .t=VM_pair,       .x=1,           .y=G_FIXNUM+7,  .z=UNDEF        },  // custs = (ok' . fail)
+    { .t=VM_pair,       .x=1,           .y=G_FIXNUM+8,  .z=UNDEF        },  // msg = (custs . resume)
+    { .t=VM_push,       .x=G_DGT_P,     .y=G_FIXNUM+9,  .z=UNDEF        },  // G_DGT_P
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (G_DGT_P (ok' . fail) . resume)
+
+#define G_ATOM_OK (G_FIXNUM+10)
 //  { .t=VM_push,       .x=_cust_,      .y=G_ATOM_OK+0, .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=G_ATOM_OK+1, .z=UNDEF        },  // (value . in)
     { .t=VM_part,       .x=1,           .y=G_ATOM_OK+2, .z=UNDEF        },  // in value
@@ -1044,21 +1070,16 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (G_ATOM_P (ok' . fail) . resume)
 
 /*
-alt_ex = Alt(list, Plus(Dgt), Plus(Atom))
 sexpr = Seq(Star(Wsp), alt_ex)
+alt_ex = Alt(list, fixnum, symbol)
 list = Seq('(', Star(sexpr), Star(Wsp), ')')
+fixnum = to_fixnum(Plus(Dgt))
+symbol = to_symbol(Plus(Atom))
 */
-#define G_ALT_EX (G_SYMBOL+10)
-#define G_SEXPR (G_ALT_EX+6)
+#define G_SEXPR (G_SYMBOL+10)
 #define G_SEXPR_S (G_SEXPR+5)
-#define G_LIST (G_SEXPR_S+2)
-    { .t=Actor_T,       .x=G_ALT_EX+1,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=G_ALT_EX+2,  .z=UNDEF        },  // ()
-    { .t=VM_push,       .x=G_SYMBOL,    .y=G_ALT_EX+3,  .z=UNDEF        },  // Symbol
-    { .t=VM_push,       .x=G_DGT_P,     .y=G_ALT_EX+4,  .z=UNDEF        },  // (Plus Dgt)
-    { .t=VM_push,       .x=G_LIST,      .y=G_ALT_EX+5,  .z=UNDEF        },  // List
-    { .t=VM_pair,       .x=3,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt List (Plus Dgt) (Plus Atom))
-
+#define G_ALT_EX (G_SEXPR_S+2)
+#define G_LIST (G_ALT_EX+6)
     { .t=Actor_T,       .x=G_SEXPR+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_SEXPR+2,   .z=UNDEF        },  // ()
     { .t=VM_push,       .x=G_ALT_EX,    .y=G_SEXPR+3,   .z=UNDEF        },  // G_ALT_EX
@@ -1067,6 +1088,13 @@ list = Seq('(', Star(sexpr), Star(Wsp), ')')
 
     { .t=Actor_T,       .x=G_SEXPR_S+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=G_SEXPR,     .y=G_STAR_B,    .z=UNDEF        },  // (Star Sexpr)
+
+    { .t=Actor_T,       .x=G_ALT_EX+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=G_ALT_EX+2,  .z=UNDEF        },  // ()
+    { .t=VM_push,       .x=G_SYMBOL,    .y=G_ALT_EX+3,  .z=UNDEF        },  // Symbol
+    { .t=VM_push,       .x=G_FIXNUM,    .y=G_ALT_EX+4,  .z=UNDEF        },  // Fixnum
+    { .t=VM_push,       .x=G_LIST,      .y=G_ALT_EX+5,  .z=UNDEF        },  // List
+    { .t=VM_pair,       .x=3,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt List Fixnum Symbol)
 
     { .t=Actor_T,       .x=G_LIST+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_LIST+2,    .z=UNDEF        },  // ()
@@ -1174,13 +1202,15 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_LWR, "G_LWR" },
     { G_ATOM, "G_ATOM" },
     { G_SGN_O, "G_SGN_O" },
+    { G_DGT_OK, "G_DGT_OK" },
     { G_DGT_P, "G_DGT_P" },
+    { G_FIXNUM, "G_FIXNUM" },
     { G_ATOM_OK, "G_ATOM_OK" },
     { G_ATOM_P, "G_ATOM_P" },
     { G_SYMBOL, "G_SYMBOL" },
-    { G_ALT_EX, "G_ALT_EX" },
     { G_SEXPR, "G_SEXPR" },
     { G_SEXPR_S, "G_SEXPR_S" },
+    { G_ALT_EX, "G_ALT_EX" },
     { G_LIST, "G_LIST" },
     { G_PTRN, "G_PTRN" },
     { G_TEST, "G_TEST" },
@@ -1210,6 +1240,8 @@ char *get_symbol_label(int_t addr) {
 #define set_x(n,v) (cell_zero[(n)].x = (v))
 #define set_y(n,v) (cell_zero[(n)].y = (v))
 #define set_z(n,v) (cell_zero[(n)].z = (v))
+
+#define IN_HEAP(n)  (((n)>=START) && ((n)<cell_top))
 
 #define IS_PROC(n)  (((n) < 0) && !IS_FIX(n))
 #define IS_BOOL(n)  (((n) == FALSE) || ((n) == TRUE))
@@ -1256,6 +1288,7 @@ static void cell_reclaim(int_t addr) {
 }
 
 int_t cell_free(int_t addr) {
+    ASSERT(IN_HEAP(addr));
     ASSERT(cell_zero[addr].t != Free_T);  // prevent double-free
     cell_reclaim(addr);
     return UNDEF;
@@ -1312,6 +1345,37 @@ int_t append_reverse(int_t head, int_t tail) {
         if (sane-- == 0) return panic("insane append_reverse");
     }
     return tail;
+}
+
+// return integer for character string
+int_t fixnum(int_t str) {  // FIXME: add `base` parameter
+    int_t num = 0;
+    int_t neg = UNDEF;
+    while (IS_PAIR(str)) {
+        int_t ch = TO_INT(car(str));
+        str = cdr(str);
+        if (char_in_class(ch, DGT)) {
+            num = (10 * num) + (ch - '0');
+        } else if (ch == '_') {
+            // ignore separator
+        } else {
+            if (neg == UNDEF) {
+                if (ch == '-') {
+                    neg = TRUE;
+                    continue;
+                } else if (ch == '+') {
+                    neg = FALSE;
+                    continue;
+                }
+            }
+            break;  // illegal character
+        }
+        neg = FALSE;
+    }
+    if (neg == TRUE) {
+        num = -num;
+    }
+    return TO_FIX(num);
 }
 
 /*
@@ -2013,7 +2077,7 @@ PROC_DECL(vm_cmp) {
         case CMP_LE:    stack_push((n <= m) ? TRUE : FALSE);    break;
         case CMP_NE:    stack_push((n != m) ? TRUE : FALSE);    break;
         case CMP_CLS: {  // character in class
-            if ((!(n & ~0x7F)) && (char_class[n] & m)) {
+            if (char_in_class(n, m)) {
                 stack_push(TRUE);
             } else {
                 stack_push(FALSE);
@@ -2168,6 +2232,7 @@ PROC_DECL(vm_cvt) {
     int_t v = UNDEF;
     switch (c) {
         case CVT_LST_SYM:   v = symbol(w);      break;
+        case CVT_LST_NUM:   v = fixnum(w);      break;
         default:            v = error("unknown conversion");
     }
     stack_push(v);
