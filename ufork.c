@@ -394,8 +394,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    //{ .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    { .t=Event_T,       .x=410,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    //{ .t=Event_T,       .x=410,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x='>',         .y=A_BOOT+2,    .z=UNDEF        },
@@ -409,25 +409,25 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_beh,        .x=0,           .y=COMMIT,      .z=UNDEF        },
     { .t=VM_getc,       .x=UNDEF,       .y=A_BOOT+11,   .z=UNDEF        },  // +10
     { .t=VM_pick,       .x=1,           .y=A_BOOT+12,   .z=UNDEF        },
-    { .t=VM_push,       .x='\0',        .y=A_BOOT+13,   .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('\0'),.y=A_BOOT+13,   .z=UNDEF        },
     { .t=VM_cmp,        .x=CMP_LT,      .y=A_BOOT+14,   .z=UNDEF        },
     { .t=VM_if,         .x=COMMIT,      .y=A_BOOT+15,   .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+16,   .z=UNDEF        },
-    //{ .t=VM_debug,      .x=101,         .y=A_BOOT+16,   .z=UNDEF        },
+    //{ .t=VM_debug,      .x=TO_FIX(101), .y=A_BOOT+16,   .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=A_BOOT+17,   .z=UNDEF        },
     { .t=VM_self,       .x=UNDEF,       .y=A_BOOT+18,   .z=UNDEF        },
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // A_BOOT #19
 
 #define A_CLOCK (A_BOOT+19)
     { .t=Actor_T,       .x=A_CLOCK+3,   .y=UNDEF,       .z=UNDEF        },  // note: skipping output...
-    { .t=VM_push,       .x='.',         .y=A_CLOCK+2,   .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('.'), .y=A_CLOCK+2,   .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_CLOCK+3,   .z=UNDEF        },
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_CLOCK #4
 
 #define A_PRINT (A_CLOCK+4)
     { .t=Actor_T,       .x=A_PRINT+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=A_PRINT+2,   .z=UNDEF        },
-    { .t=VM_debug,      .x=7331,        .y=COMMIT,      .z=UNDEF        },  // A_PRINT #3
+    { .t=VM_debug,      .x=TO_FIX(7331),.y=COMMIT,      .z=UNDEF        },  // A_PRINT #3
 
 /*
 (define empty-env
@@ -454,10 +454,10 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=VM_push,       .x=_value_,     .y=BOUND_BEH-1, .z=UNDEF        },
 //  { .t=VM_push,       .x=_next_,      .y=BOUND_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=2,           .y=BOUND_BEH+1, .z=UNDEF        },  // index
-    { .t=VM_push,       .x=1,           .y=BOUND_BEH+2, .z=UNDEF        },  // 1
+    { .t=VM_push,       .x=TO_FIX(1),   .y=BOUND_BEH+2, .z=UNDEF        },  // +1
     { .t=VM_alu,        .x=ALU_SUB,     .y=BOUND_BEH+3, .z=UNDEF        },  // index-1
     { .t=VM_pick,       .x=1,           .y=BOUND_BEH+4, .z=UNDEF        },  // index-1 index-1
-    { .t=VM_eq,         .x=0,           .y=BOUND_BEH+5, .z=UNDEF        },  // index-1 == 0
+    { .t=VM_eq,         .x=TO_FIX(0),   .y=BOUND_BEH+5, .z=UNDEF        },  // index-1 == +0
     { .t=VM_if,         .x=BOUND_BEH+9, .y=BOUND_BEH+6, .z=UNDEF        },
 
     { .t=VM_msg,        .x=1,           .y=BOUND_BEH+7, .z=UNDEF        },  // cust
@@ -480,7 +480,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . value)
 #define CONST_7 (CONST_BEH+2)
     { .t=Actor_T,       .x=CONST_7+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=7,           .y=CONST_BEH,   .z=UNDEF        },  // value = 7
+    { .t=VM_push,       .x=TO_FIX(7),   .y=CONST_BEH,   .z=UNDEF        },  // value = +7
 
 /*
 (define var-beh
@@ -495,7 +495,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (env cust index)
 #define VAR_1 (VAR_BEH+3)
     { .t=Actor_T,       .x=VAR_1+1,     .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=1,           .y=VAR_BEH,     .z=UNDEF        },  // index = 1
+    { .t=VM_push,       .x=TO_FIX(1),   .y=VAR_BEH,     .z=UNDEF        },  // index = +1
 
 /*
 (define k-apply-beh
@@ -656,7 +656,7 @@ cell_t cell_table[CELL_MAX] = {
 
 #define BOUND_42 (EXPR_I+3)
     { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=42,          .y=BOUND_42+2,  .z=UNDEF        },  // value = 42
+    { .t=VM_push,       .x=TO_FIX(42),  .y=BOUND_42+2,  .z=UNDEF        },  // value = +42
     { .t=VM_push,       .x=EMPTY_ENV,   .y=BOUND_BEH,   .z=UNDEF        },  // next = EMPTY_ENV
 #define A_TEST (BOUND_42+3)
     { .t=Actor_T,       .x=A_TEST+1,    .y=UNDEF,       .z=UNDEF        },
@@ -936,7 +936,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_getc,       .x=UNDEF,       .y=S_GETC+1,    .z=UNDEF        },  // ch
     { .t=VM_pick,       .x=1,           .y=S_GETC+2,    .z=UNDEF        },  // ch ch
     { .t=VM_push,       .x=TO_FIX('\0'),.y=S_GETC+3,    .z=UNDEF        },
-    { .t=VM_cmp,        .x=CMP_LT,      .y=S_GETC+4,    .z=UNDEF        },  // ch == '\0'
+    { .t=VM_cmp,        .x=CMP_LT,      .y=S_GETC+4,    .z=UNDEF        },  // ch < '\0'
     { .t=VM_if,         .x=S_GETC+9,    .y=S_GETC+5,    .z=UNDEF        },
 
     { .t=VM_push,       .x=S_GETC,      .y=S_GETC+6,    .z=UNDEF        },  // S_GETC
@@ -951,12 +951,12 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define A_OK (S_GETC+12)
     { .t=Actor_T,       .x=A_OK+1,      .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=A_OK+2,      .z=UNDEF        },
-    { .t=VM_debug,      .x=777,         .y=COMMIT,      .z=UNDEF        },
+    { .t=VM_debug,      .x=TO_FIX(777), .y=COMMIT,      .z=UNDEF        },
 
 #define A_FAIL (A_OK+3)
     { .t=Actor_T,       .x=A_FAIL+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=A_FAIL+2,    .z=UNDEF        },
-    { .t=VM_debug,      .x=666,         .y=COMMIT,      .z=UNDEF        },
+    { .t=VM_debug,      .x=TO_FIX(666), .y=COMMIT,      .z=UNDEF        },
 
 #define G_START (A_FAIL+3)
 //  { .t=VM_push,       .x=_custs_,     .y=G_START-1,   .z=UNDEF        },  // (ok . fail)
@@ -1976,19 +1976,19 @@ PROC_DECL(vm_dup) {
 PROC_DECL(vm_alu) {
     int_t op = get_x(self);
     if (op == ALU_NOT) {  // special case for unary NOT
-        int_t n = stack_pop();
-        stack_push(~n);
+        int_t n = TO_INT(stack_pop());
+        stack_push(TO_FIX(~n));
         return get_y(self);
     }
-    int_t m = stack_pop();
-    int_t n = stack_pop();
+    int_t m = TO_INT(stack_pop());
+    int_t n = TO_INT(stack_pop());
     switch (op) {
-        case ALU_AND:   stack_push(n & m);  break;
-        case ALU_OR:    stack_push(n | m);  break;
-        case ALU_XOR:   stack_push(n ^ m);  break;
-        case ALU_ADD:   stack_push(n + m);  break;
-        case ALU_SUB:   stack_push(n - m);  break;
-        case ALU_MUL:   stack_push(n * m);  break;  // FIXME: handle FIXNUM scaling
+        case ALU_AND:   stack_push(TO_FIX(n & m));  break;
+        case ALU_OR:    stack_push(TO_FIX(n | m));  break;
+        case ALU_XOR:   stack_push(TO_FIX(n ^ m));  break;
+        case ALU_ADD:   stack_push(TO_FIX(n + m));  break;
+        case ALU_SUB:   stack_push(TO_FIX(n - m));  break;
+        case ALU_MUL:   stack_push(TO_FIX(n * m));  break;
         default:        return error("unknown operation");
     }
     return get_y(self);
@@ -2003,8 +2003,8 @@ PROC_DECL(vm_eq) {
 
 PROC_DECL(vm_cmp) {
     int_t r = get_x(self);
-    int_t m = stack_pop();
-    int_t n = stack_pop();
+    int_t m = TO_INT(stack_pop());
+    int_t n = TO_INT(stack_pop());
     switch (r) {
         case CMP_EQ:    stack_push((n == m) ? TRUE : FALSE);    break;
         case CMP_GE:    stack_push((n >= m) ? TRUE : FALSE);    break;
@@ -2013,8 +2013,7 @@ PROC_DECL(vm_cmp) {
         case CMP_LE:    stack_push((n <= m) ? TRUE : FALSE);    break;
         case CMP_NE:    stack_push((n != m) ? TRUE : FALSE);    break;
         case CMP_CLS: {  // character in class
-            int_t ch = TO_INT(n);
-            if ((!(ch & ~0x7F)) && (char_class[ch] & m)) {
+            if ((!(n & ~0x7F)) && (char_class[n] & m)) {
                 stack_push(TRUE);
             } else {
                 stack_push(FALSE);
@@ -2193,12 +2192,14 @@ PROC_DECL(vm_getc) {
 PROC_DECL(vm_debug) {
     int_t x = get_x(self);
     int_t v = stack_pop();
-    fprintf(stderr, "[%"PdI"] ", x);
+    print_addr("[", x);
+    //fprintf(stderr, "[%"PdI"] ", x);
+    fprintf(stderr, "] ");
 #if INCLUDE_DEBUG
     //debug_print("", v);
     print_list(v);
 #else
-    fprintf(stderr, "%+"PdI"\n", v);
+    fprintf(stderr, "%"PdI"\n", v);
 #endif
     return get_y(self);
 }
@@ -2383,10 +2384,19 @@ void print_inst(int_t ip) {
         }
     }
 }
+void print_value(int_t v) {
+    if (IS_FIX(v)) {
+        fprintf(stderr, "%+"PdI"", TO_INT(v));
+    } else if (v < 0) {
+        fprintf(stderr, "%s", cell_label(v));
+    } else {
+        print_inst(v);
+    }
+}
 void print_list(int_t xs) {
     fprintf(stderr, "%"PdI": ", xs);
     if (!IS_PAIR(xs)) {
-        print_inst(xs);  // non-list value
+        print_value(xs);  // non-list value
         fprintf(stderr, "\n");
         return;
     }
