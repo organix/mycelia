@@ -2695,7 +2695,7 @@ int_t debugger() {
 
 int main(int argc, char const *argv[])
 {
-#if 1
+#if 0
     // display character class table
     printf("| ch | dec | hex | CTL | DGT | UPR | LWR | DLM | SYM | HEX | WSP |\n");
     printf("|----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|\n");
