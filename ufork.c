@@ -400,7 +400,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    { .t=Event_T,       .x=426,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=471,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x=TO_FIX('>'), .y=A_BOOT+2,    .z=UNDEF        },
@@ -929,7 +929,67 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_pick,       .x=3,           .y=G_CLS_B+21,   .z=UNDEF       },  // fail
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (fail . in)
 
-#define S_VALUE (G_CLS_B+22)
+/*
+(define op-se-beh             ; self-evaluating operative
+  (lambda (oper)              ; (oper cust arg denv)
+    (BEH (cust arg . opt-env)
+      (if (null? opt-env)
+        (SEND cust SELF)      ; eval
+        (SEND oper            ; apply
+          (list* cust arg opt-env))
+      ))))
+*/
+#define OP_SE_BEH (G_CLS_B+22)
+//  { .t=VM_push,       .x=_oper_,      .y=OP_SE_BEH+0, .z=UNDEF        },
+    { .t=VM_msg,        .x=-2,          .y=OP_SE_BEH+1, .z=UNDEF        },  // opt-env
+    { .t=VM_eq,         .x=NIL,         .y=OP_SE_BEH+2, .z=UNDEF        },  // opt-env == ()
+    { .t=VM_if,         .x=OP_SE_BEH+6 ,.y=OP_SE_BEH+3, .z=UNDEF        },
+
+    { .t=VM_msg,        .x=0,           .y=OP_SE_BEH+4, .z=UNDEF        },  // (cust arg denv)
+    { .t=VM_pick,       .x=2,           .y=OP_SE_BEH+5, .z=UNDEF        },  // oper
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (oper cust arg denv)
+
+    { .t=VM_self,       .x=UNDEF,       .y=OP_SE_BEH+7, .z=UNDEF        },  // SELF
+    { .t=VM_msg,        .x=1,           .y=OP_SE_BEH+8, .z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . SELF)
+
+#define G_XFM_K (OP_SE_BEH+9)
+//  { .t=VM_push,       .x=_ok_,        .y=G_XFM_K-1,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_in_,        .y=G_XFM_K+0,   .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=G_XFM_K+1,   .z=UNDEF        },  // value
+    { .t=VM_pair,       .x=1,           .y=G_XFM_K+2,   .z=UNDEF        },  // (value . in)
+    { .t=VM_pick,       .x=2,           .y=G_XFM_K+3,   .z=UNDEF        },  // ok
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (ok value . in)
+
+#define G_XFM_OK (G_XFM_K+4)
+//  { .t=VM_push,       .x=_cust_,      .y=G_XFM_OK-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_oper_,      .y=G_XFM_OK+0,  .z=UNDEF        },
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=G_XFM_OK+1,  .z=UNDEF        },  // denv = EMPTY_ENV
+    { .t=VM_msg,        .x=1,           .y=G_XFM_OK+2,  .z=UNDEF        },  // arg = value
+    { .t=VM_pick,       .x=4,           .y=G_XFM_OK+3,  .z=UNDEF        },  // cust
+    { .t=VM_msg,        .x=-1,          .y=G_XFM_OK+4,  .z=UNDEF        },  // in
+    { .t=VM_push,       .x=G_XFM_K,     .y=G_XFM_OK+5,  .z=UNDEF        },  // G_XFM_K
+    { .t=VM_new,        .x=2,           .y=G_XFM_OK+6,  .z=UNDEF        },  // k_xfm
+    { .t=VM_pick,       .x=4,           .y=G_XFM_OK+7,  .z=UNDEF        },  // oper
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (oper k_xfm arg denv)
+
+#define G_XFORM_B (G_XFM_OK+8)
+//  { .t=VM_push,       .x=_oper_,      .y=G_XFORM_B-1, .z=UNDEF        },
+//  { .t=VM_push,       .x=_ptrn_,      .y=G_XFORM_B+0, .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=G_XFORM_B+1, .z=UNDEF        },  // (custs . resume)
+    { .t=VM_part,       .x=1,           .y=G_XFORM_B+2, .z=UNDEF        },  // resume custs
+    { .t=VM_part,       .x=1,           .y=G_XFORM_B+3, .z=UNDEF        },  // fail ok
+
+    { .t=VM_pick,       .x=5,           .y=G_XFORM_B+4, .z=UNDEF        },  // oper
+    { .t=VM_push,       .x=G_XFM_OK,    .y=G_XFORM_B+5, .z=UNDEF        },  // G_XFM_OK
+    { .t=VM_new,        .x=2,           .y=G_XFORM_B+6, .z=UNDEF        },  // ok'
+
+    { .t=VM_pair,       .x=1,           .y=G_XFORM_B+7, .z=UNDEF        },  // custs = (ok' . fail)
+    { .t=VM_pair,       .x=1,           .y=G_XFORM_B+8, .z=UNDEF        },  // msg = (custs . resume)
+    { .t=VM_pick,       .x=2,           .y=G_XFORM_B+9, .z=UNDEF        },  // ptrn
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (ptrn (ok' . fail) . resume)
+
+#define S_VALUE (G_XFORM_B+10)
 //  { .t=VM_push,       .x=_in_,        .y=S_VALUE+0,   .z=UNDEF        },  // (token . next) -or- NIL
     { .t=VM_msg,        .x=0,           .y=S_VALUE+1,   .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . in)
@@ -1069,31 +1129,48 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_ATOM_P,    .y=G_SYMBOL+9,  .z=UNDEF        },  // G_ATOM_P
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (G_ATOM_P (ok' . fail) . resume)
 
+#define O_CADR (G_SYMBOL+10)
+    { .t=Actor_T,       .x=O_CADR+1,    .y=UNDEF,       .z=UNDEF        },  // (cadr cust arg denv)
+    { .t=VM_msg,        .x=2,           .y=O_CADR+2,    .z=UNDEF        },  // arg
+    { .t=VM_get,        .x=FLD_Y,       .y=O_CADR+3,    .z=UNDEF        },  // cdr(arg)
+    { .t=VM_get,        .x=FLD_X,       .y=O_CADR+4,    .z=UNDEF        },  // car(cdr(arg))
+    { .t=VM_msg,        .x=1,           .y=O_CADR+5,    .z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . car(cdr(arg)))
+#define OP_CADR (O_CADR+6)
+    { .t=Actor_T,       .x=OP_CADR+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=O_CADR,      .y=OP_SE_BEH,   .z=UNDEF        },
+
 /*
-sexpr = Seq(Star(Wsp), alt_ex)
+sexpr = Seq(Star(Wsp), alt_ex) -> cadr = (lambda (x) (car (cdr x)))
 alt_ex = Alt(list, fixnum, symbol)
-list = Seq('(', Star(sexpr), Star(Wsp), ')')
-fixnum = to_fixnum(Plus(Dgt))
-symbol = to_symbol(Plus(Atom))
+list = Seq('(', Star(sexpr), Star(Wsp), ')') -> cadr
+fixnum = Plus(Dgt) -> fixnum
+symbol = Plus(Atom) -> symbol
 */
-#define G_SEXPR (G_SYMBOL+10)
-#define G_SEXPR_S (G_SEXPR+5)
+#define G_SEXPR (OP_CADR+2)
+#define G_SEXPR_X (G_SEXPR+5)
+#define G_SEXPR_S (G_SEXPR_X+3)
 #define G_ALT_EX (G_SEXPR_S+2)
 #define G_LIST (G_ALT_EX+6)
+#define G_LIST_X (G_LIST+7)
     { .t=Actor_T,       .x=G_SEXPR+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_SEXPR+2,   .z=UNDEF        },  // ()
     { .t=VM_push,       .x=G_ALT_EX,    .y=G_SEXPR+3,   .z=UNDEF        },  // G_ALT_EX
     { .t=VM_push,       .x=G_WSP_S,     .y=G_SEXPR+4,   .z=UNDEF        },  // (Star Wsp)
     { .t=VM_pair,       .x=2,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq (Star Wsp) (Alt ...))
 
+    { .t=Actor_T,       .x=G_SEXPR_X+1, .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=OP_CADR,     .y=G_SEXPR_X+2, .z=UNDEF        },  // cadr
+    { .t=VM_push,       .x=G_SEXPR,     .y=G_XFORM_B,   .z=UNDEF        },  // (xform Sexpr cadr)
+
     { .t=Actor_T,       .x=G_SEXPR_S+1, .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=G_SEXPR,     .y=G_STAR_B,    .z=UNDEF        },  // (Star Sexpr)
+    { .t=VM_push,       .x=G_SEXPR_X,   .y=G_STAR_B,    .z=UNDEF        },  // (Star Sexpr)
 
     { .t=Actor_T,       .x=G_ALT_EX+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_ALT_EX+2,  .z=UNDEF        },  // ()
     { .t=VM_push,       .x=G_SYMBOL,    .y=G_ALT_EX+3,  .z=UNDEF        },  // Symbol
     { .t=VM_push,       .x=G_FIXNUM,    .y=G_ALT_EX+4,  .z=UNDEF        },  // Fixnum
-    { .t=VM_push,       .x=G_LIST,      .y=G_ALT_EX+5,  .z=UNDEF        },  // List
+    { .t=VM_push,       .x=G_LIST_X,    .y=G_ALT_EX+5,  .z=UNDEF        },  // List
     { .t=VM_pair,       .x=3,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt List Fixnum Symbol)
 
     { .t=Actor_T,       .x=G_LIST+1,    .y=UNDEF,       .z=UNDEF        },
@@ -1104,7 +1181,11 @@ symbol = to_symbol(Plus(Atom))
     { .t=VM_push,       .x=G_OPEN,      .y=G_LIST+6,    .z=UNDEF        },  // '('
     { .t=VM_pair,       .x=4,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq '(' (Star Sexpr) (Star Wsp) ')')
 
-#define G_PTRN (G_LIST+7)
+    { .t=Actor_T,       .x=G_LIST_X+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=OP_CADR,     .y=G_LIST_X+2,  .z=UNDEF        },  // cadr
+    { .t=VM_push,       .x=G_LIST,      .y=G_XFORM_B,   .z=UNDEF        },  // (xform List cadr)
+
+#define G_PTRN (G_LIST_X+3)
     { .t=Actor_T,       .x=G_PTRN+1,    .y=UNDEF,       .z=UNDEF        },
     //{ .t=VM_push,       .x=G_SGN_O,     .y=G_PTRN+2,    .z=UNDEF        },  // first = (Opt Sgn)
     //{ .t=VM_push,       .x=G_DGT_P,     .y=G_AND_B,     .z=UNDEF        },  // rest = (Plus Dgt)
@@ -1125,7 +1206,7 @@ symbol = to_symbol(Plus(Atom))
     //{ .t=VM_push,       .x=G_ANY,       .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_ANY
     //{ .t=VM_push,       .x=G_SGN_O,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_SGN_O
     //{ .t=VM_push,       .x=G_DGT_P,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_DGT_P
-    { .t=VM_push,       .x=G_SEXPR,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_SEXPR
+    { .t=VM_push,       .x=G_SEXPR_X,   .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_SEXPR_X
     //{ .t=VM_push,       .x=G_PTRN,      .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_PTRN
     { .t=VM_push,       .x=G_START,     .y=G_TEST+6,    .z=UNDEF        },  // G_START
     { .t=VM_new,        .x=2,           .y=G_TEST+7,    .z=UNDEF        },  // start
@@ -1186,6 +1267,10 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_ALT_B, "G_ALT_B" },
     { G_SEQ_B, "G_SEQ_B" },
     { G_CLS_B, "G_CLS_B" },
+    { OP_SE_BEH, "OP_SE_BEH" },
+    { G_XFM_K, "G_XFM_K" },
+    { G_XFM_OK, "G_XFM_OK" },
+    { G_XFORM_B, "G_XFORM_B" },
     { S_VALUE, "S_VALUE" },
     { S_EMPTY, "S_EMPTY" },
     { S_GETC, "S_GETC" },
@@ -1208,10 +1293,14 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_ATOM_OK, "G_ATOM_OK" },
     { G_ATOM_P, "G_ATOM_P" },
     { G_SYMBOL, "G_SYMBOL" },
+    { O_CADR, "O_CADR" },
+    { OP_CADR, "OP_CADR" },
     { G_SEXPR, "G_SEXPR" },
+    { G_SEXPR_X, "G_SEXPR_X" },
     { G_SEXPR_S, "G_SEXPR_S" },
     { G_ALT_EX, "G_ALT_EX" },
     { G_LIST, "G_LIST" },
+    { G_LIST_X, "G_LIST_X" },
     { G_PTRN, "G_PTRN" },
     { G_TEST, "G_TEST" },
     { -1, "" },
