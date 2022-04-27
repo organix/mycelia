@@ -2695,7 +2695,30 @@ int_t debugger() {
 
 int main(int argc, char const *argv[])
 {
-#if 0
+#if 1
+    // display character class table
+    printf("| ch | dec | hex | CTL | DGT | UPR | LWR | DLM | SYM | HEX | WSP |\n");
+    printf("|----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|\n");
+    for (int i = 0; i < 0x80; ++i) {
+        if (i == 0x7F) {
+            printf("| ^? ");
+        } else if (char_class[i] & CTL) {
+            printf("| ^%c ", (i + '@'));
+        } else {
+            printf("| %c  ", i);
+        }
+        printf("| %3d ", i);
+        printf("|  %02x ", i);
+        printf("|%s", (char_class[i] & CTL) ? "  x  " : "     ");
+        printf("|%s", (char_class[i] & DGT) ? "  x  " : "     ");
+        printf("|%s", (char_class[i] & UPR) ? "  x  " : "     ");
+        printf("|%s", (char_class[i] & LWR) ? "  x  " : "     ");
+        printf("|%s", (char_class[i] & DLM) ? "  x  " : "     ");
+        printf("|%s", (char_class[i] & SYM) ? "  x  " : "     ");
+        printf("|%s", (char_class[i] & HEX) ? "  x  " : "     ");
+        printf("|%s", (char_class[i] & WSP) ? "  x  " : "     ");
+        printf("|\n");
+    }
     // compare with: echo 'ufork' | cksum
     int_t str = cstr_to_list("ufork\n");
     fprintf(stderr, "%"PRIu32" %"PdI"\n", list_crc(str), list_len(str));
