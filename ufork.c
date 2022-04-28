@@ -18,6 +18,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define INCLUDE_DEBUG 1 // include debugging facilities
 #define RUN_DEBUGGER  1 // run program under interactive debugger
 #define EXPLICIT_FREE 1 // explicitly free leaked memory
+#define MARK_SWEEP_GC 1 // stop-the-world garbage collection
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -71,6 +72,12 @@ typedef void *ptr_t;
 #define PuI PRIuPTR
 #define PxI PRIxPTR
 #endif
+
+// WASM base types
+typedef int32_t i32;
+typedef int64_t i64;
+#define I32(x) ((i32)(x))
+#define I64(x) ((i64)(x))
 
 #define INT(n) ((int_t)(n))
 #define NAT(n) ((nat_t)(n))
@@ -372,8 +379,6 @@ int_t char_in_class(int_t n, int_t c) {
 #define UNDEF       (3)
 #define UNIT        (4)
 #define START       (5)
-#define COMMIT      (6)
-#define A_BOOT      (7)  // START+2
 
 #if INCLUDE_DEBUG
 static char *cell_label(int_t cell) {
@@ -398,10 +403,20 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Null_T,        .x=NIL,         .y=NIL,         .z=UNDEF        },
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
-    //{ .t=Event_T,       .x=A_BOOT,      .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
+    //{ .t=Event_T,       .x=11,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
     { .t=Event_T,       .x=471,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+
+#define COMMIT (START+1)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
+
+#define A_CLOCK (COMMIT+1)
+    { .t=Actor_T,       .x=A_CLOCK+3,   .y=UNDEF,       .z=UNDEF        },  // note: skipping output...
+    { .t=VM_push,       .x=TO_FIX('.'), .y=A_CLOCK+2,   .z=UNDEF        },
+    { .t=VM_putc,       .x=UNDEF,       .y=A_CLOCK+3,   .z=UNDEF        },
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_CLOCK #4
+
+#define A_BOOT (A_CLOCK+4)
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x=TO_FIX('>'), .y=A_BOOT+2,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+3,    .z=UNDEF        },
@@ -423,13 +438,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_self,       .x=UNDEF,       .y=A_BOOT+18,   .z=UNDEF        },
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // A_BOOT #19
 
-#define A_CLOCK (A_BOOT+19)
-    { .t=Actor_T,       .x=A_CLOCK+3,   .y=UNDEF,       .z=UNDEF        },  // note: skipping output...
-    { .t=VM_push,       .x=TO_FIX('.'), .y=A_CLOCK+2,   .z=UNDEF        },
-    { .t=VM_putc,       .x=UNDEF,       .y=A_CLOCK+3,   .z=UNDEF        },
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_CLOCK #4
-
-#define A_PRINT (A_CLOCK+4)
+#define A_PRINT (A_BOOT+19)
     { .t=Actor_T,       .x=A_PRINT+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=A_PRINT+2,   .z=UNDEF        },
     { .t=VM_debug,      .x=TO_FIX(7331),.y=COMMIT,      .z=UNDEF        },  // A_PRINT #3
@@ -1228,8 +1237,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { UNIT, "UNIT" },
     { START, "START" },
     { COMMIT, "COMMIT" },
-    { A_BOOT, "A_BOOT" },
     { A_CLOCK, "A_CLOCK" },
+    { A_BOOT, "A_BOOT" },
     { A_PRINT, "A_PRINT" },
     { EMPTY_ENV, "EMPTY_ENV" },
     { BOUND_BEH, "BOUND_BEH" },
@@ -1466,6 +1475,99 @@ int_t fixnum(int_t str) {  // FIXME: add `base` parameter
     }
     return TO_FIX(num);
 }
+
+#if MARK_SWEEP_GC
+/*
+ * garbage collection (reclaiming the heap)
+ */
+
+#define GC_LO_BITS(val) I32(I32(val) & 0x1F)
+#define GC_HI_BITS(val) I32(I32(val) >> 5)
+
+#define GC_MAX_BITS GC_HI_BITS(CELL_MAX)
+#define GC_RESERVED (I32(1 << GC_LO_BITS(START)) - 1)
+
+i32 gc_bits[GC_MAX_BITS] = { GC_RESERVED };
+
+i32 gc_clear() {  // clear all GC bits (except RESERVED)
+    gc_bits[0] = GC_RESERVED;
+    for (int_t i = 1; i < GC_MAX_BITS; ++i) {
+        gc_bits[i] = 0;
+    }
+    cell_next = NIL;  // empty the free-list
+    return 0;
+}
+
+static i32 gc_get_mark(int_t val) {
+    return (gc_bits[GC_HI_BITS(val)] & I32(1 << GC_LO_BITS(val)));
+}
+
+static void gc_set_mark(int_t val) {
+    gc_bits[GC_HI_BITS(val)] |= I32(1 << GC_LO_BITS(val));
+}
+
+static void gc_clr_mark(int_t val) {
+    gc_bits[GC_HI_BITS(val)] &= ~I32(1 << GC_LO_BITS(val));
+}
+
+i32 gc_mark_cells(int_t val) {  // mark cells reachable from `val`
+    i32 cnt = 0;
+    while (IN_HEAP(val)) {
+        if (gc_get_mark(val)) {
+            break;  // cell already marked
+        }
+        gc_set_mark(val);
+        ++cnt;
+        cnt += gc_mark_cells(get_t(val));   // recurse on t
+        cnt += gc_mark_cells(get_x(val));   // recurse on x
+        cnt += gc_mark_cells(get_z(val));   // recurse on z
+        val = get_y(val);                   // iterate over y
+    }
+    return cnt;
+}
+
+// FORWARD DECLARATIONS
+static int_t sym_intern[256];
+int_t e_queue_head;  
+int_t k_queue_head;
+int_t clk_handler;
+
+i32 gc_mark_roots() {  // mark cells reachable from the root-set
+    i32 cnt = START-1;
+    for (int i = 0; i < 256; ++i) {
+        if (sym_intern[i]) {
+            cnt += gc_mark_cells(sym_intern[i]);
+        }
+    }
+    cnt += gc_mark_cells(e_queue_head);
+    cnt += gc_mark_cells(k_queue_head);
+    cnt += gc_mark_cells(clk_handler);
+    return cnt;
+}
+
+i32 gc_sweep() {  // free unmarked cells
+    i32 cnt = 0;
+    int_t next = cell_top;
+    DEBUG(fprintf(stderr, "gc_sweep: top=%"PdI"\n", next));
+    while (--next >= START) {
+        if (!gc_get_mark(next)) {
+            cell_reclaim(next);
+            ++cnt;
+        }
+    }
+    return cnt;
+}
+
+i32 gc_mark_and_sweep() {
+    i32 n;
+    n = gc_clear();
+    n = gc_mark_roots();
+    DEBUG(fprintf(stderr, "gc_mark_and_sweep: marked %"PRId32" used cells\n", n));
+    n = gc_sweep();
+    DEBUG(fprintf(stderr, "gc_mark_and_sweep: free'd %"PRId32" dead cells\n", n));
+    return n;
+}
+#endif // MARK_SWEEP_GC
 
 /*
  * symbol/character-string
@@ -1929,6 +2031,9 @@ static int_t execute() {
         // if "thread" is dead, free cont and event
         XFREE(get_y(cont));
         XFREE(cont);
+#if MARK_SWEEP_GC
+        gc_mark_and_sweep();
+#endif
     }
     return UNIT;
 }
@@ -2773,6 +2878,12 @@ int_t debugger() {
                 case 'q' : fprintf(stderr, "q[uit] -- quit runtime\n"); continue;
             }
         }
+#if MARK_SWEEP_GC
+        if (*cmd == 'g') {
+            gc_mark_and_sweep();
+            continue;
+        }
+#endif
         fprintf(stderr, "h[elp] b[reak] c[ontinue] s[tep] n[ext] d[isasm] p[rint] t[race] i[nfo] q[uit]\n");
     }
 }
@@ -2823,6 +2934,7 @@ int main(int argc, char const *argv[])
     clk_timeout = clk_ticks();
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
+    gc_mark_and_sweep();
     DEBUG(fprintf(stderr, "free_cnt=%"PdI" cell_top=%"PdI"\n", gc_free_cnt, cell_top));
 #endif
     return 0;
