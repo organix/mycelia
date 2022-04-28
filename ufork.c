@@ -17,7 +17,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 
 #define INCLUDE_DEBUG 1 // include debugging facilities
 #define RUN_DEBUGGER  1 // run program under interactive debugger
-#define EXPLICIT_FREE 1 // explicitly free leaked memory
+#define EXPLICIT_FREE 1 // explicitly free known-dead memory
 #define MARK_SWEEP_GC 1 // stop-the-world garbage collection
 
 #if INCLUDE_DEBUG
@@ -389,14 +389,14 @@ static char *cell_label(int_t cell) {
         "UNDEF",
         "UNIT",
     };
-    if (IS_FIX(cell)) return "FIX";
+    if (IS_FIX(cell)) return "fix";
     if (cell < 0) return proc_label(cell);
     if (cell < START) return label[cell];
     return "cell";
 }
 #endif
 
-#define CELL_MAX NAT(1<<12)  // 4K cells
+#define CELL_MAX NAT(1<<10)  // 1K cells
 cell_t cell_table[CELL_MAX] = {
     { .t=Boolean_T,     .x=FALSE,       .y=FALSE,       .z=UNDEF        },
     { .t=Boolean_T,     .x=TRUE,        .y=TRUE,        .z=UNDEF        },
@@ -1353,7 +1353,7 @@ PROC_DECL(Free) {
     return panic("DISPATCH TO FREE CELL!");
 }
 
-static int_t gc_free_cnt = 0;  // number of cells in free-list
+static i32 gc_free_cnt;  // FORWARD DECLARATION
 
 static int_t cell_new(int_t t, int_t x, int_t y, int_t z) {
     int_t next = cell_top;
@@ -1476,26 +1476,29 @@ int_t fixnum(int_t str) {  // FIXME: add `base` parameter
     return TO_FIX(num);
 }
 
-#if MARK_SWEEP_GC
 /*
  * garbage collection (reclaiming the heap)
  */
 
+#if MARK_SWEEP_GC
 #define GC_LO_BITS(val) I32(I32(val) & 0x1F)
 #define GC_HI_BITS(val) I32(I32(val) >> 5)
 
 #define GC_MAX_BITS GC_HI_BITS(CELL_MAX)
 #define GC_RESERVED (I32(1 << GC_LO_BITS(START)) - 1)
 
-i32 gc_bits[GC_MAX_BITS] = { GC_RESERVED };
+i32 gc_bits[GC_MAX_BITS] = { GC_RESERVED };  // in-use mark bits
+static i32 gc_free_cnt = 0;  // number of cells in free-list
 
 i32 gc_clear() {  // clear all GC bits (except RESERVED)
+    i32 cnt = gc_free_cnt;
+    cell_next = NIL;  // empty the free-list
+    gc_free_cnt = 0;
     gc_bits[0] = GC_RESERVED;
     for (int_t i = 1; i < GC_MAX_BITS; ++i) {
         gc_bits[i] = 0;
     }
-    cell_next = NIL;  // empty the free-list
-    return 0;
+    return cnt;
 }
 
 static i32 gc_get_mark(int_t val) {
@@ -1510,11 +1513,27 @@ static void gc_clr_mark(int_t val) {
     gc_bits[GC_HI_BITS(val)] &= ~I32(1 << GC_LO_BITS(val));
 }
 
+static void gc_dump_map() {  // dump memory allocation map
+    for (int_t a = 0; a < cell_top; ++a) {
+        if (a && ((a & 0x3F) == 0)) {
+            fprintf(stderr, "\n");
+        }
+        char c = (gc_get_mark(a) ? 'x' : '.');
+        //if ((c == 'x') && (get_t(a) == Free_T)) c = 'f';  // <-- should not happen
+        fprintf(stderr, "%c", c);
+    }
+    fprintf(stderr, "\n");
+}
+
 i32 gc_mark_cells(int_t val) {  // mark cells reachable from `val`
     i32 cnt = 0;
     while (IN_HEAP(val)) {
         if (gc_get_mark(val)) {
             break;  // cell already marked
+        }
+        if (get_t(val) == Free_T) {
+            //DEBUG(debug_print("gc_mark_cells", val));
+            break;  // don't mark free cells
         }
         gc_set_mark(val);
         ++cnt;
@@ -1532,7 +1551,7 @@ int_t e_queue_head;
 int_t k_queue_head;
 int_t clk_handler;
 
-i32 gc_mark_roots() {  // mark cells reachable from the root-set
+i32 gc_mark_roots(int_t dump) {  // mark cells reachable from the root-set
     i32 cnt = START-1;
     for (int i = 0; i < 256; ++i) {
         if (sym_intern[i]) {
@@ -1542,13 +1561,15 @@ i32 gc_mark_roots() {  // mark cells reachable from the root-set
     cnt += gc_mark_cells(e_queue_head);
     cnt += gc_mark_cells(k_queue_head);
     cnt += gc_mark_cells(clk_handler);
+    if (dump) {
+        gc_dump_map();
+    }
     return cnt;
 }
 
 i32 gc_sweep() {  // free unmarked cells
     i32 cnt = 0;
     int_t next = cell_top;
-    DEBUG(fprintf(stderr, "gc_sweep: top=%"PdI"\n", next));
     while (--next >= START) {
         if (!gc_get_mark(next)) {
             cell_reclaim(next);
@@ -1558,14 +1579,17 @@ i32 gc_sweep() {  // free unmarked cells
     return cnt;
 }
 
-i32 gc_mark_and_sweep() {
-    i32 n;
-    n = gc_clear();
-    n = gc_mark_roots();
-    DEBUG(fprintf(stderr, "gc_mark_and_sweep: marked %"PRId32" used cells\n", n));
-    n = gc_sweep();
-    DEBUG(fprintf(stderr, "gc_mark_and_sweep: free'd %"PRId32" dead cells\n", n));
-    return n;
+i32 gc_mark_and_sweep(int_t dump) {
+    i32 t = I32(cell_top);
+    i32 f = gc_clear();
+    i32 m = gc_mark_roots(dump);
+    i32 a = gc_sweep();
+    if (dump) {
+        fprintf(stderr,
+            "gc: top=%"PRId32" free=%"PRId32" used=%"PRId32" avail=%"PRId32"\n",
+            t, f, m, a);
+    }
+    return m;
 }
 #endif // MARK_SWEEP_GC
 
@@ -1976,7 +2000,7 @@ static int_t interrupt() {
         dt = (now - clk_timeout);
         if (sane-- == 0) return panic("insane clk_timeout");
     }
-    int_t sec = (now / CLKS_PER_SEC);
+    int_t sec = TO_FIX(now / CLKS_PER_SEC);
     if (IS_ACTOR(clk_handler)) {
         int_t ev = cell_new(Event_T, clk_handler, sec, NIL);
         DEBUG(debug_print("clock event", ev));
@@ -1986,11 +2010,12 @@ static int_t interrupt() {
 }
 static int_t dispatch() {
     XTRACE(event_q_dump());
+    if (event_q_empty()) {
+        return UNDEF;  // event queue empty
+    }
     int_t event = event_q_pop();
     XTRACE(debug_print("dispatch event", event));
-    if (event == UNDEF) {  // event queue empty
-        return UNDEF;
-    }
+    ASSERT(IN_HEAP(event));
     int_t target = get_x(event);
     int_t proc = get_t(target);
     ASSERT(IS_PROC(proc));
@@ -1999,13 +2024,13 @@ static int_t dispatch() {
         event_q_put(event);  // re-queue event
         return FALSE;
     }
+    cont_q_put(cont);  // enqueue continuation
 #if INCLUDE_DEBUG
     if (runtime_trace) {
         fprintf(stderr, "thread spawn: %"PdI"{ip=%"PdI",sp=%"PdI",ep=%"PdI"}\n",
             cont, get_t(cont), get_x(cont), get_y(cont));
     }
 #endif
-    cont_q_put(cont);  // enqueue continuation
     return cont;
 }
 static int_t execute() {
@@ -2025,14 +2050,15 @@ static int_t execute() {
     SET_IP(ip);  // update IP
     int_t cont = cont_q_pop();
     XTRACE(debug_print("execute done", cont));
-    if (ip >= START) {
+    if (IN_HEAP(ip)) {
         cont_q_put(cont);  // enqueue continuation
     } else {
         // if "thread" is dead, free cont and event
-        XFREE(get_y(cont));
+        int_t event = get_y(cont);
+        XFREE(event);
         XFREE(cont);
 #if MARK_SWEEP_GC
-        gc_mark_and_sweep();
+        gc_mark_and_sweep(FALSE);
 #endif
     }
     return UNIT;
@@ -2879,8 +2905,8 @@ int_t debugger() {
             }
         }
 #if MARK_SWEEP_GC
-        if (*cmd == 'g') {
-            gc_mark_and_sweep();
+        if (*cmd == 'g') {  // undocumented command to perform garbage collection
+            gc_mark_and_sweep(TRUE);
             continue;
         }
 #endif
@@ -2934,8 +2960,10 @@ int main(int argc, char const *argv[])
     clk_timeout = clk_ticks();
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
-    gc_mark_and_sweep();
-    DEBUG(fprintf(stderr, "free_cnt=%"PdI" cell_top=%"PdI"\n", gc_free_cnt, cell_top));
+#if MARK_SWEEP_GC
+    gc_mark_and_sweep(TRUE);
+#endif // MARK_SWEEP_GC
+    DEBUG(fprintf(stderr, "cell_top=%"PuI" gc_free_cnt=%"PRId32"\n", cell_top, gc_free_cnt));
 #endif
     return 0;
 }
