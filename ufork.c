@@ -109,6 +109,7 @@ int_t sane = 0;  // run-away loop prevention
 int_t panic(char *reason);
 int_t error(char *reason);
 int_t failure(char *_file_, int _line_);
+void print_sexpr(int_t x);
 #if INCLUDE_DEBUG
 void hexdump(char *label, int_t *addr, size_t cnt);
 void debug_print(char *label, int_t addr);
@@ -232,7 +233,6 @@ proc_t proc_table[] = {
 };
 proc_t *proc_zero = &proc_table[PROC_MAX];  // base for proc offsets
 
-#if INCLUDE_DEBUG
 static char *proc_label(int_t proc) {
     static char *label[] = {
         "Undef_T",
@@ -273,7 +273,6 @@ static char *proc_label(int_t proc) {
     if (ofs < PROC_MAX) return label[ofs];
     return "<unknown>";
 }
-#endif
 
 int_t call_proc(int_t proc, int_t self, int_t arg) {
     nat_t ofs = NAT(-1 - proc);
@@ -380,7 +379,6 @@ int_t char_in_class(int_t n, int_t c) {
 #define UNIT        (4)
 #define START       (5)
 
-#if INCLUDE_DEBUG
 static char *cell_label(int_t cell) {
     static char *label[] = {
         "FALSE",
@@ -394,7 +392,6 @@ static char *cell_label(int_t cell) {
     if (cell < START) return label[cell];
     return "cell";
 }
-#endif
 
 #define CELL_MAX NAT(1<<10)  // 1K cells
 cell_t cell_table[CELL_MAX] = {
@@ -1345,6 +1342,7 @@ char *get_symbol_label(int_t addr) {
 #define IS_BOOL(n)  (((n) == FALSE) || ((n) == TRUE))
 
 #define TYPEQ(t,n)  (((n) >= 0) && !IS_FIX(n) && (get_t(n) == (t)))
+#define IS_FREE(n)  TYPEQ(Free_T,(n))
 #define IS_PAIR(n)  TYPEQ(Pair_T,(n))
 #define IS_ACTOR(n) TYPEQ(Actor_T,(n))
 #define IS_SYM(n)   TYPEQ(Symbol_T,(n))
@@ -1387,7 +1385,7 @@ static void cell_reclaim(int_t addr) {
 
 int_t cell_free(int_t addr) {
     ASSERT(IN_HEAP(addr));
-    ASSERT(cell_zero[addr].t != Free_T);  // prevent double-free
+    ASSERT(!IS_FREE(addr));  // prevent double-free
     cell_reclaim(addr);
     return UNDEF;
 }
@@ -1519,7 +1517,7 @@ static void gc_dump_map() {  // dump memory allocation map
             fprintf(stderr, "\n");
         }
         char c = (gc_get_mark(a) ? 'x' : '.');
-        //if ((c == 'x') && (get_t(a) == Free_T)) c = 'f';  // <-- should not happen
+        //if ((c == 'x') && IS_FREE(a)) c = 'f';  // <-- should not happen
         fprintf(stderr, "%c", c);
     }
     fprintf(stderr, "\n");
@@ -1531,7 +1529,7 @@ i32 gc_mark_cells(int_t val) {  // mark cells reachable from `val`
         if (gc_get_mark(val)) {
             break;  // cell already marked
         }
-        if (get_t(val) == Free_T) {
+        if (IS_FREE(val)) {
             //DEBUG(debug_print("gc_mark_cells", val));
             break;  // don't mark free cells
         }
@@ -1561,7 +1559,7 @@ i32 gc_mark_roots(int_t dump) {  // mark cells reachable from the root-set
     cnt += gc_mark_cells(e_queue_head);
     cnt += gc_mark_cells(k_queue_head);
     cnt += gc_mark_cells(clk_handler);
-    if (dump) {
+    if (dump == TRUE) {
         gc_dump_map();
     }
     return cnt;
@@ -1718,7 +1716,6 @@ int_t symbol(int_t str) {
     return sym;
 }
 
-#if INCLUDE_DEBUG
 void print_symbol(int_t symbol) {
     if (IS_SYM(symbol)) {
         for (int_t p = get_y(symbol); IS_PAIR(p); p = cdr(p)) {
@@ -1733,6 +1730,7 @@ void print_symbol(int_t symbol) {
         print_addr("", symbol);
     }
 }
+#if INCLUDE_DEBUG
 static void print_intern(int_t hash) {
     int_t slot = hash & SYM_MASK;
     int_t chain = sym_intern[slot];
@@ -2058,7 +2056,8 @@ static int_t execute() {
         XFREE(event);
         XFREE(cont);
 #if MARK_SWEEP_GC
-        gc_mark_and_sweep(FALSE);
+        gc_mark_and_sweep(FALSE);  // no gc output
+        //gc_mark_and_sweep(UNDEF);  // one-line gc summary
 #endif
     }
     return UNIT;
@@ -2477,14 +2476,19 @@ PROC_DECL(vm_getc) {
 PROC_DECL(vm_debug) {
     int_t x = get_x(self);
     int_t v = stack_pop();
-    print_addr("[", x);
     //fprintf(stderr, "[%"PdI"] ", x);
+    print_addr("[", x);
     fprintf(stderr, "] ");
+#if 1
+    print_sexpr(v);
+    fprintf(stderr, "\n");
+#else
 #if INCLUDE_DEBUG
     //debug_print("", v);
     print_list(v);
 #else
     fprintf(stderr, "%"PdI"\n", v);
+#endif
 #endif
     return get_y(self);
 }
@@ -2492,6 +2496,46 @@ PROC_DECL(vm_debug) {
 /*
  * debugging tools
  */
+
+void print_sexpr(int_t x) {
+    if (IS_FIX(x)) {
+        fprintf(stderr, "%+"PdI"", TO_INT(x));
+    } else if (IS_PROC(x)) {
+        fprintf(stderr, "#%s", proc_label(x));
+    } else if (x == FALSE) {
+        fprintf(stderr, "#f");
+    } else if (x == TRUE) {
+        fprintf(stderr, "#t");
+    } else if (x == NIL) {
+        fprintf(stderr, "()");
+    } else if (x == UNDEF) {
+        fprintf(stderr, "#?");
+    } else if (x == UNIT) {
+        fprintf(stderr, "#unit");
+    } else if (IS_FREE(x)) {
+        fprintf(stderr, "#FREE-CELL!");
+    } else if (IS_SYM(x)) {
+        print_symbol(x);
+    } else if (IS_PAIR(x)) {
+        char *s = "(";
+        while (IS_PAIR(x)) {
+            fprintf(stderr, "%s", s);
+            print_sexpr(car(x));
+            s = " ";
+            x = cdr(x);
+        }
+        if (x != NIL) {
+            fprintf(stderr, " . ");
+            print_sexpr(x);
+        }
+        fprintf(stderr, ")");
+    } else if (IS_ACTOR(x)) {
+        fprintf(stderr, "#actor-%"PdI"", x);
+    } else {
+        fprintf(stderr, "^%"PdI"", x);
+    }
+}
+
 #if INCLUDE_DEBUG
 
 #if USE_INT16_T || (USE_INTPTR_T && (__SIZEOF_POINTER__ == 2))
