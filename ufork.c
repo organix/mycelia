@@ -136,6 +136,7 @@ PROC_DECL(Unit);
 PROC_DECL(Actor);
 PROC_DECL(Event);
 PROC_DECL(Free);
+PROC_DECL(vm_typeq);
 PROC_DECL(vm_cell);
 PROC_DECL(vm_get);
 PROC_DECL(vm_set);
@@ -161,6 +162,9 @@ PROC_DECL(vm_putc);
 PROC_DECL(vm_getc);
 PROC_DECL(vm_debug);
 
+#define Fixnum_T    (1)
+#define Proc_T      (0)
+
 #define Undef_T     (-1)
 #define Boolean_T   (-2)
 #define Null_T      (-3)
@@ -170,30 +174,31 @@ PROC_DECL(vm_debug);
 #define Actor_T     (-7)
 #define Event_T     (-8)
 #define Free_T      (-9)
-#define VM_cell     (-10)
-#define VM_get      (-11)
-#define VM_set      (-12)
-#define VM_pair     (-13)
-#define VM_part     (-14)
-#define VM_push     (-15)
-#define VM_depth    (-16)
-#define VM_drop     (-17)
-#define VM_pick     (-18)
-#define VM_dup      (-19)
-#define VM_alu      (-20)
-#define VM_eq       (-21)
-#define VM_cmp      (-22)
-#define VM_if       (-23)
-#define VM_msg      (-24)
-#define VM_self     (-25)
-#define VM_send     (-26)
-#define VM_new      (-27)
-#define VM_beh      (-28)
-#define VM_end      (-29)
-#define VM_cvt      (-30)
-#define VM_putc     (-31)
-#define VM_getc     (-32)
-#define VM_debug    (-33)
+#define VM_typeq    (-10)
+#define VM_cell     (-11)
+#define VM_get      (-12)
+#define VM_set      (-13)
+#define VM_pair     (-14)
+#define VM_part     (-15)
+#define VM_push     (-16)
+#define VM_depth    (-17)
+#define VM_drop     (-18)
+#define VM_pick     (-19)
+#define VM_dup      (-20)
+#define VM_alu      (-21)
+#define VM_eq       (-22)
+#define VM_cmp      (-23)
+#define VM_if       (-24)
+#define VM_msg      (-25)
+#define VM_self     (-26)
+#define VM_send     (-27)
+#define VM_new      (-28)
+#define VM_beh      (-29)
+#define VM_end      (-30)
+#define VM_cvt      (-31)
+#define VM_putc     (-32)
+#define VM_getc     (-33)
+#define VM_debug    (-34)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
@@ -221,6 +226,7 @@ proc_t proc_table[] = {
     vm_set,
     vm_get,
     vm_cell,
+    vm_typeq,
     Free,  // free-cell marker
     Event,
     Actor,
@@ -244,6 +250,7 @@ static char *proc_label(int_t proc) {
         "Actor_T",
         "Event_T",
         "Free_T",
+        "VM_typeq",
         "VM_cell",
         "VM_get",
         "VM_set",
@@ -269,6 +276,8 @@ static char *proc_label(int_t proc) {
         "VM_getc",
         "VM_debug",
     };
+    if (proc == Proc_T) return "Proc_T";
+    if (proc == Fixnum_T) return "Fixnum_T";
     nat_t ofs = NAT(-1 - proc);
     if (ofs < PROC_MAX) return label[ofs];
     return "<unknown>";
@@ -1336,12 +1345,13 @@ char *get_symbol_label(int_t addr) {
 #define set_y(n,v) (cell_zero[(n)].y = (v))
 #define set_z(n,v) (cell_zero[(n)].z = (v))
 
+#define IS_CELL(n)  (NAT(n) < cell_top)
 #define IN_HEAP(n)  (((n)>=START) && ((n)<cell_top))
 
 #define IS_PROC(n)  (((n) < 0) && !IS_FIX(n))
 #define IS_BOOL(n)  (((n) == FALSE) || ((n) == TRUE))
 
-#define TYPEQ(t,n)  (((n) >= 0) && !IS_FIX(n) && (get_t(n) == (t)))
+#define TYPEQ(t,n)  (IS_CELL(n) && (get_t(n) == (t)))
 #define IS_FREE(n)  TYPEQ(Free_T,(n))
 #define IS_PAIR(n)  TYPEQ(Pair_T,(n))
 #define IS_ACTOR(n) TYPEQ(Actor_T,(n))
@@ -1689,6 +1699,8 @@ int_t sym_new(int_t str) {
     return cell_new(Symbol_T, hash, str, NIL);
 }
 
+#define cstr_intern(s) symbol(cstr_to_list(s))
+
 #define SYM_MAX (1<<8)  // 256
 #define SYM_MASK (SYM_MAX-1)
 static int_t sym_intern[SYM_MAX];
@@ -1748,7 +1760,6 @@ static void print_intern(int_t hash) {
         fprintf(stderr, ")\n");
     }
 }
-#define cstr_intern(s) symbol(cstr_to_list(s))
 static int_t test_symbol_intern() {
     cstr_intern("_");
     cstr_intern("quote");
@@ -2119,12 +2130,31 @@ PROC_DECL(Event) {
     return error("Event message not understood");
 }
 
+PROC_DECL(vm_typeq) {
+    int_t t = get_x(self);
+    int_t v = stack_pop();
+    switch (t) {
+        case Fixnum_T:  v = (IS_FIX(v) ? TRUE : FALSE);     break;
+        case Proc_T:    v = (IS_PROC(v) ? TRUE : FALSE);    break;
+        default: {
+            if (IS_CELL(v)) {
+                v = ((t == get_t(v)) ? TRUE : FALSE);
+            } else {
+                v = FALSE;  // _v_ out of range
+            }
+            break;
+        }
+    }
+    stack_push(v);
+    return get_y(self);
+}
+
 PROC_DECL(vm_cell) {
     int_t n = get_x(self);
     int_t z = UNDEF;
     int_t y = UNDEF;
     int_t x = UNDEF;
-    ASSERT(n > 0);
+    ASSERT(NAT(n) < 4);
     if (n > 3) { z = stack_pop(); }
     if (n > 2) { y = stack_pop(); }
     if (n > 1) { x = stack_pop(); }
@@ -2137,6 +2167,7 @@ PROC_DECL(vm_cell) {
 PROC_DECL(vm_get) {
     int_t f = get_x(self);
     int_t cell = stack_pop();
+    ASSERT(IS_CELL(cell));
     int_t v = UNDEF;
     switch (f) {
         case FLD_T:     v = get_t(cell);    break;
@@ -2155,6 +2186,7 @@ PROC_DECL(vm_set) {
     int_t sp = GET_SP();
     if (!IS_PAIR(sp)) return error("set requires a cell");
     int_t cell = car(sp);
+    ASSERT(IS_CELL(cell));
     switch (f) {
         case FLD_T:     set_t(cell, v);     break;
         case FLD_X:     set_x(cell, v);     break;
@@ -2666,6 +2698,7 @@ static char *end_label(int_t t) {
 }
 static char *conversion_label(int_t f) {
     switch (f) {
+        case CVT_LST_NUM:   return "LST_NUM";
         case CVT_LST_SYM:   return "LST_SYM";
     }
     return "<unknown>";
@@ -2678,6 +2711,7 @@ void print_inst(int_t ip) {
     int_t proc = get_t(ip);
     fprintf(stderr, "%s", cell_label(proc));
     switch (proc) {
+        case VM_typeq:fprintf(stderr, "{t:%s,k:%"PdI"}", proc_label(get_x(ip)), get_y(ip)); break;
         case VM_cell: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_get:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(get_x(ip)), get_y(ip)); break;
         case VM_set:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(get_x(ip)), get_y(ip)); break;

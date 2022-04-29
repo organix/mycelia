@@ -110,11 +110,22 @@ usually via some late-bound named-reference.
 
 ## Representation
 
-The primary internal data-structure in **uFork** consists of four integers.
+The cell is the primary internal data-structure in **uFork**.
+It consists of four integers.
 
  t        | x        | y        | z
 ----------|----------|----------|----------
 proc/type | head/car | tail/cdr | link/next
+
+The integers in each field encode three basic types of value,
+based on their 2 MSBs.
+
+2-MSB | Interpretation
+------|---------------
+2#00  | cell address (with fields {_t_, _x_, _y_, _z_})
+2#01  | negative small integer (fixnum)
+2#10  | positive small integer (fixnum)
+2#11  | internal procedure/type (no fields)
 
 ### Virtual Machine
 
@@ -135,6 +146,7 @@ proc/type | head/car | tail/cdr | link/next
 
  Input            | Instruction                   | Output   | Description
 ------------------|-------------------------------|----------|------------------------------
+_v_               | {t:VM_typeq, x:_T_, y:_K_}    | _bool_   | `TRUE` if _v_ has type _T_, otherwise `FALSE`
 _T_               | {t:VM_cell, x:1, y:_K_}       | _cell_   | create cell {t:_T_}
 _T_ _X_           | {t:VM_cell, x:2, y:_K_}       | _cell_   | create cell {t:_T_, x:_X_}
 _T_ _X_ _Y_       | {t:VM_cell, x:3, y:_K_}       | _cell_   | create cell {t:_T_, x:_X_, y:_Y_}
