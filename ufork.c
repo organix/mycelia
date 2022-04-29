@@ -31,7 +31,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #if EXPLICIT_FREE
 #define XFREE(x)    cell_free(x)
 #else
-#define XFREE(x)    // free removed
+#define XFREE(x)    UNDEF
 #endif
 
 // choose a definition of "machine word" from the following:
@@ -127,6 +127,8 @@ int_t debugger();
  */
 
 // FORWARD DECLARATIONS
+PROC_DECL(Fixnum);
+PROC_DECL(Proc);
 PROC_DECL(Undef);
 PROC_DECL(Boolean);
 PROC_DECL(Null);
@@ -164,7 +166,6 @@ PROC_DECL(vm_debug);
 
 #define Fixnum_T    (1)
 #define Proc_T      (0)
-
 #define Undef_T     (-1)
 #define Boolean_T   (-2)
 #define Null_T      (-3)
@@ -276,17 +277,19 @@ static char *proc_label(int_t proc) {
         "VM_getc",
         "VM_debug",
     };
-    if (proc == Proc_T) return "Proc_T";
     if (proc == Fixnum_T) return "Fixnum_T";
-    nat_t ofs = NAT(-1 - proc);
+    if (proc == Proc_T) return "Proc_T";
+    nat_t ofs = NAT(Undef_T - proc);
     if (ofs < PROC_MAX) return label[ofs];
     return "<unknown>";
 }
 
 int_t call_proc(int_t proc, int_t self, int_t arg) {
-    nat_t ofs = NAT(-1 - proc);
-    ASSERT(ofs < PROC_MAX);
     XTRACE(debug_print("call_proc self", self));
+    if (proc == Fixnum_T) return Fixnum(self, arg);
+    if (proc == Proc_T) return Proc(self, arg);
+    nat_t ofs = NAT(Undef_T - proc);
+    ASSERT(ofs < PROC_MAX);
     int_t result = (proc_zero[proc])(self, arg);
     return result;
 }
@@ -1357,6 +1360,13 @@ char *get_symbol_label(int_t addr) {
 #define IS_ACTOR(n) TYPEQ(Actor_T,(n))
 #define IS_SYM(n)   TYPEQ(Symbol_T,(n))
 
+int_t get_proc(int_t value) {  // get dispatch proc for _value_
+    if (IS_FIX(value)) return Fixnum_T;
+    if (IS_PROC(value)) return Proc_T;
+    if (IS_CELL(value)) return get_t(value);
+    return error("no dispatch proc for value");
+}
+
 PROC_DECL(Free) {
     return panic("DISPATCH TO FREE CELL!");
 }
@@ -1717,7 +1727,7 @@ int_t symbol(int_t str) {
     }
     while (IS_SYM(chain)) {
         if ((hash == get_x(chain)) && equal(str, get_y(chain))) {
-            cell_free(sym);
+            sym = XFREE(sym);
             return chain;  // found interned symbol
         }
         chain = get_z(chain);
@@ -1970,7 +1980,7 @@ int_t stack_pop() {
         item = car(sp);
         int_t rest = cdr(sp);
         SET_SP(rest);
-        XFREE(sp);
+        sp = XFREE(sp);
     }
     XTRACE(debug_print("stack pop", item));
     return item;
@@ -1982,6 +1992,7 @@ int_t stack_clear() {
     while (IS_PAIR(sp)) {
         int_t rest = cdr(sp);
         XFREE(sp);
+        sp = rest;
         if (sane-- == 0) return panic("insane stack_clear");
     }
     return SET_SP(NIL);
@@ -1994,7 +2005,7 @@ static clk_t clk_ticks() {
 }
 int_t clk_handler = A_CLOCK;
 clk_t clk_timeout = 0;
-static int_t interrupt() {
+static int_t interrupt() {  // service interrupts (if any)
     clk_t now = clk_ticks();
     clk_t dt = (now - clk_timeout);
     XTRACE(fprintf(stderr, "clock (%ld - %ld) = %ld\n", (long)now, (long)clk_timeout, (long)dt));
@@ -2017,7 +2028,7 @@ static int_t interrupt() {
     }
     return TRUE;
 }
-static int_t dispatch() {
+static int_t dispatch() {  // dispatch next event (if any)
     XTRACE(event_q_dump());
     if (event_q_empty()) {
         return UNDEF;  // event queue empty
@@ -2026,23 +2037,23 @@ static int_t dispatch() {
     XTRACE(debug_print("dispatch event", event));
     ASSERT(IN_HEAP(event));
     int_t target = get_x(event);
-    int_t proc = get_t(target);
-    ASSERT(IS_PROC(proc));
+    int_t proc = get_proc(target);
+    //ASSERT(IS_PROC(proc));  // FIXME: does not include Fixnum_T and Proc_T
     int_t cont = call_proc(proc, target, event);
     if (cont == FALSE) {  // target busy
         event_q_put(event);  // re-queue event
-        return FALSE;
-    }
-    cont_q_put(cont);  // enqueue continuation
+    } else if (IS_CELL(cont)) {
+        cont_q_put(cont);  // enqueue continuation
 #if INCLUDE_DEBUG
-    if (runtime_trace) {
-        fprintf(stderr, "thread spawn: %"PdI"{ip=%"PdI",sp=%"PdI",ep=%"PdI"}\n",
-            cont, get_t(cont), get_x(cont), get_y(cont));
-    }
+        if (runtime_trace) {
+            fprintf(stderr, "thread spawn: %"PdI"{ip=%"PdI",sp=%"PdI",ep=%"PdI"}\n",
+                cont, get_t(cont), get_x(cont), get_y(cont));
+        }
 #endif
+    }
     return cont;
 }
-static int_t execute() {
+static int_t execute() {  // execute next VM instruction
     XTRACE(cont_q_dump());
     if (cont_q_empty()) {
         return error("no live threads");  // no more instructions to execute...
@@ -2050,6 +2061,7 @@ static int_t execute() {
     // execute next continuation
     XTRACE(debug_print("execute cont", k_queue_head));
     int_t ip = GET_IP();
+    ASSERT(IS_CELL(ip));
     int_t proc = get_t(ip);
     ASSERT(IS_PROC(proc));
 #if INCLUDE_DEBUG
@@ -2064,8 +2076,8 @@ static int_t execute() {
     } else {
         // if "thread" is dead, free cont and event
         int_t event = get_y(cont);
-        XFREE(event);
-        XFREE(cont);
+        event = XFREE(event);
+        cont = XFREE(cont);
 #if MARK_SWEEP_GC
         gc_mark_and_sweep(FALSE);  // no gc output
         //gc_mark_and_sweep(UNDEF);  // one-line gc summary
@@ -2076,9 +2088,9 @@ static int_t execute() {
 int_t runtime() {
     int_t rv = UNIT;
     while (rv == UNIT) {
-        rv = interrupt();   // service interrupts (if any)
-        rv = dispatch();    // dispatch next event (if any)
-        rv = execute();     // execute next VM instruction
+        rv = interrupt();
+        rv = dispatch();
+        rv = execute();
     }
     return rv;
 }
@@ -2087,32 +2099,63 @@ int_t runtime() {
  * native procedures
  */
 
+static PROC_DECL(Self_Eval) {  // common code for self-evaluating types
+    int_t event = arg;
+    ASSERT(IS_CELL(event));
+    ASSERT(TYPEQ(Event_T, event));
+    ASSERT(self == get_x(event));
+    int_t msg = get_y(event);
+    event = XFREE(event);  // event is consumed
+    if (IS_PAIR(msg)) {
+        int_t cust = car(msg);
+        msg = cdr(msg);
+        if (IS_PAIR(msg)) {
+            int_t env = car(msg);
+            msg = cdr(msg);
+            if ((msg == NIL) && IS_ACTOR(cust)) {
+                // eval message
+                int_t event = cell_new(Event_T, cust, self, NIL);
+                event_q_put(event);
+                return UNIT;
+            }
+        }
+    }
+    return error("message not understood");
+}
+
+PROC_DECL(Fixnum) {
+    return Self_Eval(self, arg);
+}
+
+PROC_DECL(Proc) {
+    return Self_Eval(self, arg);
+}
+
 PROC_DECL(Undef) {
-    return error("Undef message not understood");
+    return Self_Eval(self, arg);
 }
 
 PROC_DECL(Boolean) {
-    return error("Boolean message not understood");
+    return Self_Eval(self, arg);
 }
 
 PROC_DECL(Null) {
-    return error("Null message not understood");
+    return Self_Eval(self, arg);
 }
 
 PROC_DECL(Pair) {
-    return error("Pair message not understood");
+    return Self_Eval(self, arg);  // FIXME: Pair_T is **NOT** self-evaluating
 }
 
 PROC_DECL(Symbol) {
-    return error("Symbol message not understood");
+    return Self_Eval(self, arg);  // FIXME: Symbol_T is **NOT** self-evaluating
 }
 
 PROC_DECL(Unit) {
-    return error("Unit message not understood");
+    return Self_Eval(self, arg);
 }
 
 PROC_DECL(Actor) {
-//    return error("Actor message not understood");
     int_t actor = self;
     int_t event = arg;
     ASSERT(actor == get_x(event));
@@ -2127,7 +2170,7 @@ PROC_DECL(Actor) {
 }
 
 PROC_DECL(Event) {
-    return error("Event message not understood");
+    return Self_Eval(self, arg);
 }
 
 PROC_DECL(vm_typeq) {
