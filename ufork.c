@@ -413,8 +413,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=11,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    //{ .t=Event_T,       .x=129,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    { .t=Event_T,       .x=471,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=212,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    //{ .t=Event_T,       .x=554,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
 
 #define COMMIT (START+1)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
@@ -453,12 +453,116 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_debug,      .x=TO_FIX(7331),.y=COMMIT,      .z=UNDEF        },  // A_PRINT #3
 
 /*
+(define tag-beh
+  (lambda (cust)
+    (BEH msg
+      (SEND cust (cons SELF msg))
+    )))
+*/
+#define TAG_BEH (A_PRINT+3)
+//  { .t=VM_push,       .x=_cust_,      .y=TAG_BEH+0,   .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=TAG_BEH+1,   .z=UNDEF        },  // msg
+    { .t=VM_pick,       .x=2,           .y=TAG_BEH+2,   .z=UNDEF        },  // cust
+    { .t=VM_pair,       .x=1,           .y=TAG_BEH+3,   .z=UNDEF        },  // (cust . msg)
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust self . msg)
+#define K_JOIN_H (TAG_BEH+4)
+//  { .t=VM_push,       .x=_k_tail_,    .y=K_JOIN_H-2,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_head_,      .y=K_JOIN_H-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_cust_,      .y=K_JOIN_H+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_JOIN_H+1,  .z=UNDEF        },  // (tag . value)
+    { .t=VM_part,       .x=1,           .y=K_JOIN_H+2,  .z=UNDEF        },  // value tag
+    { .t=VM_pick,       .x=5,           .y=K_JOIN_H+3,  .z=UNDEF        },  // k_tail
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=K_JOIN_H+4,  .z=UNDEF        },  // (tag == k_tail)
+    { .t=VM_if,         .x=K_JOIN_H+5,  .y=COMMIT,      .z=UNDEF        },
+
+    { .t=VM_pick,       .x=3,           .y=K_JOIN_H+6,  .z=UNDEF        },  // head
+    { .t=VM_pair,       .x=1,           .y=K_JOIN_H+7,  .z=UNDEF        },  // (head . tail = value)
+    { .t=VM_pick,       .x=2,           .y=K_JOIN_H+8,  .z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust (head . tail))
+#define K_JOIN_T (K_JOIN_H+9)
+//  { .t=VM_push,       .x=_tail_,      .y=K_JOIN_T-2,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_k_head_,    .y=K_JOIN_T-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_cust_,      .y=K_JOIN_T+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_JOIN_T+1,  .z=UNDEF        },  // (tag . value)
+    { .t=VM_part,       .x=1,           .y=K_JOIN_T+2,  .z=UNDEF        },  // value tag
+    { .t=VM_pick,       .x=4,           .y=K_JOIN_T+3,  .z=UNDEF        },  // k_head
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=K_JOIN_T+4,  .z=UNDEF        },  // (tag == k_head)
+    { .t=VM_if,         .x=K_JOIN_T+5,  .y=COMMIT,      .z=UNDEF        },
+
+    { .t=VM_pick,       .x=4,           .y=K_JOIN_T+6,  .z=UNDEF        },  // tail
+    { .t=VM_pick,       .x=2,           .y=K_JOIN_T+7,  .z=UNDEF        },  // head = value
+    { .t=VM_pair,       .x=1,           .y=K_JOIN_T+8,  .z=UNDEF        },  // (head . tail)
+    { .t=VM_pick,       .x=3,           .y=K_JOIN_T+9,  .z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust (head . tail))
+#define JOIN_BEH (K_JOIN_T+10)
+//  { .t=VM_push,       .x=_k_tail_,    .y=JOIN_BEH-2,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_k_head_,    .y=JOIN_BEH-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_cust_,      .y=JOIN_BEH+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=JOIN_BEH+1,  .z=UNDEF        },  // (tag . value)
+    { .t=VM_part,       .x=1,           .y=JOIN_BEH+2,  .z=UNDEF        },  // value tag
+
+    { .t=VM_pick,       .x=4,           .y=JOIN_BEH+3,  .z=UNDEF        },  // k_head
+    { .t=VM_pick,       .x=2,           .y=JOIN_BEH+4,  .z=UNDEF        },  // tag
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=JOIN_BEH+5,  .z=UNDEF        },  // (tag == k_head)
+    { .t=VM_if,         .x=JOIN_BEH+6,  .y=JOIN_BEH+11, .z=UNDEF        },
+
+    { .t=VM_pick,       .x=5,           .y=JOIN_BEH+7,  .z=UNDEF        },  // k_tail
+    { .t=VM_pick,       .x=3,           .y=JOIN_BEH+8,  .z=UNDEF        },  // head = value
+    { .t=VM_pick,       .x=5,           .y=JOIN_BEH+9,  .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=K_JOIN_H,    .y=JOIN_BEH+10, .z=UNDEF        },  // K_JOIN_H
+    { .t=VM_beh,        .x=1,           .y=COMMIT,      .z=UNDEF        },  // BECOME (K_JOIN_H cust head k_tail)
+
+    { .t=VM_pick,       .x=5,           .y=JOIN_BEH+12, .z=UNDEF        },  // k_tail
+    { .t=VM_pick,       .x=2,           .y=JOIN_BEH+13, .z=UNDEF        },  // tag
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=JOIN_BEH+14, .z=UNDEF        },  // (tag == k_tail)
+    { .t=VM_if,         .x=JOIN_BEH+15, .y=COMMIT,      .z=UNDEF        },
+
+    { .t=VM_pick,       .x=2,           .y=JOIN_BEH+16, .z=UNDEF        },  // tail = value
+    { .t=VM_pick,       .x=5,           .y=JOIN_BEH+17, .z=UNDEF        },  // k_head
+    { .t=VM_pick,       .x=5,           .y=JOIN_BEH+18, .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=K_JOIN_T,    .y=JOIN_BEH+19, .z=UNDEF        },  // K_JOIN_T
+    { .t=VM_beh,        .x=1,           .y=COMMIT,      .z=UNDEF        },  // BECOME (K_JOIN_T cust k_head tail)
+/*
+(define fork-beh
+  (lambda (cust head tail)
+    (BEH (h-req t-req))
+      ;
+      ))
+*/
+#define FORK_BEH (JOIN_BEH+20)
+//  { .t=VM_push,       .x=_tail_,      .y=FORK_BEH-2,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_head_,      .y=FORK_BEH-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_cust_,      .y=FORK_BEH+0,  .z=UNDEF        },
+    { .t=VM_self,       .x=UNDEF,       .y=FORK_BEH+1,  .z=UNDEF        },  // self
+    { .t=VM_push,       .x=TAG_BEH,     .y=FORK_BEH+2,  .z=UNDEF        },  // TAG_BEH
+    { .t=VM_new,        .x=1,           .y=FORK_BEH+3,  .z=UNDEF        },  // k_tail
+
+    { .t=VM_self,       .x=UNDEF,       .y=FORK_BEH+4,  .z=UNDEF        },  // self
+    { .t=VM_push,       .x=TAG_BEH,     .y=FORK_BEH+5,  .z=UNDEF        },  // TAG_BEH
+    { .t=VM_new,        .x=1,           .y=FORK_BEH+6,  .z=UNDEF        },  // k_head
+
+    { .t=VM_msg,        .x=1,           .y=FORK_BEH+7,  .z=UNDEF        },  // h_req
+    { .t=VM_pick,       .x=2,           .y=FORK_BEH+8,  .z=UNDEF        },  // k_head
+    { .t=VM_pair,       .x=1,           .y=FORK_BEH+9,  .z=UNDEF        },  // (k_head . h_req)
+    { .t=VM_pick,       .x=5,           .y=FORK_BEH+10, .z=UNDEF        },  // head
+    { .t=VM_send,       .x=0,           .y=FORK_BEH+11, .z=UNDEF        },  // (head k_head . h_req)
+
+    { .t=VM_msg,        .x=2,           .y=FORK_BEH+12, .z=UNDEF        },  // t_req
+    { .t=VM_pick,       .x=3,           .y=FORK_BEH+13, .z=UNDEF        },  // k_tail
+    { .t=VM_pair,       .x=1,           .y=FORK_BEH+14, .z=UNDEF        },  // (k_tail . t_req)
+    { .t=VM_pick,       .x=6,           .y=FORK_BEH+15,  .z=UNDEF        },  // tail
+    { .t=VM_send,       .x=0,           .y=FORK_BEH+16, .z=UNDEF        },  // (tail k_tail . t_req)
+
+    { .t=VM_push,       .x=JOIN_BEH,    .y=FORK_BEH+17, .z=UNDEF        },  // JOIN_BEH
+    { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (JOIN_BEH cust k_head k_tail)
+
+/*
 (define empty-env
   (CREATE
     (BEH (cust _index)
       (SEND cust #undefined))))
 */
-#define EMPTY_ENV (A_PRINT+3)
+#define EMPTY_ENV (FORK_BEH+18)
     { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=UNDEF,       .y=EMPTY_ENV+2, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=EMPTY_ENV+3, .z=UNDEF        },
@@ -521,13 +625,55 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=TO_FIX(1),   .y=VAR_BEH,     .z=UNDEF        },  // index = +1
 
 /*
+(define evlis-beh
+  (lambda (param)
+    (BEH (cust env)           ; eval
+      (if (pair? param)
+        (SEND
+          (CREATE (fork-beh
+            cust
+            (car param)
+            (CREATE (evlis-beh (cdr param))))) ; could BECOME this...
+          (list
+            (list env)
+            (list env)))
+        (SEND param (list cust env))))))
+*/
+#define EVLIS_BEH (VAR_1+2)
+//  { .t=VM_push,       .x=_param_,     .y=EVLIS_BEH+0, .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=EVLIS_BEH+1, .z=UNDEF        },  // param
+    { .t=VM_typeq,      .x=Pair_T,      .y=EVLIS_BEH+2, .z=UNDEF        },  // param has type Pair_T
+    { .t=VM_if,         .x=EVLIS_BEH+6, .y=EVLIS_BEH+3, .z=UNDEF        },
+
+    { .t=VM_msg,        .x=0,           .y=EVLIS_BEH+4, .z=UNDEF        },  // (cust env)  ; eval
+    { .t=VM_pick,       .x=2,           .y=EVLIS_BEH+5, .z=UNDEF        },  // param
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (param cust env)
+
+    { .t=VM_pick,       .x=1,           .y=EVLIS_BEH+7, .z=UNDEF        },  // param
+    { .t=VM_part,       .x=1,           .y=EVLIS_BEH+8, .z=UNDEF        },  // rest first
+
+    { .t=VM_pick,       .x=2,           .y=EVLIS_BEH+9, .z=UNDEF        },  // rest
+    { .t=VM_push,       .x=EVLIS_BEH,   .y=EVLIS_BEH+10,.z=UNDEF        },  // EVLIS_BEH
+    { .t=VM_beh,        .x=1,           .y=EVLIS_BEH+11,.z=UNDEF        },  // BECOME (evlis-beh rest)
+
+    { .t=VM_self,       .x=UNDEF,       .y=EVLIS_BEH+12,.z=UNDEF        },  // SELF
+    { .t=VM_pick,       .x=2,           .y=EVLIS_BEH+13,.z=UNDEF        },  // first
+    { .t=VM_msg,        .x=1,           .y=EVLIS_BEH+14,.z=UNDEF        },  // cust
+    { .t=VM_push,       .x=FORK_BEH,    .y=EVLIS_BEH+15,.z=UNDEF        },  // FORK_BEH
+    { .t=VM_new,        .x=3,           .y=EVLIS_BEH+16,.z=UNDEF        },  // ev_fork
+
+    { .t=VM_msg,        .x=-1,          .y=EVLIS_BEH+17,.z=UNDEF        },  // (env)
+    { .t=VM_pick,       .x=1,           .y=EVLIS_BEH+18,.z=UNDEF        },  // t_req h_req
+    { .t=VM_pick,       .x=3,           .y=EVLIS_BEH+19,.z=UNDEF        },  // ev_fork
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_fork h_req t_req)
+/*
 (define k-apply-beh
   (lambda (cust oper env)
     (BEH arg
       (SEND oper
         (list cust arg env)))))
 */
-#define K_APPLY (VAR_1+2)
+#define K_APPLY (EVLIS_BEH+20)
 //  { .t=VM_push,       .x=_cust_,      .y=K_APPLY-2,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_oper_,      .y=K_APPLY-1,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_env_,       .y=K_APPLY+0,   .z=UNDEF        },
@@ -535,14 +681,14 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=4,           .y=K_APPLY+2,   .z=UNDEF        },  // cust
     { .t=VM_pick,       .x=4,           .y=K_APPLY+3,   .z=UNDEF        },  // oper
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (oper cust arg env)
-
 /*
 (define appl-beh
   (lambda (oper senv)
     (BEH (cust param . opt-env)
       (if (null? opt-env)
         (SEND cust SELF)      ; eval
-        (SEND param           ; apply
+        (SEND                 ; apply
+          (CREATE (evlis-beh param))
           (list (CREATE (k-apply-beh cust oper senv)) (car opt-env)))
       ))))
 */
@@ -551,7 +697,7 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=VM_push,       .x=_senv_,      .y=APPL_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=APPL_BEH+1,  .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=APPL_BEH+2,  .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=APPL_BEH+12, .y=APPL_BEH+3,  .z=UNDEF        },
+    { .t=VM_if,         .x=APPL_BEH+14, .y=APPL_BEH+3,  .z=UNDEF        },
 
     { .t=VM_msg,        .x=1,           .y=APPL_BEH+4,  .z=UNDEF        },  // cust
     { .t=VM_pick,       .x=3,           .y=APPL_BEH+5,  .z=UNDEF        },  // oper
@@ -562,10 +708,12 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=3,           .y=APPL_BEH+9,  .z=UNDEF        },  // denv
     { .t=VM_pick,       .x=2,           .y=APPL_BEH+10, .z=UNDEF        },  // k_apply
     { .t=VM_msg,        .x=2,           .y=APPL_BEH+11, .z=UNDEF        },  // param
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (param k_apply denv)
+    { .t=VM_push,       .x=EVLIS_BEH,   .y=APPL_BEH+12, .z=UNDEF        },  // EVLIS_BEH
+    { .t=VM_new,        .x=1,           .y=APPL_BEH+13, .z=UNDEF        },  // ev_param
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_param k_apply denv)
 
-    { .t=VM_self,       .x=UNDEF,       .y=APPL_BEH+13, .z=UNDEF        },  // SELF
-    { .t=VM_msg,        .x=1,           .y=APPL_BEH+14, .z=UNDEF        },  // cust
+    { .t=VM_self,       .x=UNDEF,       .y=APPL_BEH+15, .z=UNDEF        },  // SELF
+    { .t=VM_msg,        .x=1,           .y=APPL_BEH+16, .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . SELF)
 
 /*
@@ -578,7 +726,7 @@ cell_t cell_table[CELL_MAX] = {
           (list cust (CREATE (bound-beh arg (car opt-env)))))
       ))))
 */
-#define OPER_BEH (APPL_BEH+15)
+#define OPER_BEH (APPL_BEH+17)
 //  { .t=VM_push,       .x=_body_,      .y=OPER_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=OPER_BEH+1,  .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=OPER_BEH+2,  .z=UNDEF        },  // opt-env == ()
@@ -635,7 +783,6 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=VM_push,       .x=_msg_,       .y=K_CALL+0,    .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_CALL+1,    .z=UNDEF        },  // oper
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (oper . msg)
-
 /*
 (define comb-beh
   (lambda (comb param)
@@ -1249,12 +1396,18 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { A_CLOCK, "A_CLOCK" },
     { A_BOOT, "A_BOOT" },
     { A_PRINT, "A_PRINT" },
+    { TAG_BEH, "TAG_BEH" },
+    { K_JOIN_H, "K_JOIN_H" },
+    { K_JOIN_T, "K_JOIN_T" },
+    { JOIN_BEH, "JOIN_BEH" },
+    { FORK_BEH, "FORK_BEH" },
     { EMPTY_ENV, "EMPTY_ENV" },
     { BOUND_BEH, "BOUND_BEH" },
     { CONST_BEH, "CONST_BEH" },
     { CONST_7, "CONST_7" },
     { VAR_BEH, "VAR_BEH" },
     { VAR_1, "VAR_1" },
+    { EVLIS_BEH, "EVLIS_BEH" },
     { K_APPLY, "K_APPLY" },
     { APPL_BEH, "APPL_BEH" },
     { OPER_BEH, "OPER_BEH" },
@@ -2838,7 +2991,7 @@ static void print_fixed(int width, int_t value) {
     }
 }
 void disassemble(int_t ip, int_t n) {
-    sane = SANITY;
+    sane = CELL_MAX;  // a better upper-bound than SANITY...
     while (n-- > 0) {
         char *label = get_symbol_label(ip);
         if (*label) {
