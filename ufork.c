@@ -22,7 +22,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
-#define XTRACE(x)       // include/exclude execution trace
+#define XTRACE(x)   x   // include/exclude execution trace
 #else
 #define DEBUG(x)        // exclude debug instrumentation
 #define XTRACE(x)       // exclude execution trace
@@ -87,7 +87,7 @@ typedef int64_t i64;
 #define MSB1   NAT(MSB(1))
 #define MSB2   NAT(MSB1>>1)
 
-#define TO_INT(x) INT(INT((x) << 1) >> 1)
+#define TO_INT(x) INT(INT(NAT(x) << 1) >> 1)
 #define TO_FIX(n) INT(TO_INT(n) + MSB1)
 #define IS_FIX(n) (NAT((n) - MSB2) < MSB1)
 
@@ -121,6 +121,14 @@ int_t debugger();
 #endif // INCLUDE_DEBUG
 
 #define ASSERT(cond)    if (!(cond)) return failure(__FILE__, __LINE__)
+
+// constant values
+#define FALSE       (0)
+#define TRUE        (1)
+#define NIL         (2)
+#define UNDEF       (3)
+#define UNIT        (4)
+#define START       (5)
 
 /*
  * native code procedures
@@ -285,12 +293,17 @@ static char *proc_label(int_t proc) {
 }
 
 int_t call_proc(int_t proc, int_t self, int_t arg) {
+    //XTRACE(debug_print("call_proc proc", proc));
     XTRACE(debug_print("call_proc self", self));
     if (proc == Fixnum_T) return Fixnum(self, arg);
     if (proc == Proc_T) return Proc(self, arg);
+    int_t result = UNDEF;
     nat_t ofs = NAT(Undef_T - proc);
-    ASSERT(ofs < PROC_MAX);
-    int_t result = (proc_zero[proc])(self, arg);
+    if (ofs < PROC_MAX) {
+        result = (proc_zero[proc])(self, arg);
+    } else {
+        result = error("procedure expected");
+    }
     return result;
 }
 
@@ -382,14 +395,6 @@ int_t char_in_class(int_t n, int_t c) {
 /*
  * heap memory management (cells)
  */
-
-// constants
-#define FALSE       (0)
-#define TRUE        (1)
-#define NIL         (2)
-#define UNDEF       (3)
-#define UNIT        (4)
-#define START       (5)
 
 static char *cell_label(int_t cell) {
     static char *label[] = {
@@ -822,7 +827,8 @@ cell_t cell_table[CELL_MAX] = {
 #define EXPR_I (LAMBDA_I+3)
     { .t=Actor_T,       .x=EXPR_I+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=LAMBDA_I,    .y=EXPR_I+2,    .z=UNDEF        },  // comb = LAMBDA_I
-    { .t=VM_push,       .x=CONST_7,     .y=COMB_BEH,    .z=UNDEF        },  // param = CONST_7
+    //{ .t=VM_push,       .x=CONST_7,     .y=COMB_BEH,    .z=UNDEF        },  // param = CONST_7
+    { .t=VM_push,       .x=TO_FIX(-13), .y=COMB_BEH,    .z=UNDEF        },  // param = -13
 
 #define BOUND_42 (EXPR_I+3)
     { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },
@@ -2195,8 +2201,11 @@ static int_t dispatch() {  // dispatch next event (if any)
     int_t cont = call_proc(proc, target, event);
     if (cont == FALSE) {  // target busy
         event_q_put(event);  // re-queue event
-    } else if (IS_CELL(cont)) {
-        cont_q_put(cont);  // enqueue continuation
+    } else if (cont == TRUE) {  // immediate event -- retry
+        cont = dispatch();
+        XTRACE(debug_print("dispatch retry", cont));
+    } else if (IN_HEAP(cont)) {  // enqueue new continuation
+        cont_q_put(cont);
 #if INCLUDE_DEBUG
         if (runtime_trace) {
             fprintf(stderr, "thread spawn: %"PdI"{ip=%"PdI",sp=%"PdI",ep=%"PdI"}\n",
@@ -2254,6 +2263,7 @@ int_t runtime() {
 
 static PROC_DECL(Self_Eval) {  // common code for self-evaluating types
     int_t event = arg;
+    XTRACE(debug_print("Self_Eval event", event));
     ASSERT(IS_CELL(event));
     ASSERT(TYPEQ(Event_T, event));
     ASSERT(self == get_x(event));
@@ -2269,7 +2279,7 @@ static PROC_DECL(Self_Eval) {  // common code for self-evaluating types
                 // eval message
                 int_t event = cell_new(Event_T, cust, self, NIL);
                 event_q_put(event);
-                return UNIT;
+                return TRUE;  // retry event dispatch
             }
         }
     }
@@ -2312,7 +2322,9 @@ PROC_DECL(Actor) {
     int_t actor = self;
     int_t event = arg;
     ASSERT(actor == get_x(event));
-    if (get_y(actor) != UNDEF) return FALSE;  // actor busy
+    if (get_y(actor) != UNDEF) {
+        return FALSE;  // actor busy
+    }
     int_t beh = get_x(actor);  // actor behavior (initial IP)
     // begin actor transaction
     set_y(actor, NIL);  // empty set of new events
@@ -2595,10 +2607,12 @@ PROC_DECL(vm_send) {
     int_t ep = GET_EP();
     int_t me = get_x(ep);
     int_t a = stack_pop();  // target
+#if 0
     if (!IS_ACTOR(a)) {
         set_y(me, UNDEF);  // abort actor transaction
         return error("SEND requires an Actor");
     }
+#endif
     int_t m = NIL;
     if (n == 0) {
         m = stack_pop();  // message
