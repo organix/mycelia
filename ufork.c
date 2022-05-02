@@ -22,7 +22,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
-#define XTRACE(x)   x   // include/exclude execution trace
+#define XTRACE(x)       // include/exclude execution trace
 #else
 #define DEBUG(x)        // exclude debug instrumentation
 #define XTRACE(x)       // exclude execution trace
@@ -114,6 +114,7 @@ void print_sexpr(int_t x);
 void hexdump(char *label, int_t *addr, size_t cnt);
 void debug_print(char *label, int_t addr);
 void print_addr(char *prefix, int_t addr);
+void print_event(int_t ep);
 void print_inst(int_t ip);
 void print_list(int_t xs);
 void continuation_trace();
@@ -418,8 +419,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=11,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    { .t=Event_T,       .x=212,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    //{ .t=Event_T,       .x=554,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=218,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    //{ .t=Event_T,       .x=560,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
 
 #define COMMIT (START+1)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
@@ -467,42 +468,48 @@ cell_t cell_table[CELL_MAX] = {
 #define TAG_BEH (A_PRINT+3)
 //  { .t=VM_push,       .x=_cust_,      .y=TAG_BEH+0,   .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=TAG_BEH+1,   .z=UNDEF        },  // msg
-    { .t=VM_pick,       .x=2,           .y=TAG_BEH+2,   .z=UNDEF        },  // cust
-    { .t=VM_pair,       .x=1,           .y=TAG_BEH+3,   .z=UNDEF        },  // (cust . msg)
+    { .t=VM_self,       .x=UNDEF,       .y=TAG_BEH+2,   .z=UNDEF        },  // SELF
+    { .t=VM_pair,       .x=1,           .y=TAG_BEH+3,   .z=UNDEF        },  // (SELF . msg)
+    { .t=VM_pick,       .x=2,           .y=TAG_BEH+4,   .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust self . msg)
-#define K_JOIN_H (TAG_BEH+4)
-//  { .t=VM_push,       .x=_k_tail_,    .y=K_JOIN_H-2,  .z=UNDEF        },
+#define K_JOIN_H (TAG_BEH+5)
+//  { .t=VM_push,       .x=_cust_,      .y=K_JOIN_H-2,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_head_,      .y=K_JOIN_H-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_cust_,      .y=K_JOIN_H+0,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_k_tail_,    .y=K_JOIN_H+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_JOIN_H+1,  .z=UNDEF        },  // (tag . value)
     { .t=VM_part,       .x=1,           .y=K_JOIN_H+2,  .z=UNDEF        },  // value tag
-    { .t=VM_pick,       .x=5,           .y=K_JOIN_H+3,  .z=UNDEF        },  // k_tail
+    { .t=VM_pick,       .x=3,           .y=K_JOIN_H+3,  .z=UNDEF        },  // k_tail
     { .t=VM_cmp,        .x=CMP_EQ,      .y=K_JOIN_H+4,  .z=UNDEF        },  // (tag == k_tail)
     { .t=VM_if,         .x=K_JOIN_H+5,  .y=COMMIT,      .z=UNDEF        },
 
     { .t=VM_pick,       .x=3,           .y=K_JOIN_H+6,  .z=UNDEF        },  // head
     { .t=VM_pair,       .x=1,           .y=K_JOIN_H+7,  .z=UNDEF        },  // (head . tail = value)
-    { .t=VM_pick,       .x=2,           .y=K_JOIN_H+8,  .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=4,           .y=K_JOIN_H+8,  .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust (head . tail))
 #define K_JOIN_T (K_JOIN_H+9)
-//  { .t=VM_push,       .x=_tail_,      .y=K_JOIN_T-2,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_cust_,      .y=K_JOIN_T-2,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_k_head_,    .y=K_JOIN_T-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_cust_,      .y=K_JOIN_T+0,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_tail_,      .y=K_JOIN_T+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_JOIN_T+1,  .z=UNDEF        },  // (tag . value)
     { .t=VM_part,       .x=1,           .y=K_JOIN_T+2,  .z=UNDEF        },  // value tag
     { .t=VM_pick,       .x=4,           .y=K_JOIN_T+3,  .z=UNDEF        },  // k_head
     { .t=VM_cmp,        .x=CMP_EQ,      .y=K_JOIN_T+4,  .z=UNDEF        },  // (tag == k_head)
     { .t=VM_if,         .x=K_JOIN_T+5,  .y=COMMIT,      .z=UNDEF        },
 
-    { .t=VM_pick,       .x=4,           .y=K_JOIN_T+6,  .z=UNDEF        },  // tail
-    { .t=VM_pick,       .x=2,           .y=K_JOIN_T+7,  .z=UNDEF        },  // head = value
-    { .t=VM_pair,       .x=1,           .y=K_JOIN_T+8,  .z=UNDEF        },  // (head . tail)
-    { .t=VM_pick,       .x=3,           .y=K_JOIN_T+9,  .z=UNDEF        },  // cust
+    { .t=VM_pair,       .x=1,           .y=K_JOIN_T+6,  .z=UNDEF        },  // (head = value . tail)
+    { .t=VM_pick,       .x=3,           .y=K_JOIN_T+7,  .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust (head . tail))
-#define JOIN_BEH (K_JOIN_T+10)
-//  { .t=VM_push,       .x=_k_tail_,    .y=JOIN_BEH-2,  .z=UNDEF        },
+/*
+(define join-beh
+  (lambda (cust k_head k_tail)
+    (BEH (tag . value))
+      ;
+      ))
+*/
+#define JOIN_BEH (K_JOIN_T+8)
+//  { .t=VM_push,       .x=_cust_,      .y=JOIN_BEH-2,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_k_head_,    .y=JOIN_BEH-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_cust_,      .y=JOIN_BEH+0,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_k_tail_,    .y=JOIN_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=JOIN_BEH+1,  .z=UNDEF        },  // (tag . value)
     { .t=VM_part,       .x=1,           .y=JOIN_BEH+2,  .z=UNDEF        },  // value tag
 
@@ -511,22 +518,22 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_cmp,        .x=CMP_EQ,      .y=JOIN_BEH+5,  .z=UNDEF        },  // (tag == k_head)
     { .t=VM_if,         .x=JOIN_BEH+6,  .y=JOIN_BEH+11, .z=UNDEF        },
 
-    { .t=VM_pick,       .x=5,           .y=JOIN_BEH+7,  .z=UNDEF        },  // k_tail
+    { .t=VM_pick,       .x=5,           .y=JOIN_BEH+7,  .z=UNDEF        },  // cust
     { .t=VM_pick,       .x=3,           .y=JOIN_BEH+8,  .z=UNDEF        },  // head = value
-    { .t=VM_pick,       .x=5,           .y=JOIN_BEH+9,  .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=5,           .y=JOIN_BEH+9,  .z=UNDEF        },  // k_tail
     { .t=VM_push,       .x=K_JOIN_H,    .y=JOIN_BEH+10, .z=UNDEF        },  // K_JOIN_H
-    { .t=VM_beh,        .x=1,           .y=COMMIT,      .z=UNDEF        },  // BECOME (K_JOIN_H cust head k_tail)
+    { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (K_JOIN_H cust head k_tail)
 
-    { .t=VM_pick,       .x=5,           .y=JOIN_BEH+12, .z=UNDEF        },  // k_tail
+    { .t=VM_pick,       .x=3,           .y=JOIN_BEH+12, .z=UNDEF        },  // k_tail
     { .t=VM_pick,       .x=2,           .y=JOIN_BEH+13, .z=UNDEF        },  // tag
     { .t=VM_cmp,        .x=CMP_EQ,      .y=JOIN_BEH+14, .z=UNDEF        },  // (tag == k_tail)
     { .t=VM_if,         .x=JOIN_BEH+15, .y=COMMIT,      .z=UNDEF        },
 
-    { .t=VM_pick,       .x=2,           .y=JOIN_BEH+16, .z=UNDEF        },  // tail = value
+    { .t=VM_pick,       .x=5,           .y=JOIN_BEH+16, .z=UNDEF        },  // cust
     { .t=VM_pick,       .x=5,           .y=JOIN_BEH+17, .z=UNDEF        },  // k_head
-    { .t=VM_pick,       .x=5,           .y=JOIN_BEH+18, .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=4,           .y=JOIN_BEH+18, .z=UNDEF        },  // tail = value
     { .t=VM_push,       .x=K_JOIN_T,    .y=JOIN_BEH+19, .z=UNDEF        },  // K_JOIN_T
-    { .t=VM_beh,        .x=1,           .y=COMMIT,      .z=UNDEF        },  // BECOME (K_JOIN_T cust k_head tail)
+    { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (K_JOIN_T cust k_head tail)
 /*
 (define fork-beh
   (lambda (cust head tail)
@@ -535,30 +542,32 @@ cell_t cell_table[CELL_MAX] = {
       ))
 */
 #define FORK_BEH (JOIN_BEH+20)
-//  { .t=VM_push,       .x=_tail_,      .y=FORK_BEH-2,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_cust_,      .y=FORK_BEH-2,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_head_,      .y=FORK_BEH-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_cust_,      .y=FORK_BEH+0,  .z=UNDEF        },
-    { .t=VM_self,       .x=UNDEF,       .y=FORK_BEH+1,  .z=UNDEF        },  // self
-    { .t=VM_push,       .x=TAG_BEH,     .y=FORK_BEH+2,  .z=UNDEF        },  // TAG_BEH
-    { .t=VM_new,        .x=1,           .y=FORK_BEH+3,  .z=UNDEF        },  // k_tail
+//  { .t=VM_push,       .x=_tail_,      .y=FORK_BEH+0,  .z=UNDEF        },
+    { .t=VM_pick,       .x=3,           .y=FORK_BEH+1,  .z=UNDEF        },  // cust
 
-    { .t=VM_self,       .x=UNDEF,       .y=FORK_BEH+4,  .z=UNDEF        },  // self
-    { .t=VM_push,       .x=TAG_BEH,     .y=FORK_BEH+5,  .z=UNDEF        },  // TAG_BEH
-    { .t=VM_new,        .x=1,           .y=FORK_BEH+6,  .z=UNDEF        },  // k_head
+    { .t=VM_self,       .x=UNDEF,       .y=FORK_BEH+2,  .z=UNDEF        },  // self
+    { .t=VM_push,       .x=TAG_BEH,     .y=FORK_BEH+3,  .z=UNDEF        },  // TAG_BEH
+    { .t=VM_new,        .x=1,           .y=FORK_BEH+4,  .z=UNDEF        },  // k_head
 
-    { .t=VM_msg,        .x=1,           .y=FORK_BEH+7,  .z=UNDEF        },  // h_req
-    { .t=VM_pick,       .x=2,           .y=FORK_BEH+8,  .z=UNDEF        },  // k_head
-    { .t=VM_pair,       .x=1,           .y=FORK_BEH+9,  .z=UNDEF        },  // (k_head . h_req)
-    { .t=VM_pick,       .x=5,           .y=FORK_BEH+10, .z=UNDEF        },  // head
-    { .t=VM_send,       .x=0,           .y=FORK_BEH+11, .z=UNDEF        },  // (head k_head . h_req)
+    { .t=VM_self,       .x=UNDEF,       .y=FORK_BEH+5,  .z=UNDEF        },  // self
+    { .t=VM_push,       .x=TAG_BEH,     .y=FORK_BEH+6,  .z=UNDEF        },  // TAG_BEH
+    { .t=VM_new,        .x=1,           .y=FORK_BEH+7,  .z=UNDEF        },  // k_tail
 
-    { .t=VM_msg,        .x=2,           .y=FORK_BEH+12, .z=UNDEF        },  // t_req
-    { .t=VM_pick,       .x=3,           .y=FORK_BEH+13, .z=UNDEF        },  // k_tail
-    { .t=VM_pair,       .x=1,           .y=FORK_BEH+14, .z=UNDEF        },  // (k_tail . t_req)
-    { .t=VM_pick,       .x=6,           .y=FORK_BEH+15,  .z=UNDEF        },  // tail
-    { .t=VM_send,       .x=0,           .y=FORK_BEH+16, .z=UNDEF        },  // (tail k_tail . t_req)
+    { .t=VM_msg,        .x=1,           .y=FORK_BEH+8,  .z=UNDEF        },  // h_req
+    { .t=VM_pick,       .x=3,           .y=FORK_BEH+9,  .z=UNDEF        },  // k_head
+    { .t=VM_pair,       .x=1,           .y=FORK_BEH+10, .z=UNDEF        },  // (k_head . h_req)
+    { .t=VM_pick,       .x=6,           .y=FORK_BEH+11, .z=UNDEF        },  // head
+    { .t=VM_send,       .x=0,           .y=FORK_BEH+12, .z=UNDEF        },  // (head k_head . h_req)
 
-    { .t=VM_push,       .x=JOIN_BEH,    .y=FORK_BEH+17, .z=UNDEF        },  // JOIN_BEH
+    { .t=VM_msg,        .x=2,           .y=FORK_BEH+13, .z=UNDEF        },  // t_req
+    { .t=VM_pick,       .x=2,           .y=FORK_BEH+14, .z=UNDEF        },  // k_tail
+    { .t=VM_pair,       .x=1,           .y=FORK_BEH+15, .z=UNDEF        },  // (k_tail . t_req)
+    { .t=VM_pick,       .x=5,           .y=FORK_BEH+16, .z=UNDEF        },  // tail
+    { .t=VM_send,       .x=0,           .y=FORK_BEH+17, .z=UNDEF        },  // (tail k_tail . t_req)
+
+    { .t=VM_push,       .x=JOIN_BEH,    .y=FORK_BEH+18, .z=UNDEF        },  // JOIN_BEH
     { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (JOIN_BEH cust k_head k_tail)
 
 /*
@@ -567,7 +576,7 @@ cell_t cell_table[CELL_MAX] = {
     (BEH (cust _index)
       (SEND cust #undefined))))
 */
-#define EMPTY_ENV (FORK_BEH+18)
+#define EMPTY_ENV (FORK_BEH+19)
     { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=UNDEF,       .y=EMPTY_ENV+2, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=EMPTY_ENV+3, .z=UNDEF        },
@@ -613,6 +622,31 @@ cell_t cell_table[CELL_MAX] = {
 #define CONST_7 (CONST_BEH+2)
     { .t=Actor_T,       .x=CONST_7+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=TO_FIX(7),   .y=CONST_BEH,   .z=UNDEF        },  // value = +7
+#define CONST_LST (CONST_7+2)
+#if 0
+    { .t=Actor_T,       .x=CONST_LST+1, .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=CONST_LST+2, .z=UNDEF        },  // ()
+    { .t=VM_push,       .x=TO_FIX(3),   .y=CONST_LST+3, .z=UNDEF        },  // +3
+    { .t=VM_push,       .x=TO_FIX(2),   .y=CONST_LST+4, .z=UNDEF        },  // +2
+    { .t=VM_push,       .x=TO_FIX(1),   .y=CONST_LST+5, .z=UNDEF        },  // +1
+    { .t=VM_pair,       .x=3,           .y=CONST_BEH,   .z=UNDEF        },  // value = (+1 +2 +3)
+#else
+#if 0
+    { .t=Pair_T,        .x=TO_FIX(1),   .y=CONST_LST+1, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(2),   .y=CONST_LST+2, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(3),   .y=CONST_LST+3, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(4),   .y=CONST_LST+4, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(5),   .y=CONST_LST+5, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(6),   .y=NIL,         .z=UNDEF        },
+#else
+    { .t=Pair_T,        .x=TO_FIX(1),   .y=CONST_LST+1, .z=UNDEF        },
+    { .t=Pair_T,        .x=CONST_LST+2, .y=TO_FIX(5),   .z=UNDEF        },
+    { .t=Pair_T,        .x=CONST_LST+3, .y=CONST_LST+4, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(2),   .y=NIL,         .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(3),   .y=CONST_LST+5, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(4),   .y=NIL,         .z=UNDEF        },
+#endif
+#endif
 
 /*
 (define var-beh
@@ -620,7 +654,7 @@ cell_t cell_table[CELL_MAX] = {
     (BEH (cust env)           ; eval
       (SEND env (list cust index)))))
 */
-#define VAR_BEH (CONST_7+2)
+#define VAR_BEH (CONST_LST+6)
 //  { .t=VM_push,       .x=_index_,     .y=VAR_BEH+0,   .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=VAR_BEH+1,   .z=UNDEF        },  // cust
     { .t=VM_msg,        .x=2,           .y=VAR_BEH+2,   .z=UNDEF        },  // env
@@ -661,9 +695,9 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=EVLIS_BEH,   .y=EVLIS_BEH+10,.z=UNDEF        },  // EVLIS_BEH
     { .t=VM_beh,        .x=1,           .y=EVLIS_BEH+11,.z=UNDEF        },  // BECOME (evlis-beh rest)
 
-    { .t=VM_self,       .x=UNDEF,       .y=EVLIS_BEH+12,.z=UNDEF        },  // SELF
+    { .t=VM_msg,        .x=1,           .y=EVLIS_BEH+12,.z=UNDEF        },  // cust
     { .t=VM_pick,       .x=2,           .y=EVLIS_BEH+13,.z=UNDEF        },  // first
-    { .t=VM_msg,        .x=1,           .y=EVLIS_BEH+14,.z=UNDEF        },  // cust
+    { .t=VM_self,       .x=UNDEF,       .y=EVLIS_BEH+14,.z=UNDEF        },  // SELF
     { .t=VM_push,       .x=FORK_BEH,    .y=EVLIS_BEH+15,.z=UNDEF        },  // FORK_BEH
     { .t=VM_new,        .x=3,           .y=EVLIS_BEH+16,.z=UNDEF        },  // ev_fork
 
@@ -828,7 +862,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=EXPR_I+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=LAMBDA_I,    .y=EXPR_I+2,    .z=UNDEF        },  // comb = LAMBDA_I
     //{ .t=VM_push,       .x=CONST_7,     .y=COMB_BEH,    .z=UNDEF        },  // param = CONST_7
-    { .t=VM_push,       .x=TO_FIX(-13), .y=COMB_BEH,    .z=UNDEF        },  // param = -13
+    //{ .t=VM_push,       .x=TO_FIX(-13), .y=COMB_BEH,    .z=UNDEF        },  // param = -13
+    { .t=VM_push,       .x=CONST_LST,   .y=COMB_BEH,    .z=UNDEF        },  // param = CONST_LST
 
 #define BOUND_42 (EXPR_I+3)
     { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },
@@ -1411,6 +1446,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { BOUND_BEH, "BOUND_BEH" },
     { CONST_BEH, "CONST_BEH" },
     { CONST_7, "CONST_7" },
+    { CONST_LST, "CONST_LST" },
     { VAR_BEH, "VAR_BEH" },
     { VAR_1, "VAR_1" },
     { EVLIS_BEH, "EVLIS_BEH" },
@@ -2200,6 +2236,7 @@ static int_t dispatch() {  // dispatch next event (if any)
     //ASSERT(IS_PROC(proc));  // FIXME: does not include Fixnum_T and Proc_T
     int_t cont = call_proc(proc, target, event);
     if (cont == FALSE) {  // target busy
+        DEBUG(debug_print("dispatch busy", event));
         event_q_put(event);  // re-queue event
     } else if (cont == TRUE) {  // immediate event -- retry
         cont = dispatch();
@@ -2263,9 +2300,10 @@ int_t runtime() {
 
 static PROC_DECL(Self_Eval) {  // common code for self-evaluating types
     int_t event = arg;
-    XTRACE(debug_print("Self_Eval event", event));
     ASSERT(IS_CELL(event));
     ASSERT(TYPEQ(Event_T, event));
+    DEBUG(print_event(event));
+    DEBUG(debug_print("Self_Eval", event));
     ASSERT(self == get_x(event));
     int_t msg = get_y(event);
     event = XFREE(event);  // event is consumed
@@ -2846,7 +2884,7 @@ void debug_print(char *label, int_t addr) {
     fprintf(stderr, "\n");
 }
 
-static void print_event(int_t ep) {
+void print_event(int_t ep) {
     print_addr("(", get_x(ep));  // target actor
     int_t msg = get_y(ep);  // actor message
     sane = SANITY;
