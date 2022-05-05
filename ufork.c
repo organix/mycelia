@@ -2110,6 +2110,7 @@ int_t init_global_env() {
     bind_global("quote", OP_QUOTE);
     bind_global("list", AP_LIST);
     bind_global("lambda", OP_LAMBDA);
+    bind_global("comb_beh", COMB_BEH);  // FIXME: add_root(K_CALL) -- from Pair_T
     return UNIT;
 }
 
@@ -2410,11 +2411,36 @@ PROC_DECL(Null) {
 }
 
 PROC_DECL(Pair) {
-    return Self_Eval(self, arg);  // FIXME: Pair_T is **NOT** self-evaluating
+    int_t event = arg;
+    DEBUG(print_event(event));
+    ASSERT(self == get_x(event));
+    DEBUG(debug_print("Pair", self));
+    int_t msg = get_y(event);
+    event = XFREE(event);  // event is consumed
+    if (IS_PAIR(msg)) {
+        int_t cust = car(msg);
+        msg = cdr(msg);
+        if (IS_PAIR(msg)) {
+            int_t env = car(msg);
+            msg = cdr(msg);
+            if ((msg == NIL) && IS_ACTOR(cust)) {
+                // eval message
+                int_t comb = car(self);
+                int_t param = cdr(self);
+                int_t apply = list_3(cust, param, env);
+                int_t beh = K_CALL;
+                beh = cell_new(VM_push, apply, beh, UNDEF);
+                int_t k_call = cell_new(Actor_T, beh, UNDEF, UNDEF);
+                event = cell_new(Event_T, comb, list_2(k_call, env), NIL);
+                event_q_put(event);
+                return TRUE;  // retry event dispatch
+            }
+        }
+    }
+    return error("message not understood");
 }
 
 PROC_DECL(Symbol) {
-    //return Self_Eval(self, arg);  // FIXME: Symbol_T is **NOT** self-evaluating
     int_t event = arg;
     DEBUG(print_event(event));
     ASSERT(self == get_x(event));
