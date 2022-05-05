@@ -419,8 +419,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=11,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    { .t=Event_T,       .x=210,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    //{ .t=Event_T,       .x=563,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    //{ .t=Event_T,       .x=210,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    { .t=Event_T,       .x=570,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
 
 #define COMMIT (START+1)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
@@ -1260,7 +1260,17 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_msg,        .x=0,           .y=A_FAIL+2,    .z=UNDEF        },
     { .t=VM_debug,      .x=TO_FIX(666), .y=COMMIT,      .z=UNDEF        },
 
-#define G_START (A_FAIL+3)
+#define A_EVAL (A_FAIL+3)
+    { .t=Actor_T,       .x=A_EVAL+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=1,           .y=A_EVAL+2,    .z=UNDEF        },  // sexpr
+    { .t=VM_debug,      .x=TO_FIX(888), .y=A_EVAL+3,    .z=UNDEF        },
+
+    { .t=VM_push,       .x=BOUND_42,    .y=A_EVAL+4,    .z=UNDEF        },  // env = BOUND_42
+    { .t=VM_push,       .x=A_PRINT,     .y=A_EVAL+5,    .z=UNDEF        },  // cust = A_PRINT
+    { .t=VM_msg,        .x=1,           .y=A_EVAL+6,    .z=UNDEF        },  // sexpr
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (sexpr A_PRINT BOUND_42)
+
+#define G_START (A_EVAL+7)
 //  { .t=VM_push,       .x=_custs_,     .y=G_START-1,   .z=UNDEF        },  // (ok . fail)
 //  { .t=VM_push,       .x=_ptrn_,      .y=G_START+0,   .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=G_START+1,   .z=UNDEF        },  // in
@@ -1436,7 +1446,8 @@ symbol = Plus(Atom) -> symbol
 #define G_TEST (G_PTRN+7)
     { .t=Actor_T,       .x=G_TEST+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=A_FAIL,      .y=G_TEST+2,    .z=UNDEF        },  // fail = A_FAIL
-    { .t=VM_push,       .x=A_OK,        .y=G_TEST+3,    .z=UNDEF        },  // ok = A_OK
+    //{ .t=VM_push,       .x=A_OK,        .y=G_TEST+3,    .z=UNDEF        },  // ok = A_OK
+    { .t=VM_push,       .x=A_EVAL,      .y=G_TEST+3,    .z=UNDEF        },  // ok = A_EVAL
     { .t=VM_pair,       .x=1,           .y=G_TEST+4,    .z=UNDEF        },  // custs = (ok . fail)
     //{ .t=VM_push,       .x=G_EMPTY,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_EMPTY
     //{ .t=VM_push,       .x=G_FAIL,      .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_FAIL
@@ -1525,6 +1536,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { S_GETC, "S_GETC" },
     { A_OK, "A_OK" },
     { A_FAIL, "A_FAIL" },
+    { A_EVAL, "A_EVAL" },
     { G_START, "G_START" },
     { G_WSP, "G_WSP" },
     { G_WSP_S, "G_WSP_S" },
