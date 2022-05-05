@@ -419,8 +419,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     //{ .t=Event_T,       .x=11,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    { .t=Event_T,       .x=218,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    //{ .t=Event_T,       .x=560,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=210,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    //{ .t=Event_T,       .x=563,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
 
 #define COMMIT (START+1)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
@@ -609,13 +609,19 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=1,           .y=BOUND_BEH+11,.z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . value)
 
+// common behavior for self-evaluating objects
+#define SELF_EVAL (BOUND_BEH+12)
+    { .t=VM_self,       .x=UNDEF,       .y=SELF_EVAL+1, .z=UNDEF        },  // SELF
+#define CUST_SEND (SELF_EVAL+1)
+    // WARNING! this is a fall-thru to CONST_BEH
+    //          where the value to be sent in already on the stack...
 /*
 (define const-beh
   (lambda (value)
     (BEH (cust _)             ; eval
       (SEND cust value))))
 */
-#define CONST_BEH (BOUND_BEH+12)
+#define CONST_BEH (CUST_SEND+0)
 //  { .t=VM_push,       .x=_value_,     .y=CONST_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=CONST_BEH+1, .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . value)
@@ -736,7 +742,7 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=VM_push,       .x=_senv_,      .y=APPL_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=APPL_BEH+1,  .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=APPL_BEH+2,  .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=APPL_BEH+14, .y=APPL_BEH+3,  .z=UNDEF        },
+    { .t=VM_if,         .x=SELF_EVAL,   .y=APPL_BEH+3,  .z=UNDEF        },
 
     { .t=VM_msg,        .x=1,           .y=APPL_BEH+4,  .z=UNDEF        },  // cust
     { .t=VM_pick,       .x=3,           .y=APPL_BEH+5,  .z=UNDEF        },  // oper
@@ -751,10 +757,6 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_new,        .x=1,           .y=APPL_BEH+13, .z=UNDEF        },  // ev_param
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_param k_apply denv)
 
-    { .t=VM_self,       .x=UNDEF,       .y=APPL_BEH+15, .z=UNDEF        },  // SELF
-    { .t=VM_msg,        .x=1,           .y=APPL_BEH+16, .z=UNDEF        },  // cust
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . SELF)
-
 /*
 (define oper-beh
   (lambda (body)
@@ -765,11 +767,11 @@ cell_t cell_table[CELL_MAX] = {
           (list cust (CREATE (bound-beh arg (car opt-env)))))
       ))))
 */
-#define OPER_BEH (APPL_BEH+17)
+#define OPER_BEH (APPL_BEH+14)
 //  { .t=VM_push,       .x=_body_,      .y=OPER_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=OPER_BEH+1,  .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=OPER_BEH+2,  .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=OPER_BEH+10, .y=OPER_BEH+3,  .z=UNDEF        },
+    { .t=VM_if,         .x=SELF_EVAL,   .y=OPER_BEH+3,  .z=UNDEF        },
 
     { .t=VM_msg,        .x=2,           .y=OPER_BEH+4,  .z=UNDEF        },  // value = arg
     { .t=VM_msg,        .x=3,           .y=OPER_BEH+5,  .z=UNDEF        },  // next = env
@@ -779,10 +781,6 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=1,           .y=OPER_BEH+8,  .z=UNDEF        },  // cust
     { .t=VM_pick,       .x=3,           .y=OPER_BEH+9,  .z=UNDEF        },  // body
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (body cust ext-env)
-
-    { .t=VM_self,       .x=UNDEF,       .y=OPER_BEH+11, .z=UNDEF        },  // SELF
-    { .t=VM_msg,        .x=1,           .y=OPER_BEH+12, .z=UNDEF        },  // cust
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . SELF)
 
 /*
 (define op-lambda             ; (lambda <body>)
@@ -794,11 +792,11 @@ cell_t cell_table[CELL_MAX] = {
           (CREATE (appl-beh (CREATE (oper-beh body)) (car opt-env))))
       ))))
 */
-#define OP_LAMBDA (OPER_BEH+13)
+#define OP_LAMBDA (OPER_BEH+10)
     { .t=Actor_T,       .x=OP_LAMBDA+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=OP_LAMBDA+2, .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=OP_LAMBDA+3, .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=OP_LAMBDA+10,.y=OP_LAMBDA+4, .z=UNDEF        },
+    { .t=VM_if,         .x=SELF_EVAL,   .y=OP_LAMBDA+4, .z=UNDEF        },
 
     { .t=VM_msg,        .x=2,           .y=OP_LAMBDA+5, .z=UNDEF        },  // body
     { .t=VM_push,       .x=OPER_BEH,    .y=OP_LAMBDA+6, .z=UNDEF        },  // OPER_BEH
@@ -806,11 +804,7 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_msg,        .x=3,           .y=OP_LAMBDA+8, .z=UNDEF        },  // env
     { .t=VM_push,       .x=APPL_BEH,    .y=OP_LAMBDA+9, .z=UNDEF        },  // APPL_BEH
-    { .t=VM_new,        .x=2,           .y=OP_LAMBDA+11,.z=UNDEF        },  // appl
-
-    { .t=VM_self,       .x=UNDEF,       .y=OP_LAMBDA+11,.z=UNDEF        },  // SELF
-    { .t=VM_msg,        .x=1,           .y=OP_LAMBDA+12,.z=UNDEF        },  // cust
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . SELF) | (cust . appl)
+    { .t=VM_new,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // appl
 
 /*
 (define k-call-beh
@@ -818,7 +812,7 @@ cell_t cell_table[CELL_MAX] = {
     (BEH oper
       (SEND oper msg))))
 */
-#define K_CALL (OP_LAMBDA+13)
+#define K_CALL (OP_LAMBDA+10)
 //  { .t=VM_push,       .x=_msg_,       .y=K_CALL+0,    .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_CALL+1,    .z=UNDEF        },  // oper
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (oper . msg)
@@ -876,7 +870,48 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=EXPR_I,      .y=A_TEST+4,    .z=UNDEF        },  // EXPR_I
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
 
-#define G_EMPTY (A_TEST+5)
+/*
+(define op-quote              ; (quote <sexpr>)
+  (CREATE
+    (BEH (cust expr . opt-env)
+      (if (null? opt-env)
+        (SEND cust SELF)      ; eval
+        (SEND cust            ; apply
+          (car expr))
+      ))))
+*/
+#define OP_QUOTE (A_TEST+5)
+    { .t=Actor_T,       .x=OP_QUOTE+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=-2,          .y=OP_QUOTE+2,  .z=UNDEF        },  // opt-env
+    { .t=VM_eq,         .x=NIL,         .y=OP_QUOTE+3,  .z=UNDEF        },  // opt-env == ()
+    { .t=VM_if,         .x=SELF_EVAL,   .y=OP_QUOTE+4,  .z=UNDEF        },
+    { .t=VM_msg,        .x=2,           .y=OP_QUOTE+5,  .z=UNDEF        },  // expr
+    { .t=VM_get,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // (car expr)
+
+/*
+(define op-list               ; (list . <args>)
+  (CREATE
+    (BEH (cust args . opt-env)
+      (if (null? opt-env)
+        (SEND cust SELF)      ; eval
+        (SEND cust args)      ; apply
+      ))))
+*/
+#define OP_LIST (OP_QUOTE+6)
+    { .t=Actor_T,       .x=OP_LIST+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=-2,          .y=OP_LIST+2,   .z=UNDEF        },  // opt-env
+    { .t=VM_eq,         .x=NIL,         .y=OP_LIST+3,   .z=UNDEF        },  // opt-env == ()
+    { .t=VM_if,         .x=SELF_EVAL,   .y=OP_LIST+4,   .z=UNDEF        },
+    { .t=VM_msg,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // args
+#define AP_LIST (OP_LIST+5)
+    { .t=Actor_T,       .x=AP_LIST+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=OP_LIST,     .y=AP_LIST+2,   .z=UNDEF        },  // oper = OP_LIST
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
+
+//
+// Parsing Expression Grammar (PEG) behaviors
+//
+#define G_EMPTY (AP_LIST+3)
     { .t=Actor_T,       .x=G_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },
 #define G_EMPTY_B (G_EMPTY+1)
     { .t=VM_msg,        .x=-2,          .y=G_EMPTY+2,   .z=UNDEF        },  // in
@@ -1149,17 +1184,13 @@ Star(pattern) = Or(Plus(pattern), Empty)
 //  { .t=VM_push,       .x=_oper_,      .y=OP_SE_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=OP_SE_BEH+1, .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=OP_SE_BEH+2, .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=OP_SE_BEH+6 ,.y=OP_SE_BEH+3, .z=UNDEF        },
+    { .t=VM_if,         .x=SELF_EVAL,   .y=OP_SE_BEH+3, .z=UNDEF        },
 
     { .t=VM_msg,        .x=0,           .y=OP_SE_BEH+4, .z=UNDEF        },  // (cust arg denv)
     { .t=VM_pick,       .x=2,           .y=OP_SE_BEH+5, .z=UNDEF        },  // oper
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (oper cust arg denv)
 
-    { .t=VM_self,       .x=UNDEF,       .y=OP_SE_BEH+7, .z=UNDEF        },  // SELF
-    { .t=VM_msg,        .x=1,           .y=OP_SE_BEH+8, .z=UNDEF        },  // cust
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . SELF)
-
-#define G_XFM_K (OP_SE_BEH+9)
+#define G_XFM_K (OP_SE_BEH+6)
 //  { .t=VM_push,       .x=_ok_,        .y=G_XFM_K-1,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_in_,        .y=G_XFM_K+0,   .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=G_XFM_K+1,   .z=UNDEF        },  // value
@@ -1444,6 +1475,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { FORK_BEH, "FORK_BEH" },
     { EMPTY_ENV, "EMPTY_ENV" },
     { BOUND_BEH, "BOUND_BEH" },
+    { SELF_EVAL, "SELF_EVAL" },
+    { CUST_SEND, "CUST_SEND" },
     { CONST_BEH, "CONST_BEH" },
     { CONST_7, "CONST_7" },
     { CONST_LST, "CONST_LST" },
@@ -1462,6 +1495,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { EXPR_I, "EXPR_I" },
     { BOUND_42, "BOUND_42" },
     { A_TEST, "A_TEST" },
+    { OP_QUOTE, "OP_QUOTE" },
+    { OP_LIST, "OP_LIST" },
+    { AP_LIST, "AP_LIST" },
     { G_EMPTY, "G_EMPTY" },
     { G_FAIL, "G_FAIL" },
     { G_NEXT_K, "G_NEXT_K" },
@@ -2049,6 +2085,22 @@ static int_t test_symbol_intern() {
 }
 #endif // INCLUDE_DEBUG
 
+#define bind_global(cstr,val) set_z(cstr_intern(cstr), (val))
+
+int_t init_global_env() {
+#if 0
+    int_t s;
+    s = cstr_intern("lambda");
+    set_z(s, OP_LAMBDA);
+#endif
+    bind_global("#f", FALSE);
+    bind_global("#t", TRUE);
+    bind_global("quote", OP_QUOTE);
+    bind_global("list", AP_LIST);
+    bind_global("lambda", OP_LAMBDA);
+    return UNIT;
+}
+
 /*
  * actor event-queue
  */
@@ -2316,7 +2368,7 @@ static PROC_DECL(Self_Eval) {  // common code for self-evaluating types
             msg = cdr(msg);
             if ((msg == NIL) && IS_ACTOR(cust)) {
                 // eval message
-                int_t event = cell_new(Event_T, cust, self, NIL);
+                event = cell_new(Event_T, cust, self, NIL);
                 event_q_put(event);
                 return TRUE;  // retry event dispatch
             }
@@ -2350,7 +2402,29 @@ PROC_DECL(Pair) {
 }
 
 PROC_DECL(Symbol) {
-    return Self_Eval(self, arg);  // FIXME: Symbol_T is **NOT** self-evaluating
+    //return Self_Eval(self, arg);  // FIXME: Symbol_T is **NOT** self-evaluating
+    int_t event = arg;
+    DEBUG(print_event(event));
+    ASSERT(self == get_x(event));
+    DEBUG(debug_print("Symbol", self));
+    int_t msg = get_y(event);
+    event = XFREE(event);  // event is consumed
+    if (IS_PAIR(msg)) {
+        int_t cust = car(msg);
+        msg = cdr(msg);
+        if (IS_PAIR(msg)) {
+            int_t env = car(msg);
+            msg = cdr(msg);
+            if ((msg == NIL) && IS_ACTOR(cust)) {
+                // eval message
+                int_t value = get_z(self);  // value of global symbol
+                event = cell_new(Event_T, cust, value, NIL);
+                event_q_put(event);
+                return TRUE;  // retry event dispatch
+            }
+        }
+    }
+    return error("message not understood");
 }
 
 PROC_DECL(Unit) {
@@ -3278,12 +3352,13 @@ int main(int argc, char const *argv[])
 #else
     DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
     //DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 16*4));
-#if 0
+#if 1
     DEBUG(dump_symbol_table());
 #else
     DEBUG(test_symbol_intern());
     DEBUG(hexdump("cell memory", ((int_t *)&cell_table[500]), 16*4));
 #endif
+    init_global_env();
     clk_timeout = clk_ticks();
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
