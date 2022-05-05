@@ -137,10 +137,10 @@ based on their 2 MSBs.
 {t:Free_T, z:next}                      | cell in the free-list
 {t:Pair_T, x:item, y:rest}              | stack entry holding _item_
 {t:IP, x:SP, y:EP, z:next}              | continuation queue entry
-{t:Event_T, x:target, y:msg, z:next }   | actor event queue entry
+{t:Event_T, x:target, y:msg, z:next}    | actor event queue entry
 {t:Actor_T, x:beh, y:?, z:?}            | idle actor
 {t:Actor_T, x:beh, y:events', z:beh'}   | busy actor, intially {y:(), z:?}
-{t:Symbol_T, x:hash, y:string, z:next } | immutable symbolic-name
+{t:Symbol_T, x:hash, y:string, z:value} | immutable symbolic-name
 
 #### Instructions
 
@@ -412,6 +412,5 @@ message: --->[*|*]---> next
  * [SectorLISP](http://justine.lol/sectorlisp2/)
  * [Ribbit](https://github.com/udem-dlteam/ribbit)
    * [A Small Scheme VM, Compiler and REPL in 4K](https://www.youtube.com/watch?v=A3r0cYRwrSs)
- * [From Folklore to Fact: Comparing Implementations of Stacks and Continuations](https://par.nsf.gov/servlets/purl/10201136)
  * [Schism](https://github.com/schism-lang/schism)
  * [A Simple Scheme Compiler](https://www.cs.rpi.edu/academics/courses/fall00/ai/scheme/reference/schintro-v14/schintro_142.html#SEC271)

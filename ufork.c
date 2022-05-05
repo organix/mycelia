@@ -1901,7 +1901,7 @@ int_t cstr_to_list(char *s) {
 
 int_t sym_new(int_t str) {
     int_t hash = (int_t)list_crc(str);
-    return cell_new(Symbol_T, hash, str, NIL);
+    return cell_new(Symbol_T, hash, str, UNDEF);
 }
 
 #define cstr_intern(s) symbol(cstr_to_list(s))
@@ -1920,16 +1920,16 @@ int_t symbol(int_t str) {
         chain = NIL;
         sym_intern[slot] = chain;  // fix static init
     }
-    while (IS_SYM(chain)) {
-        if ((hash == get_x(chain)) && equal(str, get_y(chain))) {
+    while (IS_PAIR(chain)) {
+        int_t s = car(chain);
+        if ((hash == get_x(s)) && equal(str, get_y(s))) {
             sym = XFREE(sym);
-            return chain;  // found interned symbol
+            return s;  // found interned symbol
         }
-        chain = get_z(chain);
+        chain = cdr(chain);
     }
     // add symbol to hash-chain
-    set_z(sym, sym_intern[slot]);
-    sym_intern[slot] = sym;
+    sym_intern[slot] = cons(sym, sym_intern[slot]);
     return sym;
 }
 
@@ -1955,12 +1955,13 @@ static void print_intern(int_t hash) {
         fprintf(stderr, "--\n");
     } else {
         char c = '(';
-        while (IS_SYM(chain)) {
+        while (IS_PAIR(chain)) {
             fprintf(stderr, "%c", c);
-            fprintf(stderr, "%"PxI":", get_x(chain));
-            print_symbol(chain);
+            int_t s = car(chain);
+            fprintf(stderr, "%"PxI":", get_x(s));
+            print_symbol(s);
             c = ' ';
-            chain = get_z(chain);
+            chain = cdr(chain);
         }
         fprintf(stderr, ")\n");
     }
@@ -3277,7 +3278,7 @@ int main(int argc, char const *argv[])
 #else
     DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
     //DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 16*4));
-#if 1
+#if 0
     DEBUG(dump_symbol_table());
 #else
     DEBUG(test_symbol_intern());
