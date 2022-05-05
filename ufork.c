@@ -1776,10 +1776,12 @@ static void gc_clr_mark(int_t val) {
 
 static void gc_dump_map() {  // dump memory allocation map
     for (int_t a = 0; a < cell_top; ++a) {
+    //for (int_t a = 0; a < CELL_MAX; ++a) {
         if (a && ((a & 0x3F) == 0)) {
             fprintf(stderr, "\n");
         }
         char c = (gc_get_mark(a) ? 'x' : '.');
+        //if (a >= cell_top) c = '-';
         //if ((c == 'x') && IS_FREE(a)) c = 'f';  // <-- should not happen
         fprintf(stderr, "%c", c);
     }
@@ -1810,7 +1812,11 @@ i32 gc_mark_cells(int_t val) {  // mark cells reachable from `val`
 static int_t sym_intern[256];
 int_t e_queue_head;  
 int_t k_queue_head;
-int_t clk_handler;
+static int_t gc_root_set = NIL;
+
+void gc_add_root(int_t addr) {
+    gc_root_set = cons(addr, gc_root_set);
+}
 
 i32 gc_mark_roots(int_t dump) {  // mark cells reachable from the root-set
     i32 cnt = START-1;
@@ -1821,7 +1827,7 @@ i32 gc_mark_roots(int_t dump) {  // mark cells reachable from the root-set
     }
     cnt += gc_mark_cells(e_queue_head);
     cnt += gc_mark_cells(k_queue_head);
-    cnt += gc_mark_cells(clk_handler);
+    cnt += gc_mark_cells(gc_root_set);
     if (dump == TRUE) {
         gc_dump_map();
     }
@@ -2110,7 +2116,6 @@ int_t init_global_env() {
     bind_global("quote", OP_QUOTE);
     bind_global("list", AP_LIST);
     bind_global("lambda", OP_LAMBDA);
-    bind_global("comb_beh", COMB_BEH);  // FIXME: add_root(K_CALL) -- from Pair_T
     return UNIT;
 }
 
@@ -3397,6 +3402,8 @@ int main(int argc, char const *argv[])
     DEBUG(hexdump("cell memory", ((int_t *)&cell_table[500]), 16*4));
 #endif
     init_global_env();
+    gc_add_root(K_CALL);  // used in Pair_T
+    gc_add_root(clk_handler);
     clk_timeout = clk_ticks();
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
