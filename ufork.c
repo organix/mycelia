@@ -418,45 +418,90 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Null_T,        .x=NIL,         .y=NIL,         .z=UNDEF        },
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
-    //{ .t=Event_T,       .x=11,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    //{ .t=Event_T,       .x=210,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    { .t=Event_T,       .x=570,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=17,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
+    //{ .t=Event_T,       .x=209,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    //{ .t=Event_T,       .x=569,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
 
-#define COMMIT (START+1)
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
+#define SELF_EVAL (START+1)
+    { .t=VM_self,       .x=UNDEF,       .y=START+2,     .z=UNDEF        },  // value = SELF
+#define CUST_SEND (START+2)
+    { .t=VM_msg,        .x=1,           .y=START+3,     .z=UNDEF        },  // cust
+#define SEND_0 (START+3)
+    { .t=VM_send,       .x=0,           .y=START+4,     .z=UNDEF        },  // (cust . value)
+#define COMMIT (START+4)
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // commit actor transaction
 
 #define A_CLOCK (COMMIT+1)
-    { .t=Actor_T,       .x=A_CLOCK+3,   .y=UNDEF,       .z=UNDEF        },  // note: skipping output...
-    { .t=VM_push,       .x=TO_FIX('.'), .y=A_CLOCK+2,   .z=UNDEF        },
-    { .t=VM_putc,       .x=UNDEF,       .y=A_CLOCK+3,   .z=UNDEF        },
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // A_CLOCK #4
+    { .t=Actor_T,       .x=A_CLOCK+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX(-1),  .y=A_CLOCK+2,   .z=UNDEF        },
+#define CLOCK_BEH (A_CLOCK+2)
+    { .t=VM_msg,        .x=0,           .y=A_CLOCK+3,   .z=UNDEF        },
+    { .t=VM_push,       .x=CLOCK_BEH,   .y=A_CLOCK+4,   .z=UNDEF        },
+    { .t=VM_beh,        .x=1,           .y=COMMIT,      .z=UNDEF        },
 
-#define A_BOOT (A_CLOCK+4)
+/*
+(define empty-env
+  (CREATE
+    (BEH (cust _index)
+      (SEND cust #undefined))))
+*/
+#define EMPTY_ENV (A_CLOCK+5)
+    { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=UNDEF,       .y=CUST_SEND,   .z=UNDEF        },
+
+#define A_BOOT (EMPTY_ENV+2)
     { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
     { .t=VM_push,       .x=TO_FIX('>'), .y=A_BOOT+2,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+3,    .z=UNDEF        },
     { .t=VM_push,       .x=TO_FIX(' '), .y=A_BOOT+4,    .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+5,    .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=A_BOOT+6,    .z=UNDEF        },
+#if 0
+    { .t=VM_push,       .x=NIL,         .y=A_BOOT+6,    .z=UNDEF        },  // +5
     { .t=VM_self,       .x=UNDEF,       .y=A_BOOT+7,    .z=UNDEF        },
     { .t=VM_send,       .x=0,           .y=A_BOOT+8,    .z=UNDEF        },
     { .t=VM_push,       .x=A_BOOT+10,   .y=A_BOOT+9,    .z=UNDEF        },
-    { .t=VM_beh,        .x=0,           .y=COMMIT,      .z=UNDEF        },
+    { .t=VM_beh,        .x=0,           .y=A_BOOT+19,   .z=UNDEF        },
     { .t=VM_getc,       .x=UNDEF,       .y=A_BOOT+11,   .z=UNDEF        },  // +10
     { .t=VM_pick,       .x=1,           .y=A_BOOT+12,   .z=UNDEF        },
     { .t=VM_push,       .x=TO_FIX('\0'),.y=A_BOOT+13,   .z=UNDEF        },
     { .t=VM_cmp,        .x=CMP_LT,      .y=A_BOOT+14,   .z=UNDEF        },
-    { .t=VM_if,         .x=COMMIT,      .y=A_BOOT+15,   .z=UNDEF        },
+    { .t=VM_if,         .x=A_BOOT+19,   .y=A_BOOT+15,   .z=UNDEF        },
     { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+16,   .z=UNDEF        },
     //{ .t=VM_debug,      .x=TO_FIX(101), .y=A_BOOT+16,   .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=A_BOOT+17,   .z=UNDEF        },
     { .t=VM_self,       .x=UNDEF,       .y=A_BOOT+18,   .z=UNDEF        },
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // A_BOOT #19
+    { .t=VM_send,       .x=0,           .y=A_BOOT+19,   .z=UNDEF        },
+    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
+#else
+#define REPL_R (A_BOOT+5)
+#define REPL_E (A_BOOT+7)
+#define REPL_P (A_BOOT+14)
+#define REPL_L (A_BOOT+1)
+#define REPL_F (A_BOOT+17)
+    { .t=VM_push,       .x=REPL_F,      .y=REPL_R+1,    .z=UNDEF        },  // fail = REPL_F
+    { .t=VM_push,       .x=REPL_E,      .y=572,         .z=UNDEF        },  // ok = REPL_E  --> {k:G_EVAL_X}
 
-#define A_PRINT (A_BOOT+19)
+    { .t=Actor_T,       .x=REPL_E+1,    .y=UNDEF,       .z=UNDEF        },  // +7
+    { .t=VM_msg,        .x=1,           .y=REPL_E+2,    .z=UNDEF        },  // sexpr
+    { .t=VM_debug,      .x=TO_FIX(888), .y=REPL_E+3,    .z=UNDEF        },
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=REPL_E+4,    .z=UNDEF        },  // env = EMPTY_ENV
+    { .t=VM_push,       .x=REPL_P,      .y=REPL_E+5,    .z=UNDEF        },  // cust = REPL_P
+    { .t=VM_msg,        .x=1,           .y=REPL_E+6,    .z=UNDEF        },  // sexpr
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (sexpr REPL_P EMPTY_ENV)
+
+    { .t=Actor_T,       .x=REPL_P+1,    .y=UNDEF,       .z=UNDEF        },  // +14
+    { .t=VM_msg,        .x=0,           .y=REPL_P+2,    .z=UNDEF        },
+    { .t=VM_debug,      .x=TO_FIX(999), .y=REPL_L,      .z=UNDEF        },
+
+    { .t=Actor_T,       .x=REPL_F+1,    .y=UNDEF,       .z=UNDEF        },  // +17
+    { .t=VM_msg,        .x=0,           .y=REPL_F+2,    .z=UNDEF        },
+    { .t=VM_debug,      .x=TO_FIX(666), .y=COMMIT,      .z=UNDEF        },
+#endif
+
+#define A_PRINT (A_BOOT+20)
     { .t=Actor_T,       .x=A_PRINT+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=A_PRINT+2,   .z=UNDEF        },
-    { .t=VM_debug,      .x=TO_FIX(7331),.y=COMMIT,      .z=UNDEF        },  // A_PRINT #3
+    { .t=VM_debug,      .x=TO_FIX(7331),.y=COMMIT,      .z=UNDEF        },
 
 /*
 (define tag-beh
@@ -470,9 +515,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=0,           .y=TAG_BEH+1,   .z=UNDEF        },  // msg
     { .t=VM_self,       .x=UNDEF,       .y=TAG_BEH+2,   .z=UNDEF        },  // SELF
     { .t=VM_pair,       .x=1,           .y=TAG_BEH+3,   .z=UNDEF        },  // (SELF . msg)
-    { .t=VM_pick,       .x=2,           .y=TAG_BEH+4,   .z=UNDEF        },  // cust
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust self . msg)
-#define K_JOIN_H (TAG_BEH+5)
+    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
+#define K_JOIN_H (TAG_BEH+4)
 //  { .t=VM_push,       .x=_cust_,      .y=K_JOIN_H-2,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_head_,      .y=K_JOIN_H-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_k_tail_,    .y=K_JOIN_H+0,  .z=UNDEF        },
@@ -571,18 +615,6 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (JOIN_BEH cust k_head k_tail)
 
 /*
-(define empty-env
-  (CREATE
-    (BEH (cust _index)
-      (SEND cust #undefined))))
-*/
-#define EMPTY_ENV (FORK_BEH+19)
-    { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=UNDEF,       .y=EMPTY_ENV+2, .z=UNDEF        },
-    { .t=VM_msg,        .x=1,           .y=EMPTY_ENV+3, .z=UNDEF        },
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // EMPTY_ENV #4
-
-/*
 (define bound-beh  ; lookup variable by De Bruijn index
   (lambda (value next)
     (BEH (cust index)
@@ -591,7 +623,7 @@ cell_t cell_table[CELL_MAX] = {
         (SEND cust value)
         (SEND next (list cust index))))))
 */
-#define BOUND_BEH (EMPTY_ENV+4)
+#define BOUND_BEH (FORK_BEH+19)
 //  { .t=VM_push,       .x=_value_,     .y=BOUND_BEH-1, .z=UNDEF        },
 //  { .t=VM_push,       .x=_next_,      .y=BOUND_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=2,           .y=BOUND_BEH+1, .z=UNDEF        },  // index
@@ -609,25 +641,15 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=1,           .y=BOUND_BEH+11,.z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . value)
 
-// common behavior for self-evaluating objects
-#define SELF_EVAL (BOUND_BEH+12)
-    { .t=VM_self,       .x=UNDEF,       .y=SELF_EVAL+1, .z=UNDEF        },  // SELF
-#define CUST_SEND (SELF_EVAL+1)
-    // WARNING! this is a fall-thru to CONST_BEH
-    //          where the value to be sent in already on the stack...
 /*
 (define const-beh
   (lambda (value)
     (BEH (cust _)             ; eval
       (SEND cust value))))
 */
-#define CONST_BEH (CUST_SEND+0)
-//  { .t=VM_push,       .x=_value_,     .y=CONST_BEH+0, .z=UNDEF        },
-    { .t=VM_msg,        .x=1,           .y=CONST_BEH+1, .z=UNDEF        },  // cust
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . value)
-#define CONST_7 (CONST_BEH+2)
+#define CONST_7 (BOUND_BEH+12)
     { .t=Actor_T,       .x=CONST_7+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=TO_FIX(7),   .y=CONST_BEH,   .z=UNDEF        },  // value = +7
+    { .t=VM_push,       .x=TO_FIX(7),   .y=CUST_SEND,   .z=UNDEF        },  // value = +7
 #define CONST_LST (CONST_7+2)
 #if 0
     { .t=Actor_T,       .x=CONST_LST+1, .y=UNDEF,       .z=UNDEF        },
@@ -1448,6 +1470,7 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_push,       .x=A_FAIL,      .y=G_TEST+2,    .z=UNDEF        },  // fail = A_FAIL
     //{ .t=VM_push,       .x=A_OK,        .y=G_TEST+3,    .z=UNDEF        },  // ok = A_OK
     { .t=VM_push,       .x=A_EVAL,      .y=G_TEST+3,    .z=UNDEF        },  // ok = A_EVAL
+#define G_EVAL_X (G_TEST+3)
     { .t=VM_pair,       .x=1,           .y=G_TEST+4,    .z=UNDEF        },  // custs = (ok . fail)
     //{ .t=VM_push,       .x=G_EMPTY,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_EMPTY
     //{ .t=VM_push,       .x=G_FAIL,      .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_FAIL
@@ -1475,8 +1498,13 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { UNDEF, "UNDEF" },
     { UNIT, "UNIT" },
     { START, "START" },
+    { SELF_EVAL, "SELF_EVAL" },
+    { CUST_SEND, "CUST_SEND" },
+    { SEND_0, "SEND_0" },
     { COMMIT, "COMMIT" },
     { A_CLOCK, "A_CLOCK" },
+    { CLOCK_BEH, "CLOCK_BEH" },
+    { EMPTY_ENV, "EMPTY_ENV" },
     { A_BOOT, "A_BOOT" },
     { A_PRINT, "A_PRINT" },
     { TAG_BEH, "TAG_BEH" },
@@ -1484,11 +1512,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { K_JOIN_T, "K_JOIN_T" },
     { JOIN_BEH, "JOIN_BEH" },
     { FORK_BEH, "FORK_BEH" },
-    { EMPTY_ENV, "EMPTY_ENV" },
     { BOUND_BEH, "BOUND_BEH" },
-    { SELF_EVAL, "SELF_EVAL" },
-    { CUST_SEND, "CUST_SEND" },
-    { CONST_BEH, "CONST_BEH" },
     { CONST_7, "CONST_7" },
     { CONST_LST, "CONST_LST" },
     { VAR_BEH, "VAR_BEH" },
@@ -1564,6 +1588,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_LIST_X, "G_LIST_X" },
     { G_PTRN, "G_PTRN" },
     { G_TEST, "G_TEST" },
+    { G_EVAL_X, "G_EVAL_X" },
     { -1, "" },
 };
 void dump_symbol_table() {
@@ -2307,7 +2332,11 @@ static int_t dispatch() {  // dispatch next event (if any)
     //ASSERT(IS_PROC(proc));  // FIXME: does not include Fixnum_T and Proc_T
     int_t cont = call_proc(proc, target, event);
     if (cont == FALSE) {  // target busy
-        DEBUG(debug_print("dispatch busy", event));
+#if INCLUDE_DEBUG
+        if (runtime_trace) {
+            DEBUG(debug_print("dispatch busy", event));
+        }
+#endif
         event_q_put(event);  // re-queue event
     } else if (cont == TRUE) {  // immediate event -- retry
         cont = dispatch();
@@ -2373,8 +2402,12 @@ static PROC_DECL(Self_Eval) {  // common code for self-evaluating types
     int_t event = arg;
     ASSERT(IS_CELL(event));
     ASSERT(TYPEQ(Event_T, event));
-    DEBUG(print_event(event));
-    DEBUG(debug_print("Self_Eval", event));
+#if INCLUDE_DEBUG
+    if (runtime_trace) {
+        DEBUG(print_event(event));
+        DEBUG(debug_print("Self_Eval", event));
+    }
+#endif
     ASSERT(self == get_x(event));
     int_t msg = get_y(event);
     event = XFREE(event);  // event is consumed
@@ -2417,9 +2450,13 @@ PROC_DECL(Null) {
 
 PROC_DECL(Pair) {
     int_t event = arg;
-    DEBUG(print_event(event));
+#if INCLUDE_DEBUG
+    if (runtime_trace) {
+        DEBUG(print_event(event));
+        DEBUG(debug_print("Pair", self));
+    }
+#endif
     ASSERT(self == get_x(event));
-    DEBUG(debug_print("Pair", self));
     int_t msg = get_y(event);
     event = XFREE(event);  // event is consumed
     if (IS_PAIR(msg)) {
@@ -2447,9 +2484,13 @@ PROC_DECL(Pair) {
 
 PROC_DECL(Symbol) {
     int_t event = arg;
-    DEBUG(print_event(event));
+#if INCLUDE_DEBUG
+    if (runtime_trace) {
+        DEBUG(print_event(event));
+        DEBUG(debug_print("Symbol", self));
+    }
+#endif
     ASSERT(self == get_x(event));
-    DEBUG(debug_print("Symbol", self));
     int_t msg = get_y(event);
     event = XFREE(event);  // event is consumed
     if (IS_PAIR(msg)) {
