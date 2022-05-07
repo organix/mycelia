@@ -420,7 +420,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     { .t=Event_T,       .x=17,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=209,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    //{ .t=Event_T,       .x=569,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    //{ .t=Event_T,       .x=590,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
 
 #define SELF_EVAL (START+1)
     { .t=VM_self,       .x=UNDEF,       .y=START+2,     .z=UNDEF        },  // value = SELF
@@ -479,7 +479,7 @@ cell_t cell_table[CELL_MAX] = {
 #define REPL_L (A_BOOT+1)
 #define REPL_F (A_BOOT+17)
     { .t=VM_push,       .x=REPL_F,      .y=REPL_R+1,    .z=UNDEF        },  // fail = REPL_F
-    { .t=VM_push,       .x=REPL_E,      .y=572,         .z=UNDEF        },  // ok = REPL_E  --> {k:G_EVAL_X}
+    { .t=VM_push,       .x=REPL_E,      .y=593,         .z=UNDEF        },  // ok = REPL_E  --> {k:G_EVAL_X}
 
     { .t=Actor_T,       .x=REPL_E+1,    .y=UNDEF,       .z=UNDEF        },  // +7
     { .t=VM_msg,        .x=1,           .y=REPL_E+2,    .z=UNDEF        },  // sexpr
@@ -930,10 +930,55 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=OP_LIST,     .y=AP_LIST+2,   .z=UNDEF        },  // oper = OP_LIST
     { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
 
+/*
+(define k-define-beh
+  (lambda (cust symbol)
+    (BEH value
+      (SEND cust
+        (eval `(define ,symbol ',value))))))
+*/
+#define K_DEFINE (AP_LIST+3)
+//  { .t=VM_push,       .x=_cust_,      .y=K_DEFINE-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_symbol_,    .y=K_DEFINE+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_DEFINE+1,  .z=UNDEF        },  // value
+    { .t=VM_set,        .x=FLD_Z,       .y=K_DEFINE+2,  .z=UNDEF        },  // symbol{z=value}
+    { .t=VM_push,       .x=UNIT,        .y=K_DEFINE+3,  .z=UNDEF        },  // #unit
+    { .t=VM_pick,       .x=3,           .y=SEND_0,      .z=UNDEF        },  // cust
+/*
+(define op-define             ; (define <symbol> <expr>)
+  (CREATE
+    (BEH (cust params . opt-env)
+      (if (null? opt-env)
+        (SEND cust SELF)      ; eval
+        (SEND (cadr params)   ; apply
+          (list (CREATE (k_define_beh cust (car params))) (car opt-env)))
+      ))))
+*/
+#define OP_DEFINE (K_DEFINE+4)
+    { .t=Actor_T,       .x=OP_DEFINE+1, .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=-2,          .y=OP_DEFINE+2, .z=UNDEF        },  // opt-env
+    { .t=VM_eq,         .x=NIL,         .y=OP_DEFINE+3, .z=UNDEF        },  // opt-env == ()
+    { .t=VM_if,         .x=SELF_EVAL,   .y=OP_DEFINE+4, .z=UNDEF        },
+
+    { .t=VM_msg,        .x=2,           .y=OP_DEFINE+5, .z=UNDEF        },  // params
+    { .t=VM_part,       .x=2,           .y=OP_DEFINE+6, .z=UNDEF        },  // () expr symbol
+    { .t=VM_pick,       .x=1,           .y=OP_DEFINE+7, .z=UNDEF        },  // symbol symbol
+    { .t=VM_typeq,      .x=Symbol_T,    .y=OP_DEFINE+8, .z=UNDEF        },  // symbol has type Symbol_T
+    { .t=VM_if,         .x=OP_DEFINE+10,.y=OP_DEFINE+9, .z=UNDEF        },
+    { .t=VM_push,       .x=UNDEF,       .y=CUST_SEND,   .z=UNDEF        },  // #undefined
+
+    { .t=VM_msg,        .x=3,           .y=OP_DEFINE+11,.z=UNDEF        },  // env
+    { .t=VM_msg,        .x=1,           .y=OP_DEFINE+12,.z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=3,           .y=OP_DEFINE+13,.z=UNDEF        },  // symbol
+    { .t=VM_push,       .x=K_DEFINE,    .y=OP_DEFINE+14,.z=UNDEF        },  // K_DEFINE
+    { .t=VM_new,        .x=2,           .y=OP_DEFINE+15,.z=UNDEF        },  // k_define
+    { .t=VM_pick,       .x=4,           .y=OP_DEFINE+16,.z=UNDEF        },  // expr
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (expr k_define env)
+
 //
 // Parsing Expression Grammar (PEG) behaviors
 //
-#define G_EMPTY (AP_LIST+3)
+#define G_EMPTY (OP_DEFINE+17)
     { .t=Actor_T,       .x=G_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },
 #define G_EMPTY_B (G_EMPTY+1)
     { .t=VM_msg,        .x=-2,          .y=G_EMPTY+2,   .z=UNDEF        },  // in
@@ -1533,6 +1578,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { OP_QUOTE, "OP_QUOTE" },
     { OP_LIST, "OP_LIST" },
     { AP_LIST, "AP_LIST" },
+    { K_DEFINE, "K_DEFINE" },
+    { OP_DEFINE, "OP_DEFINE" },
     { G_EMPTY, "G_EMPTY" },
     { G_FAIL, "G_FAIL" },
     { G_NEXT_K, "G_NEXT_K" },
@@ -2141,6 +2188,7 @@ int_t init_global_env() {
     bind_global("quote", OP_QUOTE);
     bind_global("list", AP_LIST);
     bind_global("lambda", OP_LAMBDA);
+    bind_global("define", OP_DEFINE);
     return UNIT;
 }
 
