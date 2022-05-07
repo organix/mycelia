@@ -1531,10 +1531,56 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_new,        .x=0,           .y=G_TEST+9,    .z=UNDEF        },  // src
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (src . start)
 
+//
+// Global LISP/Scheme Procedures
+//
+#define O_CAR (G_TEST+10)
+    { .t=Actor_T,       .x=O_CAR+1,     .y=UNDEF,       .z=UNDEF        },  // (cust args env)
+    { .t=VM_msg,        .x=2,           .y=O_CAR+2,     .z=UNDEF        },  // args
+    { .t=VM_get,        .x=FLD_X,       .y=O_CAR+3,     .z=UNDEF        },  // pair = car(args)
+    { .t=VM_get,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // car(pair)
+#define OP_CAR (O_CAR+4)
+    { .t=Actor_T,       .x=OP_CAR+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=O_CAR,       .y=OP_SE_BEH,   .z=UNDEF        },
+#define AP_CAR (OP_CAR+2)
+    { .t=Actor_T,       .x=AP_CAR+1,    .y=UNDEF,       .z=UNDEF        },  // (car pair)
+    { .t=VM_push,       .x=OP_CAR,      .y=AP_CAR+2,    .z=UNDEF        },  // oper = OP_CAR
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
+
+#define O_CDR (AP_CAR+3)
+    { .t=Actor_T,       .x=O_CDR+1,     .y=UNDEF,       .z=UNDEF        },  // (cust args env)
+    { .t=VM_msg,        .x=2,           .y=O_CDR+2,     .z=UNDEF        },  // args
+    { .t=VM_get,        .x=FLD_X,       .y=O_CDR+3,     .z=UNDEF        },  // pair = car(args)
+    { .t=VM_get,        .x=FLD_Y,       .y=CUST_SEND,   .z=UNDEF        },  // cdr(pair)
+#define OP_CDR (O_CDR+4)
+    { .t=Actor_T,       .x=OP_CDR+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=O_CDR,       .y=OP_SE_BEH,   .z=UNDEF        },
+#define AP_CDR (OP_CDR+2)
+    { .t=Actor_T,       .x=AP_CDR+1,    .y=UNDEF,       .z=UNDEF        },  // (cdr pair)
+    { .t=VM_push,       .x=OP_CDR,      .y=AP_CDR+2,    .z=UNDEF        },  // oper = OP_CDR
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
+
+#define O_CONS (AP_CDR+3)
+    { .t=Actor_T,       .x=O_CONS+1,    .y=UNDEF,       .z=UNDEF        },  // (cust args env)
+    { .t=VM_msg,        .x=2,           .y=O_CONS+2,    .z=UNDEF        },  // args
+    { .t=VM_part,       .x=2,           .y=O_CONS+3,    .z=UNDEF        },  // () tail head
+    { .t=VM_pair,       .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // cons(head, tail)
+#define OP_CONS (O_CONS+4)
+    { .t=Actor_T,       .x=OP_CONS+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=O_CONS,      .y=OP_SE_BEH,   .z=UNDEF        },
+#define AP_CONS (OP_CONS+2)
+    { .t=Actor_T,       .x=AP_CONS+1,   .y=UNDEF,       .z=UNDEF        },  // (cons head tail)
+    { .t=VM_push,       .x=OP_CONS,     .y=AP_CONS+2,   .z=UNDEF        },  // oper = OP_CONS
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
+
+#define A_QUIT (AP_CONS+3)
+    { .t=Actor_T,       .x=A_QUIT+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_end,        .x=END_STOP,    .y=UNDEF,       .z=UNDEF        },  // kill thread
+
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
-int_t cell_top = G_TEST+10; // limit of allocated cell memory
+int_t cell_top = A_QUIT+2; // limit of allocated cell memory
 
 static struct { int_t addr; char *label; } symbol_table[] = {
     { FALSE, "FALSE" },
@@ -1636,6 +1682,13 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_PTRN, "G_PTRN" },
     { G_TEST, "G_TEST" },
     { G_EVAL_X, "G_EVAL_X" },
+    { O_CAR, "O_CAR" },
+    { AP_CAR, "AP_CAR" },
+    { O_CDR, "O_CDR" },
+    { AP_CDR, "AP_CDR" },
+    { O_CONS, "O_CONS" },
+    { AP_CONS, "AP_CONS" },
+    { A_QUIT, "A_QUIT" },
     { -1, "" },
 };
 void dump_symbol_table() {
@@ -2189,6 +2242,10 @@ int_t init_global_env() {
     bind_global("list", AP_LIST);
     bind_global("lambda", OP_LAMBDA);
     bind_global("define", OP_DEFINE);
+    bind_global("car", AP_CAR);
+    bind_global("cdr", AP_CDR);
+    bind_global("cons", AP_CONS);
+    bind_global("quit", A_QUIT);
     return UNIT;
 }
 
