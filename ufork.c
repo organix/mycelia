@@ -1594,7 +1594,7 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_if,         .x=C_BODY_B+9,  .y=C_BODY_B+13, .z=UNDEF        },
 
     { .t=VM_push,       .x=VM_push,     .y=C_BODY_B+10, .z=UNDEF        },
-    { .t=VM_roll,       .x=2,           .y=C_BODY_B+11, .z=UNDEF        },  // const = head
+    { .t=VM_roll,       .x=-2,          .y=C_BODY_B+11, .z=UNDEF        },  // const = head
     { .t=VM_push,       .x=CUST_SEND,   .y=C_BODY_B+12, .z=UNDEF        },  // beh = CUST_SEND
     { .t=VM_cell,       .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // {t:VM_push, x:const, y:beh}
 
@@ -2883,17 +2883,31 @@ PROC_DECL(vm_roll) {
     int_t sp = GET_SP();
     int_t pp = sp;
     sane = SANITY;
-    while (--n > 0) {  // roll n-th item to top of stack
-        pp = sp;
-        sp = cdr(sp);
-        if (sane-- == 0) return panic("insane vm_roll");
-    }
-    if (sp == NIL) {  // stack underflow
-        stack_push(NIL);
-    } else if (sp != pp) {
-        set_cdr(pp, cdr(sp));
-        set_cdr(sp, GET_SP());
-        SET_SP(sp);
+    if (n < 0) {  // roll top of stack to n-th item
+        while (++n < 0) {
+            sp = cdr(sp);
+            if (sane-- == 0) return panic("insane vm_roll");
+        }
+        if (sp == NIL) {  // stack underflow
+            stack_pop();
+        } else if (sp != pp) {
+            SET_SP(cdr(pp));
+            set_cdr(pp, cdr(sp));
+            set_cdr(sp, pp);
+        }
+    } else {
+        while (--n > 0) {  // roll n-th item to top of stack
+            pp = sp;
+            sp = cdr(sp);
+            if (sane-- == 0) return panic("insane vm_roll");
+        }
+        if (sp == NIL) {  // stack underflow
+            stack_push(NIL);
+        } else if (sp != pp) {
+            set_cdr(pp, cdr(sp));
+            set_cdr(sp, GET_SP());
+            SET_SP(sp);
+        }
     }
     return get_y(self);
 }
