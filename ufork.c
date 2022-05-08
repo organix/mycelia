@@ -1576,17 +1576,33 @@ symbol = Plus(Atom) -> symbol
 #define C_BODY_B (AP_CONS+3)
 //  { .t=VM_push,       .x=_frml_,      .y=C_BODY_B-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_env_,       .y=C_BODY_B+0,  .z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=C_BODY_B+1,  .z=UNDEF        },
-    { .t=VM_push,       .x=UNIT,        .y=C_BODY_B+2,  .z=UNDEF        },
-    { .t=VM_push,       .x=CUST_SEND,   .y=C_BODY_B+3,  .z=UNDEF        },
-    { .t=VM_cell,       .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // {t:VM_push, x:UNIT, y:CUST_SEND}
+    { .t=VM_msg,        .x=2,           .y=C_BODY_B+1,  .z=UNDEF        },  // body
+    { .t=VM_typeq,      .x=Pair_T,      .y=C_BODY_B+2,  .z=UNDEF        },  // body has type Pair_T
+    { .t=VM_if,         .x=C_BODY_B+3,  .y=C_BODY_B+12, .z=UNDEF        },
 
-#define K_LAMBDA (C_BODY_B+4)
+    { .t=VM_msg,        .x=2,           .y=C_BODY_B+4,  .z=UNDEF        },  // body
+    { .t=VM_part,       .x=1,           .y=C_BODY_B+5,  .z=UNDEF        },  // tail head
+
+    { .t=VM_pick,       .x=1,           .y=C_BODY_B+6,  .z=UNDEF        },  // head head
+    { .t=VM_typeq,      .x=Fixnum_T,    .y=C_BODY_B+7,  .z=UNDEF        },  // head has type Fixnum_T
+    { .t=VM_if,         .x=C_BODY_B+8,  .y=C_BODY_B+12, .z=UNDEF        },
+
+    { .t=VM_push,       .x=VM_push,     .y=C_BODY_B+9,  .z=UNDEF        },
+    { .t=VM_pick,       .x=2,           .y=C_BODY_B+10, .z=UNDEF        },  // num = head
+    { .t=VM_push,       .x=CUST_SEND,   .y=C_BODY_B+11, .z=UNDEF        },  // beh = CUST_SEND
+    { .t=VM_cell,       .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // {t:VM_push, x:num, y:beh}
+
+    { .t=VM_push,       .x=CUST_SEND,   .y=CUST_SEND,   .z=UNDEF        },  // beh = CUST_SEND
+
+#define K_LAMBDA (C_BODY_B+13)
 //  { .t=VM_push,       .x=_cust_,      .y=K_LAMBDA+0,  .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=K_LAMBDA+1,  .z=UNDEF        },  // beh
-    { .t=VM_new,        .x=0,           .y=K_LAMBDA+2,  .z=UNDEF        },  // actor
+    { .t=VM_push,       .x=VM_push,     .y=K_LAMBDA+1,  .z=UNDEF        },
+    { .t=VM_push,       .x=UNIT,        .y=K_LAMBDA+2,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_LAMBDA+3,  .z=UNDEF        },  // beh
+    { .t=VM_cell,       .x=3,           .y=K_LAMBDA+4,  .z=UNDEF        },  // {t:VM_push, x:UNIT, y:beh}
+    { .t=VM_new,        .x=0,           .y=K_LAMBDA+5,  .z=UNDEF        },  // actor
     { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
-#define C_LAMBDA (K_LAMBDA+3)
+#define C_LAMBDA (K_LAMBDA+6)
     { .t=Actor_T,       .x=C_LAMBDA+1,  .y=UNDEF,       .z=UNDEF        },  // (lambda <frml> . <body>)
     { .t=VM_msg,        .x=-2,          .y=C_LAMBDA+2,  .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=C_LAMBDA+3,  .z=UNDEF        },  // opt-env == ()
