@@ -415,7 +415,7 @@ static char *cell_label(int_t cell) {
     return "cell";
 }
 
-#define CELL_MAX NAT(1<<10)  // 1K cells
+#define CELL_MAX NAT(1<<12)  // 4K cells
 cell_t cell_table[CELL_MAX] = {
     { .t=Boolean_T,     .x=FALSE,       .y=FALSE,       .z=UNDEF        },
     { .t=Boolean_T,     .x=TRUE,        .y=TRUE,        .z=UNDEF        },
@@ -1594,7 +1594,7 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_if,         .x=C_BODY_B+9,  .y=C_BODY_B+13, .z=UNDEF        },
 
     { .t=VM_push,       .x=VM_push,     .y=C_BODY_B+10, .z=UNDEF        },
-    { .t=VM_roll,       .x=-2,          .y=C_BODY_B+11, .z=UNDEF        },  // const = head
+    { .t=VM_pick,       .x=2,           .y=C_BODY_B+11, .z=UNDEF        },  // const = head
     { .t=VM_push,       .x=CUST_SEND,   .y=C_BODY_B+12, .z=UNDEF        },  // beh = CUST_SEND
     { .t=VM_cell,       .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // {t:VM_push, x:const, y:beh}
 
