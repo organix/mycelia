@@ -1578,23 +1578,28 @@ symbol = Plus(Atom) -> symbol
 //  { .t=VM_push,       .x=_env_,       .y=C_BODY_B+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=2,           .y=C_BODY_B+1,  .z=UNDEF        },  // body
     { .t=VM_typeq,      .x=Pair_T,      .y=C_BODY_B+2,  .z=UNDEF        },  // body has type Pair_T
-    { .t=VM_if,         .x=C_BODY_B+3,  .y=C_BODY_B+12, .z=UNDEF        },
-
-    { .t=VM_msg,        .x=2,           .y=C_BODY_B+4,  .z=UNDEF        },  // body
-    { .t=VM_part,       .x=1,           .y=C_BODY_B+5,  .z=UNDEF        },  // tail head
-
-    { .t=VM_pick,       .x=1,           .y=C_BODY_B+6,  .z=UNDEF        },  // head head
-    { .t=VM_typeq,      .x=Fixnum_T,    .y=C_BODY_B+7,  .z=UNDEF        },  // head has type Fixnum_T
-    { .t=VM_if,         .x=C_BODY_B+8,  .y=C_BODY_B+12, .z=UNDEF        },
-
-    { .t=VM_push,       .x=VM_push,     .y=C_BODY_B+9,  .z=UNDEF        },
-    { .t=VM_pick,       .x=2,           .y=C_BODY_B+10, .z=UNDEF        },  // num = head
-    { .t=VM_push,       .x=CUST_SEND,   .y=C_BODY_B+11, .z=UNDEF        },  // beh = CUST_SEND
-    { .t=VM_cell,       .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // {t:VM_push, x:num, y:beh}
+    { .t=VM_if,         .x=C_BODY_B+4,  .y=C_BODY_B+3,  .z=UNDEF        },
 
     { .t=VM_push,       .x=CUST_SEND,   .y=CUST_SEND,   .z=UNDEF        },  // beh = CUST_SEND
 
-#define K_LAMBDA (C_BODY_B+13)
+    { .t=VM_msg,        .x=2,           .y=C_BODY_B+5,  .z=UNDEF        },  // body
+    { .t=VM_part,       .x=1,           .y=C_BODY_B+6,  .z=UNDEF        },  // tail head
+
+    { .t=VM_pick,       .x=1,           .y=C_BODY_B+7,  .z=UNDEF        },  // head head
+    { .t=VM_typeq,      .x=Fixnum_T,    .y=C_BODY_B+8,  .z=UNDEF        },  // head has type Fixnum_T
+    { .t=VM_if,         .x=C_BODY_B+9,  .y=C_BODY_B+13, .z=UNDEF        },
+
+    { .t=VM_push,       .x=VM_push,     .y=C_BODY_B+10, .z=UNDEF        },
+    { .t=VM_pick,       .x=2,           .y=C_BODY_B+11, .z=UNDEF        },  // const = head
+    { .t=VM_push,       .x=CUST_SEND,   .y=C_BODY_B+12, .z=UNDEF        },  // beh = CUST_SEND
+    { .t=VM_cell,       .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // {t:VM_push, x:const, y:beh}
+
+    { .t=VM_pick,       .x=1,           .y=C_BODY_B+14, .z=UNDEF        },  // head head
+    { .t=VM_push,       .x=START,       .y=C_BODY_B+15, .z=UNDEF        },  // START
+    { .t=VM_cmp,        .x=CMP_LT,      .y=C_BODY_B+16, .z=UNDEF        },  // head < START
+    { .t=VM_if,         .x=C_BODY_B+9,  .y=C_BODY_B+3,  .z=UNDEF        },
+
+#define K_LAMBDA (C_BODY_B+17)
 //  { .t=VM_push,       .x=_cust_,      .y=K_LAMBDA+0,  .z=UNDEF        },
     { .t=VM_push,       .x=VM_push,     .y=K_LAMBDA+1,  .z=UNDEF        },
     { .t=VM_push,       .x=UNIT,        .y=K_LAMBDA+2,  .z=UNDEF        },
