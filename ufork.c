@@ -2598,7 +2598,26 @@ PROC_DECL(Proc) {
 }
 
 PROC_DECL(Undef) {
-    return Self_Eval(self, arg);
+    int_t event = arg;
+#if INCLUDE_DEBUG
+    if (runtime_trace) {
+        DEBUG(print_event(event));
+        DEBUG(debug_print("Undef", event));
+    }
+#endif
+    ASSERT(self == get_x(event));
+    int_t msg = get_y(event);
+    event = XFREE(event);  // event is consumed
+    int_t cust = msg;
+    if (IS_PAIR(msg)) {
+        cust = car(msg);
+    }
+    if (IS_ACTOR(cust)) {
+        event = cell_new(Event_T, cust, self, NIL);
+        event_q_put(event);
+        return TRUE;  // retry event dispatch
+    }
+    return error("message not understood");
 }
 
 PROC_DECL(Boolean) {
