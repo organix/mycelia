@@ -1543,7 +1543,7 @@ symbol = Plus(Atom) -> symbol
     { .t=Actor_T,       .x=OP_CAR+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=O_CAR,       .y=OP_SE_BEH,   .z=UNDEF        },
 #define AP_CAR (OP_CAR+2)
-    { .t=Actor_T,       .x=AP_CAR+1,    .y=UNDEF,       .z=UNDEF        },  // (car pair)
+    { .t=Actor_T,       .x=AP_CAR+1,    .y=UNDEF,       .z=UNDEF        },  // (car <pair>)
     { .t=VM_push,       .x=OP_CAR,      .y=AP_CAR+2,    .z=UNDEF        },  // oper = OP_CAR
     { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
 
@@ -1556,7 +1556,7 @@ symbol = Plus(Atom) -> symbol
     { .t=Actor_T,       .x=OP_CDR+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=O_CDR,       .y=OP_SE_BEH,   .z=UNDEF        },
 #define AP_CDR (OP_CDR+2)
-    { .t=Actor_T,       .x=AP_CDR+1,    .y=UNDEF,       .z=UNDEF        },  // (cdr pair)
+    { .t=Actor_T,       .x=AP_CDR+1,    .y=UNDEF,       .z=UNDEF        },  // (cdr <pair>)
     { .t=VM_push,       .x=OP_CDR,      .y=AP_CDR+2,    .z=UNDEF        },  // oper = OP_CDR
     { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
 
@@ -1569,11 +1569,43 @@ symbol = Plus(Atom) -> symbol
     { .t=Actor_T,       .x=OP_CONS+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=O_CONS,      .y=OP_SE_BEH,   .z=UNDEF        },
 #define AP_CONS (OP_CONS+2)
-    { .t=Actor_T,       .x=AP_CONS+1,   .y=UNDEF,       .z=UNDEF        },  // (cons head tail)
+    { .t=Actor_T,       .x=AP_CONS+1,   .y=UNDEF,       .z=UNDEF        },  // (cons <head> <tail>)
     { .t=VM_push,       .x=OP_CONS,     .y=AP_CONS+2,   .z=UNDEF        },  // oper = OP_CONS
     { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
 
-#define A_QUIT (AP_CONS+3)
+#define C_BODY_B (AP_CONS+3)
+//  { .t=VM_push,       .x=_frml_,      .y=C_BODY_B-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=C_BODY_B+0,  .z=UNDEF        },
+    { .t=VM_push,       .x=VM_push,     .y=C_BODY_B+1,  .z=UNDEF        },
+    { .t=VM_push,       .x=UNIT,        .y=C_BODY_B+2,  .z=UNDEF        },
+    { .t=VM_push,       .x=CUST_SEND,   .y=C_BODY_B+3,  .z=UNDEF        },
+    { .t=VM_cell,       .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // {t:VM_push, x:UNIT, y:CUST_SEND}
+
+#define K_LAMBDA (C_BODY_B+4)
+//  { .t=VM_push,       .x=_cust_,      .y=K_LAMBDA+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_LAMBDA+1,  .z=UNDEF        },  // beh
+    { .t=VM_new,        .x=0,           .y=K_LAMBDA+2,  .z=UNDEF        },  // actor
+    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
+#define C_LAMBDA (K_LAMBDA+3)
+    { .t=Actor_T,       .x=C_LAMBDA+1,  .y=UNDEF,       .z=UNDEF        },  // (lambda <frml> . <body>)
+    { .t=VM_msg,        .x=-2,          .y=C_LAMBDA+2,  .z=UNDEF        },  // opt-env
+    { .t=VM_eq,         .x=NIL,         .y=C_LAMBDA+3,  .z=UNDEF        },  // opt-env == ()
+    { .t=VM_if,         .x=SELF_EVAL,   .y=C_LAMBDA+4,  .z=UNDEF        },
+
+    { .t=VM_msg,        .x=2,           .y=C_LAMBDA+5,  .z=UNDEF        },  // expr
+    { .t=VM_get,        .x=FLD_Y,       .y=C_LAMBDA+6,  .z=UNDEF        },  // body = cdr(expr)
+    { .t=VM_msg,        .x=1,           .y=C_LAMBDA+7,  .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=K_LAMBDA,    .y=C_LAMBDA+8,  .z=UNDEF        },  // K_LAMBDA
+    { .t=VM_new,        .x=1,           .y=C_LAMBDA+9,  .z=UNDEF        },  // k_lambda
+
+    { .t=VM_msg,        .x=2,           .y=C_LAMBDA+10, .z=UNDEF        },  // expr
+    { .t=VM_get,        .x=FLD_X,       .y=C_LAMBDA+11, .z=UNDEF        },  // frml = car(expr)
+    { .t=VM_msg,        .x=3,           .y=C_LAMBDA+12, .z=UNDEF        },  // env
+    { .t=VM_push,       .x=C_BODY_B,    .y=C_LAMBDA+13, .z=UNDEF        },  // C_BODY_B
+    { .t=VM_new,        .x=2,           .y=C_LAMBDA+14, .z=UNDEF        },  // c_body
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (c_body k_lambda body)
+
+#define A_QUIT (C_LAMBDA+15)
     { .t=Actor_T,       .x=A_QUIT+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_end,        .x=END_STOP,    .y=UNDEF,       .z=UNDEF        },  // kill thread
 
@@ -1688,6 +1720,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_CDR, "AP_CDR" },
     { O_CONS, "O_CONS" },
     { AP_CONS, "AP_CONS" },
+    { C_BODY_B, "C_BODY_B" },
+    { K_LAMBDA, "K_LAMBDA" },
+    { C_LAMBDA, "C_LAMBDA" },
     { A_QUIT, "A_QUIT" },
     { -1, "" },
 };
@@ -2240,7 +2275,7 @@ int_t init_global_env() {
     bind_global("#t", TRUE);
     bind_global("quote", OP_QUOTE);
     bind_global("list", AP_LIST);
-    bind_global("lambda", OP_LAMBDA);
+    bind_global("lambda", C_LAMBDA);
     bind_global("define", OP_DEFINE);
     bind_global("car", AP_CAR);
     bind_global("cdr", AP_CDR);
