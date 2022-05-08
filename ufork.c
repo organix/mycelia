@@ -158,6 +158,7 @@ PROC_DECL(vm_depth);
 PROC_DECL(vm_drop);
 PROC_DECL(vm_pick);
 PROC_DECL(vm_dup);
+PROC_DECL(vm_roll);
 PROC_DECL(vm_alu);
 PROC_DECL(vm_eq);
 PROC_DECL(vm_cmp);
@@ -195,20 +196,21 @@ PROC_DECL(vm_debug);
 #define VM_drop     (-18)
 #define VM_pick     (-19)
 #define VM_dup      (-20)
-#define VM_alu      (-21)
-#define VM_eq       (-22)
-#define VM_cmp      (-23)
-#define VM_if       (-24)
-#define VM_msg      (-25)
-#define VM_self     (-26)
-#define VM_send     (-27)
-#define VM_new      (-28)
-#define VM_beh      (-29)
-#define VM_end      (-30)
-#define VM_cvt      (-31)
-#define VM_putc     (-32)
-#define VM_getc     (-33)
-#define VM_debug    (-34)
+#define VM_roll     (-21)
+#define VM_alu      (-22)
+#define VM_eq       (-23)
+#define VM_cmp      (-24)
+#define VM_if       (-25)
+#define VM_msg      (-26)
+#define VM_self     (-27)
+#define VM_send     (-28)
+#define VM_new      (-29)
+#define VM_beh      (-30)
+#define VM_end      (-31)
+#define VM_cvt      (-32)
+#define VM_putc     (-33)
+#define VM_getc     (-34)
+#define VM_debug    (-35)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
@@ -226,6 +228,7 @@ proc_t proc_table[] = {
     vm_cmp,
     vm_eq,
     vm_alu,
+    vm_roll,
     vm_dup,
     vm_pick,
     vm_drop,
@@ -271,6 +274,7 @@ static char *proc_label(int_t proc) {
         "VM_drop",
         "VM_pick",
         "VM_dup",
+        "VM_roll",
         "VM_alu",
         "VM_eq",
         "VM_cmp",
@@ -1590,7 +1594,7 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_if,         .x=C_BODY_B+9,  .y=C_BODY_B+13, .z=UNDEF        },
 
     { .t=VM_push,       .x=VM_push,     .y=C_BODY_B+10, .z=UNDEF        },
-    { .t=VM_pick,       .x=2,           .y=C_BODY_B+11, .z=UNDEF        },  // const = head
+    { .t=VM_roll,       .x=2,           .y=C_BODY_B+11, .z=UNDEF        },  // const = head
     { .t=VM_push,       .x=CUST_SEND,   .y=C_BODY_B+12, .z=UNDEF        },  // beh = CUST_SEND
     { .t=VM_cell,       .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // {t:VM_push, x:const, y:beh}
 
@@ -2292,8 +2296,8 @@ int_t init_global_env() {
     s = cstr_intern("lambda");
     set_z(s, OP_LAMBDA);
 #endif
-    bind_global("#f", FALSE);
-    bind_global("#t", TRUE);
+    bind_global("#f", FALSE);  // FIXME: should be parsed as a constant
+    bind_global("#t", TRUE);  // FIXME: should be parsed as a constant
     bind_global("quote", OP_QUOTE);
     bind_global("list", AP_LIST);
     bind_global("lambda", C_LAMBDA);
@@ -2838,7 +2842,7 @@ PROC_DECL(vm_depth) {
 PROC_DECL(vm_drop) {
     int_t n = get_x(self);
     sane = SANITY;
-    while (n-- > 0) {
+    while (n-- > 0) {  // drop n items from stack
         stack_pop();
         if (sane-- == 0) return panic("insane vm_drop");
     }
@@ -2870,6 +2874,27 @@ PROC_DECL(vm_dup) {
         if (sane-- == 0) return panic("insane vm_dup");
     }
     SET_SP(append_reverse(dup, GET_SP()));
+    return get_y(self);
+}
+
+PROC_DECL(vm_roll) {
+    int_t n = get_x(self);
+    int_t v = UNDEF;
+    int_t sp = GET_SP();
+    int_t pp = sp;
+    sane = SANITY;
+    while (--n > 0) {  // roll n-th item to top of stack
+        pp = sp;
+        sp = cdr(sp);
+        if (sane-- == 0) return panic("insane vm_roll");
+    }
+    if (sp == NIL) {  // stack underflow
+        stack_push(NIL);
+    } else if (sp != pp) {
+        set_cdr(pp, cdr(sp));
+        set_cdr(sp, GET_SP());
+        SET_SP(sp);
+    }
     return get_y(self);
 }
 
@@ -3149,7 +3174,7 @@ void print_sexpr(int_t x) {
         }
         fprintf(stderr, ")");
     } else if (IS_ACTOR(x)) {
-        fprintf(stderr, "#actor-%"PdI"", x);
+        fprintf(stderr, "#actor@%"PdI"", x);
     } else {
         fprintf(stderr, "^%"PdI"", x);
     }
@@ -3309,6 +3334,7 @@ void print_inst(int_t ip) {
         case VM_drop: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_pick: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_dup:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_roll: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_alu:  fprintf(stderr, "{op:%s,k:%"PdI"}", operation_label(get_x(ip)), get_y(ip)); break;
         case VM_eq:   fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_cmp:  fprintf(stderr, "{r:%s,k:%"PdI"}", relation_label(get_x(ip)), get_y(ip)); break;
