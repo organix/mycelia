@@ -1577,6 +1577,7 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_push,       .x=OP_CONS,     .y=AP_CONS+2,   .z=UNDEF        },  // oper = OP_CONS
     { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
 
+#if 0
 #define C_BODY_B (AP_CONS+3)
 //  { .t=VM_push,       .x=_frml_,      .y=C_BODY_B-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_env_,       .y=C_BODY_B+0,  .z=UNDEF        },
@@ -1602,33 +1603,121 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_push,       .x=START,       .y=C_BODY_B+15, .z=UNDEF        },  // START
     { .t=VM_cmp,        .x=CMP_LT,      .y=C_BODY_B+16, .z=UNDEF        },  // head < START
     { .t=VM_if,         .x=C_BODY_B+9,  .y=C_BODY_B+3,  .z=UNDEF        },
+#endif
+/*
+(define k-compile
+  (lambda (cust expr frml env)
+    (BEH beh
+      (if (fixnum? expr)
+        (SEND cust
+          (cell 'VM_push expr beh))
+        ;...
+      ))))
+*/
+#define K_COMPILE (AP_CONS+3)
+//  { .t=VM_push,       .x=_env_,       .y=K_COMPILE-3, .z=UNDEF        },
+//  { .t=VM_push,       .x=_frml_,      .y=K_COMPILE-2, .z=UNDEF        },
+//  { .t=VM_push,       .x=_expr_,      .y=K_COMPILE-1, .z=UNDEF        },
+//  { .t=VM_push,       .x=_cust_,      .y=K_COMPILE+0, .z=UNDEF        },
+    { .t=VM_pick,       .x=2,           .y=K_COMPILE+1, .z=UNDEF        },  // expr
+    { .t=VM_typeq,      .x=Fixnum_T,    .y=K_COMPILE+2, .z=UNDEF        },  // expr has type Fixnum_T
+    { .t=VM_if,         .x=K_COMPILE+3, .y=K_COMPILE+8, .z=UNDEF        },
 
-#define K_LAMBDA (C_BODY_B+17)
+    { .t=VM_push,       .x=VM_push,     .y=K_COMPILE+4, .z=UNDEF        },  // VM_push
+    { .t=VM_pick,       .x=3,           .y=K_COMPILE+5, .z=UNDEF        },  // expr
+    { .t=VM_msg,        .x=0,           .y=K_COMPILE+6, .z=UNDEF        },  // beh
+    { .t=VM_cell,       .x=3,           .y=K_COMPILE+7, .z=UNDEF        },  // {t:VM_push, x:expr, y:beh}
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
+
+    { .t=VM_push,       .x=VM_push,     .y=K_COMPILE+9, .z=UNDEF        },  // VM_push
+    { .t=VM_push,       .x=UNIT,        .y=K_COMPILE+10,.z=UNDEF        },  // UNIT
+    { .t=VM_msg,        .x=0,           .y=K_COMPILE+11,.z=UNDEF        },  // beh
+    { .t=VM_cell,       .x=3,           .y=K_COMPILE+12,.z=UNDEF        },  // {t:VM_push, x:UNIT, y:beh}
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
+
+/*
+(define compile-beh
+  (lambda (body)
+    (BEH (cust frml env)
+      (if (pair? body)
+        (SEND
+          (CREATE (compile-beh (cdr body)))  ; FIXME: maybe BECOME this?
+          (list (CREATE (k-compile cust (car body) frml env)) frml env))
+        (SEND cust CUST_SEND) ; send final result
+      ))))
+*/
+#define COMPILE_B (K_COMPILE+13)
+//  { .t=VM_push,       .x=_body_,      .y=COMPILE_B+0, .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=COMPILE_B+1, .z=UNDEF        },  // body
+    { .t=VM_typeq,      .x=Pair_T,      .y=COMPILE_B+2, .z=UNDEF        },  // body has type Pair_T
+    { .t=VM_if,         .x=COMPILE_B+4, .y=COMPILE_B+3, .z=UNDEF        },
+
+    { .t=VM_push,       .x=CUST_SEND,   .y=CUST_SEND,   .z=UNDEF        },  // beh = CUST_SEND
+
+    { .t=VM_msg,        .x=3,           .y=COMPILE_B+5, .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=2,           .y=COMPILE_B+6, .z=UNDEF        },  // frml
+    { .t=VM_roll,       .x=3,           .y=COMPILE_B+7, .z=UNDEF        },  // body
+    { .t=VM_part,       .x=1,           .y=COMPILE_B+8, .z=UNDEF        },  // tail head
+
+    { .t=VM_msg,        .x=3,           .y=COMPILE_B+9, .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=2,           .y=COMPILE_B+10,.z=UNDEF        },  // frml
+    { .t=VM_roll,       .x=3,           .y=COMPILE_B+11,.z=UNDEF        },  // expr = head
+    { .t=VM_msg,        .x=1,           .y=COMPILE_B+12,.z=UNDEF        },  // cust
+    { .t=VM_push,       .x=K_COMPILE,   .y=COMPILE_B+13,.z=UNDEF        },  // K_COMPILE
+    { .t=VM_new,        .x=4,           .y=COMPILE_B+14,.z=UNDEF        },  // k_compile
+
+    { .t=VM_roll,       .x=2,           .y=COMPILE_B+15,.z=UNDEF        },  // body' = tail
+    { .t=VM_push,       .x=COMPILE_B,   .y=COMPILE_B+16,.z=UNDEF        },  // COMPILE_B
+    { .t=VM_beh,        .x=1,           .y=COMPILE_B+17,.z=UNDEF        },  // BECOME (COMPILE_B tail)
+    { .t=VM_self,       .x=UNDEF,       .y=COMPILE_B+18,.z=UNDEF        },  // SELF
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (SELF k_compile frml env)
+
+/*
+(define k-lambda-c
+  (lambda (cust)
+    (BEH beh
+      (SEND cust
+        (cell 'Actor_T (cell 'VM_push #unit beh)))
+      )))
+*/
+#define K_LAMBDA (COMPILE_B+19)
 //  { .t=VM_push,       .x=_cust_,      .y=K_LAMBDA+0,  .z=UNDEF        },
     { .t=VM_push,       .x=VM_push,     .y=K_LAMBDA+1,  .z=UNDEF        },
     { .t=VM_push,       .x=UNIT,        .y=K_LAMBDA+2,  .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_LAMBDA+3,  .z=UNDEF        },  // beh
     { .t=VM_cell,       .x=3,           .y=K_LAMBDA+4,  .z=UNDEF        },  // {t:VM_push, x:UNIT, y:beh}
     { .t=VM_new,        .x=0,           .y=K_LAMBDA+5,  .z=UNDEF        },  // actor
-    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
+/*
+(define lambda-c              ; (lambda-compile <frml> . <body>)
+  (CREATE
+    (BEH (cust opnd . opt-env)
+      (if (pair? opt-env)
+        (SEND                 ; apply
+          (CREATE (compile-beh (cdr opnd)))
+          (list (CREATE (k-lambda-c cust)) (car opnd) (car opt-env)))
+        (SEND cust SELF)      ; eval
+      ))))
+*/
 #define C_LAMBDA (K_LAMBDA+6)
     { .t=Actor_T,       .x=C_LAMBDA+1,  .y=UNDEF,       .z=UNDEF        },  // (lambda <frml> . <body>)
     { .t=VM_msg,        .x=-2,          .y=C_LAMBDA+2,  .z=UNDEF        },  // opt-env
-    { .t=VM_eq,         .x=NIL,         .y=C_LAMBDA+3,  .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=SELF_EVAL,   .y=C_LAMBDA+4,  .z=UNDEF        },
+    { .t=VM_typeq,      .x=Pair_T,      .y=C_LAMBDA+3,  .z=UNDEF        },  // opt-env has type Pair_T
+    { .t=VM_if,         .x=C_LAMBDA+4,  .y=SELF_EVAL,   .z=UNDEF        },
 
-    { .t=VM_msg,        .x=2,           .y=C_LAMBDA+5,  .z=UNDEF        },  // expr
-    { .t=VM_get,        .x=FLD_Y,       .y=C_LAMBDA+6,  .z=UNDEF        },  // body = cdr(expr)
-    { .t=VM_msg,        .x=1,           .y=C_LAMBDA+7,  .z=UNDEF        },  // cust
-    { .t=VM_push,       .x=K_LAMBDA,    .y=C_LAMBDA+8,  .z=UNDEF        },  // K_LAMBDA
-    { .t=VM_new,        .x=1,           .y=C_LAMBDA+9,  .z=UNDEF        },  // k_lambda
+    { .t=VM_msg,        .x=3,           .y=C_LAMBDA+5,  .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=2,           .y=C_LAMBDA+6,  .z=UNDEF        },  // opnd
+    { .t=VM_get,        .x=FLD_X,       .y=C_LAMBDA+7,  .z=UNDEF        },  // frml = car(opnd)
 
-    { .t=VM_msg,        .x=2,           .y=C_LAMBDA+10, .z=UNDEF        },  // expr
-    { .t=VM_get,        .x=FLD_X,       .y=C_LAMBDA+11, .z=UNDEF        },  // frml = car(expr)
-    { .t=VM_msg,        .x=3,           .y=C_LAMBDA+12, .z=UNDEF        },  // env
-    { .t=VM_push,       .x=C_BODY_B,    .y=C_LAMBDA+13, .z=UNDEF        },  // C_BODY_B
-    { .t=VM_new,        .x=2,           .y=C_LAMBDA+14, .z=UNDEF        },  // c_body
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (c_body k_lambda body)
+    { .t=VM_msg,        .x=1,           .y=C_LAMBDA+8,  .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=K_LAMBDA,    .y=C_LAMBDA+9,  .z=UNDEF        },  // K_LAMBDA
+    { .t=VM_new,        .x=1,           .y=C_LAMBDA+10, .z=UNDEF        },  // k_lambda
+
+    { .t=VM_msg,        .x=2,           .y=C_LAMBDA+11, .z=UNDEF        },  // opnd
+    { .t=VM_get,        .x=FLD_Y,       .y=C_LAMBDA+12, .z=UNDEF        },  // body = cdr(opnd)
+    { .t=VM_push,       .x=COMPILE_B,   .y=C_LAMBDA+13, .z=UNDEF        },  // COMPILE_B
+    { .t=VM_new,        .x=1,           .y=C_LAMBDA+14, .z=UNDEF        },  // compile
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (compile k_lambda frml env)
 
 #define A_QUIT (C_LAMBDA+15)
     { .t=Actor_T,       .x=A_QUIT+1,    .y=UNDEF,       .z=UNDEF        },
@@ -1745,7 +1834,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_CDR, "AP_CDR" },
     { O_CONS, "O_CONS" },
     { AP_CONS, "AP_CONS" },
-    { C_BODY_B, "C_BODY_B" },
+    { K_COMPILE, "K_COMPILE" },
+    { COMPILE_B, "COMPILE_B" },
     { K_LAMBDA, "K_LAMBDA" },
     { C_LAMBDA, "C_LAMBDA" },
     { A_QUIT, "A_QUIT" },

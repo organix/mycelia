@@ -103,3 +103,46 @@
       ;(SEND fn-id (list a-printer empty-env))  ; eval
       (SEND expr (list a-printer empty-env))  ; eval
     )))
+
+;
+; lambda compilation for _ufork_
+;
+
+(define COMMIT
+  (cell 'VM_end 'END_COMMIT))
+(define SEND_0
+  (cell 'VM_send 0 COMMIT))
+(define CUST_SEND
+  (cell 'VM_msg 1 SEND_0))
+(define k-compile
+  (lambda (cust expr frml env)
+    (BEH beh
+      (if (fixnum? expr)
+        (SEND cust
+          (cell 'VM_push expr beh))
+        ;...
+      ))))
+(define compile-beh
+  (lambda (body)
+    (BEH (cust frml env)
+      (if (pair? body)
+        (SEND
+          (CREATE (compile-beh (cdr body)))
+          (list (CREATE (k-compile cust (car body) frml env)) frml env))
+        (SEND cust CUST_SEND) ; send final result
+      ))))
+(define k-lambda-c
+  (lambda (cust)
+    (BEH beh
+      (SEND cust
+        (cell 'Actor_T (cell 'VM_push #unit beh)))
+      )))
+(define lambda-c              ; (lambda-compile <frml> . <body>)
+  (CREATE
+    (BEH (cust opnd . opt-env)
+      (if (pair? opt-env)
+        (SEND                 ; apply
+          (CREATE (compile-beh (cdr opnd)))
+          (list (CREATE (k-lambda-c cust)) (car opnd) (car opt-env)))
+        (SEND cust SELF)      ; eval
+      ))))
