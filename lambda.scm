@@ -109,19 +109,26 @@
 ;
 
 (define COMMIT
-  (cell 'VM_end 'END_COMMIT))
+  (cell VM_end END_COMMIT))
 (define SEND_0
-  (cell 'VM_send 0 COMMIT))
+  (cell VM_send 0 COMMIT))
 (define CUST_SEND
-  (cell 'VM_msg 1 SEND_0))
+  (cell VM_msg 1 SEND_0))
 (define k-compile
   (lambda (cust expr frml env)
     (BEH beh
-      (if (fixnum? expr)
+      (if (or (fixnum? expr) (const? expr))
         (SEND cust
-          (cell 'VM_push expr beh))
-        ;...
-      ))))
+          (cell VM_push expr beh))
+        (if (symbol? expr)
+          (if (eq? frml expr)
+            (cell VM_msg 2 beh)
+            (if (eq? (car frml) expr)
+              (cell VM_msg 2 (cell VM_get FLD_X beh))
+              ;...
+              ))
+          ;...
+      )))))
 (define compile-beh
   (lambda (body)
     (BEH (cust frml env)
@@ -135,7 +142,7 @@
   (lambda (cust)
     (BEH beh
       (SEND cust
-        (cell 'Actor_T (cell 'VM_push #unit beh)))
+        (cell Actor_T (cell VM_push #unit beh)))
       )))
 (define lambda-c              ; (lambda-compile <frml> . <body>)
   (CREATE
