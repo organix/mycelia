@@ -1577,33 +1577,6 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_push,       .x=OP_CONS,     .y=AP_CONS+2,   .z=UNDEF        },  // oper = OP_CONS
     { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
 
-#if 0
-#define C_BODY_B (AP_CONS+3)
-//  { .t=VM_push,       .x=_frml_,      .y=C_BODY_B-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_env_,       .y=C_BODY_B+0,  .z=UNDEF        },
-    { .t=VM_msg,        .x=2,           .y=C_BODY_B+1,  .z=UNDEF        },  // body
-    { .t=VM_typeq,      .x=Pair_T,      .y=C_BODY_B+2,  .z=UNDEF        },  // body has type Pair_T
-    { .t=VM_if,         .x=C_BODY_B+4,  .y=C_BODY_B+3,  .z=UNDEF        },
-
-    { .t=VM_push,       .x=CUST_SEND,   .y=CUST_SEND,   .z=UNDEF        },  // beh = CUST_SEND
-
-    { .t=VM_msg,        .x=2,           .y=C_BODY_B+5,  .z=UNDEF        },  // body
-    { .t=VM_part,       .x=1,           .y=C_BODY_B+6,  .z=UNDEF        },  // tail head
-
-    { .t=VM_pick,       .x=1,           .y=C_BODY_B+7,  .z=UNDEF        },  // head head
-    { .t=VM_typeq,      .x=Fixnum_T,    .y=C_BODY_B+8,  .z=UNDEF        },  // head has type Fixnum_T
-    { .t=VM_if,         .x=C_BODY_B+9,  .y=C_BODY_B+13, .z=UNDEF        },
-
-    { .t=VM_push,       .x=VM_push,     .y=C_BODY_B+10, .z=UNDEF        },
-    { .t=VM_pick,       .x=2,           .y=C_BODY_B+11, .z=UNDEF        },  // const = head
-    { .t=VM_push,       .x=CUST_SEND,   .y=C_BODY_B+12, .z=UNDEF        },  // beh = CUST_SEND
-    { .t=VM_cell,       .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // {t:VM_push, x:const, y:beh}
-
-    { .t=VM_pick,       .x=1,           .y=C_BODY_B+14, .z=UNDEF        },  // head head
-    { .t=VM_push,       .x=START,       .y=C_BODY_B+15, .z=UNDEF        },  // START
-    { .t=VM_cmp,        .x=CMP_LT,      .y=C_BODY_B+16, .z=UNDEF        },  // head < START
-    { .t=VM_if,         .x=C_BODY_B+9,  .y=C_BODY_B+3,  .z=UNDEF        },
-#endif
 /*
 (define k-compile
   (lambda (cust expr frml env)
@@ -1629,10 +1602,15 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_cell,       .x=3,           .y=K_COMPILE+7, .z=UNDEF        },  // {t:VM_push, x:expr, y:beh}
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
 
-    { .t=VM_push,       .x=VM_push,     .y=K_COMPILE+9, .z=UNDEF        },  // VM_push
-    { .t=VM_push,       .x=UNIT,        .y=K_COMPILE+10,.z=UNDEF        },  // UNIT
-    { .t=VM_msg,        .x=0,           .y=K_COMPILE+11,.z=UNDEF        },  // beh
-    { .t=VM_cell,       .x=3,           .y=K_COMPILE+12,.z=UNDEF        },  // {t:VM_push, x:UNIT, y:beh}
+    { .t=VM_pick,       .x=2,           .y=K_COMPILE+9, .z=UNDEF        },  // expr
+    { .t=VM_push,       .x=START,       .y=K_COMPILE+10,.z=UNDEF        },  // START
+    { .t=VM_cmp,        .x=CMP_LT,      .y=K_COMPILE+11,.z=UNDEF        },  // expr < START
+    { .t=VM_if,         .x=K_COMPILE+3, .y=K_COMPILE+12,.z=UNDEF        },
+
+    { .t=VM_push,       .x=VM_push,     .y=K_COMPILE+13,.z=UNDEF        },  // VM_push
+    { .t=VM_push,       .x=UNIT,        .y=K_COMPILE+14,.z=UNDEF        },  // UNIT
+    { .t=VM_msg,        .x=0,           .y=K_COMPILE+15,.z=UNDEF        },  // beh
+    { .t=VM_cell,       .x=3,           .y=K_COMPILE+16,.z=UNDEF        },  // {t:VM_push, x:UNIT, y:beh}
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
 
 /*
@@ -1646,7 +1624,7 @@ symbol = Plus(Atom) -> symbol
         (SEND cust CUST_SEND) ; send final result
       ))))
 */
-#define COMPILE_B (K_COMPILE+13)
+#define COMPILE_B (K_COMPILE+17)
 //  { .t=VM_push,       .x=_body_,      .y=COMPILE_B+0, .z=UNDEF        },
     { .t=VM_pick,       .x=1,           .y=COMPILE_B+1, .z=UNDEF        },  // body
     { .t=VM_typeq,      .x=Pair_T,      .y=COMPILE_B+2, .z=UNDEF        },  // body has type Pair_T
