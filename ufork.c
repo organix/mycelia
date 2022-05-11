@@ -417,11 +417,11 @@ static char *cell_label(int_t cell) {
 
 #define CELL_MAX NAT(1<<12)  // 4K cells
 cell_t cell_table[CELL_MAX] = {
-    { .t=Boolean_T,     .x=FALSE,       .y=FALSE,       .z=UNDEF        },
-    { .t=Boolean_T,     .x=TRUE,        .y=TRUE,        .z=UNDEF        },
-    { .t=Null_T,        .x=NIL,         .y=NIL,         .z=UNDEF        },
-    { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },
-    { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
+    { .t=Boolean_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // FALSE = #f
+    { .t=Boolean_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // TRUE = #t
+    { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // NIL = ()
+    { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNDEF = #?
+    { .t=Unit_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
     { .t=Event_T,       .x=17,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=209,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
     //{ .t=Event_T,       .x=555,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
@@ -1509,7 +1509,7 @@ symbol = Plus(Atom) -> symbol
   (lambda (func)                        ; (func cust . args)
     (BEH (cust params . opt-env)
       (if (pair? opt-env)
-        (SEND                 ; apply
+        (SEND                           ; apply
           (CREATE (evlis-beh param))
           (list (CREATE (k-invoke-beh cust func)) (car opt-env)))
         (SEND cust SELF)                ; eval
@@ -1563,13 +1563,13 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_push,       .x=UNIT,        .y=K_DEFINE+3,  .z=UNDEF        },  // #unit
     { .t=VM_pick,       .x=3,           .y=SEND_0,      .z=UNDEF        },  // cust
 /*
-(define op-define             ; (define <symbol> <expr>)
+(define op-define                       ; (define <symbol> <expr>)
   (CREATE
     (BEH (cust params . opt-env)
       (if (pair? opt-env)
-        (SEND (cadr params)   ; apply
+        (SEND (cadr params)             ; apply
           (list (CREATE (k_define_beh cust (car params))) (car opt-env)))
-        (SEND cust SELF)      ; eval
+        (SEND cust SELF)                ; eval
       ))))
 */
 #define OP_DEFINE (K_DEFINE+4)
@@ -2913,14 +2913,15 @@ PROC_DECL(vm_cell) {
 PROC_DECL(vm_get) {
     int_t f = get_x(self);
     int_t cell = stack_pop();
-    ASSERT(IS_CELL(cell));
     int_t v = UNDEF;
-    switch (f) {
-        case FLD_T:     v = get_t(cell);    break;
-        case FLD_X:     v = get_x(cell);    break;
-        case FLD_Y:     v = get_y(cell);    break;
-        case FLD_Z:     v = get_z(cell);    break;
-        default:        return error("unknown field");
+    if (IS_CELL(cell)) {
+        switch (f) {
+            case FLD_T:     v = get_t(cell);    break;
+            case FLD_X:     v = get_x(cell);    break;
+            case FLD_Y:     v = get_y(cell);    break;
+            case FLD_Z:     v = get_z(cell);    break;
+            default:        return error("unknown field");
+        }
     }
     stack_push(v);
     return get_y(self);
@@ -2932,13 +2933,14 @@ PROC_DECL(vm_set) {
     int_t sp = GET_SP();
     if (!IS_PAIR(sp)) return error("set requires a cell");
     int_t cell = car(sp);
-    ASSERT(IS_CELL(cell));
-    switch (f) {
-        case FLD_T:     set_t(cell, v);     break;
-        case FLD_X:     set_x(cell, v);     break;
-        case FLD_Y:     set_y(cell, v);     break;
-        case FLD_Z:     set_z(cell, v);     break;
-        default:        return error("unknown field");
+    if (IS_CELL(cell)) {
+        switch (f) {
+            case FLD_T:     set_t(cell, v);     break;
+            case FLD_X:     set_x(cell, v);     break;
+            case FLD_Y:     set_y(cell, v);     break;
+            case FLD_Z:     set_z(cell, v);     break;
+            default:        return error("unknown field");
+        }
     }
     return get_y(self);
 }
@@ -3123,7 +3125,7 @@ PROC_DECL(vm_cmp) {
 
 PROC_DECL(vm_if) {
     int_t b = stack_pop();
-    // FIXME: check for UNDEF? ...if so, then what?
+    if (b == UNDEF) return error("undefined condition");
     return ((b == FALSE) ? get_y(self) : get_x(self));
 }
 
