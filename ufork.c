@@ -424,7 +424,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Unit_T,        .x=UNIT,        .y=UNIT,        .z=UNDEF        },
     { .t=Event_T,       .x=17,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=209,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    //{ .t=Event_T,       .x=590,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    //{ .t=Event_T,       .x=555,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
 
 #define SELF_EVAL (START+1)
     { .t=VM_self,       .x=UNDEF,       .y=START+2,     .z=UNDEF        },  // value = SELF
@@ -483,7 +483,7 @@ cell_t cell_table[CELL_MAX] = {
 #define REPL_L (A_BOOT+1)
 #define REPL_F (A_BOOT+17)
     { .t=VM_push,       .x=REPL_F,      .y=REPL_R+1,    .z=UNDEF        },  // fail = REPL_F
-    { .t=VM_push,       .x=REPL_E,      .y=593,         .z=UNDEF        },  // ok = REPL_E  --> {k:G_EVAL_X}
+    { .t=VM_push,       .x=REPL_E,      .y=558,         .z=UNDEF        },  // ok = REPL_E  --> {k:G_EVAL_X}
 
     { .t=Actor_T,       .x=REPL_E+1,    .y=UNDEF,       .z=UNDEF        },  // +7
     { .t=VM_msg,        .x=1,           .y=REPL_E+2,    .z=UNDEF        },  // sexpr
@@ -740,35 +740,35 @@ cell_t cell_table[CELL_MAX] = {
 /*
 (define k-apply-beh
   (lambda (cust oper env)
-    (BEH arg
+    (BEH args
       (SEND oper
-        (list cust arg env)))))
+        (list cust args env)))))
 */
 #define K_APPLY (EVLIS_BEH+20)
 //  { .t=VM_push,       .x=_cust_,      .y=K_APPLY-2,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_oper_,      .y=K_APPLY-1,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_env_,       .y=K_APPLY+0,   .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=K_APPLY+1,   .z=UNDEF        },  // arg
+    { .t=VM_msg,        .x=0,           .y=K_APPLY+1,   .z=UNDEF        },  // args
     { .t=VM_pick,       .x=4,           .y=K_APPLY+2,   .z=UNDEF        },  // cust
     { .t=VM_pick,       .x=4,           .y=K_APPLY+3,   .z=UNDEF        },  // oper
-    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (oper cust arg env)
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (oper cust args env)
 /*
 (define appl-beh
   (lambda (oper senv)
-    (BEH (cust param . opt-env)
-      (if (null? opt-env)
-        (SEND cust SELF)      ; eval
+    (BEH (cust params . opt-env)
+      (if (pair? opt-env)
         (SEND                 ; apply
-          (CREATE (evlis-beh param))
+          (CREATE (evlis-beh params))
           (list (CREATE (k-apply-beh cust oper senv)) (car opt-env)))
+        (SEND cust SELF)      ; eval
       ))))
 */
 #define APPL_BEH (K_APPLY+4)
 //  { .t=VM_push,       .x=_oper_,      .y=APPL_BEH-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_senv_,      .y=APPL_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=APPL_BEH+1,  .z=UNDEF        },  // opt-env
-    { .t=VM_eq,         .x=NIL,         .y=APPL_BEH+2,  .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=SELF_EVAL,   .y=APPL_BEH+3,  .z=UNDEF        },
+    { .t=VM_typeq,      .x=Pair_T,      .y=APPL_BEH+2,  .z=UNDEF        },  // opt-env has type Pair_T
+    { .t=VM_if,         .x=APPL_BEH+3,  .y=SELF_EVAL,   .z=UNDEF        },
 
     { .t=VM_msg,        .x=1,           .y=APPL_BEH+4,  .z=UNDEF        },  // cust
     { .t=VM_pick,       .x=3,           .y=APPL_BEH+5,  .z=UNDEF        },  // oper
@@ -778,10 +778,10 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_msg,        .x=3,           .y=APPL_BEH+9,  .z=UNDEF        },  // denv
     { .t=VM_pick,       .x=2,           .y=APPL_BEH+10, .z=UNDEF        },  // k_apply
-    { .t=VM_msg,        .x=2,           .y=APPL_BEH+11, .z=UNDEF        },  // param
+    { .t=VM_msg,        .x=2,           .y=APPL_BEH+11, .z=UNDEF        },  // params
     { .t=VM_push,       .x=EVLIS_BEH,   .y=APPL_BEH+12, .z=UNDEF        },  // EVLIS_BEH
-    { .t=VM_new,        .x=1,           .y=APPL_BEH+13, .z=UNDEF        },  // ev_param
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_param k_apply denv)
+    { .t=VM_new,        .x=1,           .y=APPL_BEH+13, .z=UNDEF        },  // ev_list
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_list k_apply denv)
 
 /*
 (define oper-beh
@@ -896,93 +896,10 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=EXPR_I,      .y=A_TEST+4,    .z=UNDEF        },  // EXPR_I
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
 
-/*
-(define op-quote              ; (quote <sexpr>)
-  (CREATE
-    (BEH (cust expr . opt-env)
-      (if (null? opt-env)
-        (SEND cust SELF)      ; eval
-        (SEND cust            ; apply
-          (car expr))
-      ))))
-*/
-#define OP_QUOTE (A_TEST+5)
-    { .t=Actor_T,       .x=OP_QUOTE+1,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=-2,          .y=OP_QUOTE+2,  .z=UNDEF        },  // opt-env
-    { .t=VM_eq,         .x=NIL,         .y=OP_QUOTE+3,  .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=SELF_EVAL,   .y=OP_QUOTE+4,  .z=UNDEF        },
-    { .t=VM_msg,        .x=2,           .y=OP_QUOTE+5,  .z=UNDEF        },  // expr
-    { .t=VM_get,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // (car expr)
-
-/*
-(define op-list               ; (list . <args>)
-  (CREATE
-    (BEH (cust args . opt-env)
-      (if (null? opt-env)
-        (SEND cust SELF)      ; eval
-        (SEND cust args)      ; apply
-      ))))
-*/
-#define OP_LIST (OP_QUOTE+6)
-    { .t=Actor_T,       .x=OP_LIST+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=-2,          .y=OP_LIST+2,   .z=UNDEF        },  // opt-env
-    { .t=VM_eq,         .x=NIL,         .y=OP_LIST+3,   .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=SELF_EVAL,   .y=OP_LIST+4,   .z=UNDEF        },
-    { .t=VM_msg,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // args
-#define AP_LIST (OP_LIST+5)
-    { .t=Actor_T,       .x=AP_LIST+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=OP_LIST,     .y=AP_LIST+2,   .z=UNDEF        },  // oper = OP_LIST
-    { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
-
-/*
-(define k-define-beh
-  (lambda (cust symbol)
-    (BEH value
-      (SEND cust
-        (eval `(define ,symbol ',value))))))
-*/
-#define K_DEFINE (AP_LIST+3)
-//  { .t=VM_push,       .x=_cust_,      .y=K_DEFINE-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_symbol_,    .y=K_DEFINE+0,  .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=K_DEFINE+1,  .z=UNDEF        },  // value
-    { .t=VM_set,        .x=FLD_Z,       .y=K_DEFINE+2,  .z=UNDEF        },  // symbol{z=value}
-    { .t=VM_push,       .x=UNIT,        .y=K_DEFINE+3,  .z=UNDEF        },  // #unit
-    { .t=VM_pick,       .x=3,           .y=SEND_0,      .z=UNDEF        },  // cust
-/*
-(define op-define             ; (define <symbol> <expr>)
-  (CREATE
-    (BEH (cust params . opt-env)
-      (if (null? opt-env)
-        (SEND cust SELF)      ; eval
-        (SEND (cadr params)   ; apply
-          (list (CREATE (k_define_beh cust (car params))) (car opt-env)))
-      ))))
-*/
-#define OP_DEFINE (K_DEFINE+4)
-    { .t=Actor_T,       .x=OP_DEFINE+1, .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=-2,          .y=OP_DEFINE+2, .z=UNDEF        },  // opt-env
-    { .t=VM_eq,         .x=NIL,         .y=OP_DEFINE+3, .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=SELF_EVAL,   .y=OP_DEFINE+4, .z=UNDEF        },
-
-    { .t=VM_msg,        .x=2,           .y=OP_DEFINE+5, .z=UNDEF        },  // params
-    { .t=VM_part,       .x=2,           .y=OP_DEFINE+6, .z=UNDEF        },  // () expr symbol
-    { .t=VM_pick,       .x=1,           .y=OP_DEFINE+7, .z=UNDEF        },  // symbol symbol
-    { .t=VM_typeq,      .x=Symbol_T,    .y=OP_DEFINE+8, .z=UNDEF        },  // symbol has type Symbol_T
-    { .t=VM_if,         .x=OP_DEFINE+10,.y=OP_DEFINE+9, .z=UNDEF        },
-    { .t=VM_push,       .x=UNDEF,       .y=CUST_SEND,   .z=UNDEF        },  // #undefined
-
-    { .t=VM_msg,        .x=3,           .y=OP_DEFINE+11,.z=UNDEF        },  // env
-    { .t=VM_msg,        .x=1,           .y=OP_DEFINE+12,.z=UNDEF        },  // cust
-    { .t=VM_pick,       .x=3,           .y=OP_DEFINE+13,.z=UNDEF        },  // symbol
-    { .t=VM_push,       .x=K_DEFINE,    .y=OP_DEFINE+14,.z=UNDEF        },  // K_DEFINE
-    { .t=VM_new,        .x=2,           .y=OP_DEFINE+15,.z=UNDEF        },  // k_define
-    { .t=VM_pick,       .x=4,           .y=OP_DEFINE+16,.z=UNDEF        },  // expr
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (expr k_define env)
-
 //
 // Parsing Expression Grammar (PEG) behaviors
 //
-#define G_EMPTY (OP_DEFINE+17)
+#define G_EMPTY (A_TEST+5)
     { .t=Actor_T,       .x=G_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },
 #define G_EMPTY_B (G_EMPTY+1)
     { .t=VM_msg,        .x=-2,          .y=G_EMPTY+2,   .z=UNDEF        },  // in
@@ -1538,44 +1455,174 @@ symbol = Plus(Atom) -> symbol
 //
 // Global LISP/Scheme Procedures
 //
-#define O_CAR (G_TEST+10)
-    { .t=Actor_T,       .x=O_CAR+1,     .y=UNDEF,       .z=UNDEF        },  // (cust args env)
-    { .t=VM_msg,        .x=2,           .y=O_CAR+2,     .z=UNDEF        },  // args
-    { .t=VM_get,        .x=FLD_X,       .y=O_CAR+3,     .z=UNDEF        },  // pair = car(args)
+
+/*
+(define f-oper-beh                      ; operative function adapter
+  (lambda (oper)                        ; (oper cust args env)
+    (BEH (cust . args)
+      (SEND oper (list cust args empty-env)) )))
+*/
+#define F_OPER_B (G_TEST+10)
+//  { .t=VM_push,       .x=_oper_,      .y=F_OPER_B+0,  .z=UNDEF        },
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=F_OPER_B+1,  .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=-1,          .y=F_OPER_B+2,  .z=UNDEF        },  // args
+    { .t=VM_msg,        .x=1,           .y=F_OPER_B+3,  .z=UNDEF        },  // cust
+    { .t=VM_roll,       .x=4,           .y=F_OPER_B+4,  .z=UNDEF        },  // oper
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (oper cust args env)
+
+/*
+(define op-func-beh                     ; self-evaluating operative
+  (lambda (func)                        ; (func cust . args)
+    (BEH (cust args . opt-env)
+      (if (pair? opt-env)
+        (SEND func                      ; apply
+          (cons cust args))
+        (SEND cust SELF)                ; eval
+      ))))
+*/
+#define OP_FUNC_B (F_OPER_B+5)
+//  { .t=VM_push,       .x=_func_,      .y=OP_FUNC_B+0, .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=OP_FUNC_B+1, .z=UNDEF        },  // (cust args . opt-env)
+    { .t=VM_part,       .x=2,           .y=OP_FUNC_B+2, .z=UNDEF        },  // opt-env args cust
+    { .t=VM_roll,       .x=3,           .y=OP_FUNC_B+3, .z=UNDEF        },  // args cust opt-env
+    { .t=VM_typeq,      .x=Pair_T,      .y=OP_FUNC_B+4, .z=UNDEF        },  // opt-env has type Pair_T
+    { .t=VM_if,         .x=OP_FUNC_B+5, .y=SELF_EVAL,   .z=UNDEF        },
+
+    { .t=VM_pair,       .x=1,           .y=OP_FUNC_B+6, .z=UNDEF        },  // (cust . args)
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // func
+
+/*
+(define k-invoke-beh
+  (lambda (cust func)
+    (BEH args
+      (SEND func (cons cust args)) )))
+*/
+#define K_INVOKE (OP_FUNC_B+7)
+//  { .t=VM_push,       .x=_cust_,      .y=K_INVOKE-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_func_,      .y=K_INVOKE+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_INVOKE+1,  .z=UNDEF        },  // args
+    { .t=VM_roll,       .x=3,           .y=K_INVOKE+2,  .z=UNDEF        },  // cust
+    { .t=VM_pair,       .x=1,           .y=K_INVOKE+3,  .z=UNDEF        },  // (cust . args)
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // func
+/*
+(define ap-func-beh                     ; self-evaluating applicative
+  (lambda (func)                        ; (func cust . args)
+    (BEH (cust params . opt-env)
+      (if (pair? opt-env)
+        (SEND                 ; apply
+          (CREATE (evlis-beh param))
+          (list (CREATE (k-invoke-beh cust func)) (car opt-env)))
+        (SEND cust SELF)                ; eval
+      ))))
+*/
+#define AP_FUNC_B (K_INVOKE+4)
+//  { .t=VM_push,       .x=_func_,      .y=AP_FUNC_B+0, .z=UNDEF        },
+    { .t=VM_msg,        .x=-2,          .y=AP_FUNC_B+1, .z=UNDEF        },  // opt-env
+    { .t=VM_typeq,      .x=Pair_T,      .y=AP_FUNC_B+2, .z=UNDEF        },  // opt-env has type Pair_T
+    { .t=VM_if,         .x=AP_FUNC_B+3, .y=SELF_EVAL,   .z=UNDEF        },
+
+    { .t=VM_msg,        .x=1,           .y=AP_FUNC_B+4, .z=UNDEF        },  // cust
+    { .t=VM_roll,       .x=2,           .y=AP_FUNC_B+5, .z=UNDEF        },  // func
+    { .t=VM_push,       .x=K_INVOKE,    .y=AP_FUNC_B+6, .z=UNDEF        },  // K_INVOKE
+    { .t=VM_new,        .x=2,           .y=AP_FUNC_B+7, .z=UNDEF        },  // k_invoke
+
+    { .t=VM_msg,        .x=3,           .y=AP_FUNC_B+8, .z=UNDEF        },  // denv
+    { .t=VM_roll,       .x=2,           .y=AP_FUNC_B+9, .z=UNDEF        },  // k_invoke
+    { .t=VM_msg,        .x=2,           .y=AP_FUNC_B+10,.z=UNDEF        },  // param
+    { .t=VM_push,       .x=EVLIS_BEH,   .y=AP_FUNC_B+11,.z=UNDEF        },  // EVLIS_BEH
+    { .t=VM_new,        .x=1,           .y=AP_FUNC_B+12,.z=UNDEF        },  // ev_list
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_list k_invoke denv)
+
+
+#define F_QUOTE (AP_FUNC_B+13)
+    { .t=Actor_T,       .x=F_QUOTE+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // expr = arg1
+#define OP_QUOTE (F_QUOTE+2)
+    { .t=Actor_T,       .x=OP_QUOTE+1,  .y=UNDEF,       .z=UNDEF        },  // (quote <sexpr>)
+    { .t=VM_push,       .x=F_QUOTE,     .y=OP_FUNC_B,   .z=UNDEF        },  // func = F_QUOTE
+
+#define F_LIST (OP_QUOTE+2)
+    { .t=Actor_T,       .x=F_LIST+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=-1,          .y=CUST_SEND,   .z=UNDEF        },  // args
+#define AP_LIST (F_LIST+2)
+    { .t=Actor_T,       .x=AP_LIST+1,   .y=UNDEF,       .z=UNDEF        },  // (list . <args>)
+    { .t=VM_push,       .x=F_LIST,      .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_LIST
+
+/*
+(define k-define-beh
+  (lambda (cust symbol)
+    (BEH value
+      (SEND cust
+        (eval `(define ,symbol ',value))))))
+*/
+#define K_DEFINE (AP_LIST+2)
+//  { .t=VM_push,       .x=_cust_,      .y=K_DEFINE-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_symbol_,    .y=K_DEFINE+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_DEFINE+1,  .z=UNDEF        },  // value
+    { .t=VM_set,        .x=FLD_Z,       .y=K_DEFINE+2,  .z=UNDEF        },  // symbol{z=value}
+    { .t=VM_push,       .x=UNIT,        .y=K_DEFINE+3,  .z=UNDEF        },  // #unit
+    { .t=VM_pick,       .x=3,           .y=SEND_0,      .z=UNDEF        },  // cust
+/*
+(define op-define             ; (define <symbol> <expr>)
+  (CREATE
+    (BEH (cust params . opt-env)
+      (if (pair? opt-env)
+        (SEND (cadr params)   ; apply
+          (list (CREATE (k_define_beh cust (car params))) (car opt-env)))
+        (SEND cust SELF)      ; eval
+      ))))
+*/
+#define OP_DEFINE (K_DEFINE+4)
+    { .t=Actor_T,       .x=OP_DEFINE+1, .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=-2,          .y=OP_DEFINE+2, .z=UNDEF        },  // opt-env
+    { .t=VM_typeq,      .x=Pair_T,      .y=OP_DEFINE+3, .z=UNDEF        },  // opt-env has type Pair_T
+    { .t=VM_if,         .x=OP_DEFINE+4, .y=SELF_EVAL,   .z=UNDEF        },
+
+    { .t=VM_msg,        .x=2,           .y=OP_DEFINE+5, .z=UNDEF        },  // params
+    { .t=VM_part,       .x=2,           .y=OP_DEFINE+6, .z=UNDEF        },  // () expr symbol
+    { .t=VM_pick,       .x=1,           .y=OP_DEFINE+7, .z=UNDEF        },  // symbol symbol
+    { .t=VM_typeq,      .x=Symbol_T,    .y=OP_DEFINE+8, .z=UNDEF        },  // symbol has type Symbol_T
+    { .t=VM_if,         .x=OP_DEFINE+10,.y=OP_DEFINE+9, .z=UNDEF        },
+    { .t=VM_push,       .x=UNDEF,       .y=CUST_SEND,   .z=UNDEF        },  // #undefined
+
+    { .t=VM_msg,        .x=3,           .y=OP_DEFINE+11,.z=UNDEF        },  // env
+    { .t=VM_msg,        .x=1,           .y=OP_DEFINE+12,.z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=3,           .y=OP_DEFINE+13,.z=UNDEF        },  // symbol
+    { .t=VM_push,       .x=K_DEFINE,    .y=OP_DEFINE+14,.z=UNDEF        },  // K_DEFINE
+    { .t=VM_new,        .x=2,           .y=OP_DEFINE+15,.z=UNDEF        },  // k_define
+    { .t=VM_pick,       .x=4,           .y=OP_DEFINE+16,.z=UNDEF        },  // expr
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (expr k_define env)
+
+#define F_CAR (OP_DEFINE+17)
+    { .t=Actor_T,       .x=F_CAR+1,     .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_CAR+2,     .z=UNDEF        },  // pair = arg1
     { .t=VM_get,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // car(pair)
-#define OP_CAR (O_CAR+4)
-    { .t=Actor_T,       .x=OP_CAR+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=O_CAR,       .y=OP_SE_BEH,   .z=UNDEF        },
-#define AP_CAR (OP_CAR+2)
+#define AP_CAR (F_CAR+3)
     { .t=Actor_T,       .x=AP_CAR+1,    .y=UNDEF,       .z=UNDEF        },  // (car <pair>)
-    { .t=VM_push,       .x=OP_CAR,      .y=AP_CAR+2,    .z=UNDEF        },  // oper = OP_CAR
-    { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
+    { .t=VM_push,       .x=F_CAR,       .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CAR
 
-#define O_CDR (AP_CAR+3)
-    { .t=Actor_T,       .x=O_CDR+1,     .y=UNDEF,       .z=UNDEF        },  // (cust args env)
-    { .t=VM_msg,        .x=2,           .y=O_CDR+2,     .z=UNDEF        },  // args
-    { .t=VM_get,        .x=FLD_X,       .y=O_CDR+3,     .z=UNDEF        },  // pair = car(args)
+#define F_CDR (AP_CAR+2)
+    { .t=Actor_T,       .x=F_CDR+1,     .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_CDR+2,     .z=UNDEF        },  // pair = arg1
     { .t=VM_get,        .x=FLD_Y,       .y=CUST_SEND,   .z=UNDEF        },  // cdr(pair)
-#define OP_CDR (O_CDR+4)
-    { .t=Actor_T,       .x=OP_CDR+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=O_CDR,       .y=OP_SE_BEH,   .z=UNDEF        },
-#define AP_CDR (OP_CDR+2)
+#define AP_CDR (F_CDR+3)
     { .t=Actor_T,       .x=AP_CDR+1,    .y=UNDEF,       .z=UNDEF        },  // (cdr <pair>)
-    { .t=VM_push,       .x=OP_CDR,      .y=AP_CDR+2,    .z=UNDEF        },  // oper = OP_CDR
-    { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
+    { .t=VM_push,       .x=F_CDR,       .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CDR
 
-#define O_CONS (AP_CDR+3)
-    { .t=Actor_T,       .x=O_CONS+1,    .y=UNDEF,       .z=UNDEF        },  // (cust args env)
-    { .t=VM_msg,        .x=2,           .y=O_CONS+2,    .z=UNDEF        },  // args
-    { .t=VM_part,       .x=2,           .y=O_CONS+3,    .z=UNDEF        },  // () tail head
-    { .t=VM_pair,       .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // cons(head, tail)
-#define OP_CONS (O_CONS+4)
-    { .t=Actor_T,       .x=OP_CONS+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=O_CONS,      .y=OP_SE_BEH,   .z=UNDEF        },
-#define AP_CONS (OP_CONS+2)
+#define F_CONS (AP_CDR+2)
+    { .t=Actor_T,       .x=F_CONS+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+#if 1
+    { .t=VM_msg,        .x=3,           .y=F_CONS+2,    .z=UNDEF        },  // tail = arg2
+    { .t=VM_msg,        .x=2,           .y=F_CONS+3,    .z=UNDEF        },  // head = arg1
+#else
+    { .t=VM_msg,        .x=-1,          .y=F_CONS+2,    .z=UNDEF        },  // (head tail)
+    { .t=VM_part,       .x=2,           .y=F_CONS+3,    .z=UNDEF        },  // () tail head
+#endif
+    { .t=VM_pair,       .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (head . tail)
+#define AP_CONS (F_CONS+4)
     { .t=Actor_T,       .x=AP_CONS+1,   .y=UNDEF,       .z=UNDEF        },  // (cons <head> <tail>)
-    { .t=VM_push,       .x=OP_CONS,     .y=AP_CONS+2,   .z=UNDEF        },  // oper = OP_CONS
-    { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
+    { .t=VM_push,       .x=F_CONS,      .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CONS
+
 
 /*
 (define k-compile
@@ -1594,7 +1641,7 @@ symbol = Plus(Atom) -> symbol
           ;...
       )))))
 */
-#define K_COMPILE (AP_CONS+3)
+#define K_COMPILE (AP_CONS+2)
 //  { .t=VM_push,       .x=_env_,       .y=K_COMPILE-3, .z=UNDEF        },
 //  { .t=VM_push,       .x=_frml_,      .y=K_COMPILE-2, .z=UNDEF        },
 //  { .t=VM_push,       .x=_expr_,      .y=K_COMPILE-1, .z=UNDEF        },
@@ -1783,11 +1830,6 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { EXPR_I, "EXPR_I" },
     { BOUND_42, "BOUND_42" },
     { A_TEST, "A_TEST" },
-    { OP_QUOTE, "OP_QUOTE" },
-    { OP_LIST, "OP_LIST" },
-    { AP_LIST, "AP_LIST" },
-    { K_DEFINE, "K_DEFINE" },
-    { OP_DEFINE, "OP_DEFINE" },
     { G_EMPTY, "G_EMPTY" },
     { G_FAIL, "G_FAIL" },
     { G_NEXT_K, "G_NEXT_K" },
@@ -1844,11 +1886,20 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_PTRN, "G_PTRN" },
     { G_TEST, "G_TEST" },
     { G_EVAL_X, "G_EVAL_X" },
-    { O_CAR, "O_CAR" },
+    { OP_FUNC_B, "OP_FUNC_B" },
+    { K_INVOKE, "K_INVOKE" },
+    { AP_FUNC_B, "AP_FUNC_B" },
+    { F_QUOTE, "F_QUOTE" },
+    { OP_QUOTE, "OP_QUOTE" },
+    { F_LIST, "F_LIST" },
+    { AP_LIST, "AP_LIST" },
+    { K_DEFINE, "K_DEFINE" },
+    { OP_DEFINE, "OP_DEFINE" },
+    { F_CAR, "F_CAR" },
     { AP_CAR, "AP_CAR" },
-    { O_CDR, "O_CDR" },
+    { F_CDR, "F_CDR" },
     { AP_CDR, "AP_CDR" },
-    { O_CONS, "O_CONS" },
+    { F_CONS, "F_CONS" },
     { AP_CONS, "AP_CONS" },
     { K_COMPILE, "K_COMPILE" },
     { COMPILE_B, "COMPILE_B" },
