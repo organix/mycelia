@@ -1633,16 +1633,16 @@ symbol = Plus(Atom) -> symbol
           (cell VM_push expr beh))
         (if (symbol? expr)
           (if (eq? frml expr)
-            (cell VM_msg 2 beh)
+            (cell VM_msg -1 beh)
             (if (eq? (car frml) expr)
-              (cell VM_msg 2 (cell VM_get FLD_X beh))
+              (cell VM_msg 2 beh)
               ;...
               ))
           ;...
       )))))
 */
 #define K_COMPILE (AP_CONS+2)
-//  { .t=VM_push,       .x=_env_,       .y=K_COMPILE-3, .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=K_COMPILE-3, .z=UNDEF        }, // FIXME: REVERSE ORDER OF STATE!
 //  { .t=VM_push,       .x=_frml_,      .y=K_COMPILE-2, .z=UNDEF        },
 //  { .t=VM_push,       .x=_expr_,      .y=K_COMPILE-1, .z=UNDEF        },
 //  { .t=VM_push,       .x=_cust_,      .y=K_COMPILE+0, .z=UNDEF        },
@@ -1663,7 +1663,7 @@ symbol = Plus(Atom) -> symbol
 
     { .t=VM_pick,       .x=2,           .y=K_COMPILE+13,.z=UNDEF        },  // name = expr
     { .t=VM_typeq,      .x=Symbol_T,    .y=K_COMPILE+14,.z=UNDEF        },  // name has type Symbol_T
-    { .t=VM_if,         .x=K_COMPILE+15,.y=K_COMPILE+38,.z=UNDEF        },
+    { .t=VM_if,         .x=K_COMPILE+15,.y=K_COMPILE+34,.z=UNDEF        },
 
     { .t=VM_pick,       .x=3,           .y=K_COMPILE+16,.z=UNDEF        },  // frml
     { .t=VM_pick,       .x=3,           .y=K_COMPILE+17,.z=UNDEF        },  // name = expr
@@ -1671,31 +1671,27 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_if,         .x=K_COMPILE+19,.y=K_COMPILE+24,.z=UNDEF        },
 
     { .t=VM_push,       .x=VM_msg,      .y=K_COMPILE+20,.z=UNDEF        },  // VM_msg
-    { .t=VM_push,       .x=2,           .y=K_COMPILE+21,.z=UNDEF        },  // 2 (param)
+    { .t=VM_push,       .x=-1,          .y=K_COMPILE+21,.z=UNDEF        },  // args
     { .t=VM_msg,        .x=0,           .y=K_COMPILE+22,.z=UNDEF        },  // beh
-    { .t=VM_cell,       .x=3,           .y=K_COMPILE+23,.z=UNDEF        },  // {t:VM_msg, x:2, y:beh}
+    { .t=VM_cell,       .x=3,           .y=K_COMPILE+23,.z=UNDEF        },  // {t:VM_msg, x:-1, y:beh}
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
 
     { .t=VM_pick,       .x=3,           .y=K_COMPILE+25,.z=UNDEF        },  // frml
     { .t=VM_get,        .x=FLD_X,       .y=K_COMPILE+26,.z=UNDEF        },  // car(frml)
     { .t=VM_pick,       .x=3,           .y=K_COMPILE+27,.z=UNDEF        },  // name = expr
     { .t=VM_cmp,        .x=CMP_EQ,      .y=K_COMPILE+28,.z=UNDEF        },  // car(frml) == name
-    { .t=VM_if,         .x=K_COMPILE+29,.y=K_COMPILE+38,.z=UNDEF        },
+    { .t=VM_if,         .x=K_COMPILE+29,.y=K_COMPILE+34,.z=UNDEF        },
 
-    { .t=VM_push,       .x=VM_get,      .y=K_COMPILE+30,.z=UNDEF        },  // VM_get
-    { .t=VM_push,       .x=FLD_X,       .y=K_COMPILE+31,.z=UNDEF        },  // FLD_X (car)
+    { .t=VM_push,       .x=VM_msg,      .y=K_COMPILE+30,.z=UNDEF        },  // VM_msg
+    { .t=VM_push,       .x=2,           .y=K_COMPILE+31,.z=UNDEF        },  // car(args)
     { .t=VM_msg,        .x=0,           .y=K_COMPILE+32,.z=UNDEF        },  // beh
-    { .t=VM_cell,       .x=3,           .y=K_COMPILE+33,.z=UNDEF        },  // beh' = {t:VM_get, x:FLD_X, y:beh}
-    { .t=VM_push,       .x=VM_msg,      .y=K_COMPILE+34,.z=UNDEF        },  // VM_msg
-    { .t=VM_push,       .x=2,           .y=K_COMPILE+35,.z=UNDEF        },  // 2 (param)
-    { .t=VM_roll,       .x=3,           .y=K_COMPILE+36,.z=UNDEF        },  // beh'
-    { .t=VM_cell,       .x=3,           .y=K_COMPILE+37,.z=UNDEF        },  // {t:VM_msg, x:2, y:beh'}
+    { .t=VM_cell,       .x=3,           .y=K_COMPILE+33,.z=UNDEF        },  // {t:VM_msg, x:2, y:beh}
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
 
-    { .t=VM_push,       .x=VM_push,     .y=K_COMPILE+39,.z=UNDEF        },  // VM_push
-    { .t=VM_push,       .x=UNIT,        .y=K_COMPILE+40,.z=UNDEF        },  // UNIT
-    { .t=VM_msg,        .x=0,           .y=K_COMPILE+41,.z=UNDEF        },  // beh
-    { .t=VM_cell,       .x=3,           .y=K_COMPILE+42,.z=UNDEF        },  // {t:VM_push, x:UNIT, y:beh}
+    { .t=VM_push,       .x=VM_push,     .y=K_COMPILE+35,.z=UNDEF        },  // VM_push
+    { .t=VM_push,       .x=UNIT,        .y=K_COMPILE+36,.z=UNDEF        },  // UNIT
+    { .t=VM_msg,        .x=0,           .y=K_COMPILE+37,.z=UNDEF        },  // beh
+    { .t=VM_cell,       .x=3,           .y=K_COMPILE+38,.z=UNDEF        },  // {t:VM_push, x:UNIT, y:beh}
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
 
 /*
@@ -1709,7 +1705,7 @@ symbol = Plus(Atom) -> symbol
         (SEND cust CUST_SEND) ; send final result
       ))))
 */
-#define COMPILE_B (K_COMPILE+43)
+#define COMPILE_B (K_COMPILE+39)
 //  { .t=VM_push,       .x=_body_,      .y=COMPILE_B+0, .z=UNDEF        },
     { .t=VM_pick,       .x=1,           .y=COMPILE_B+1, .z=UNDEF        },  // body
     { .t=VM_typeq,      .x=Pair_T,      .y=COMPILE_B+2, .z=UNDEF        },  // body has type Pair_T
@@ -1722,7 +1718,7 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_roll,       .x=3,           .y=COMPILE_B+7, .z=UNDEF        },  // body
     { .t=VM_part,       .x=1,           .y=COMPILE_B+8, .z=UNDEF        },  // tail head
 
-    { .t=VM_msg,        .x=3,           .y=COMPILE_B+9, .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=3,           .y=COMPILE_B+9, .z=UNDEF        },  // env <-- FIXME: REVERSE ORDER OF STATE!
     { .t=VM_msg,        .x=2,           .y=COMPILE_B+10,.z=UNDEF        },  // frml
     { .t=VM_roll,       .x=3,           .y=COMPILE_B+11,.z=UNDEF        },  // expr = head
     { .t=VM_msg,        .x=1,           .y=COMPILE_B+12,.z=UNDEF        },  // cust
@@ -1740,16 +1736,28 @@ symbol = Plus(Atom) -> symbol
   (lambda (cust)
     (BEH beh
       (SEND cust
-        (cell Actor_T (cell VM_push #unit beh)))
-      )))
+        ;(cell Actor_T (cell VM_push #unit beh))
+        (cell Actor_T
+          (cell VM_push
+            (cell Actor_T
+              (cell VM_push #unit beh))
+            AP_FUNC_B))
+      ))))
 */
-#define K_LAMBDA_C (COMPILE_B+19)
-//  { .t=VM_push,       .x=_cust_,      .y=K_LAMBDA_C+0,.z=UNDEF        },
-    { .t=VM_push,       .x=VM_push,     .y=K_LAMBDA_C+1,.z=UNDEF        },
-    { .t=VM_push,       .x=UNIT,        .y=K_LAMBDA_C+2,.z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=K_LAMBDA_C+3,.z=UNDEF        },  // beh
-    { .t=VM_cell,       .x=3,           .y=K_LAMBDA_C+4,.z=UNDEF        },  // {t:VM_push, x:UNIT, y:beh}
-    { .t=VM_new,        .x=0,           .y=K_LAMBDA_C+5,.z=UNDEF        },  // actor
+#define K_LAMBDAC (COMPILE_B+19)
+//  { .t=VM_push,       .x=_cust_,      .y=K_LAMBDAC+0, .z=UNDEF        },
+    { .t=VM_push,       .x=VM_push,     .y=K_LAMBDAC+1, .z=UNDEF        },  // VM_push
+    { .t=VM_push,       .x=UNIT,        .y=K_LAMBDAC+2, .z=UNDEF        },  // UNIT
+    { .t=VM_msg,        .x=0,           .y=K_LAMBDAC+3, .z=UNDEF        },  // beh
+    { .t=VM_cell,       .x=3,           .y=K_LAMBDAC+4, .z=UNDEF        },  // {t:VM_push, x:UNIT, y:beh}
+    { .t=VM_new,        .x=0,           .y=K_LAMBDAC+5, .z=UNDEF        },  // func
+#if 1
+    { .t=VM_push,       .x=VM_push,     .y=K_LAMBDAC+6, .z=UNDEF        },  // VM_push
+    { .t=VM_roll,       .x=2,           .y=K_LAMBDAC+7, .z=UNDEF        },  // func
+    { .t=VM_push,       .x=AP_FUNC_B,   .y=K_LAMBDAC+8, .z=UNDEF        },  // AP_FUNC_B
+    { .t=VM_cell,       .x=3,           .y=K_LAMBDAC+9, .z=UNDEF        },  // {t:VM_push, x:func, y:AP_FUNC_B}
+    { .t=VM_new,        .x=0,           .y=K_LAMBDAC+10,.z=UNDEF        },  // appl
+#endif
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
 /*
 (define lambda-c              ; (lambda-compile <frml> . <body>)
@@ -1762,7 +1770,7 @@ symbol = Plus(Atom) -> symbol
         (SEND cust SELF)      ; eval
       ))))
 */
-#define LAMBDA_C (K_LAMBDA_C+6)
+#define LAMBDA_C (K_LAMBDAC+11)
     { .t=Actor_T,       .x=LAMBDA_C+1,  .y=UNDEF,       .z=UNDEF        },  // (lambda <frml> . <body>)
     { .t=VM_msg,        .x=-2,          .y=LAMBDA_C+2,  .z=UNDEF        },  // opt-env
     { .t=VM_typeq,      .x=Pair_T,      .y=LAMBDA_C+3,  .z=UNDEF        },  // opt-env has type Pair_T
@@ -1773,7 +1781,7 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_get,        .x=FLD_X,       .y=LAMBDA_C+7,  .z=UNDEF        },  // frml = car(opnd)
 
     { .t=VM_msg,        .x=1,           .y=LAMBDA_C+8,  .z=UNDEF        },  // cust
-    { .t=VM_push,       .x=K_LAMBDA_C,  .y=LAMBDA_C+9,  .z=UNDEF        },  // K_LAMBDA_C
+    { .t=VM_push,       .x=K_LAMBDAC,   .y=LAMBDA_C+9,  .z=UNDEF        },  // K_LAMBDAC
     { .t=VM_new,        .x=1,           .y=LAMBDA_C+10, .z=UNDEF        },  // k_lambda
 
     { .t=VM_msg,        .x=2,           .y=LAMBDA_C+11, .z=UNDEF        },  // opnd
@@ -1903,7 +1911,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_CONS, "AP_CONS" },
     { K_COMPILE, "K_COMPILE" },
     { COMPILE_B, "COMPILE_B" },
-    { K_LAMBDA_C, "K_LAMBDA_C" },
+    { K_LAMBDAC, "K_LAMBDAC" },
     { LAMBDA_C, "LAMBDA_C" },
     { A_QUIT, "A_QUIT" },
     { -1, "" },
