@@ -406,6 +406,18 @@ message: --->[*|*]---> next
 | ~  | 126 |  7e |     |     |     |     |     |  x  |     |     |
 | ^? | 127 |  7f |  x  |     |     |     |     |     |     |     |
 
+## Lambda Compilation Test-Cases
+
+ * `(define zero (lambda _ 0))`
+ * `(define nil (lambda _ ()))`
+ * `(define ap (lambda x x))  ; equivalent to _list_`
+ * `(define id (lambda (x) x))`
+ * `(define r1 (lambda (x . y) y))`
+ * `(define i2 (lambda (x y) y))`
+ * `(define r2 (lambda (x y . z) z))`
+ * `(define i3 (lambda (x y z) z))`
+ * `(define l3 (lambda (x y z) (list x y z)))`
+
 ## Inspiration
 
  * [Parsing Expression Grammars: A Recognition-Based Syntactic Foundation](https://bford.info/pub/lang/peg.pdf)
