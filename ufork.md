@@ -243,6 +243,15 @@ k_queue: [head,tail]--------------------+
                              ...
 ```
 
+## PEG Tools
+
+ * `peg-empty`
+ * `peg-fail`
+ * `peg-any`
+ * `(peg-eq <_symbol_>)`
+ * `(list->number <_chars_>)`
+ * `(list->symbol <_chars_>)`
+
 ### PEG Structures
 
 Message to Grammar:
