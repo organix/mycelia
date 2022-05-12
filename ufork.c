@@ -1643,8 +1643,33 @@ symbol = Plus(Atom) -> symbol
     { .t=Actor_T,       .x=AP_CADDR+1,  .y=UNDEF,       .z=UNDEF        },  // (caddr <pair>)
     { .t=VM_push,       .x=F_CADDR,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CADDR
 
+#define F_G_EQ (AP_CADDR+2)
+    { .t=Actor_T,       .x=F_G_EQ+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_G_EQ+2,    .z=UNDEF        },  // token = arg1
+    { .t=VM_push,       .x=G_EQ_B,      .y=F_G_EQ+3,    .z=UNDEF        },  // G_EQ_B
+    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (G_EQ_B token)
+#define AP_G_EQ (F_G_EQ+4)
+    { .t=Actor_T,       .x=AP_G_EQ+1,   .y=UNDEF,       .z=UNDEF        },  // (peg-eq <token>)
+    { .t=VM_push,       .x=F_G_EQ,      .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_EQ
 
-#define C_UNDEF_T (AP_CADDR+2)
+#define F_LST_NUM (AP_G_EQ+2)
+    { .t=Actor_T,       .x=F_LST_NUM+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_LST_NUM+2, .z=UNDEF        },  // chars = arg1
+    { .t=VM_cvt,        .x=CVT_LST_NUM, .y=CUST_SEND,   .z=UNDEF        },  // lst_num(chars)
+#define AP_LST_NUM (F_LST_NUM+3)
+    { .t=Actor_T,       .x=AP_LST_NUM+1,.y=UNDEF,       .z=UNDEF        },  // (list->number <chars>)
+    { .t=VM_push,       .x=F_LST_NUM,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_LST_NUM
+
+#define F_LST_SYM (AP_LST_NUM+2)
+    { .t=Actor_T,       .x=F_LST_SYM+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_LST_SYM+2, .z=UNDEF        },  // chars = arg1
+    { .t=VM_cvt,        .x=CVT_LST_SYM, .y=CUST_SEND,   .z=UNDEF        },  // lst_sym(chars)
+#define AP_LST_SYM (F_LST_SYM+3)
+    { .t=Actor_T,       .x=AP_LST_SYM+1,.y=UNDEF,       .z=UNDEF        },  // (list->symbol <chars>)
+    { .t=VM_push,       .x=F_LST_SYM,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_LST_SYM
+
+
+#define C_UNDEF_T (AP_LST_SYM+2)
     { .t=VM_push,       .x=VM_push,     .y=C_UNDEF_T+1, .z=UNDEF        },  // VM_push
     { .t=VM_push,       .x=UNDEF,       .y=C_UNDEF_T+2, .z=UNDEF        },  // UNDEF
     { .t=VM_msg,        .x=0,           .y=C_UNDEF_T+3, .z=UNDEF        },  // beh
@@ -1981,6 +2006,12 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_CADR, "AP_CADR" },
     { F_CADDR, "F_CADDR" },
     { AP_CADDR, "AP_CADDR" },
+    { F_G_EQ, "F_G_EQ" },
+    { AP_G_EQ, "AP_G_EQ" },
+    { F_LST_NUM, "F_LST_NUM" },
+    { AP_LST_NUM, "AP_LST_NUM" },
+    { F_LST_SYM, "F_LST_SYM" },
+    { AP_LST_SYM, "AP_LST_SYM" },
     { K_COMPILE, "K_COMPILE" },
     { COMPILE_B, "COMPILE_B" },
     { K_LAMBDAC, "K_LAMBDAC" },
@@ -2151,7 +2182,9 @@ int_t fixnum(int_t str) {  // FIXME: add `base` parameter
             }
             break;  // illegal character
         }
-        neg = FALSE;
+        if (neg == UNDEF) {
+            neg = FALSE;
+        }
     }
     if (neg == TRUE) {
         num = -num;
@@ -2544,6 +2577,15 @@ int_t init_global_env() {
     bind_global("cdr", AP_CDR);
     bind_global("cadr", AP_CADR);
     bind_global("caddr", AP_CADDR);
+#if 1
+    bind_global("a-print", A_PRINT);
+    bind_global("peg-empty", G_EMPTY);
+    bind_global("peg-fail", G_FAIL);
+    bind_global("peg-any", G_ANY);
+    bind_global("peg-eq", AP_G_EQ);
+#endif
+    bind_global("list->number", AP_LST_NUM);
+    bind_global("list->symbol", AP_LST_SYM);
     bind_global("quit", A_QUIT);
     return UNIT;
 }
@@ -3614,7 +3656,7 @@ void print_inst(int_t ip) {
         case VM_cvt:  fprintf(stderr, "{c:%s}", conversion_label(get_x(ip))); break;
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_getc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
-        case VM_debug:fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
+        case VM_debug:fprintf(stderr, "{t:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         default: {
             if (IS_PROC(proc)) {
                 fprintf(stderr, "{x:%"PdI",y:%"PdI",z:%"PdI"}", get_x(ip), get_y(ip), get_z(ip));
