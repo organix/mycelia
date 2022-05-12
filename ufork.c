@@ -153,6 +153,7 @@ PROC_DECL(vm_get);
 PROC_DECL(vm_set);
 PROC_DECL(vm_pair);
 PROC_DECL(vm_part);
+PROC_DECL(vm_nth);
 PROC_DECL(vm_push);
 PROC_DECL(vm_depth);
 PROC_DECL(vm_drop);
@@ -191,26 +192,27 @@ PROC_DECL(vm_debug);
 #define VM_set      (-13)
 #define VM_pair     (-14)
 #define VM_part     (-15)
-#define VM_push     (-16)
-#define VM_depth    (-17)
-#define VM_drop     (-18)
-#define VM_pick     (-19)
-#define VM_dup      (-20)
-#define VM_roll     (-21)
-#define VM_alu      (-22)
-#define VM_eq       (-23)
-#define VM_cmp      (-24)
-#define VM_if       (-25)
-#define VM_msg      (-26)
-#define VM_self     (-27)
-#define VM_send     (-28)
-#define VM_new      (-29)
-#define VM_beh      (-30)
-#define VM_end      (-31)
-#define VM_cvt      (-32)
-#define VM_putc     (-33)
-#define VM_getc     (-34)
-#define VM_debug    (-35)
+#define VM_nth      (-16)
+#define VM_push     (-17)
+#define VM_depth    (-18)
+#define VM_drop     (-19)
+#define VM_pick     (-20)
+#define VM_dup      (-21)
+#define VM_roll     (-22)
+#define VM_alu      (-23)
+#define VM_eq       (-24)
+#define VM_cmp      (-25)
+#define VM_if       (-26)
+#define VM_msg      (-27)
+#define VM_self     (-28)
+#define VM_send     (-29)
+#define VM_new      (-30)
+#define VM_beh      (-31)
+#define VM_end      (-32)
+#define VM_cvt      (-33)
+#define VM_putc     (-34)
+#define VM_getc     (-35)
+#define VM_debug    (-36)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
@@ -234,6 +236,7 @@ proc_t proc_table[] = {
     vm_drop,
     vm_depth,
     vm_push,
+    vm_nth,
     vm_part,
     vm_pair,
     vm_set,
@@ -269,6 +272,7 @@ static char *proc_label(int_t proc) {
         "VM_set",
         "VM_pair",
         "VM_part",
+        "VM_nth",
         "VM_push",
         "VM_depth",
         "VM_drop",
@@ -1626,19 +1630,16 @@ symbol = Plus(Atom) -> symbol
 #define F_CADR (AP_CDR+2)
     { .t=Actor_T,       .x=F_CADR+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_CADR+2,    .z=UNDEF        },  // pair = arg1
-    { .t=VM_get,        .x=FLD_Y,       .y=F_CADR+3,    .z=UNDEF        },  // cdr(pair)
-    { .t=VM_get,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // car(cdr(pair))
-#define AP_CADR (F_CADR+4)
+    { .t=VM_nth,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // cadr(pair)
+#define AP_CADR (F_CADR+3)
     { .t=Actor_T,       .x=AP_CADR+1,   .y=UNDEF,       .z=UNDEF        },  // (cadr <pair>)
     { .t=VM_push,       .x=F_CADR,      .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CADR
 
 #define F_CADDR (AP_CADR+2)
     { .t=Actor_T,       .x=F_CADDR+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_CADDR+2,   .z=UNDEF        },  // pair = arg1
-    { .t=VM_get,        .x=FLD_Y,       .y=F_CADDR+3,   .z=UNDEF        },  // cdr(pair)
-    { .t=VM_get,        .x=FLD_Y,       .y=F_CADDR+4,   .z=UNDEF        },  // cdr(cdr(pair))
-    { .t=VM_get,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // car(cdr(cdr(pair)))
-#define AP_CADDR (F_CADDR+5)
+    { .t=VM_nth,        .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // caddr(pair)
+#define AP_CADDR (F_CADDR+3)
     { .t=Actor_T,       .x=AP_CADDR+1,  .y=UNDEF,       .z=UNDEF        },  // (caddr <pair>)
     { .t=VM_push,       .x=F_CADDR,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CADDR
 
@@ -3060,6 +3061,38 @@ PROC_DECL(vm_part) {
     return get_y(self);
 }
 
+static int_t extract_nth(int_t m, int_t n) {
+    int_t v = UNDEF;
+    if (n == 0) {  // entire list/message
+        v = m;
+    } else if (n > 0) {  // item at index
+        sane = SANITY;
+        while (IS_PAIR(m)) {
+            if (--n == 0) {
+                v = car(m);
+                break;
+            }
+            m = cdr(m);
+            if (sane-- == 0) return panic("insane extract_nth");
+        }
+    } else {  // use -n to select the n-th tail
+        sane = SANITY;
+        while (IS_PAIR(m)) {
+            m = cdr(m);
+            if (++n == 0) break;
+            if (sane-- == 0) return panic("insane extract_nth");
+        }
+        v = m;
+    }
+    return v;
+}
+PROC_DECL(vm_nth) {
+    int_t n = get_x(self);
+    int_t m = stack_pop();
+    stack_push(extract_nth(m, n));
+    return get_y(self);
+}
+
 PROC_DECL(vm_push) {
     int_t v = get_x(self);
     stack_push(v);
@@ -3211,32 +3244,10 @@ PROC_DECL(vm_if) {
 }
 
 PROC_DECL(vm_msg) {
-    int_t i = get_x(self);
+    int_t n = get_x(self);
     int_t ep = GET_EP();
     int_t m = get_y(ep);
-    int_t v = UNDEF;
-    if (i == 0) {  // entire message
-        v = m;
-    } else if (i > 0) {  // message item at index
-        sane = SANITY;
-        while (IS_PAIR(m)) {
-            if (--i == 0) {
-                v = car(m);
-                break;
-            }
-            m = cdr(m);
-            if (sane-- == 0) return panic("insane vm_msg");
-        }
-    } else {  // use -i to select the i-th tail
-        sane = SANITY;
-        while (IS_PAIR(m)) {
-            m = cdr(m);
-            if (++i == 0) break;
-            if (sane-- == 0) return panic("insane vm_msg");
-        }
-        v = m;
-    }
-    stack_push(v);
+    stack_push(extract_nth(m, n));
     return get_y(self);
 }
 
@@ -3583,6 +3594,7 @@ void print_inst(int_t ip) {
         case VM_set:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(get_x(ip)), get_y(ip)); break;
         case VM_pair: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_part: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_nth:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_push: fprintf(stderr, "{v:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_depth:fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_drop: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
@@ -3593,7 +3605,7 @@ void print_inst(int_t ip) {
         case VM_eq:   fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_cmp:  fprintf(stderr, "{r:%s,k:%"PdI"}", relation_label(get_x(ip)), get_y(ip)); break;
         case VM_if:   fprintf(stderr, "{t:%"PdI",f:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_msg:  fprintf(stderr, "{i:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+        case VM_msg:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_self: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
         case VM_send: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
         case VM_new:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
