@@ -428,7 +428,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Unit_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
     { .t=Event_T,       .x=17,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
     //{ .t=Event_T,       .x=209,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    //{ .t=Event_T,       .x=555,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    //{ .t=Event_T,       .x=563,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
 
 #define SELF_EVAL (START+1)
     { .t=VM_self,       .x=UNDEF,       .y=START+2,     .z=UNDEF        },  // value = SELF
@@ -487,7 +487,7 @@ cell_t cell_table[CELL_MAX] = {
 #define REPL_L (A_BOOT+1)
 #define REPL_F (A_BOOT+17)
     { .t=VM_push,       .x=REPL_F,      .y=REPL_R+1,    .z=UNDEF        },  // fail = REPL_F
-    { .t=VM_push,       .x=REPL_E,      .y=558,         .z=UNDEF        },  // ok = REPL_E  --> {k:G_EVAL_X}
+    { .t=VM_push,       .x=REPL_E,      .y=566,         .z=UNDEF        },  // ok = REPL_E  --> {k:G_EVAL_X}
 
     { .t=Actor_T,       .x=REPL_E+1,    .y=UNDEF,       .z=UNDEF        },  // +7
     { .t=VM_msg,        .x=1,           .y=REPL_E+2,    .z=UNDEF        },  // sexpr
@@ -1220,29 +1220,43 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
 #define S_VALUE (G_XFORM_B+10)
 //  { .t=VM_push,       .x=_in_,        .y=S_VALUE+0,   .z=UNDEF        },  // (token . next) -or- NIL
-    { .t=VM_msg,        .x=0,           .y=S_VALUE+1,   .z=UNDEF        },  // cust
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . in)
-#define S_EMPTY (S_VALUE+2)
+    { .t=VM_msg,        .x=0,           .y=SEND_0,      .z=UNDEF        },  // cust
+#define S_EMPTY (S_VALUE+1)
     { .t=Actor_T,       .x=S_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=S_VALUE,     .z=UNDEF        },  // ()
 
 #define S_GETC (S_EMPTY+2)
+#define S_END_X (S_GETC+9)
+#define S_VAL_X (S_GETC+10)
     { .t=VM_getc,       .x=UNDEF,       .y=S_GETC+1,    .z=UNDEF        },  // ch
     { .t=VM_pick,       .x=1,           .y=S_GETC+2,    .z=UNDEF        },  // ch ch
     { .t=VM_push,       .x=TO_FIX('\0'),.y=S_GETC+3,    .z=UNDEF        },
     { .t=VM_cmp,        .x=CMP_LT,      .y=S_GETC+4,    .z=UNDEF        },  // ch < '\0'
-    { .t=VM_if,         .x=S_GETC+9,    .y=S_GETC+5,    .z=UNDEF        },
+    { .t=VM_if,         .x=S_END_X,     .y=S_GETC+5,    .z=UNDEF        },
 
     { .t=VM_push,       .x=S_GETC,      .y=S_GETC+6,    .z=UNDEF        },  // S_GETC
     { .t=VM_new,        .x=0,           .y=S_GETC+7,    .z=UNDEF        },  // next
     { .t=VM_pick,       .x=2,           .y=S_GETC+8,    .z=UNDEF        },  // ch
-    { .t=VM_pair,       .x=1,           .y=S_GETC+10,   .z=UNDEF        },  // in = (ch . next)
+    { .t=VM_pair,       .x=1,           .y=S_VAL_X,     .z=UNDEF        },  // in = (ch . next)
 
     { .t=VM_push,       .x=NIL,         .y=S_GETC+10,   .z=UNDEF        },  // in = ()
     { .t=VM_push,       .x=S_VALUE,     .y=S_GETC+11,   .z=UNDEF        },  // S_VALUE
     { .t=VM_beh,        .x=1,           .y=RESEND,      .z=UNDEF        },  // BECOME (S_VALUE in)
 
-#define A_OK (S_GETC+12)
+#define S_LIST_B (S_GETC+12)
+//  { .t=VM_push,       .x=_list_,      .y=S_LIST_B+0,  .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=S_LIST_B+1,  .z=UNDEF        },  // list
+    { .t=VM_typeq,      .x=Pair_T,      .y=S_LIST_B+2,  .z=UNDEF        },  // list has type Pair_T
+    { .t=VM_if,         .x=S_LIST_B+3,  .y=S_END_X,     .z=UNDEF        },  // list
+
+    { .t=VM_part,       .x=1,           .y=S_LIST_B+4,  .z=UNDEF        },  // tail head
+    { .t=VM_roll,       .x=2,           .y=S_LIST_B+5,  .z=UNDEF        },  // head tail
+    { .t=VM_push,       .x=S_LIST_B,    .y=S_LIST_B+6,  .z=UNDEF        },  // S_LIST_B
+    { .t=VM_new,        .x=1,           .y=S_LIST_B+7,  .z=UNDEF        },  // next
+    { .t=VM_roll,       .x=2,           .y=S_LIST_B+8,  .z=UNDEF        },  // head
+    { .t=VM_pair,       .x=1,           .y=S_VAL_X,     .z=UNDEF        },  // in = (head . next)
+
+#define A_OK (S_LIST_B+9)
     { .t=Actor_T,       .x=A_OK+1,      .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=A_OK+2,      .z=UNDEF        },
     { .t=VM_debug,      .x=TO_FIX(777), .y=COMMIT,      .z=UNDEF        },
@@ -1257,10 +1271,10 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_msg,        .x=1,           .y=A_EVAL+2,    .z=UNDEF        },  // sexpr
     { .t=VM_debug,      .x=TO_FIX(888), .y=A_EVAL+3,    .z=UNDEF        },
 
-    { .t=VM_push,       .x=BOUND_42,    .y=A_EVAL+4,    .z=UNDEF        },  // env = BOUND_42
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=A_EVAL+4,    .z=UNDEF        },  // env = EMPTY_ENV
     { .t=VM_push,       .x=A_PRINT,     .y=A_EVAL+5,    .z=UNDEF        },  // cust = A_PRINT
     { .t=VM_msg,        .x=1,           .y=A_EVAL+6,    .z=UNDEF        },  // sexpr
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (sexpr A_PRINT BOUND_42)
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (sexpr A_PRINT EMPTY_ENV)
 
 #define G_START (A_EVAL+7)
 //  { .t=VM_push,       .x=_custs_,     .y=G_START-1,   .z=UNDEF        },  // (ok . fail)
@@ -1688,8 +1702,30 @@ symbol = Plus(Atom) -> symbol
     { .t=Actor_T,       .x=AP_LST_SYM+1,.y=UNDEF,       .z=UNDEF        },  // (list->symbol <chars>)
     { .t=VM_push,       .x=F_LST_SYM,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_LST_SYM
 
+#define F_G_SRC (AP_LST_SYM+2)
+    { .t=Actor_T,       .x=F_G_SRC+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_G_SRC+2,   .z=UNDEF        },  // list = arg1
+    { .t=VM_push,       .x=S_LIST_B,    .y=F_G_SRC+3,   .z=UNDEF        },  // S_LIST_B
+    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // src
+#define AP_G_SRC (F_G_SRC+4)
+    { .t=Actor_T,       .x=AP_G_SRC+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-source <list>)
+    { .t=VM_push,       .x=F_G_SRC,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_SRC
 
-#define C_UNDEF_T (AP_LST_SYM+2)
+#define F_G_START (AP_G_SRC+2)
+    { .t=Actor_T,       .x=F_G_START+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=1,           .y=F_G_START+2, .z=UNDEF        },  // fail = cust
+    { .t=VM_msg,        .x=1,           .y=F_G_START+3, .z=UNDEF        },  // ok = cust
+    { .t=VM_pair,       .x=1,           .y=F_G_START+4, .z=UNDEF        },  // custs = (ok . fail)
+    { .t=VM_msg,        .x=2,           .y=F_G_START+5, .z=UNDEF        },  // peg = arg1
+    { .t=VM_push,       .x=G_START,     .y=F_G_START+6, .z=UNDEF        },  // G_START
+    { .t=VM_new,        .x=2,           .y=F_G_START+7, .z=UNDEF        },  // start
+    { .t=VM_msg,        .x=3,           .y=SEND_0,      .z=UNDEF        },  // src = arg2
+#define AP_G_START (F_G_START+8)
+    { .t=Actor_T,       .x=AP_G_START+1,.y=UNDEF,       .z=UNDEF        },  // (peg-start <peg> <src>)
+    { .t=VM_push,       .x=F_G_START,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_START
+
+
+#define C_UNDEF_T (AP_G_START+2)
     { .t=VM_push,       .x=VM_push,     .y=C_UNDEF_T+1, .z=UNDEF        },  // VM_push
     { .t=VM_push,       .x=UNDEF,       .y=C_UNDEF_T+2, .z=UNDEF        },  // UNDEF
     { .t=VM_msg,        .x=0,           .y=C_UNDEF_T+3, .z=UNDEF        },  // beh
@@ -1976,6 +2012,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { S_VALUE, "S_VALUE" },
     { S_EMPTY, "S_EMPTY" },
     { S_GETC, "S_GETC" },
+    { S_VAL_X, "S_VAL_X" },
+    { S_END_X, "S_END_X" },
+    { S_LIST_B, "S_LIST_B" },
     { A_OK, "A_OK" },
     { A_FAIL, "A_FAIL" },
     { A_EVAL, "A_EVAL" },
@@ -2036,6 +2075,10 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_LST_NUM, "AP_LST_NUM" },
     { F_LST_SYM, "F_LST_SYM" },
     { AP_LST_SYM, "AP_LST_SYM" },
+    { F_G_SRC, "F_G_SRC" },
+    { AP_G_SRC, "AP_G_SRC" },
+    { F_G_START, "F_G_START" },
+    { AP_G_START, "AP_G_START" },
     { K_COMPILE, "K_COMPILE" },
     { COMPILE_B, "COMPILE_B" },
     { K_LAMBDAC, "K_LAMBDAC" },
@@ -2609,6 +2652,8 @@ int_t init_global_env() {
     bind_global("peg-eq", AP_G_EQ);
     bind_global("peg-or", AP_G_OR);
     bind_global("peg-and", AP_G_AND);
+    bind_global("peg-source", AP_G_SRC);
+    bind_global("peg-start", AP_G_START);
 #endif
     bind_global("list->number", AP_LST_NUM);
     bind_global("list->symbol", AP_LST_SYM);

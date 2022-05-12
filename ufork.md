@@ -251,8 +251,17 @@ k_queue: [head,tail]--------------------+
  * `(peg-eq `_token_`)`
  * `(peg-or `_first_` `_rest_`)`
  * `(peg-and `_first_` `_rest_`)`
+ * `(peg-source `_list_`)`
+ * `(peg-start `_peg_` `_src_`)`
  * `(list->number `_chars_`)`
  * `(list->symbol `_chars_`)`
+ * `a-print`
+
+### PEG Test Vectors
+
+ * `(define src (peg-source (list 45 52 50 48)))  ; '-' '4' '2' '0'`
+ * `(define peg-num (peg-and (peg-or (peg-eq 45) peg-empty) (peg-and (peg-or 48 (peg-or 50 52)) peg-empty)))`
+ * `(peg-start peg-num src)`
 
 ### PEG Structures
 
