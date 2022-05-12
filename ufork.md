@@ -417,6 +417,7 @@ message: --->[*|*]---> next
  * `(define r2 (lambda (x y . z) z))`
  * `(define i3 (lambda (x y z) z))`
  * `(define l3 (lambda (x y z) (list x y z)))`
+ * `(define cadr (lambda (x) (car (cdr x))))`
 
 ## Inspiration
 

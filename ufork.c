@@ -1593,7 +1593,21 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_pick,       .x=4,           .y=OP_DEFINE+16,.z=UNDEF        },  // expr
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (expr k_define env)
 
-#define F_CAR (OP_DEFINE+17)
+#define F_CONS (OP_DEFINE+17)
+    { .t=Actor_T,       .x=F_CONS+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+#if 1
+    { .t=VM_msg,        .x=3,           .y=F_CONS+2,    .z=UNDEF        },  // tail = arg2
+    { .t=VM_msg,        .x=2,           .y=F_CONS+3,    .z=UNDEF        },  // head = arg1
+#else
+    { .t=VM_msg,        .x=-1,          .y=F_CONS+2,    .z=UNDEF        },  // (head tail)
+    { .t=VM_part,       .x=2,           .y=F_CONS+3,    .z=UNDEF        },  // () tail head
+#endif
+    { .t=VM_pair,       .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (head . tail)
+#define AP_CONS (F_CONS+4)
+    { .t=Actor_T,       .x=AP_CONS+1,   .y=UNDEF,       .z=UNDEF        },  // (cons <head> <tail>)
+    { .t=VM_push,       .x=F_CONS,      .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CONS
+
+#define F_CAR (AP_CONS+2)
     { .t=Actor_T,       .x=F_CAR+1,     .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_CAR+2,     .z=UNDEF        },  // pair = arg1
     { .t=VM_get,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // car(pair)
@@ -1609,22 +1623,27 @@ symbol = Plus(Atom) -> symbol
     { .t=Actor_T,       .x=AP_CDR+1,    .y=UNDEF,       .z=UNDEF        },  // (cdr <pair>)
     { .t=VM_push,       .x=F_CDR,       .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CDR
 
-#define F_CONS (AP_CDR+2)
-    { .t=Actor_T,       .x=F_CONS+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
-#if 1
-    { .t=VM_msg,        .x=3,           .y=F_CONS+2,    .z=UNDEF        },  // tail = arg2
-    { .t=VM_msg,        .x=2,           .y=F_CONS+3,    .z=UNDEF        },  // head = arg1
-#else
-    { .t=VM_msg,        .x=-1,          .y=F_CONS+2,    .z=UNDEF        },  // (head tail)
-    { .t=VM_part,       .x=2,           .y=F_CONS+3,    .z=UNDEF        },  // () tail head
-#endif
-    { .t=VM_pair,       .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (head . tail)
-#define AP_CONS (F_CONS+4)
-    { .t=Actor_T,       .x=AP_CONS+1,   .y=UNDEF,       .z=UNDEF        },  // (cons <head> <tail>)
-    { .t=VM_push,       .x=F_CONS,      .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CONS
+#define F_CADR (AP_CDR+2)
+    { .t=Actor_T,       .x=F_CADR+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_CADR+2,    .z=UNDEF        },  // pair = arg1
+    { .t=VM_get,        .x=FLD_Y,       .y=F_CADR+3,    .z=UNDEF        },  // cdr(pair)
+    { .t=VM_get,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // car(cdr(pair))
+#define AP_CADR (F_CADR+4)
+    { .t=Actor_T,       .x=AP_CADR+1,   .y=UNDEF,       .z=UNDEF        },  // (cadr <pair>)
+    { .t=VM_push,       .x=F_CADR,      .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CADR
+
+#define F_CADDR (AP_CADR+2)
+    { .t=Actor_T,       .x=F_CADDR+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_CADDR+2,   .z=UNDEF        },  // pair = arg1
+    { .t=VM_get,        .x=FLD_Y,       .y=F_CADDR+3,   .z=UNDEF        },  // cdr(pair)
+    { .t=VM_get,        .x=FLD_Y,       .y=F_CADDR+4,   .z=UNDEF        },  // cdr(cdr(pair))
+    { .t=VM_get,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // car(cdr(cdr(pair)))
+#define AP_CADDR (F_CADDR+5)
+    { .t=Actor_T,       .x=AP_CADDR+1,  .y=UNDEF,       .z=UNDEF        },  // (caddr <pair>)
+    { .t=VM_push,       .x=F_CADDR,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CADDR
 
 
-#define C_UNDEF_T (AP_CONS+2)
+#define C_UNDEF_T (AP_CADDR+2)
     { .t=VM_push,       .x=VM_push,     .y=C_UNDEF_T+1, .z=UNDEF        },  // VM_push
     { .t=VM_push,       .x=UNDEF,       .y=C_UNDEF_T+2, .z=UNDEF        },  // UNDEF
     { .t=VM_msg,        .x=0,           .y=C_UNDEF_T+3, .z=UNDEF        },  // beh
@@ -1787,7 +1806,6 @@ symbol = Plus(Atom) -> symbol
   (lambda (cust)
     (BEH beh
       (SEND cust
-        ;(cell Actor_T (cell VM_push #unit beh))
         (cell Actor_T
           (cell VM_push
             (cell Actor_T
@@ -1952,12 +1970,16 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_LIST, "AP_LIST" },
     { K_DEFINE, "K_DEFINE" },
     { OP_DEFINE, "OP_DEFINE" },
+    { F_CONS, "F_CONS" },
+    { AP_CONS, "AP_CONS" },
     { F_CAR, "F_CAR" },
     { AP_CAR, "AP_CAR" },
     { F_CDR, "F_CDR" },
     { AP_CDR, "AP_CDR" },
-    { F_CONS, "F_CONS" },
-    { AP_CONS, "AP_CONS" },
+    { F_CADR, "F_CADR" },
+    { AP_CADR, "AP_CADR" },
+    { F_CADDR, "F_CADDR" },
+    { AP_CADDR, "AP_CADDR" },
     { K_COMPILE, "K_COMPILE" },
     { COMPILE_B, "COMPILE_B" },
     { K_LAMBDAC, "K_LAMBDAC" },
@@ -2516,9 +2538,11 @@ int_t init_global_env() {
     bind_global("list", AP_LIST);
     bind_global("lambda", LAMBDA_C);
     bind_global("define", OP_DEFINE);
+    bind_global("cons", AP_CONS);
     bind_global("car", AP_CAR);
     bind_global("cdr", AP_CDR);
-    bind_global("cons", AP_CONS);
+    bind_global("cadr", AP_CADR);
+    bind_global("caddr", AP_CADDR);
     bind_global("quit", A_QUIT);
     return UNIT;
 }
