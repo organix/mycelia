@@ -1652,7 +1652,27 @@ symbol = Plus(Atom) -> symbol
     { .t=Actor_T,       .x=AP_G_EQ+1,   .y=UNDEF,       .z=UNDEF        },  // (peg-eq <token>)
     { .t=VM_push,       .x=F_G_EQ,      .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_EQ
 
-#define F_LST_NUM (AP_G_EQ+2)
+#define F_G_OR (AP_G_EQ+2)
+    { .t=Actor_T,       .x=F_G_OR+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_G_OR+2,    .z=UNDEF        },  // first = arg1
+    { .t=VM_msg,        .x=3,           .y=F_G_OR+3,    .z=UNDEF        },  // rest = arg2
+    { .t=VM_push,       .x=G_OR_B,      .y=F_G_OR+4,    .z=UNDEF        },  // G_OR_B
+    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (G_OR_B first rest)
+#define AP_G_OR (F_G_OR+5)
+    { .t=Actor_T,       .x=AP_G_OR+1,   .y=UNDEF,       .z=UNDEF        },  // (peg-or <first> <rest>)
+    { .t=VM_push,       .x=F_G_OR,      .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_OR
+
+#define F_G_AND (AP_G_OR+2)
+    { .t=Actor_T,       .x=F_G_AND+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_G_AND+2,   .z=UNDEF        },  // first = arg1
+    { .t=VM_msg,        .x=3,           .y=F_G_AND+3,   .z=UNDEF        },  // rest = arg2
+    { .t=VM_push,       .x=G_AND_B,     .y=F_G_AND+4,   .z=UNDEF        },  // G_AND_B
+    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (G_AND_B first rest)
+#define AP_G_AND (F_G_AND+5)
+    { .t=Actor_T,       .x=AP_G_AND+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-and <first> <rest>)
+    { .t=VM_push,       .x=F_G_AND,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_AND
+
+#define F_LST_NUM (AP_G_AND+2)
     { .t=Actor_T,       .x=F_LST_NUM+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_LST_NUM+2, .z=UNDEF        },  // chars = arg1
     { .t=VM_cvt,        .x=CVT_LST_NUM, .y=CUST_SEND,   .z=UNDEF        },  // lst_num(chars)
@@ -2008,6 +2028,10 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_CADDR, "AP_CADDR" },
     { F_G_EQ, "F_G_EQ" },
     { AP_G_EQ, "AP_G_EQ" },
+    { F_G_OR, "F_G_OR" },
+    { AP_G_OR, "AP_G_OR" },
+    { F_G_AND, "F_G_AND" },
+    { AP_G_AND, "AP_G_AND" },
     { F_LST_NUM, "F_LST_NUM" },
     { AP_LST_NUM, "AP_LST_NUM" },
     { F_LST_SYM, "F_LST_SYM" },
@@ -2583,6 +2607,8 @@ int_t init_global_env() {
     bind_global("peg-fail", G_FAIL);
     bind_global("peg-any", G_ANY);
     bind_global("peg-eq", AP_G_EQ);
+    bind_global("peg-or", AP_G_OR);
+    bind_global("peg-and", AP_G_AND);
 #endif
     bind_global("list->number", AP_LST_NUM);
     bind_global("list->symbol", AP_LST_SYM);
