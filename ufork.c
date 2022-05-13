@@ -1716,7 +1716,34 @@ symbol = Plus(Atom) -> symbol
     { .t=Actor_T,       .x=AP_G_CLS+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-class . <classes>)
     { .t=VM_push,       .x=F_G_CLS,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_CLS
 
-#define F_G_CALL (AP_G_CLS+2)
+#define F_G_OPT (AP_G_CLS+2)
+    { .t=Actor_T,       .x=F_G_OPT+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_G_OPT+2,   .z=UNDEF        },  // peg = arg1
+    { .t=VM_push,       .x=G_OPT_B,     .y=F_G_OPT+3,   .z=UNDEF        },  // G_OPT_B
+    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (G_OPT_B peg)
+#define AP_G_OPT (F_G_OPT+4)
+    { .t=Actor_T,       .x=AP_G_OPT+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-opt <peg>)
+    { .t=VM_push,       .x=F_G_OPT,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_OPT
+
+#define F_G_PLUS (AP_G_OPT+2)
+    { .t=Actor_T,       .x=F_G_PLUS+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_G_PLUS+2,  .z=UNDEF        },  // peg = arg1
+    { .t=VM_push,       .x=G_PLUS_B,    .y=F_G_PLUS+3,  .z=UNDEF        },  // G_PLUS_B
+    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (G_PLUS_B peg)
+#define AP_G_PLUS (F_G_PLUS+4)
+    { .t=Actor_T,       .x=AP_G_PLUS+1, .y=UNDEF,       .z=UNDEF        },  // (peg-plus <peg>)
+    { .t=VM_push,       .x=F_G_PLUS,    .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_PLUS
+
+#define F_G_STAR (AP_G_PLUS+2)
+    { .t=Actor_T,       .x=F_G_STAR+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_G_STAR+2,  .z=UNDEF        },  // peg = arg1
+    { .t=VM_push,       .x=G_STAR_B,    .y=F_G_STAR+3,  .z=UNDEF        },  // G_STAR_B
+    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (G_STAR_B peg)
+#define AP_G_STAR (F_G_STAR+4)
+    { .t=Actor_T,       .x=AP_G_STAR+1, .y=UNDEF,       .z=UNDEF        },  // (peg-star <peg>)
+    { .t=VM_push,       .x=F_G_STAR,    .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_STAR
+
+#define F_G_CALL (AP_G_STAR+2)
     { .t=Actor_T,       .x=F_G_CALL+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_G_CALL+2,  .z=UNDEF        },  // name = arg1
     { .t=VM_push,       .x=G_CALL_B,    .y=F_G_CALL+3,  .z=UNDEF        },  // G_CALL_B
@@ -2113,6 +2140,12 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_G_AND, "AP_G_AND" },
     { F_G_CLS, "F_G_CLS" },
     { AP_G_CLS, "AP_G_CLS" },
+    { F_G_OPT, "F_G_OPT" },
+    { AP_G_OPT, "AP_G_OPT" },
+    { F_G_PLUS, "F_G_PLUS" },
+    { AP_G_PLUS, "AP_G_PLUS" },
+    { F_G_STAR, "F_G_STAR" },
+    { AP_G_STAR, "AP_G_STAR" },
     { F_G_CALL, "F_G_CALL" },
     { OP_G_CALL, "OP_G_CALL" },
     { F_LST_NUM, "F_LST_NUM" },
@@ -2705,6 +2738,9 @@ int_t init_global_env() {
     bind_global("peg-or", AP_G_OR);
     bind_global("peg-and", AP_G_AND);
     bind_global("peg-class", AP_G_CLS);
+    bind_global("peg-opt", AP_G_OPT);
+    bind_global("peg-plus", AP_G_PLUS);
+    bind_global("peg-star", AP_G_STAR);
     bind_global("peg-call", OP_G_CALL);
     bind_global("peg-source", AP_G_SRC);
     bind_global("peg-start", AP_G_START);

@@ -97,7 +97,7 @@ This is because they can be trivially defined in primitive terms.
 
 Derived PEGs include:
 
-  * Optional(_pattern_) = Or(And(_pattern_, Empty), Empty)
+  * Opt(_pattern_) = Or(And(_pattern_, Empty), Empty)
   * Plus(_pattern_) = And(_pattern_, Star(_pattern_))
   * Star(_pattern_) = Or(Plus(_pattern_), Empty)
   * Seq(_p_<sub>1</sub>, ..., _p_<sub>_n_</sub>) = And(_p_<sub>1</sub>, ... And(_p_<sub>_n_</sub>, Empty) ...)
@@ -252,6 +252,9 @@ k_queue: [head,tail]--------------------+
  * `(peg-or `_first_` `_rest_`)`
  * `(peg-and `_first_` `_rest_`)`
  * `(peg-class . `_classes_`)`
+ * `(peg-opt `_peg_`)`
+ * `(peg-plus `_peg_`)`
+ * `(peg-star `_peg_`)`
  * `(peg-call `_name_`)`
  * `(peg-source `_list_`)`
  * `(peg-start `_peg_` `_src_`)`
@@ -275,7 +278,7 @@ k_queue: [head,tail]--------------------+
  * `(define peg-number (peg-and (peg-or (peg-eq 45) peg-empty) peg-digits))`
  * `(peg-start peg-number src)`
  * `(define src (peg-source (list 70 111 111 10)))  ; 'F' 'o' 'o' '\n'`
- * `(define peg-alnum (peg-or (peg-and (peg-class UPR LWR) (peg-call peg-alnum)) peg-empty))`
+ * `(define peg-alnum (peg-plus (peg-class UPR LWR)))`
  * `(peg-start peg-alnum src)`
 
 ### PEG Structures
