@@ -251,6 +251,7 @@ k_queue: [head,tail]--------------------+
  * `(peg-eq `_token_`)`
  * `(peg-or `_first_` `_rest_`)`
  * `(peg-and `_first_` `_rest_`)`
+ * `(peg-call `_name_`)`
  * `(peg-source `_list_`)`
  * `(peg-start `_peg_` `_src_`)`
  * `(list->number `_chars_`)`
@@ -260,8 +261,17 @@ k_queue: [head,tail]--------------------+
 ### PEG Test Vectors
 
  * `(define src (peg-source (list 45 52 50 48)))  ; '-' '4' '2' '0'`
- * `(define peg-num (peg-and (peg-or (peg-eq 45) peg-empty) (peg-and (peg-or 48 (peg-or 50 52)) peg-empty)))`
- * `(peg-start peg-num src)`
+ * `(peg-start peg-any src)`
+ * `(peg-start (peg-and peg-any peg-empty) src)`
+ * `(peg-start (peg-or (peg-eq 45) peg-empty) src)`
+ * `(peg-start (peg-and (peg-or (peg-eq 45) peg-empty) peg-any) src)`
+ * `(peg-start (peg-and (peg-or (peg-eq 45) peg-empty) (peg-and peg-any peg-empty)) src)`
+ * `(define peg-digit (peg-or (peg-eq 48) (peg-or (peg-eq 50) (peg-eq 52))))`
+ * `(peg-start (peg-and (peg-or (peg-eq 45) peg-empty) (peg-and peg-digit peg-empty)) src)`
+ * `(define peg-digits (peg-or (peg-and peg-digit (peg-call peg-digits)) peg-empty))`
+ * `(peg-start (peg-and (peg-or (peg-eq 45) peg-empty) peg-digits) src)`
+ * `(define peg-all (peg-or (peg-and peg-any (peg-call peg-all)) peg-empty))`
+ * `(peg-start peg-all src)`
 
 ### PEG Structures
 
