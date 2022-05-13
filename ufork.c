@@ -1692,7 +1692,31 @@ symbol = Plus(Atom) -> symbol
     { .t=Actor_T,       .x=AP_G_AND+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-and <first> <rest>)
     { .t=VM_push,       .x=F_G_AND,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_AND
 
-#define F_G_CALL (AP_G_AND+2)
+#define F_G_CLS (AP_G_AND+2)
+    { .t=Actor_T,       .x=F_G_CLS+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=0,           .y=F_G_CLS+2,   .z=UNDEF        },
+    { .t=VM_part,       .x=1,           .y=F_G_CLS+3,   .z=UNDEF        },  // args cust
+    { .t=VM_push,       .x=TO_FIX(0),   .y=F_G_CLS+4,   .z=UNDEF        },  // mask = +0
+    { .t=VM_roll,       .x=3,           .y=F_G_CLS+5,   .z=UNDEF        },  // cust mask args
+
+    { .t=VM_pick,       .x=1,           .y=F_G_CLS+6,   .z=UNDEF        },  // args args
+    { .t=VM_typeq,      .x=Pair_T,      .y=F_G_CLS+7,   .z=UNDEF        },  // args has type Pair_T
+    { .t=VM_if,         .x=F_G_CLS+8,   .y=F_G_CLS+12,  .z=UNDEF        },
+
+    { .t=VM_part,       .x=1,           .y=F_G_CLS+9,   .z=UNDEF        },  // tail head
+    { .t=VM_roll,       .x=3,           .y=F_G_CLS+10,  .z=UNDEF        },  // tail head mask
+    { .t=VM_alu,        .x=ALU_OR,      .y=F_G_CLS+11,  .z=UNDEF        },  // mask |= head
+    { .t=VM_roll,       .x=2,           .y=F_G_CLS+5,   .z=UNDEF        },  // mask tail
+
+    { .t=VM_drop,       .x=1,           .y=F_G_CLS+13,  .z=UNDEF        },  // cust mask
+    { .t=VM_push,       .x=G_CLS_B,     .y=F_G_CLS+14,  .z=UNDEF        },  // G_CLS_B
+    { .t=VM_new,        .x=1,           .y=F_G_CLS+15,  .z=UNDEF        },  // ptrn = (G_CLS_B mask)
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // ptrn cust
+#define AP_G_CLS (F_G_CLS+16)
+    { .t=Actor_T,       .x=AP_G_CLS+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-class . <classes>)
+    { .t=VM_push,       .x=F_G_CLS,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_CLS
+
+#define F_G_CALL (AP_G_CLS+2)
     { .t=Actor_T,       .x=F_G_CALL+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_G_CALL+2,  .z=UNDEF        },  // name = arg1
     { .t=VM_push,       .x=G_CALL_B,    .y=F_G_CALL+3,  .z=UNDEF        },  // G_CALL_B
@@ -2087,6 +2111,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_G_OR, "AP_G_OR" },
     { F_G_AND, "F_G_AND" },
     { AP_G_AND, "AP_G_AND" },
+    { F_G_CLS, "F_G_CLS" },
+    { AP_G_CLS, "AP_G_CLS" },
     { F_G_CALL, "F_G_CALL" },
     { OP_G_CALL, "OP_G_CALL" },
     { F_LST_NUM, "F_LST_NUM" },
@@ -2664,12 +2690,21 @@ int_t init_global_env() {
     bind_global("caddr", AP_CADDR);
 #if 1
     bind_global("a-print", A_PRINT);
+    bind_global("CTL", TO_FIX(CTL));
+    bind_global("DGT", TO_FIX(DGT));
+    bind_global("UPR", TO_FIX(UPR));
+    bind_global("LWR", TO_FIX(LWR));
+    bind_global("DLM", TO_FIX(DLM));
+    bind_global("SYM", TO_FIX(SYM));
+    bind_global("HEX", TO_FIX(HEX));
+    bind_global("WSP", TO_FIX(WSP));
     bind_global("peg-empty", G_EMPTY);
     bind_global("peg-fail", G_FAIL);
     bind_global("peg-any", G_ANY);
     bind_global("peg-eq", AP_G_EQ);
     bind_global("peg-or", AP_G_OR);
     bind_global("peg-and", AP_G_AND);
+    bind_global("peg-class", AP_G_CLS);
     bind_global("peg-call", OP_G_CALL);
     bind_global("peg-source", AP_G_SRC);
     bind_global("peg-start", AP_G_START);
