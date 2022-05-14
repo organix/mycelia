@@ -426,9 +426,9 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // NIL = ()
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNDEF = #?
     { .t=Unit_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
-    { .t=Event_T,       .x=17,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    //{ .t=Event_T,       .x=209,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
-    //{ .t=Event_T,       .x=566,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    { .t=Event_T,       .x=77,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
+    //{ .t=Event_T,       .x=494,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    //{ .t=Event_T,       .x=903,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
 
 #define SELF_EVAL (START+1)
     { .t=VM_self,       .x=UNDEF,       .y=START+2,     .z=UNDEF        },  // value = SELF
@@ -439,7 +439,12 @@ cell_t cell_table[CELL_MAX] = {
 #define COMMIT (START+4)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // commit actor transaction
 
-#define A_CLOCK (COMMIT+1)
+#define RESEND (COMMIT+1)
+    { .t=VM_msg,        .x=0,           .y=RESEND+1,    .z=UNDEF        },  // msg
+    { .t=VM_self,       .x=UNDEF,       .y=RESEND+2,    .z=UNDEF        },  // SELF
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (SELF . msg)
+
+#define A_CLOCK (RESEND+3)
     { .t=Actor_T,       .x=A_CLOCK+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=TO_FIX(-1),  .y=A_CLOCK+2,   .z=UNDEF        },
 #define CLOCK_BEH (A_CLOCK+2)
@@ -447,49 +452,85 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=CLOCK_BEH,   .y=A_CLOCK+4,   .z=UNDEF        },
     { .t=VM_beh,        .x=1,           .y=COMMIT,      .z=UNDEF        },
 
+#define S_VALUE (A_CLOCK+5)
+//  { .t=VM_push,       .x=_in_,        .y=S_VALUE+0,   .z=UNDEF        },  // (token . next) -or- NIL
+    { .t=VM_msg,        .x=0,           .y=SEND_0,      .z=UNDEF        },  // cust
+
+#define S_GETC (S_VALUE+1)
+#define S_END_X (S_GETC+9)
+#define S_VAL_X (S_GETC+10)
+    { .t=VM_getc,       .x=UNDEF,       .y=S_GETC+1,    .z=UNDEF        },  // ch
+    { .t=VM_pick,       .x=1,           .y=S_GETC+2,    .z=UNDEF        },  // ch ch
+    { .t=VM_push,       .x=TO_FIX('\0'),.y=S_GETC+3,    .z=UNDEF        },
+    { .t=VM_cmp,        .x=CMP_LT,      .y=S_GETC+4,    .z=UNDEF        },  // ch < '\0'
+    { .t=VM_if,         .x=S_END_X,     .y=S_GETC+5,    .z=UNDEF        },
+
+    { .t=VM_push,       .x=S_GETC,      .y=S_GETC+6,    .z=UNDEF        },  // S_GETC
+    { .t=VM_new,        .x=0,           .y=S_GETC+7,    .z=UNDEF        },  // next
+    { .t=VM_pick,       .x=2,           .y=S_GETC+8,    .z=UNDEF        },  // ch
+    { .t=VM_pair,       .x=1,           .y=S_VAL_X,     .z=UNDEF        },  // in = (ch . next)
+
+    { .t=VM_push,       .x=NIL,         .y=S_GETC+10,   .z=UNDEF        },  // in = ()
+    { .t=VM_push,       .x=S_VALUE,     .y=S_GETC+11,   .z=UNDEF        },  // S_VALUE
+    { .t=VM_beh,        .x=1,           .y=RESEND,      .z=UNDEF        },  // BECOME (S_VALUE in)
+
+#define S_LIST_B (S_GETC+12)
+//  { .t=VM_push,       .x=_list_,      .y=S_LIST_B+0,  .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=S_LIST_B+1,  .z=UNDEF        },  // list
+    { .t=VM_typeq,      .x=Pair_T,      .y=S_LIST_B+2,  .z=UNDEF        },  // list has type Pair_T
+    { .t=VM_if,         .x=S_LIST_B+3,  .y=S_END_X,     .z=UNDEF        },  // list
+
+    { .t=VM_part,       .x=1,           .y=S_LIST_B+4,  .z=UNDEF        },  // tail head
+    { .t=VM_roll,       .x=2,           .y=S_LIST_B+5,  .z=UNDEF        },  // head tail
+    { .t=VM_push,       .x=S_LIST_B,    .y=S_LIST_B+6,  .z=UNDEF        },  // S_LIST_B
+    { .t=VM_new,        .x=1,           .y=S_LIST_B+7,  .z=UNDEF        },  // next
+    { .t=VM_roll,       .x=2,           .y=S_LIST_B+8,  .z=UNDEF        },  // head
+    { .t=VM_pair,       .x=1,           .y=S_VAL_X,     .z=UNDEF        },  // in = (head . next)
+
+#define G_START (S_LIST_B+9)
+//  { .t=VM_push,       .x=_custs_,     .y=G_START-1,   .z=UNDEF        },  // (ok . fail)
+//  { .t=VM_push,       .x=_ptrn_,      .y=G_START+0,   .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=G_START+1,   .z=UNDEF        },  // in
+    { .t=VM_push,       .x=UNDEF,       .y=G_START+2,   .z=UNDEF        },  // value = UNDEF
+    { .t=VM_pick,       .x=4,           .y=G_START+3,   .z=UNDEF        },  // custs
+    { .t=VM_pair,       .x=2,           .y=G_START+4,   .z=UNDEF        },  // (custs value . in)
+    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // ptrn
+
+#define G_CALL_B (G_START+5)
+//  { .t=VM_push,       .x=_symbol_,    .y=G_CALL_B+0,  .z=UNDEF        },  // name = symbol
+    { .t=VM_get,        .x=FLD_Z,       .y=G_CALL_B+1,  .z=UNDEF        },  // ptrn = lookup(name)
+    { .t=VM_msg,        .x=0,           .y=G_CALL_B+2,  .z=UNDEF        },  // (custs value . in)
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // (ptrn custs value . in)
+
+#define G_LANG (G_CALL_B+3)
+    { .t=Actor_T,       .x=G_LANG+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=UNDEF,       .y=G_CALL_B,    .z=UNDEF        },  // {x:symbol} patched by A_BOOT
+
 /*
 (define empty-env
   (CREATE
     (BEH (cust _index)
       (SEND cust #undefined))))
 */
-#define EMPTY_ENV (A_CLOCK+5)
+#define EMPTY_ENV (G_LANG+2)
     { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=UNDEF,       .y=CUST_SEND,   .z=UNDEF        },
 
-#define A_BOOT (EMPTY_ENV+2)
-    { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
-    { .t=VM_push,       .x=TO_FIX('>'), .y=A_BOOT+2,    .z=UNDEF        },
-    { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+3,    .z=UNDEF        },
-    { .t=VM_push,       .x=TO_FIX(' '), .y=A_BOOT+4,    .z=UNDEF        },
-    { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+5,    .z=UNDEF        },
-#if 0
-    { .t=VM_push,       .x=NIL,         .y=A_BOOT+6,    .z=UNDEF        },  // +5
-    { .t=VM_self,       .x=UNDEF,       .y=A_BOOT+7,    .z=UNDEF        },
-    { .t=VM_send,       .x=0,           .y=A_BOOT+8,    .z=UNDEF        },
-    { .t=VM_push,       .x=A_BOOT+10,   .y=A_BOOT+9,    .z=UNDEF        },
-    { .t=VM_beh,        .x=0,           .y=A_BOOT+19,   .z=UNDEF        },
-    { .t=VM_getc,       .x=UNDEF,       .y=A_BOOT+11,   .z=UNDEF        },  // +10
-    { .t=VM_pick,       .x=1,           .y=A_BOOT+12,   .z=UNDEF        },
-    { .t=VM_push,       .x=TO_FIX('\0'),.y=A_BOOT+13,   .z=UNDEF        },
-    { .t=VM_cmp,        .x=CMP_LT,      .y=A_BOOT+14,   .z=UNDEF        },
-    { .t=VM_if,         .x=A_BOOT+19,   .y=A_BOOT+15,   .z=UNDEF        },
-    { .t=VM_putc,       .x=UNDEF,       .y=A_BOOT+16,   .z=UNDEF        },
-    //{ .t=VM_debug,      .x=TO_FIX(101), .y=A_BOOT+16,   .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=A_BOOT+17,   .z=UNDEF        },
-    { .t=VM_self,       .x=UNDEF,       .y=A_BOOT+18,   .z=UNDEF        },
-    { .t=VM_send,       .x=0,           .y=A_BOOT+19,   .z=UNDEF        },
-    { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },
-#else
-#define REPL_R (A_BOOT+5)
-#define REPL_E (A_BOOT+7)
-#define REPL_P (A_BOOT+14)
-#define REPL_L (A_BOOT+1)
-#define REPL_F (A_BOOT+17)
+#define REPL_R (EMPTY_ENV+2)
+#define REPL_E (REPL_R+8)
+#define REPL_P (REPL_E+7)
+#define REPL_L (REPL_P+3)
+#define REPL_F (REPL_L+4)
     { .t=VM_push,       .x=REPL_F,      .y=REPL_R+1,    .z=UNDEF        },  // fail = REPL_F
-    { .t=VM_push,       .x=REPL_E,      .y=569,         .z=UNDEF        },  // ok = REPL_E  --> {k:G_EVAL_X}
+    { .t=VM_push,       .x=REPL_E,      .y=REPL_R+2,    .z=UNDEF        },  // ok = REPL_E
+    { .t=VM_pair,       .x=1,           .y=REPL_R+3,    .z=UNDEF        },  // custs = (ok . fail)
+    { .t=VM_push,       .x=G_LANG,      .y=REPL_R+4,    .z=UNDEF        },  // ptrn = G_LANG
+    { .t=VM_push,       .x=G_START,     .y=REPL_R+5,    .z=UNDEF        },  // G_START
+    { .t=VM_new,        .x=2,           .y=REPL_R+6,    .z=UNDEF        },  // start
+    { .t=VM_push,       .x=S_GETC,      .y=REPL_R+7,    .z=UNDEF        },  // S_GETC
+    { .t=VM_new,        .x=0,           .y=SEND_0,      .z=UNDEF        },  // src
 
-    { .t=Actor_T,       .x=REPL_E+1,    .y=UNDEF,       .z=UNDEF        },  // +7
+    { .t=Actor_T,       .x=REPL_E+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=REPL_E+2,    .z=UNDEF        },  // sexpr
     { .t=VM_debug,      .x=TO_FIX(888), .y=REPL_E+3,    .z=UNDEF        },
     { .t=VM_push,       .x=EMPTY_ENV,   .y=REPL_E+4,    .z=UNDEF        },  // env = EMPTY_ENV
@@ -497,19 +538,34 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=1,           .y=REPL_E+6,    .z=UNDEF        },  // sexpr
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (sexpr REPL_P EMPTY_ENV)
 
-    { .t=Actor_T,       .x=REPL_P+1,    .y=UNDEF,       .z=UNDEF        },  // +14
+    { .t=Actor_T,       .x=REPL_P+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=REPL_P+2,    .z=UNDEF        },
     { .t=VM_debug,      .x=TO_FIX(999), .y=REPL_L,      .z=UNDEF        },
 
-    { .t=Actor_T,       .x=REPL_F+1,    .y=UNDEF,       .z=UNDEF        },  // +17
+    { .t=VM_push,       .x=TO_FIX('>'), .y=REPL_L+1,    .z=UNDEF        },
+    { .t=VM_putc,       .x=UNDEF,       .y=REPL_L+2,    .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX(' '), .y=REPL_L+3,    .z=UNDEF        },
+    { .t=VM_putc,       .x=UNDEF,       .y=REPL_R,      .z=UNDEF        },
+
+    { .t=Actor_T,       .x=REPL_F+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=REPL_F+2,    .z=UNDEF        },
     { .t=VM_debug,      .x=TO_FIX(666), .y=COMMIT,      .z=UNDEF        },
-#endif
 
-#define A_PRINT (A_BOOT+20)
-    { .t=Actor_T,       .x=A_PRINT+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=A_PRINT+2,   .z=UNDEF        },
-    { .t=VM_debug,      .x=TO_FIX(7331),.y=COMMIT,      .z=UNDEF        },
+#define A_BOOT (REPL_F+3)
+    { .t=Actor_T,       .x=A_BOOT+1,    .y=UNDEF,       .z=UNDEF        },  // <--- A_BOOT
+    { .t=VM_push,       .x=G_LANG+1,    .y=A_BOOT+2,    .z=UNDEF        },  // cell to patch
+    { .t=VM_push,       .x=NIL,         .y=A_BOOT+3,    .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('g'), .y=A_BOOT+4,    .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('n'), .y=A_BOOT+5,    .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('a'), .y=A_BOOT+6,    .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('l'), .y=A_BOOT+7,    .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('-'), .y=A_BOOT+8,    .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('g'), .y=A_BOOT+9,    .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('e'), .y=A_BOOT+10,   .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('p'), .y=A_BOOT+11,   .z=UNDEF        },
+    { .t=VM_pair,       .x=8,           .y=A_BOOT+12,   .z=UNDEF        },  // "peg-lang"
+    { .t=VM_cvt,        .x=CVT_LST_SYM, .y=A_BOOT+13,   .z=UNDEF        },
+    { .t=VM_set,        .x=FLD_X,       .y=REPL_L,      .z=UNDEF        },
 
 /*
 (define tag-beh
@@ -518,7 +574,7 @@ cell_t cell_table[CELL_MAX] = {
       (SEND cust (cons SELF msg))
     )))
 */
-#define TAG_BEH (A_PRINT+3)
+#define TAG_BEH (A_BOOT+14)
 //  { .t=VM_push,       .x=_cust_,      .y=TAG_BEH+0,   .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=TAG_BEH+1,   .z=UNDEF        },  // msg
     { .t=VM_self,       .x=UNDEF,       .y=TAG_BEH+2,   .z=UNDEF        },  // SELF
@@ -623,83 +679,6 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (JOIN_BEH cust k_head k_tail)
 
 /*
-(define bound-beh  ; lookup variable by De Bruijn index
-  (lambda (value next)
-    (BEH (cust index)
-      (define index (- index 1))
-      (if (zero? index)
-        (SEND cust value)
-        (SEND next (list cust index))))))
-*/
-#define BOUND_BEH (FORK_BEH+19)
-//  { .t=VM_push,       .x=_value_,     .y=BOUND_BEH-1, .z=UNDEF        },
-//  { .t=VM_push,       .x=_next_,      .y=BOUND_BEH+0, .z=UNDEF        },
-    { .t=VM_msg,        .x=2,           .y=BOUND_BEH+1, .z=UNDEF        },  // index
-    { .t=VM_push,       .x=TO_FIX(1),   .y=BOUND_BEH+2, .z=UNDEF        },  // +1
-    { .t=VM_alu,        .x=ALU_SUB,     .y=BOUND_BEH+3, .z=UNDEF        },  // index-1
-    { .t=VM_pick,       .x=1,           .y=BOUND_BEH+4, .z=UNDEF        },  // index-1 index-1
-    { .t=VM_eq,         .x=TO_FIX(0),   .y=BOUND_BEH+5, .z=UNDEF        },  // index-1 == +0
-    { .t=VM_if,         .x=BOUND_BEH+9, .y=BOUND_BEH+6, .z=UNDEF        },
-
-    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+7, .z=UNDEF        },  // cust
-    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+8, .z=UNDEF        },  // next
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (next cust index-1)
-
-    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+10,.z=UNDEF        },  // value
-    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+11,.z=UNDEF        },  // cust
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . value)
-
-/*
-(define const-beh
-  (lambda (value)
-    (BEH (cust _)             ; eval
-      (SEND cust value))))
-*/
-#define CONST_7 (BOUND_BEH+12)
-    { .t=Actor_T,       .x=CONST_7+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=TO_FIX(7),   .y=CUST_SEND,   .z=UNDEF        },  // value = +7
-#define CONST_LST (CONST_7+2)
-#if 0
-    { .t=Actor_T,       .x=CONST_LST+1, .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=CONST_LST+2, .z=UNDEF        },  // ()
-    { .t=VM_push,       .x=TO_FIX(3),   .y=CONST_LST+3, .z=UNDEF        },  // +3
-    { .t=VM_push,       .x=TO_FIX(2),   .y=CONST_LST+4, .z=UNDEF        },  // +2
-    { .t=VM_push,       .x=TO_FIX(1),   .y=CONST_LST+5, .z=UNDEF        },  // +1
-    { .t=VM_pair,       .x=3,           .y=CONST_BEH,   .z=UNDEF        },  // value = (+1 +2 +3)
-#else
-#if 0
-    { .t=Pair_T,        .x=TO_FIX(1),   .y=CONST_LST+1, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX(2),   .y=CONST_LST+2, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX(3),   .y=CONST_LST+3, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX(4),   .y=CONST_LST+4, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX(5),   .y=CONST_LST+5, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX(6),   .y=NIL,         .z=UNDEF        },
-#else
-    { .t=Pair_T,        .x=TO_FIX(1),   .y=CONST_LST+1, .z=UNDEF        },
-    { .t=Pair_T,        .x=CONST_LST+2, .y=TO_FIX(5),   .z=UNDEF        },
-    { .t=Pair_T,        .x=CONST_LST+3, .y=CONST_LST+4, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX(2),   .y=NIL,         .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX(3),   .y=CONST_LST+5, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX(4),   .y=NIL,         .z=UNDEF        },
-#endif
-#endif
-
-/*
-(define var-beh
-  (lambda (index)
-    (BEH (cust env)           ; eval
-      (SEND env (list cust index)))))
-*/
-#define VAR_BEH (CONST_LST+6)
-//  { .t=VM_push,       .x=_index_,     .y=VAR_BEH+0,   .z=UNDEF        },
-    { .t=VM_msg,        .x=1,           .y=VAR_BEH+1,   .z=UNDEF        },  // cust
-    { .t=VM_msg,        .x=2,           .y=VAR_BEH+2,   .z=UNDEF        },  // env
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (env cust index)
-#define VAR_1 (VAR_BEH+3)
-    { .t=Actor_T,       .x=VAR_1+1,     .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=TO_FIX(1),   .y=VAR_BEH,     .z=UNDEF        },  // index = +1
-
-/*
 (define evlis-beh
   (lambda (param)
     (BEH (cust env)           ; eval
@@ -714,7 +693,7 @@ cell_t cell_table[CELL_MAX] = {
             (list env)))
         (SEND param (list cust env))))))
 */
-#define EVLIS_BEH (VAR_1+2)
+#define EVLIS_BEH (FORK_BEH+19)
 //  { .t=VM_push,       .x=_param_,     .y=EVLIS_BEH+0, .z=UNDEF        },
     { .t=VM_pick,       .x=1,           .y=EVLIS_BEH+1, .z=UNDEF        },  // param
     { .t=VM_typeq,      .x=Pair_T,      .y=EVLIS_BEH+2, .z=UNDEF        },  // param has type Pair_T
@@ -741,169 +720,22 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=1,           .y=EVLIS_BEH+18,.z=UNDEF        },  // t_req h_req
     { .t=VM_pick,       .x=3,           .y=EVLIS_BEH+19,.z=UNDEF        },  // ev_fork
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_fork h_req t_req)
-/*
-(define k-apply-beh
-  (lambda (cust oper env)
-    (BEH args
-      (SEND oper
-        (list cust args env)))))
-*/
-#define K_APPLY (EVLIS_BEH+20)
-//  { .t=VM_push,       .x=_cust_,      .y=K_APPLY-2,   .z=UNDEF        },
-//  { .t=VM_push,       .x=_oper_,      .y=K_APPLY-1,   .z=UNDEF        },
-//  { .t=VM_push,       .x=_env_,       .y=K_APPLY+0,   .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=K_APPLY+1,   .z=UNDEF        },  // args
-    { .t=VM_pick,       .x=4,           .y=K_APPLY+2,   .z=UNDEF        },  // cust
-    { .t=VM_pick,       .x=4,           .y=K_APPLY+3,   .z=UNDEF        },  // oper
-    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (oper cust args env)
-/*
-(define appl-beh
-  (lambda (oper senv)
-    (BEH (cust params . opt-env)
-      (if (pair? opt-env)
-        (SEND                 ; apply
-          (CREATE (evlis-beh params))
-          (list (CREATE (k-apply-beh cust oper senv)) (car opt-env)))
-        (SEND cust SELF)      ; eval
-      ))))
-*/
-#define APPL_BEH (K_APPLY+4)
-//  { .t=VM_push,       .x=_oper_,      .y=APPL_BEH-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_senv_,      .y=APPL_BEH+0,  .z=UNDEF        },
-    { .t=VM_msg,        .x=-2,          .y=APPL_BEH+1,  .z=UNDEF        },  // opt-env
-    { .t=VM_typeq,      .x=Pair_T,      .y=APPL_BEH+2,  .z=UNDEF        },  // opt-env has type Pair_T
-    { .t=VM_if,         .x=APPL_BEH+3,  .y=SELF_EVAL,   .z=UNDEF        },
-
-    { .t=VM_msg,        .x=1,           .y=APPL_BEH+4,  .z=UNDEF        },  // cust
-    { .t=VM_pick,       .x=3,           .y=APPL_BEH+5,  .z=UNDEF        },  // oper
-    { .t=VM_pick,       .x=3,           .y=APPL_BEH+6,  .z=UNDEF        },  // senv
-    { .t=VM_push,       .x=K_APPLY,     .y=APPL_BEH+7,  .z=UNDEF        },  // K_APPLY
-    { .t=VM_new,        .x=3,           .y=APPL_BEH+8,  .z=UNDEF        },  // k_apply
-
-    { .t=VM_msg,        .x=3,           .y=APPL_BEH+9,  .z=UNDEF        },  // denv
-    { .t=VM_pick,       .x=2,           .y=APPL_BEH+10, .z=UNDEF        },  // k_apply
-    { .t=VM_msg,        .x=2,           .y=APPL_BEH+11, .z=UNDEF        },  // params
-    { .t=VM_push,       .x=EVLIS_BEH,   .y=APPL_BEH+12, .z=UNDEF        },  // EVLIS_BEH
-    { .t=VM_new,        .x=1,           .y=APPL_BEH+13, .z=UNDEF        },  // ev_list
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_list k_apply denv)
 
 /*
-(define oper-beh
-  (lambda (body)
-    (BEH (cust arg . opt-env)
-      (if (null? opt-env)
-        (SEND cust SELF)      ; eval
-        (SEND body            ; apply
-          (list cust (CREATE (bound-beh arg (car opt-env)))))
-      ))))
-*/
-#define OPER_BEH (APPL_BEH+14)
-//  { .t=VM_push,       .x=_body_,      .y=OPER_BEH+0,  .z=UNDEF        },
-    { .t=VM_msg,        .x=-2,          .y=OPER_BEH+1,  .z=UNDEF        },  // opt-env
-    { .t=VM_eq,         .x=NIL,         .y=OPER_BEH+2,  .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=SELF_EVAL,   .y=OPER_BEH+3,  .z=UNDEF        },
-
-    { .t=VM_msg,        .x=2,           .y=OPER_BEH+4,  .z=UNDEF        },  // value = arg
-    { .t=VM_msg,        .x=3,           .y=OPER_BEH+5,  .z=UNDEF        },  // next = env
-    { .t=VM_push,       .x=BOUND_BEH,   .y=OPER_BEH+6,  .z=UNDEF        },  // BOUND_BEH
-    { .t=VM_new,        .x=2,           .y=OPER_BEH+7,  .z=UNDEF        },  // ext-env
-
-    { .t=VM_msg,        .x=1,           .y=OPER_BEH+8,  .z=UNDEF        },  // cust
-    { .t=VM_pick,       .x=3,           .y=OPER_BEH+9,  .z=UNDEF        },  // body
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (body cust ext-env)
-
-/*
-(define op-lambda             ; (lambda <body>)
-  (CREATE
-    (BEH (cust body . opt-env)
-      (if (null? opt-env)
-        (SEND cust SELF)      ; eval
-        (SEND cust            ; apply
-          (CREATE (appl-beh (CREATE (oper-beh body)) (car opt-env))))
-      ))))
-*/
-#define OP_LAMBDA (OPER_BEH+10)
-    { .t=Actor_T,       .x=OP_LAMBDA+1, .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=-2,          .y=OP_LAMBDA+2, .z=UNDEF        },  // opt-env
-    { .t=VM_eq,         .x=NIL,         .y=OP_LAMBDA+3, .z=UNDEF        },  // opt-env == ()
-    { .t=VM_if,         .x=SELF_EVAL,   .y=OP_LAMBDA+4, .z=UNDEF        },
-
-    { .t=VM_msg,        .x=2,           .y=OP_LAMBDA+5, .z=UNDEF        },  // body
-    { .t=VM_push,       .x=OPER_BEH,    .y=OP_LAMBDA+6, .z=UNDEF        },  // OPER_BEH
-    { .t=VM_new,        .x=1,           .y=OP_LAMBDA+7, .z=UNDEF        },  // oper
-
-    { .t=VM_msg,        .x=3,           .y=OP_LAMBDA+8, .z=UNDEF        },  // env
-    { .t=VM_push,       .x=APPL_BEH,    .y=OP_LAMBDA+9, .z=UNDEF        },  // APPL_BEH
-    { .t=VM_new,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // appl
-
-/*
-(define k-call-beh
+(define k-call-beh  ; used directly by Pair_T
   (lambda (msg)
     (BEH oper
       (SEND oper msg))))
 */
-#define K_CALL (OP_LAMBDA+10)
+#define K_CALL (EVLIS_BEH+20)
 //  { .t=VM_push,       .x=_msg_,       .y=K_CALL+0,    .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_CALL+1,    .z=UNDEF        },  // oper
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (oper . msg)
-/*
-(define comb-beh
-  (lambda (comb param)
-    (BEH (cust env)           ; eval
-      (SEND comb
-        (list (CREATE (k-call-beh (list cust param env))) env)))))
-*/
-#define COMB_BEH (K_CALL+2)
-//  { .t=VM_push,       .x=_comb_,      .y=COMB_BEH-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_param_,     .y=COMB_BEH+0,  .z=UNDEF        },
-    { .t=VM_msg,        .x=2,           .y=COMB_BEH+1,  .z=UNDEF        },  // env
-
-    { .t=VM_push,       .x=NIL,         .y=COMB_BEH+2,  .z=UNDEF        },  // ()
-    { .t=VM_pick,       .x=2,           .y=COMB_BEH+3,  .z=UNDEF        },  // env
-    { .t=VM_pick,       .x=4,           .y=COMB_BEH+4,  .z=UNDEF        },  // param
-    { .t=VM_msg,        .x=1,           .y=COMB_BEH+5,  .z=UNDEF        },  // cust
-    { .t=VM_pair,       .x=3,           .y=COMB_BEH+6,  .z=UNDEF        },  // msg = (cust param env)
-    { .t=VM_push,       .x=K_CALL,      .y=COMB_BEH+7,  .z=UNDEF        },  // K_CALL
-    { .t=VM_new,        .x=1,           .y=COMB_BEH+8,  .z=UNDEF        },  // k_call
-
-    { .t=VM_pick,       .x=4,           .y=COMB_BEH+9,  .z=UNDEF        },  // comb
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (comb k_call env)
-
-#define OP_I (COMB_BEH+10)
-    { .t=Actor_T,       .x=OP_I+1,      .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=VAR_1,       .y=OPER_BEH,    .z=UNDEF        },  // body = VAR_1
-#define AP_I (OP_I+2)
-    { .t=Actor_T,       .x=AP_I+1,      .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=OP_I,        .y=AP_I+2,      .z=UNDEF        },  // oper = OP_I
-    { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
-
-#define LAMBDA_I (AP_I+3)
-    { .t=Actor_T,       .x=LAMBDA_I+1,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=OP_LAMBDA,   .y=LAMBDA_I+2,  .z=UNDEF        },  // comb = OP_LAMBDA
-    { .t=VM_push,       .x=VAR_1,       .y=COMB_BEH,    .z=UNDEF        },  // param = VAR_1
-
-#define EXPR_I (LAMBDA_I+3)
-    { .t=Actor_T,       .x=EXPR_I+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=LAMBDA_I,    .y=EXPR_I+2,    .z=UNDEF        },  // comb = LAMBDA_I
-    //{ .t=VM_push,       .x=CONST_7,     .y=COMB_BEH,    .z=UNDEF        },  // param = CONST_7
-    //{ .t=VM_push,       .x=TO_FIX(-13), .y=COMB_BEH,    .z=UNDEF        },  // param = -13
-    { .t=VM_push,       .x=CONST_LST,   .y=COMB_BEH,    .z=UNDEF        },  // param = CONST_LST
-
-#define BOUND_42 (EXPR_I+3)
-    { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=TO_FIX(42),  .y=BOUND_42+2,  .z=UNDEF        },  // value = +42
-    { .t=VM_push,       .x=EMPTY_ENV,   .y=BOUND_BEH,   .z=UNDEF        },  // next = EMPTY_ENV
-#define A_TEST (BOUND_42+3)
-    { .t=Actor_T,       .x=A_TEST+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=BOUND_42,    .y=A_TEST+2,    .z=UNDEF        },  // BOUND_42
-    { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+3,    .z=UNDEF        },  // A_PRINT
-    { .t=VM_push,       .x=EXPR_I,      .y=A_TEST+4,    .z=UNDEF        },  // EXPR_I
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
 
 //
 // Parsing Expression Grammar (PEG) behaviors
 //
-#define G_EMPTY (A_TEST+5)
+#define G_EMPTY (K_CALL+2)
     { .t=Actor_T,       .x=G_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },
 #define G_EMPTY_B (G_EMPTY+1)
     { .t=VM_msg,        .x=-2,          .y=G_EMPTY+2,   .z=UNDEF        },  // in
@@ -1059,14 +891,9 @@ Optional(pattern) = Or(And(pattern, Empty), Empty)
 Plus(pattern) = And(pattern, Star(pattern))
 Star(pattern) = Or(Plus(pattern), Empty)
 */
-#define G_OPT_B (RESEND+3)
+#define G_OPT_B (G_AND_B+17)
 #define G_PLUS_B (G_OPT_B+6)
 #define G_STAR_B (G_PLUS_B+5)
-#define RESEND (G_AND_B+17)
-    { .t=VM_msg,        .x=0,           .y=RESEND+1,    .z=UNDEF        },  // msg
-    { .t=VM_self,       .x=UNDEF,       .y=RESEND+2,    .z=UNDEF        },  // SELF
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (SELF . msg)
-
 //  { .t=VM_push,       .x=_ptrn_,      .y=G_OPT_B+0,   .z=UNDEF        },
     { .t=VM_push,       .x=G_EMPTY,     .y=G_OPT_B+1,   .z=UNDEF        },  // G_EMPTY
     { .t=VM_push,       .x=G_AND_B,     .y=G_OPT_B+2,   .z=UNDEF        },  // G_AND_B
@@ -1162,12 +989,6 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_pick,       .x=3,           .y=G_CLS_B+21,  .z=UNDEF        },  // fail
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (fail . in)
 
-#define G_CALL_B (G_CLS_B+22)
-//  { .t=VM_push,       .x=_symbol_,    .y=G_CALL_B+0,  .z=UNDEF        },  // name = symbol
-    { .t=VM_get,        .x=FLD_Z,       .y=G_CALL_B+1,  .z=UNDEF        },  // ptrn = lookup(name)
-    { .t=VM_msg,        .x=0,           .y=G_CALL_B+2,  .z=UNDEF        },  // (custs value . in)
-    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // (ptrn custs value . in)
-
 /*
 (define op-se-beh             ; self-evaluating operative
   (lambda (oper)              ; (oper cust arg denv)
@@ -1178,7 +999,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
           (list* cust arg opt-env))
       ))))
 */
-#define OP_SE_BEH (G_CALL_B+3)
+#define OP_SE_BEH (G_CLS_B+22)
 //  { .t=VM_push,       .x=_oper_,      .y=OP_SE_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=OP_SE_BEH+1, .z=UNDEF        },  // opt-env
     { .t=VM_eq,         .x=NIL,         .y=OP_SE_BEH+2, .z=UNDEF        },  // opt-env == ()
@@ -1224,75 +1045,10 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_pick,       .x=2,           .y=G_XFORM_B+9, .z=UNDEF        },  // ptrn
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (ptrn (ok' . fail) . resume)
 
-#define S_VALUE (G_XFORM_B+10)
-//  { .t=VM_push,       .x=_in_,        .y=S_VALUE+0,   .z=UNDEF        },  // (token . next) -or- NIL
-    { .t=VM_msg,        .x=0,           .y=SEND_0,      .z=UNDEF        },  // cust
-#define S_EMPTY (S_VALUE+1)
-    { .t=Actor_T,       .x=S_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=S_VALUE,     .z=UNDEF        },  // ()
-
-#define S_GETC (S_EMPTY+2)
-#define S_END_X (S_GETC+9)
-#define S_VAL_X (S_GETC+10)
-    { .t=VM_getc,       .x=UNDEF,       .y=S_GETC+1,    .z=UNDEF        },  // ch
-    { .t=VM_pick,       .x=1,           .y=S_GETC+2,    .z=UNDEF        },  // ch ch
-    { .t=VM_push,       .x=TO_FIX('\0'),.y=S_GETC+3,    .z=UNDEF        },
-    { .t=VM_cmp,        .x=CMP_LT,      .y=S_GETC+4,    .z=UNDEF        },  // ch < '\0'
-    { .t=VM_if,         .x=S_END_X,     .y=S_GETC+5,    .z=UNDEF        },
-
-    { .t=VM_push,       .x=S_GETC,      .y=S_GETC+6,    .z=UNDEF        },  // S_GETC
-    { .t=VM_new,        .x=0,           .y=S_GETC+7,    .z=UNDEF        },  // next
-    { .t=VM_pick,       .x=2,           .y=S_GETC+8,    .z=UNDEF        },  // ch
-    { .t=VM_pair,       .x=1,           .y=S_VAL_X,     .z=UNDEF        },  // in = (ch . next)
-
-    { .t=VM_push,       .x=NIL,         .y=S_GETC+10,   .z=UNDEF        },  // in = ()
-    { .t=VM_push,       .x=S_VALUE,     .y=S_GETC+11,   .z=UNDEF        },  // S_VALUE
-    { .t=VM_beh,        .x=1,           .y=RESEND,      .z=UNDEF        },  // BECOME (S_VALUE in)
-
-#define S_LIST_B (S_GETC+12)
-//  { .t=VM_push,       .x=_list_,      .y=S_LIST_B+0,  .z=UNDEF        },
-    { .t=VM_pick,       .x=1,           .y=S_LIST_B+1,  .z=UNDEF        },  // list
-    { .t=VM_typeq,      .x=Pair_T,      .y=S_LIST_B+2,  .z=UNDEF        },  // list has type Pair_T
-    { .t=VM_if,         .x=S_LIST_B+3,  .y=S_END_X,     .z=UNDEF        },  // list
-
-    { .t=VM_part,       .x=1,           .y=S_LIST_B+4,  .z=UNDEF        },  // tail head
-    { .t=VM_roll,       .x=2,           .y=S_LIST_B+5,  .z=UNDEF        },  // head tail
-    { .t=VM_push,       .x=S_LIST_B,    .y=S_LIST_B+6,  .z=UNDEF        },  // S_LIST_B
-    { .t=VM_new,        .x=1,           .y=S_LIST_B+7,  .z=UNDEF        },  // next
-    { .t=VM_roll,       .x=2,           .y=S_LIST_B+8,  .z=UNDEF        },  // head
-    { .t=VM_pair,       .x=1,           .y=S_VAL_X,     .z=UNDEF        },  // in = (head . next)
-
-#define A_OK (S_LIST_B+9)
-    { .t=Actor_T,       .x=A_OK+1,      .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=A_OK+2,      .z=UNDEF        },
-    { .t=VM_debug,      .x=TO_FIX(777), .y=COMMIT,      .z=UNDEF        },
-
-#define A_FAIL (A_OK+3)
-    { .t=Actor_T,       .x=A_FAIL+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=A_FAIL+2,    .z=UNDEF        },
-    { .t=VM_debug,      .x=TO_FIX(666), .y=COMMIT,      .z=UNDEF        },
-
-#define A_EVAL (A_FAIL+3)
-    { .t=Actor_T,       .x=A_EVAL+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=1,           .y=A_EVAL+2,    .z=UNDEF        },  // sexpr
-    { .t=VM_debug,      .x=TO_FIX(888), .y=A_EVAL+3,    .z=UNDEF        },
-
-    { .t=VM_push,       .x=EMPTY_ENV,   .y=A_EVAL+4,    .z=UNDEF        },  // env = EMPTY_ENV
-    { .t=VM_push,       .x=A_PRINT,     .y=A_EVAL+5,    .z=UNDEF        },  // cust = A_PRINT
-    { .t=VM_msg,        .x=1,           .y=A_EVAL+6,    .z=UNDEF        },  // sexpr
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (sexpr A_PRINT EMPTY_ENV)
-
-#define G_START (A_EVAL+7)
-//  { .t=VM_push,       .x=_custs_,     .y=G_START-1,   .z=UNDEF        },  // (ok . fail)
-//  { .t=VM_push,       .x=_ptrn_,      .y=G_START+0,   .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=G_START+1,   .z=UNDEF        },  // in
-    { .t=VM_push,       .x=UNDEF,       .y=G_START+2,   .z=UNDEF        },  // value = UNDEF
-    { .t=VM_pick,       .x=4,           .y=G_START+3,   .z=UNDEF        },  // custs
-    { .t=VM_pair,       .x=2,           .y=G_START+4,   .z=UNDEF        },  // (custs value . in)
-    { .t=VM_pick,       .x=2,           .y=G_START+5,   .z=UNDEF        },  // ptrn
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (ptrn custs value . in)
-
-#define G_WSP (G_START+6)
+//
+// Pre-defined PEGs
+//
+#define G_WSP (G_XFORM_B+10)
     { .t=Actor_T,       .x=G_WSP+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=WSP,         .y=G_CLS_B,     .z=UNDEF        },  // class = whitespace
 
@@ -1455,12 +1211,40 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_push,       .x=G_WSP_S,     .y=G_PTRN+6,    .z=UNDEF        },  // (Star Wsp)
     { .t=VM_pair,       .x=4,           .y=G_SEQ_B,     .z=UNDEF        },  // ((Star Wsp) Upr Lwr (Plus Dgt))
 
-#define G_TEST (G_PTRN+7)
+#define S_EMPTY (G_PTRN+7)
+    { .t=Actor_T,       .x=S_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=S_VALUE,     .z=UNDEF        },  // ()
+
+#define A_PRINT (S_EMPTY+2)
+    { .t=Actor_T,       .x=A_PRINT+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=A_PRINT+2,   .z=UNDEF        },
+    { .t=VM_debug,      .x=TO_FIX(7331),.y=COMMIT,      .z=UNDEF        },
+
+#define A_OK (A_PRINT+3)
+    { .t=Actor_T,       .x=A_OK+1,      .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=A_OK+2,      .z=UNDEF        },
+    { .t=VM_debug,      .x=TO_FIX(777), .y=COMMIT,      .z=UNDEF        },
+
+#define A_FAIL (A_OK+3)
+    { .t=Actor_T,       .x=A_FAIL+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=A_FAIL+2,    .z=UNDEF        },
+    { .t=VM_debug,      .x=TO_FIX(666), .y=COMMIT,      .z=UNDEF        },
+
+#define A_EVAL (A_FAIL+3)
+    { .t=Actor_T,       .x=A_EVAL+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=1,           .y=A_EVAL+2,    .z=UNDEF        },  // sexpr
+    { .t=VM_debug,      .x=TO_FIX(888), .y=A_EVAL+3,    .z=UNDEF        },
+
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=A_EVAL+4,    .z=UNDEF        },  // env = EMPTY_ENV
+    { .t=VM_push,       .x=A_PRINT,     .y=A_EVAL+5,    .z=UNDEF        },  // cust = A_PRINT
+    { .t=VM_msg,        .x=1,           .y=A_EVAL+6,    .z=UNDEF        },  // sexpr
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (sexpr A_PRINT EMPTY_ENV)
+
+#define G_TEST (A_EVAL+7)
     { .t=Actor_T,       .x=G_TEST+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=A_FAIL,      .y=G_TEST+2,    .z=UNDEF        },  // fail = A_FAIL
     //{ .t=VM_push,       .x=A_OK,        .y=G_TEST+3,    .z=UNDEF        },  // ok = A_OK
     { .t=VM_push,       .x=A_EVAL,      .y=G_TEST+3,    .z=UNDEF        },  // ok = A_EVAL
-#define G_EVAL_X (G_TEST+3)
     { .t=VM_pair,       .x=1,           .y=G_TEST+4,    .z=UNDEF        },  // custs = (ok . fail)
     //{ .t=VM_push,       .x=G_EMPTY,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_EMPTY
     //{ .t=VM_push,       .x=G_FAIL,      .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_FAIL
@@ -1583,7 +1367,7 @@ symbol = Plus(Atom) -> symbol
 //  { .t=VM_push,       .x=_cust_,      .y=K_DEFINE-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_symbol_,    .y=K_DEFINE+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_DEFINE+1,  .z=UNDEF        },  // value
-    { .t=VM_set,        .x=FLD_Z,       .y=K_DEFINE+2,  .z=UNDEF        },  // symbol{z=value}
+    { .t=VM_set,        .x=FLD_Z,       .y=K_DEFINE+2,  .z=UNDEF        },  // bind(symbol, value)
     { .t=VM_push,       .x=UNIT,        .y=K_DEFINE+3,  .z=UNDEF        },  // #unit
     { .t=VM_pick,       .x=3,           .y=SEND_0,      .z=UNDEF        },  // cust
 /*
@@ -2023,7 +1807,237 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_new,        .x=1,           .y=LAMBDA_C+14, .z=UNDEF        },  // compile
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (compile k_lambda frml env)
 
-#define A_QUIT (LAMBDA_C+15)
+//
+// Lambda Calculus behaviors
+//
+
+/*
+(define bound-beh  ; lookup variable by De Bruijn index
+  (lambda (value next)
+    (BEH (cust index)
+      (define index (- index 1))
+      (if (zero? index)
+        (SEND cust value)
+        (SEND next (list cust index))))))
+*/
+#define BOUND_BEH (LAMBDA_C+15)
+//  { .t=VM_push,       .x=_value_,     .y=BOUND_BEH-1, .z=UNDEF        },
+//  { .t=VM_push,       .x=_next_,      .y=BOUND_BEH+0, .z=UNDEF        },
+    { .t=VM_msg,        .x=2,           .y=BOUND_BEH+1, .z=UNDEF        },  // index
+    { .t=VM_push,       .x=TO_FIX(1),   .y=BOUND_BEH+2, .z=UNDEF        },  // +1
+    { .t=VM_alu,        .x=ALU_SUB,     .y=BOUND_BEH+3, .z=UNDEF        },  // index-1
+    { .t=VM_pick,       .x=1,           .y=BOUND_BEH+4, .z=UNDEF        },  // index-1 index-1
+    { .t=VM_eq,         .x=TO_FIX(0),   .y=BOUND_BEH+5, .z=UNDEF        },  // index-1 == +0
+    { .t=VM_if,         .x=BOUND_BEH+9, .y=BOUND_BEH+6, .z=UNDEF        },
+
+    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+7, .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+8, .z=UNDEF        },  // next
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (next cust index-1)
+
+    { .t=VM_pick,       .x=3,           .y=BOUND_BEH+10,.z=UNDEF        },  // value
+    { .t=VM_msg,        .x=1,           .y=BOUND_BEH+11,.z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . value)
+
+/*
+(define const-beh
+  (lambda (value)
+    (BEH (cust _)             ; eval
+      (SEND cust value))))
+*/
+#define CONST_7 (BOUND_BEH+12)
+    { .t=Actor_T,       .x=CONST_7+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX(7),   .y=CUST_SEND,   .z=UNDEF        },  // value = +7
+#define CONST_LST (CONST_7+2)
+#if 0
+    { .t=Actor_T,       .x=CONST_LST+1, .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=CONST_LST+2, .z=UNDEF        },  // ()
+    { .t=VM_push,       .x=TO_FIX(3),   .y=CONST_LST+3, .z=UNDEF        },  // +3
+    { .t=VM_push,       .x=TO_FIX(2),   .y=CONST_LST+4, .z=UNDEF        },  // +2
+    { .t=VM_push,       .x=TO_FIX(1),   .y=CONST_LST+5, .z=UNDEF        },  // +1
+    { .t=VM_pair,       .x=3,           .y=CONST_BEH,   .z=UNDEF        },  // value = (+1 +2 +3)
+#else
+#if 0
+    { .t=Pair_T,        .x=TO_FIX(1),   .y=CONST_LST+1, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(2),   .y=CONST_LST+2, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(3),   .y=CONST_LST+3, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(4),   .y=CONST_LST+4, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(5),   .y=CONST_LST+5, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(6),   .y=NIL,         .z=UNDEF        },
+#else
+    { .t=Pair_T,        .x=TO_FIX(1),   .y=CONST_LST+1, .z=UNDEF        },
+    { .t=Pair_T,        .x=CONST_LST+2, .y=TO_FIX(5),   .z=UNDEF        },
+    { .t=Pair_T,        .x=CONST_LST+3, .y=CONST_LST+4, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(2),   .y=NIL,         .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(3),   .y=CONST_LST+5, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX(4),   .y=NIL,         .z=UNDEF        },
+#endif
+#endif
+
+/*
+(define var-beh
+  (lambda (index)
+    (BEH (cust env)           ; eval
+      (SEND env (list cust index)))))
+*/
+#define VAR_BEH (CONST_LST+6)
+//  { .t=VM_push,       .x=_index_,     .y=VAR_BEH+0,   .z=UNDEF        },
+    { .t=VM_msg,        .x=1,           .y=VAR_BEH+1,   .z=UNDEF        },  // cust
+    { .t=VM_msg,        .x=2,           .y=VAR_BEH+2,   .z=UNDEF        },  // env
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (env cust index)
+#define VAR_1 (VAR_BEH+3)
+    { .t=Actor_T,       .x=VAR_1+1,     .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX(1),   .y=VAR_BEH,     .z=UNDEF        },  // index = +1
+
+/*
+(define k-apply-beh
+  (lambda (cust oper env)
+    (BEH args
+      (SEND oper
+        (list cust args env)))))
+*/
+#define K_APPLY (VAR_1+2)
+//  { .t=VM_push,       .x=_cust_,      .y=K_APPLY-2,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_oper_,      .y=K_APPLY-1,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=K_APPLY+0,   .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_APPLY+1,   .z=UNDEF        },  // args
+    { .t=VM_pick,       .x=4,           .y=K_APPLY+2,   .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=4,           .y=K_APPLY+3,   .z=UNDEF        },  // oper
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (oper cust args env)
+/*
+(define appl-beh
+  (lambda (oper senv)
+    (BEH (cust params . opt-env)
+      (if (pair? opt-env)
+        (SEND                 ; apply
+          (CREATE (evlis-beh params))
+          (list (CREATE (k-apply-beh cust oper senv)) (car opt-env)))
+        (SEND cust SELF)      ; eval
+      ))))
+*/
+#define APPL_BEH (K_APPLY+4)
+//  { .t=VM_push,       .x=_oper_,      .y=APPL_BEH-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_senv_,      .y=APPL_BEH+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=-2,          .y=APPL_BEH+1,  .z=UNDEF        },  // opt-env
+    { .t=VM_typeq,      .x=Pair_T,      .y=APPL_BEH+2,  .z=UNDEF        },  // opt-env has type Pair_T
+    { .t=VM_if,         .x=APPL_BEH+3,  .y=SELF_EVAL,   .z=UNDEF        },
+
+    { .t=VM_msg,        .x=1,           .y=APPL_BEH+4,  .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=3,           .y=APPL_BEH+5,  .z=UNDEF        },  // oper
+    { .t=VM_pick,       .x=3,           .y=APPL_BEH+6,  .z=UNDEF        },  // senv
+    { .t=VM_push,       .x=K_APPLY,     .y=APPL_BEH+7,  .z=UNDEF        },  // K_APPLY
+    { .t=VM_new,        .x=3,           .y=APPL_BEH+8,  .z=UNDEF        },  // k_apply
+
+    { .t=VM_msg,        .x=3,           .y=APPL_BEH+9,  .z=UNDEF        },  // denv
+    { .t=VM_pick,       .x=2,           .y=APPL_BEH+10, .z=UNDEF        },  // k_apply
+    { .t=VM_msg,        .x=2,           .y=APPL_BEH+11, .z=UNDEF        },  // params
+    { .t=VM_push,       .x=EVLIS_BEH,   .y=APPL_BEH+12, .z=UNDEF        },  // EVLIS_BEH
+    { .t=VM_new,        .x=1,           .y=APPL_BEH+13, .z=UNDEF        },  // ev_list
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_list k_apply denv)
+
+/*
+(define oper-beh
+  (lambda (body)
+    (BEH (cust arg . opt-env)
+      (if (null? opt-env)
+        (SEND cust SELF)      ; eval
+        (SEND body            ; apply
+          (list cust (CREATE (bound-beh arg (car opt-env)))))
+      ))))
+*/
+#define OPER_BEH (APPL_BEH+14)
+//  { .t=VM_push,       .x=_body_,      .y=OPER_BEH+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=-2,          .y=OPER_BEH+1,  .z=UNDEF        },  // opt-env
+    { .t=VM_eq,         .x=NIL,         .y=OPER_BEH+2,  .z=UNDEF        },  // opt-env == ()
+    { .t=VM_if,         .x=SELF_EVAL,   .y=OPER_BEH+3,  .z=UNDEF        },
+
+    { .t=VM_msg,        .x=2,           .y=OPER_BEH+4,  .z=UNDEF        },  // value = arg
+    { .t=VM_msg,        .x=3,           .y=OPER_BEH+5,  .z=UNDEF        },  // next = env
+    { .t=VM_push,       .x=BOUND_BEH,   .y=OPER_BEH+6,  .z=UNDEF        },  // BOUND_BEH
+    { .t=VM_new,        .x=2,           .y=OPER_BEH+7,  .z=UNDEF        },  // ext-env
+
+    { .t=VM_msg,        .x=1,           .y=OPER_BEH+8,  .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=3,           .y=OPER_BEH+9,  .z=UNDEF        },  // body
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (body cust ext-env)
+
+/*
+(define op-lambda             ; (lambda <body>)
+  (CREATE
+    (BEH (cust body . opt-env)
+      (if (null? opt-env)
+        (SEND cust SELF)      ; eval
+        (SEND cust            ; apply
+          (CREATE (appl-beh (CREATE (oper-beh body)) (car opt-env))))
+      ))))
+*/
+#define OP_LAMBDA (OPER_BEH+10)
+    { .t=Actor_T,       .x=OP_LAMBDA+1, .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=-2,          .y=OP_LAMBDA+2, .z=UNDEF        },  // opt-env
+    { .t=VM_eq,         .x=NIL,         .y=OP_LAMBDA+3, .z=UNDEF        },  // opt-env == ()
+    { .t=VM_if,         .x=SELF_EVAL,   .y=OP_LAMBDA+4, .z=UNDEF        },
+
+    { .t=VM_msg,        .x=2,           .y=OP_LAMBDA+5, .z=UNDEF        },  // body
+    { .t=VM_push,       .x=OPER_BEH,    .y=OP_LAMBDA+6, .z=UNDEF        },  // OPER_BEH
+    { .t=VM_new,        .x=1,           .y=OP_LAMBDA+7, .z=UNDEF        },  // oper
+
+    { .t=VM_msg,        .x=3,           .y=OP_LAMBDA+8, .z=UNDEF        },  // env
+    { .t=VM_push,       .x=APPL_BEH,    .y=OP_LAMBDA+9, .z=UNDEF        },  // APPL_BEH
+    { .t=VM_new,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // appl
+
+/*
+(define comb-beh
+  (lambda (comb param)
+    (BEH (cust env)           ; eval
+      (SEND comb
+        (list (CREATE (k-call-beh (list cust param env))) env)))))
+*/
+#define COMB_BEH (OP_LAMBDA+10)
+//  { .t=VM_push,       .x=_comb_,      .y=COMB_BEH-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_param_,     .y=COMB_BEH+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=2,           .y=COMB_BEH+1,  .z=UNDEF        },  // env
+
+    { .t=VM_push,       .x=NIL,         .y=COMB_BEH+2,  .z=UNDEF        },  // ()
+    { .t=VM_pick,       .x=2,           .y=COMB_BEH+3,  .z=UNDEF        },  // env
+    { .t=VM_pick,       .x=4,           .y=COMB_BEH+4,  .z=UNDEF        },  // param
+    { .t=VM_msg,        .x=1,           .y=COMB_BEH+5,  .z=UNDEF        },  // cust
+    { .t=VM_pair,       .x=3,           .y=COMB_BEH+6,  .z=UNDEF        },  // msg = (cust param env)
+    { .t=VM_push,       .x=K_CALL,      .y=COMB_BEH+7,  .z=UNDEF        },  // K_CALL
+    { .t=VM_new,        .x=1,           .y=COMB_BEH+8,  .z=UNDEF        },  // k_call
+
+    { .t=VM_pick,       .x=4,           .y=COMB_BEH+9,  .z=UNDEF        },  // comb
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (comb k_call env)
+
+#define OP_I (COMB_BEH+10)
+    { .t=Actor_T,       .x=OP_I+1,      .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=VAR_1,       .y=OPER_BEH,    .z=UNDEF        },  // body = VAR_1
+#define AP_I (OP_I+2)
+    { .t=Actor_T,       .x=AP_I+1,      .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=OP_I,        .y=AP_I+2,      .z=UNDEF        },  // oper = OP_I
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=APPL_BEH,    .z=UNDEF        },  // env = EMPTY_ENV
+
+#define LAMBDA_I (AP_I+3)
+    { .t=Actor_T,       .x=LAMBDA_I+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=OP_LAMBDA,   .y=LAMBDA_I+2,  .z=UNDEF        },  // comb = OP_LAMBDA
+    { .t=VM_push,       .x=VAR_1,       .y=COMB_BEH,    .z=UNDEF        },  // param = VAR_1
+
+#define EXPR_I (LAMBDA_I+3)
+    { .t=Actor_T,       .x=EXPR_I+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=LAMBDA_I,    .y=EXPR_I+2,    .z=UNDEF        },  // comb = LAMBDA_I
+    //{ .t=VM_push,       .x=CONST_7,     .y=COMB_BEH,    .z=UNDEF        },  // param = CONST_7
+    //{ .t=VM_push,       .x=TO_FIX(-13), .y=COMB_BEH,    .z=UNDEF        },  // param = -13
+    { .t=VM_push,       .x=CONST_LST,   .y=COMB_BEH,    .z=UNDEF        },  // param = CONST_LST
+
+#define BOUND_42 (EXPR_I+3)
+    { .t=Actor_T,       .x=BOUND_42+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX(42),  .y=BOUND_42+2,  .z=UNDEF        },  // value = +42
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=BOUND_BEH,   .z=UNDEF        },  // next = EMPTY_ENV
+#define A_TEST (BOUND_42+3)
+    { .t=Actor_T,       .x=A_TEST+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=BOUND_42,    .y=A_TEST+2,    .z=UNDEF        },  // BOUND_42
+    { .t=VM_push,       .x=A_PRINT,     .y=A_TEST+3,    .z=UNDEF        },  // A_PRINT
+    { .t=VM_push,       .x=EXPR_I,      .y=A_TEST+4,    .z=UNDEF        },  // EXPR_I
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (EXPR_I A_PRINT BOUND_42)
+
+#define A_QUIT (A_TEST+5)
     { .t=Actor_T,       .x=A_QUIT+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_end,        .x=END_STOP,    .y=UNDEF,       .z=UNDEF        },  // kill thread
 
@@ -2043,34 +2057,36 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { CUST_SEND, "CUST_SEND" },
     { SEND_0, "SEND_0" },
     { COMMIT, "COMMIT" },
+    { RESEND, "RESEND" },
+
     { A_CLOCK, "A_CLOCK" },
     { CLOCK_BEH, "CLOCK_BEH" },
+
+    { S_VALUE, "S_VALUE" },
+    { S_GETC, "S_GETC" },
+    { S_END_X, "S_END_X" },
+    { S_VAL_X, "S_VAL_X" },
+    { S_LIST_B, "S_LIST_B" },
+    { G_START, "G_START" },
+    { G_CALL_B, "G_CALL_B" },
+    { G_LANG, "G_LANG" },
     { EMPTY_ENV, "EMPTY_ENV" },
+
+    { REPL_R, "REPL_R" },
+    { REPL_E, "REPL_E" },
+    { REPL_P, "REPL_P" },
+    { REPL_L, "REPL_L" },
+    { REPL_F, "REPL_F" },
     { A_BOOT, "A_BOOT" },
-    { A_PRINT, "A_PRINT" },
+
     { TAG_BEH, "TAG_BEH" },
     { K_JOIN_H, "K_JOIN_H" },
     { K_JOIN_T, "K_JOIN_T" },
     { JOIN_BEH, "JOIN_BEH" },
     { FORK_BEH, "FORK_BEH" },
-    { BOUND_BEH, "BOUND_BEH" },
-    { CONST_7, "CONST_7" },
-    { CONST_LST, "CONST_LST" },
-    { VAR_BEH, "VAR_BEH" },
-    { VAR_1, "VAR_1" },
     { EVLIS_BEH, "EVLIS_BEH" },
-    { K_APPLY, "K_APPLY" },
-    { APPL_BEH, "APPL_BEH" },
-    { OPER_BEH, "OPER_BEH" },
-    { OP_LAMBDA, "OP_LAMBDA" },
     { K_CALL, "K_CALL" },
-    { COMB_BEH, "COMB_BEH" },
-    { OP_I, "OP_I" },
-    { AP_I, "AP_I" },
-    { LAMBDA_I, "LAMBDA_I" },
-    { EXPR_I, "EXPR_I" },
-    { BOUND_42, "BOUND_42" },
-    { A_TEST, "A_TEST" },
+
     { G_EMPTY, "G_EMPTY" },
     { G_FAIL, "G_FAIL" },
     { G_NEXT_K, "G_NEXT_K" },
@@ -2082,28 +2098,17 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_AND_OK, "G_AND_OK" },
     { G_AND_F, "G_AND_F" },
     { G_AND_B, "G_AND_B" },
-    { RESEND, "RESEND" },
     { G_OPT_B, "G_OPT_B" },
     { G_PLUS_B, "G_PLUS_B" },
     { G_STAR_B, "G_STAR_B" },
     { G_ALT_B, "G_ALT_B" },
     { G_SEQ_B, "G_SEQ_B" },
     { G_CLS_B, "G_CLS_B" },
-    { G_CALL_B, "G_CALL_B" },
     { OP_SE_BEH, "OP_SE_BEH" },
     { G_XFM_K, "G_XFM_K" },
     { G_XFM_OK, "G_XFM_OK" },
     { G_XFORM_B, "G_XFORM_B" },
-    { S_VALUE, "S_VALUE" },
-    { S_EMPTY, "S_EMPTY" },
-    { S_GETC, "S_GETC" },
-    { S_VAL_X, "S_VAL_X" },
-    { S_END_X, "S_END_X" },
-    { S_LIST_B, "S_LIST_B" },
-    { A_OK, "A_OK" },
-    { A_FAIL, "A_FAIL" },
-    { A_EVAL, "A_EVAL" },
-    { G_START, "G_START" },
+
     { G_WSP, "G_WSP" },
     { G_WSP_S, "G_WSP_S" },
     { G_SGN, "G_SGN" },
@@ -2129,8 +2134,14 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_LIST, "G_LIST" },
     { G_LIST_X, "G_LIST_X" },
     { G_PTRN, "G_PTRN" },
+
+    { S_EMPTY, "S_EMPTY" },
+    { A_PRINT, "A_PRINT" },
+    { A_OK, "A_OK" },
+    { A_FAIL, "A_FAIL" },
+    { A_EVAL, "A_EVAL" },
     { G_TEST, "G_TEST" },
-    { G_EVAL_X, "G_EVAL_X" },
+
     { OP_FUNC_B, "OP_FUNC_B" },
     { K_INVOKE, "K_INVOKE" },
     { AP_FUNC_B, "AP_FUNC_B" },
@@ -2178,10 +2189,29 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_G_SRC, "AP_G_SRC" },
     { F_G_START, "F_G_START" },
     { AP_G_START, "AP_G_START" },
+
     { K_COMPILE, "K_COMPILE" },
     { COMPILE_B, "COMPILE_B" },
     { K_LAMBDAC, "K_LAMBDAC" },
     { LAMBDA_C, "LAMBDA_C" },
+
+    { BOUND_BEH, "BOUND_BEH" },
+    { CONST_7, "CONST_7" },
+    { CONST_LST, "CONST_LST" },
+    { VAR_BEH, "VAR_BEH" },
+    { VAR_1, "VAR_1" },
+    { K_APPLY, "K_APPLY" },
+    { APPL_BEH, "APPL_BEH" },
+    { OPER_BEH, "OPER_BEH" },
+    { OP_LAMBDA, "OP_LAMBDA" },
+    { COMB_BEH, "COMB_BEH" },
+    { OP_I, "OP_I" },
+    { AP_I, "AP_I" },
+    { LAMBDA_I, "LAMBDA_I" },
+    { EXPR_I, "EXPR_I" },
+    { BOUND_42, "BOUND_42" },
+    { A_TEST, "A_TEST" },
+
     { A_QUIT, "A_QUIT" },
     { -1, "" },
 };
@@ -2732,6 +2762,7 @@ int_t init_global_env() {
     s = cstr_intern("lambda");
     set_z(s, OP_LAMBDA);
 #endif
+    bind_global("peg-lang", G_SEXPR_X);  // language parser start symbol
     bind_global("#f", FALSE);  // FIXME: should be parsed as a constant
     bind_global("#t", TRUE);  // FIXME: should be parsed as a constant
     bind_global("quote", OP_QUOTE);
@@ -2744,7 +2775,6 @@ int_t init_global_env() {
     bind_global("cadr", AP_CADR);
     bind_global("caddr", AP_CADDR);
 #if 1
-    bind_global("a-print", A_PRINT);
     bind_global("CTL", TO_FIX(CTL));
     bind_global("DGT", TO_FIX(DGT));
     bind_global("UPR", TO_FIX(UPR));
@@ -2771,6 +2801,7 @@ int_t init_global_env() {
 #endif
     bind_global("list->number", AP_LST_NUM);
     bind_global("list->symbol", AP_LST_SYM);
+    bind_global("a-print", A_PRINT);
     bind_global("quit", A_QUIT);
     return UNIT;
 }

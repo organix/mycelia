@@ -263,6 +263,7 @@ k_queue: [head,tail]--------------------+
  * `(list->number `_chars_`)`
  * `(list->symbol `_chars_`)`
  * `a-print`
+ * `peg-lang`
 
 ### PEG Test Vectors
 
