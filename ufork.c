@@ -1743,7 +1743,25 @@ symbol = Plus(Atom) -> symbol
     { .t=Actor_T,       .x=AP_G_STAR+1, .y=UNDEF,       .z=UNDEF        },  // (peg-star <peg>)
     { .t=VM_push,       .x=F_G_STAR,    .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_STAR
 
-#define F_G_CALL (AP_G_STAR+2)
+#define F_G_ALT (AP_G_STAR+2)
+    { .t=Actor_T,       .x=F_G_ALT+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=-1,          .y=F_G_ALT+2,   .z=UNDEF        },  // pegs = args
+    { .t=VM_push,       .x=G_ALT_B,     .y=F_G_ALT+3,   .z=UNDEF        },  // G_ALT_B
+    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (G_ALT_B pegs)
+#define AP_G_ALT (F_G_ALT+4)
+    { .t=Actor_T,       .x=AP_G_ALT+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-alt . <pegs>)
+    { .t=VM_push,       .x=F_G_ALT,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_ALT
+
+#define F_G_SEQ (AP_G_ALT+2)
+    { .t=Actor_T,       .x=F_G_SEQ+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=-1,          .y=F_G_SEQ+2,   .z=UNDEF        },  // pegs = args
+    { .t=VM_push,       .x=G_SEQ_B,     .y=F_G_SEQ+3,   .z=UNDEF        },  // G_SEQ_B
+    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (G_SEQ_B pegs)
+#define AP_G_SEQ (F_G_SEQ+4)
+    { .t=Actor_T,       .x=AP_G_SEQ+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-seq . <pegs>)
+    { .t=VM_push,       .x=F_G_SEQ,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_SEQ
+
+#define F_G_CALL (AP_G_SEQ+2)
     { .t=Actor_T,       .x=F_G_CALL+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_G_CALL+2,  .z=UNDEF        },  // name = arg1
     { .t=VM_push,       .x=G_CALL_B,    .y=F_G_CALL+3,  .z=UNDEF        },  // G_CALL_B
@@ -2146,6 +2164,10 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_G_PLUS, "AP_G_PLUS" },
     { F_G_STAR, "F_G_STAR" },
     { AP_G_STAR, "AP_G_STAR" },
+    { F_G_ALT, "F_G_ALT" },
+    { AP_G_ALT, "AP_G_ALT" },
+    { F_G_SEQ, "F_G_SEQ" },
+    { AP_G_SEQ, "AP_G_SEQ" },
     { F_G_CALL, "F_G_CALL" },
     { OP_G_CALL, "OP_G_CALL" },
     { F_LST_NUM, "F_LST_NUM" },
@@ -2741,6 +2763,8 @@ int_t init_global_env() {
     bind_global("peg-opt", AP_G_OPT);
     bind_global("peg-plus", AP_G_PLUS);
     bind_global("peg-star", AP_G_STAR);
+    bind_global("peg-alt", AP_G_ALT);
+    bind_global("peg-seq", AP_G_SEQ);
     bind_global("peg-call", OP_G_CALL);
     bind_global("peg-source", AP_G_SRC);
     bind_global("peg-start", AP_G_START);

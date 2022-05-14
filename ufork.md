@@ -255,6 +255,8 @@ k_queue: [head,tail]--------------------+
  * `(peg-opt `_peg_`)`
  * `(peg-plus `_peg_`)`
  * `(peg-star `_peg_`)`
+ * `(peg-alt . `_pegs_`)`
+ * `(peg-seq . `_pegs_`)`
  * `(peg-call `_name_`)`
  * `(peg-source `_list_`)`
  * `(peg-start `_peg_` `_src_`)`
@@ -280,6 +282,13 @@ k_queue: [head,tail]--------------------+
  * `(define src (peg-source (list 70 111 111 10)))  ; 'F' 'o' 'o' '\n'`
  * `(define peg-alnum (peg-plus (peg-class UPR LWR)))`
  * `(peg-start peg-alnum src)`
+ * `(peg-start (peg-and (peg-opt (peg-eq 45)) (peg-star (peg-class DGT))) (peg-source (list 45 52 50 48 10)))`
+ * `(define sxp-optws (peg-star (peg-alt (peg-eq 9) (peg-eq 10) (peg-eq 13) (peg-eq 32))))`
+ * `(define sxp-atom (peg-and sxp-optws (peg-plus (peg-class UPR LWR DGT SYM))))`
+ * `(define sxp-list (peg-seq (peg-eq 40) (peg-star sxp-atom) sxp-optws (peg-eq 41)))`
+ * `(define src (peg-source (list 40 76 73 83 84 32 49 50 51 9 55 56 57 48 41 13 10)))  ; (LIST 123 7890)`
+ * `(peg-start sxp-list src)`
+ * `(define src (peg-source (list 40 67 65 82 32 40 32 76 73 83 84 32 48 32 49 41 9 41)))  ; (CAR (LIST 0 1))`
 
 ### PEG Structures
 
