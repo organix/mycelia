@@ -243,6 +243,41 @@ k_queue: [head,tail]--------------------+
                              ...
 ```
 
+## LISP/Scheme Ground Environment
+
+ * `(quote `_expr_`)`
+ * `(list . `_args_`)`
+ * `(lambda `_formals_` . `_body_`)`
+ * `(define `_symbol_` `_value_`)`
+ * `(cons `_head_` `_tail_`)`
+ * `(car `_list_`)`
+ * `(cdr `_list_`)`
+ * `(cadr `_list_`)`
+ * `(caddr `_list_`)`
+ * `(null? . `_values_`)`
+ * `(pair? . `_values_`)`
+ * `(boolean? . `_values_`)`
+ * `(number? . `_values_`)`
+ * `(symbol? . `_values_`)`
+ * `(actor? . `_values_`)`
+ * `peg-lang  ; REPL grammar`
+ * `(quit)`
+
+### Lambda Compilation Test-Cases
+
+```
+(define zero (lambda _ 0))
+(define nil (lambda _ ()))
+(define ap (lambda x x))  ; equivalent to _list_
+(define id (lambda (x) x))
+(define r1 (lambda (x . y) y))
+(define i2 (lambda (x y) y))
+(define r2 (lambda (x y . z) z))
+(define i3 (lambda (x y z) z))
+(define l3 (lambda (x y z) (list x y z)))
+(define cadr (lambda (x) (car (cdr x))))
+```
+
 ## PEG Tools
 
  * `(peg-source `_list_`)`
@@ -260,13 +295,14 @@ k_queue: [head,tail]--------------------+
  * `(peg-alt . `_pegs_`)`
  * `(peg-seq . `_pegs_`)`
  * `(peg-call `_name_`)`
+ * `(peg-pred `_pred_` `_peg_`)`
  * `(peg-xform `_appl_` `_peg_`)`
  * `(list->number `_chars_`)`
  * `(list->symbol `_chars_`)`
  * `a-print`
  * `peg-lang`
 
-### PEG Test Vectors
+### PEG Test-Cases
 
 ```
 (define src (peg-source (list 45 52 50 48)))  ; '-' '4' '2' '0'
@@ -295,6 +331,7 @@ k_queue: [head,tail]--------------------+
 (define scm-pos (peg-xform list->number (peg-plus (peg-class DGT))))
 (define scm-neg (peg-xform list->number (peg-and (peg-eq 45) (peg-plus (peg-class DGT)))))
 (define scm-num (peg-or scm-neg scm-pos))
+(peg-start (peg-pred number? scm-num) (peg-source (list 48 10)))
 ```
 
 ### PEG Structures
@@ -461,21 +498,6 @@ message: --->[*|*]---> next
 | }  | 125 |  7d |     |     |     |     |  x  |     |     |     |
 | ~  | 126 |  7e |     |     |     |     |     |  x  |     |     |
 | ^? | 127 |  7f |  x  |     |     |     |     |     |     |     |
-
-## Lambda Compilation Test-Cases
-
-```
-(define zero (lambda _ 0))
-(define nil (lambda _ ()))
-(define ap (lambda x x))  ; equivalent to _list_
-(define id (lambda (x) x))
-(define r1 (lambda (x . y) y))
-(define i2 (lambda (x y) y))
-(define r2 (lambda (x y . z) z))
-(define i3 (lambda (x y z) z))
-(define l3 (lambda (x y z) (list x y z)))
-(define cadr (lambda (x) (car (cdr x))))
-```
 
 ## Inspiration
 

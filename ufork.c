@@ -427,8 +427,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNDEF = #?
     { .t=Unit_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
     { .t=Event_T,       .x=77,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    //{ .t=Event_T,       .x=805,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
-    //{ .t=Event_T,       .x=902,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    //{ .t=Event_T,       .x=901,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    //{ .t=Event_T,       .x=998,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
 
 #define SELF_EVAL (START+1)
     { .t=VM_self,       .x=UNDEF,       .y=START+2,     .z=UNDEF        },  // value = SELF
@@ -1043,6 +1043,56 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_roll,       .x=2,           .y=G_XFORM_B+9, .z=UNDEF        },  // ptrn
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (ptrn (ok' . fail) . resume)
 
+#define G_PRED_K (G_XFORM_B+10)
+//  { .t=VM_push,       .x=_more_,      .y=G_PRED_K-1,  .z=UNDEF        },  // (value' . in')
+//  { .t=VM_push,       .x=_msg0_,      .y=G_PRED_K+0,  .z=UNDEF        },  // ((ok . fail) value . in)
+    { .t=VM_msg,        .x=0,           .y=G_PRED_K+1,  .z=UNDEF        },  // cond
+    { .t=VM_if,         .x=G_PRED_K+5,  .y=G_PRED_K+2,  .z=UNDEF        },
+
+    { .t=VM_part,       .x=1,           .y=G_PRED_K+3,  .z=UNDEF        },  // resume custs
+    { .t=VM_part,       .x=1,           .y=G_PRED_K+4,  .z=UNDEF        },  // resume fail ok
+    { .t=VM_drop,       .x=1,           .y=SEND_0,      .z=UNDEF        },  // resume fail
+
+    { .t=VM_nth,        .x=1,           .y=G_PRED_K+6,  .z=UNDEF        },  // custs = (ok . fail)
+    { .t=VM_nth,        .x=1,           .y=SEND_0,      .z=UNDEF        },  // ok
+
+#define G_PRED_OK (G_PRED_K+7)
+//  { .t=VM_push,       .x=_msg0_,      .y=G_PRED_OK-1, .z=UNDEF        },
+//  { .t=VM_push,       .x=_pred_,      .y=G_PRED_OK+0, .z=UNDEF        },
+    { .t=VM_push,       .x=EMPTY_ENV,   .y=G_PRED_OK+1, .z=UNDEF        },  // denv = EMPTY_ENV
+
+    { .t=VM_push,       .x=NIL,         .y=G_PRED_OK+2, .z=UNDEF        },  // ()
+    { .t=VM_msg,        .x=1,           .y=G_PRED_OK+3, .z=UNDEF        },  // arg = value'
+    { .t=VM_push,       .x=CONST_BEH,   .y=G_PRED_OK+4, .z=UNDEF        },  // CONST_BEH
+    { .t=VM_new,        .x=1,           .y=G_PRED_OK+5, .z=UNDEF        },  // a_expr
+    { .t=VM_pair,       .x=1,           .y=G_PRED_OK+6, .z=UNDEF        },  // (a_expr)
+
+    { .t=VM_msg,        .x=0,           .y=G_PRED_OK+7, .z=UNDEF        },  // more
+    { .t=VM_roll,       .x=5,           .y=G_PRED_OK+8, .z=UNDEF        },  // msg0
+    { .t=VM_push,       .x=G_PRED_K,    .y=G_PRED_OK+9, .z=UNDEF        },  // G_PRED_K
+    { .t=VM_new,        .x=2,           .y=G_PRED_OK+10,.z=UNDEF        },  // k_pred
+
+    { .t=VM_roll,       .x=4,           .y=G_PRED_OK+11,.z=UNDEF        },  // pred
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (pred k_pred (a_expr) denv)
+
+#define G_PRED_B (G_PRED_OK+12)
+//  { .t=VM_push,       .x=_pred_,      .y=G_PRED_B-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_ptrn_,      .y=G_PRED_B+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=G_PRED_B+1,  .z=UNDEF        },  // (custs . resume)
+    { .t=VM_part,       .x=1,           .y=G_PRED_B+2,  .z=UNDEF        },  // resume custs
+    { .t=VM_part,       .x=1,           .y=G_PRED_B+3,  .z=UNDEF        },  // fail ok
+    { .t=VM_drop,       .x=1,           .y=G_PRED_B+4,  .z=UNDEF        },  // fail
+
+    { .t=VM_msg,        .x=0,           .y=G_PRED_B+5,  .z=UNDEF        },  // msg0 = (custs . resume)
+    { .t=VM_roll,       .x=5,           .y=G_PRED_B+6,  .z=UNDEF        },  // pred
+    { .t=VM_push,       .x=G_PRED_OK,   .y=G_PRED_B+7,  .z=UNDEF        },  // G_PRED_OK
+    { .t=VM_new,        .x=2,           .y=G_PRED_B+8,  .z=UNDEF        },  // ok'
+
+    { .t=VM_pair,       .x=1,           .y=G_PRED_B+9,  .z=UNDEF        },  // custs = (ok' . fail)
+    { .t=VM_pair,       .x=1,           .y=G_PRED_B+10, .z=UNDEF        },  // msg = (custs . resume)
+    { .t=VM_roll,       .x=2,           .y=G_PRED_B+11, .z=UNDEF        },  // ptrn
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (ptrn (ok' . fail) . resume)
+
 //
 // Global LISP/Scheme Procedures
 //
@@ -1055,7 +1105,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
         (list cust (const-beh args) env)
       ))))
 */
-#define CALL_BEH (G_XFORM_B+10)
+#define CALL_BEH (G_PRED_B+12)
 //  { .t=VM_push,       .x=_comb_,      .y=CALL_BEH-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_args_,      .y=CALL_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=2,           .y=CALL_BEH+1,  .z=UNDEF        },  // env
@@ -1251,7 +1301,79 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=AP_CADDR+1,  .y=UNDEF,       .z=UNDEF        },  // (caddr <pair>)
     { .t=VM_push,       .x=F_CADDR,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CADDR
 
-#define F_G_EQ (AP_CADDR+2)
+#define F_NULL_P (AP_CADDR+2)
+    { .t=Actor_T,       .x=F_NULL_P+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=-1,          .y=F_NULL_P+2,  .z=UNDEF        },  // args
+    { .t=VM_pick,       .x=1,           .y=F_NULL_P+3,  .z=UNDEF        },  // args args
+    { .t=VM_typeq,      .x=Pair_T,      .y=F_NULL_P+4,  .z=UNDEF        },  // args has type Pair_T
+    { .t=VM_if,         .x=F_NULL_P+6,  .y=F_NULL_P+5,  .z=UNDEF        },
+    { .t=VM_push,       .x=TRUE,        .y=CUST_SEND,   .z=UNDEF        },  // TRUE
+    { .t=VM_part,       .x=1,           .y=F_NULL_P+7,  .z=UNDEF        },  // rest first
+    { .t=VM_eq,         .x=NIL,         .y=F_NULL_P+8,  .z=UNDEF        },  // first == NIL
+    { .t=VM_if,         .x=F_NULL_P+2,  .y=F_NULL_P+9,  .z=UNDEF        },
+    { .t=VM_push,       .x=FALSE,       .y=CUST_SEND,   .z=UNDEF        },  // FALSE
+#define AP_NULL_P (F_NULL_P+10)
+    { .t=Actor_T,       .x=AP_NULL_P+1, .y=UNDEF,       .z=UNDEF        },  // (null? . <values>)
+    { .t=VM_push,       .x=F_NULL_P,    .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_NULL_P
+
+#define F_TYPE_P (AP_NULL_P+2)
+//  { .t=VM_push,       .x=_type_,      .y=F_TYPE_P+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=-1,          .y=F_TYPE_P+1,  .z=UNDEF        },  // args
+    { .t=VM_pick,       .x=1,           .y=F_TYPE_P+2,  .z=UNDEF        },  // args args
+    { .t=VM_typeq,      .x=Pair_T,      .y=F_TYPE_P+3,  .z=UNDEF        },  // args has type Pair_T
+    { .t=VM_if,         .x=F_TYPE_P+5,  .y=F_TYPE_P+4,  .z=UNDEF        },
+    { .t=VM_push,       .x=TRUE,        .y=CUST_SEND,   .z=UNDEF        },  // TRUE
+    { .t=VM_part,       .x=1,           .y=F_TYPE_P+6,  .z=UNDEF        },  // rest first
+    { .t=VM_get,        .x=FLD_T,       .y=F_TYPE_P+7,  .z=UNDEF        },  // get_t(first)
+    { .t=VM_pick,       .x=3,           .y=F_TYPE_P+8,  .z=UNDEF        },  // type
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=F_TYPE_P+9,  .z=UNDEF        },  // get_t(first) == type
+    { .t=VM_if,         .x=F_TYPE_P+1,  .y=F_TYPE_P+10, .z=UNDEF        },
+    { .t=VM_push,       .x=FALSE,       .y=CUST_SEND,   .z=UNDEF        },  // FALSE
+
+#define F_PAIR_P (F_TYPE_P+11)
+    { .t=Actor_T,       .x=F_PAIR_P+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_push,       .x=Pair_T,      .y=F_TYPE_P,    .z=UNDEF        },  // type = Pair_T
+#define AP_PAIR_P (F_PAIR_P+2)
+    { .t=Actor_T,       .x=AP_PAIR_P+1, .y=UNDEF,       .z=UNDEF        },  // (pair? . <values>)
+    { .t=VM_push,       .x=F_PAIR_P,    .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_PAIR_P
+
+#define F_BOOL_P (AP_PAIR_P+2)
+    { .t=Actor_T,       .x=F_BOOL_P+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_push,       .x=Boolean_T,   .y=F_TYPE_P,    .z=UNDEF        },  // type = Boolean_T
+#define AP_BOOL_P (F_BOOL_P+2)
+    { .t=Actor_T,       .x=AP_BOOL_P+1, .y=UNDEF,       .z=UNDEF        },  // (boolean? . <values>)
+    { .t=VM_push,       .x=F_BOOL_P,    .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_BOOL_P
+
+#define F_NUM_P (AP_BOOL_P+2)
+    { .t=Actor_T,       .x=F_NUM_P+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=-1,          .y=F_NUM_P+2,   .z=UNDEF        },  // args
+    { .t=VM_pick,       .x=1,           .y=F_NUM_P+3,   .z=UNDEF        },  // args args
+    { .t=VM_typeq,      .x=Pair_T,      .y=F_NUM_P+4,   .z=UNDEF        },  // args has type Pair_T
+    { .t=VM_if,         .x=F_NUM_P+6,   .y=F_NUM_P+5,   .z=UNDEF        },
+    { .t=VM_push,       .x=TRUE,        .y=CUST_SEND,   .z=UNDEF        },  // TRUE
+    { .t=VM_part,       .x=1,           .y=F_NUM_P+7,   .z=UNDEF        },  // rest first
+    { .t=VM_typeq,      .x=Fixnum_T,    .y=F_NUM_P+8,   .z=UNDEF        },  // first has type Fixnum_T
+    { .t=VM_if,         .x=F_NUM_P+2,   .y=F_NUM_P+9,   .z=UNDEF        },
+    { .t=VM_push,       .x=FALSE,       .y=CUST_SEND,   .z=UNDEF        },  // FALSE
+#define AP_NUM_P (F_NUM_P+10)
+    { .t=Actor_T,       .x=AP_NUM_P+1,  .y=UNDEF,       .z=UNDEF        },  // (number? . <values>)
+    { .t=VM_push,       .x=F_NUM_P,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_NUM_P
+
+#define F_SYM_P (AP_NUM_P+2)
+    { .t=Actor_T,       .x=F_SYM_P+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_push,       .x=Symbol_T,    .y=F_TYPE_P,    .z=UNDEF        },  // type = Symbol_T
+#define AP_SYM_P (F_SYM_P+2)
+    { .t=Actor_T,       .x=AP_SYM_P+1,  .y=UNDEF,       .z=UNDEF        },  // (symbol? . <values>)
+    { .t=VM_push,       .x=F_SYM_P,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_SYM_P
+
+#define F_ACT_P (AP_SYM_P+2)
+    { .t=Actor_T,       .x=F_ACT_P+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_push,       .x=Actor_T,     .y=F_TYPE_P,    .z=UNDEF        },  // type = Actor_T
+#define AP_ACT_P (F_ACT_P+2)
+    { .t=Actor_T,       .x=AP_ACT_P+1,  .y=UNDEF,       .z=UNDEF        },  // (actor? . <values>)
+    { .t=VM_push,       .x=F_ACT_P,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_ACT_P
+
+#define F_G_EQ (AP_ACT_P+2)
     { .t=Actor_T,       .x=F_G_EQ+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_G_EQ+2,    .z=UNDEF        },  // token = arg1
     { .t=VM_push,       .x=G_EQ_B,      .y=F_G_EQ+3,    .z=UNDEF        },  // G_EQ_B
@@ -1358,7 +1480,17 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=OP_G_CALL+1, .y=UNDEF,       .z=UNDEF        },  // (peg-call <name>)
     { .t=VM_push,       .x=F_G_CALL,    .y=OP_FUNC_B,   .z=UNDEF        },  // func = F_G_CALL
 
-#define F_G_XFORM (OP_G_CALL+2)
+#define F_G_PRED (OP_G_CALL+2)
+    { .t=Actor_T,       .x=F_G_PRED+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_G_PRED+2,  .z=UNDEF        },  // pred = arg1
+    { .t=VM_msg,        .x=3,           .y=F_G_PRED+3,  .z=UNDEF        },  // peg = arg2
+    { .t=VM_push,       .x=G_PRED_B,    .y=F_G_PRED+4,  .z=UNDEF        },  // G_PRED_B
+    { .t=VM_new,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (G_PRED_B pred peg)
+#define AP_G_PRED (F_G_PRED+5)
+    { .t=Actor_T,       .x=AP_G_PRED+1, .y=UNDEF,       .z=UNDEF        },  // (peg-pred <pred> <peg>)
+    { .t=VM_push,       .x=F_G_PRED,    .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_PRED
+
+#define F_G_XFORM (AP_G_PRED+2)
     { .t=Actor_T,       .x=F_G_XFORM+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_G_XFORM+2, .z=UNDEF        },  // appl = arg1
     { .t=VM_msg,        .x=3,           .y=F_G_XFORM+3, .z=UNDEF        },  // peg = arg2
@@ -2129,6 +2261,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_XFM_K, "G_XFM_K" },
     { G_XFM_OK, "G_XFM_OK" },
     { G_XFORM_B, "G_XFORM_B" },
+    { G_PRED_K, "G_PRED_K" },
+    { G_PRED_OK, "G_PRED_OK" },
+    { G_PRED_B, "G_PRED_B" },
 
     { CALL_BEH, "CALL_BEH" },
     { F_OPER_B, "F_OPER_B" },
@@ -2151,6 +2286,20 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_CADR, "AP_CADR" },
     { F_CADDR, "F_CADDR" },
     { AP_CADDR, "AP_CADDR" },
+    { F_NULL_P, "F_NULL_P" },
+    { AP_NULL_P, "AP_NULL_P" },
+    { F_TYPE_P, "F_TYPE_P" },
+    { F_PAIR_P, "F_PAIR_P" },
+    { AP_PAIR_P, "AP_PAIR_P" },
+    { F_BOOL_P, "F_BOOL_P" },
+    { AP_BOOL_P, "AP_BOOL_P" },
+    { F_NUM_P, "F_NUM_P" },
+    { AP_NUM_P, "AP_NUM_P" },
+    { F_SYM_P, "F_SYM_P" },
+    { AP_SYM_P, "AP_SYM_P" },
+    { F_ACT_P, "F_ACT_P" },
+    { AP_ACT_P, "AP_ACT_P" },
+
     { F_G_EQ, "F_G_EQ" },
     { AP_G_EQ, "AP_G_EQ" },
     { F_G_OR, "F_G_OR" },
@@ -2171,6 +2320,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_G_SEQ, "AP_G_SEQ" },
     { F_G_CALL, "F_G_CALL" },
     { OP_G_CALL, "OP_G_CALL" },
+    { F_G_PRED, "F_G_PRED" },
+    { AP_G_PRED, "AP_G_PRED" },
     { F_G_XFORM, "F_G_XFORM" },
     { AP_G_XFORM, "AP_G_XFORM" },
     { F_LST_NUM, "F_LST_NUM" },
@@ -2797,6 +2948,12 @@ int_t init_global_env() {
     bind_global("cdr", AP_CDR);
     bind_global("cadr", AP_CADR);
     bind_global("caddr", AP_CADDR);
+    bind_global("null?", AP_NULL_P);
+    bind_global("pair?", AP_PAIR_P);
+    bind_global("boolean?", AP_BOOL_P);
+    bind_global("number?", AP_NUM_P);
+    bind_global("symbol?", AP_SYM_P);
+    bind_global("actor?", AP_ACT_P);
 #if 1
     bind_global("CTL", TO_FIX(CTL));
     bind_global("DGT", TO_FIX(DGT));
@@ -2819,6 +2976,7 @@ int_t init_global_env() {
     bind_global("peg-alt", AP_G_ALT);
     bind_global("peg-seq", AP_G_SEQ);
     bind_global("peg-call", OP_G_CALL);
+    bind_global("peg-pred", AP_G_PRED);
     bind_global("peg-xform", AP_G_XFORM);
     bind_global("peg-source", AP_G_SRC);
     bind_global("peg-start", AP_G_START);
