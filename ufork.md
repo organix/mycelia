@@ -260,7 +260,7 @@ k_queue: [head,tail]--------------------+
  * `(peg-alt . `_pegs_`)`
  * `(peg-seq . `_pegs_`)`
  * `(peg-call `_name_`)`
- * `(peg-xform `_peg_` `_appl_`)`
+ * `(peg-xform `_appl_` `_peg_`)`
  * `(list->number `_chars_`)`
  * `(list->symbol `_chars_`)`
  * `a-print`
@@ -268,32 +268,34 @@ k_queue: [head,tail]--------------------+
 
 ### PEG Test Vectors
 
- * `(define src (peg-source (list 45 52 50 48)))  ; '-' '4' '2' '0'`
- * `(peg-start peg-any src)`
- * `(peg-start (peg-and peg-any peg-empty) src)`
- * `(peg-start (peg-or (peg-eq 45) peg-empty) src)`
- * `(peg-start (peg-and (peg-or (peg-eq 45) peg-empty) peg-any) src)`
- * `(peg-start (peg-and (peg-or (peg-eq 45) peg-empty) (peg-and peg-any peg-empty)) src)`
- * `(define peg-digit (peg-class DGT))`
- * `(peg-start (peg-and (peg-or (peg-eq 45) peg-empty) (peg-and peg-digit peg-empty)) src)`
- * `(define peg-all (peg-or (peg-and peg-any (peg-call peg-all)) peg-empty))`
- * `(peg-start peg-all src)`
- * `(define peg-digits (peg-or (peg-and peg-digit (peg-call peg-digits)) peg-empty))`
- * `(define peg-number (peg-and (peg-or (peg-eq 45) peg-empty) peg-digits))`
- * `(peg-start peg-number src)`
- * `(define src (peg-source (list 70 111 111 10)))  ; 'F' 'o' 'o' '\n'`
- * `(define peg-alnum (peg-plus (peg-class UPR LWR)))`
- * `(peg-start peg-alnum src)`
- * `(peg-start (peg-and (peg-opt (peg-eq 45)) (peg-star (peg-class DGT))) (peg-source (list 45 52 50 48 10)))`
- * `(define sxp-optws (peg-star (peg-alt (peg-eq 9) (peg-eq 10) (peg-eq 13) (peg-eq 32))))`
- * `(define sxp-atom (peg-and sxp-optws (peg-plus (peg-class UPR LWR DGT SYM))))`
- * `(define sxp-list (peg-seq (peg-eq 40) (peg-star sxp-atom) sxp-optws (peg-eq 41)))`
- * `(define src (peg-source (list 40 76 73 83 84 32 49 50 51 9 55 56 57 48 41 13 10)))  ; (LIST 123 7890)`
- * `(peg-start sxp-list src)`
- * `(define src (peg-source (list 40 67 65 82 32 40 32 76 73 83 84 32 48 32 49 41 9 41)))  ; (CAR (LIST 0 1))`
- * `(define scm-pos (peg-xform (peg-plus (peg-class DGT)) list->number))`
- * `(define scm-neg (peg-xform (peg-and (peg-eq 45) (peg-plus (peg-class DGT))) list->number))`
- * `(define scm-num (peg-or scm-neg scm-pos))`
+```
+(define src (peg-source (list 45 52 50 48)))  ; '-' '4' '2' '0'
+(peg-start peg-any src)
+(peg-start (peg-and peg-any peg-empty) src)
+(peg-start (peg-or (peg-eq 45) peg-empty) src)
+(peg-start (peg-and (peg-or (peg-eq 45) peg-empty) peg-any) src)
+(peg-start (peg-and (peg-or (peg-eq 45) peg-empty) (peg-and peg-any peg-empty)) src)
+(define peg-digit (peg-class DGT))
+(peg-start (peg-and (peg-or (peg-eq 45) peg-empty) (peg-and peg-digit peg-empty)) src)
+(define peg-all (peg-or (peg-and peg-any (peg-call peg-all)) peg-empty))
+(peg-start peg-all src)
+(define peg-digits (peg-or (peg-and peg-digit (peg-call peg-digits)) peg-empty))
+(define peg-number (peg-and (peg-or (peg-eq 45) peg-empty) peg-digits))
+(peg-start peg-number src)
+(define src (peg-source (list 70 111 111 10)))  ; 'F' 'o' 'o' '\n'
+(define peg-alnum (peg-plus (peg-class UPR LWR)))
+(peg-start peg-alnum src)
+(peg-start (peg-and (peg-opt (peg-eq 45)) (peg-star (peg-class DGT))) (peg-source (list 45 52 50 48 10)))
+(define sxp-optws (peg-star (peg-alt (peg-eq 9) (peg-eq 10) (peg-eq 13) (peg-eq 32))))
+(define sxp-atom (peg-and sxp-optws (peg-plus (peg-class UPR LWR DGT SYM))))
+(define sxp-list (peg-seq (peg-eq 40) (peg-star sxp-atom) sxp-optws (peg-eq 41)))
+(define src (peg-source (list 40 76 73 83 84 32 49 50 51 9 55 56 57 48 41 13 10)))  ; (LIST 123 7890)
+(peg-start sxp-list src)
+(define src (peg-source (list 40 67 65 82 32 40 32 76 73 83 84 32 48 32 49 41 9 41)))  ; (CAR (LIST 0 1))
+(define scm-pos (peg-xform list->number (peg-plus (peg-class DGT))))
+(define scm-neg (peg-xform list->number (peg-and (peg-eq 45) (peg-plus (peg-class DGT)))))
+(define scm-num (peg-or scm-neg scm-pos))
+```
 
 ### PEG Structures
 
@@ -462,16 +464,18 @@ message: --->[*|*]---> next
 
 ## Lambda Compilation Test-Cases
 
- * `(define zero (lambda _ 0))`
- * `(define nil (lambda _ ()))`
- * `(define ap (lambda x x))  ; equivalent to _list_`
- * `(define id (lambda (x) x))`
- * `(define r1 (lambda (x . y) y))`
- * `(define i2 (lambda (x y) y))`
- * `(define r2 (lambda (x y . z) z))`
- * `(define i3 (lambda (x y z) z))`
- * `(define l3 (lambda (x y z) (list x y z)))`
- * `(define cadr (lambda (x) (car (cdr x))))`
+```
+(define zero (lambda _ 0))
+(define nil (lambda _ ()))
+(define ap (lambda x x))  ; equivalent to _list_
+(define id (lambda (x) x))
+(define r1 (lambda (x . y) y))
+(define i2 (lambda (x y) y))
+(define r2 (lambda (x y . z) z))
+(define i3 (lambda (x y z) z))
+(define l3 (lambda (x y z) (list x y z)))
+(define cadr (lambda (x) (car (cdr x))))
+```
 
 ## Inspiration
 

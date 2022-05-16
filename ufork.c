@@ -1028,13 +1028,13 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (appl k_xfm (a_expr) denv)
 
 #define G_XFORM_B (G_XFM_OK+12)
-//  { .t=VM_push,       .x=_ptrn_,      .y=G_XFORM_B+0, .z=UNDEF        },
-//  { .t=VM_push,       .x=_appl_,      .y=G_XFORM_B-1, .z=UNDEF        },
+//  { .t=VM_push,       .x=_appl_,      .y=G_XFORM_B+0, .z=UNDEF        },
+//  { .t=VM_push,       .x=_ptrn_,      .y=G_XFORM_B-1, .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=G_XFORM_B+1, .z=UNDEF        },  // (custs . resume)
     { .t=VM_part,       .x=1,           .y=G_XFORM_B+2, .z=UNDEF        },  // resume custs
     { .t=VM_part,       .x=1,           .y=G_XFORM_B+3, .z=UNDEF        },  // fail ok
 
-    { .t=VM_roll,       .x=4,           .y=G_XFORM_B+4, .z=UNDEF        },  // appl
+    { .t=VM_roll,       .x=5,           .y=G_XFORM_B+4, .z=UNDEF        },  // appl
     { .t=VM_push,       .x=G_XFM_OK,    .y=G_XFORM_B+5, .z=UNDEF        },  // G_XFM_OK
     { .t=VM_new,        .x=2,           .y=G_XFORM_B+6, .z=UNDEF        },  // ok'
 
@@ -1360,12 +1360,12 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
 #define F_G_XFORM (OP_G_CALL+2)
     { .t=Actor_T,       .x=F_G_XFORM+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
-    { .t=VM_msg,        .x=2,           .y=F_G_XFORM+2, .z=UNDEF        },  // peg = arg1
-    { .t=VM_msg,        .x=3,           .y=F_G_XFORM+3, .z=UNDEF        },  // appl = arg2
+    { .t=VM_msg,        .x=2,           .y=F_G_XFORM+2, .z=UNDEF        },  // appl = arg1
+    { .t=VM_msg,        .x=3,           .y=F_G_XFORM+3, .z=UNDEF        },  // peg = arg2
     { .t=VM_push,       .x=G_XFORM_B,   .y=F_G_XFORM+4, .z=UNDEF        },  // G_XFORM_B
-    { .t=VM_new,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (G_XFORM_B peg appl)
+    { .t=VM_new,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (G_XFORM_B appl peg)
 #define AP_G_XFORM (F_G_XFORM+5)
-    { .t=Actor_T,       .x=AP_G_XFORM+1,.y=UNDEF,       .z=UNDEF        },  // (peg-xform <peg> <appl>)
+    { .t=Actor_T,       .x=AP_G_XFORM+1,.y=UNDEF,       .z=UNDEF        },  // (peg-xform <appl> <peg>)
     { .t=VM_push,       .x=F_G_XFORM,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_XFORM
 
 #define F_LST_NUM (AP_G_XFORM+2)
@@ -1743,8 +1743,8 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_pair,       .x=2,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq (Star Wsp) (Alt ...))
 
     { .t=Actor_T,       .x=G_SEXPR_X+1, .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=G_SEXPR,     .y=G_SEXPR_X+2, .z=UNDEF        },  // G_SEXPR
-    { .t=VM_push,       .x=AP_CADR,     .y=G_XFORM_B,   .z=UNDEF        },  // (xform Sexpr cadr)
+    { .t=VM_push,       .x=AP_CADR,     .y=G_SEXPR_X+2, .z=UNDEF        },  // AP_CADR
+    { .t=VM_push,       .x=G_SEXPR,     .y=G_XFORM_B,   .z=UNDEF        },  // (xform cadr Sexpr)
 
     { .t=Actor_T,       .x=G_SEXPR_S+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=G_SEXPR_X,   .y=G_STAR_B,    .z=UNDEF        },  // (Star Sexpr)
@@ -1765,8 +1765,8 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_pair,       .x=4,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq '(' (Star Sexpr) (Star Wsp) ')')
 
     { .t=Actor_T,       .x=G_LIST_X+1,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=G_LIST,      .y=G_LIST_X+2,  .z=UNDEF        },  // G_LIST
-    { .t=VM_push,       .x=AP_CADR,     .y=G_XFORM_B,   .z=UNDEF        },  // (xform List cadr)
+    { .t=VM_push,       .x=AP_CADR,     .y=G_LIST_X+2,  .z=UNDEF        },  // AP_CADR
+    { .t=VM_push,       .x=G_LIST,      .y=G_XFORM_B,   .z=UNDEF        },  // (xform cadr List)
 
 #define G_PTRN (G_LIST_X+3)
     { .t=Actor_T,       .x=G_PTRN+1,    .y=UNDEF,       .z=UNDEF        },
