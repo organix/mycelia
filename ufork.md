@@ -245,6 +245,8 @@ k_queue: [head,tail]--------------------+
 
 ## PEG Tools
 
+ * `(peg-source `_list_`)`
+ * `(peg-start `_peg_` `_src_`)`
  * `peg-empty`
  * `peg-fail`
  * `peg-any`
@@ -258,8 +260,7 @@ k_queue: [head,tail]--------------------+
  * `(peg-alt . `_pegs_`)`
  * `(peg-seq . `_pegs_`)`
  * `(peg-call `_name_`)`
- * `(peg-source `_list_`)`
- * `(peg-start `_peg_` `_src_`)`
+ * `(peg-xform `_peg_` `_appl_`)`
  * `(list->number `_chars_`)`
  * `(list->symbol `_chars_`)`
  * `a-print`
@@ -290,6 +291,9 @@ k_queue: [head,tail]--------------------+
  * `(define src (peg-source (list 40 76 73 83 84 32 49 50 51 9 55 56 57 48 41 13 10)))  ; (LIST 123 7890)`
  * `(peg-start sxp-list src)`
  * `(define src (peg-source (list 40 67 65 82 32 40 32 76 73 83 84 32 48 32 49 41 9 41)))  ; (CAR (LIST 0 1))`
+ * `(define scm-pos (peg-xform (peg-plus (peg-class DGT)) list->number))`
+ * `(define scm-neg (peg-xform (peg-and (peg-eq 45) (peg-plus (peg-class DGT))) list->number))`
+ * `(define scm-num (peg-or scm-neg scm-pos))`
 
 ### PEG Structures
 
