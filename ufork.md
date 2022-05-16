@@ -260,6 +260,8 @@ k_queue: [head,tail]--------------------+
  * `(number? . `_values_`)`
  * `(symbol? . `_values_`)`
  * `(actor? . `_values_`)`
+ * `(if `_bool_` `_consequence_` `_alternative_`)`
+ * `(eq? . `_values_`)`
  * `peg-lang  ; REPL grammar`
  * `(quit)`
 

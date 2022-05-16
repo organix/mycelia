@@ -427,8 +427,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNDEF = #?
     { .t=Unit_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
     { .t=Event_T,       .x=77,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    //{ .t=Event_T,       .x=901,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
-    //{ .t=Event_T,       .x=998,         .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
+    //{ .t=Event_T,       .x=933,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
+    //{ .t=Event_T,       .x=1030,        .y=NIL,         .z=NIL          },  // <--- START = (A_TEST)
 
 #define SELF_EVAL (START+1)
     { .t=VM_self,       .x=UNDEF,       .y=START+2,     .z=UNDEF        },  // value = SELF
@@ -1217,12 +1217,12 @@ Star(pattern) = Or(Plus(pattern), Empty)
       (SEND cust
         (eval `(define ,symbol ',value))))))
 */
-#define K_DEFINE (AP_LIST+2)
-//  { .t=VM_push,       .x=_cust_,      .y=K_DEFINE-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_symbol_,    .y=K_DEFINE+0,  .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=K_DEFINE+1,  .z=UNDEF        },  // value
-    { .t=VM_set,        .x=FLD_Z,       .y=K_DEFINE+2,  .z=UNDEF        },  // bind(symbol, value)
-    { .t=VM_push,       .x=UNIT,        .y=K_DEFINE+3,  .z=UNDEF        },  // #unit
+#define K_DEF_B (AP_LIST+2)
+//  { .t=VM_push,       .x=_cust_,      .y=K_DEF_B-1,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_symbol_,    .y=K_DEF_B+0,   .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_DEF_B+1,   .z=UNDEF        },  // value
+    { .t=VM_set,        .x=FLD_Z,       .y=K_DEF_B+2,   .z=UNDEF        },  // bind(symbol, value)
+    { .t=VM_push,       .x=UNIT,        .y=K_DEF_B+3,   .z=UNDEF        },  // #unit
     { .t=VM_pick,       .x=3,           .y=SEND_0,      .z=UNDEF        },  // cust
 /*
 (define op-define                       ; (define <symbol> <expr>)
@@ -1230,11 +1230,11 @@ Star(pattern) = Or(Plus(pattern), Empty)
     (BEH (cust params . opt-env)
       (if (pair? opt-env)
         (SEND (cadr params)             ; apply
-          (list (CREATE (k_define_beh cust (car params))) (car opt-env)))
+          (list (CREATE (k-define-beh cust (car params))) (car opt-env)))
         (SEND cust SELF)                ; eval
       ))))
 */
-#define OP_DEFINE (K_DEFINE+4)
+#define OP_DEFINE (K_DEF_B+4)
     { .t=Actor_T,       .x=OP_DEFINE+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=OP_DEFINE+2, .z=UNDEF        },  // opt-env
     { .t=VM_typeq,      .x=Pair_T,      .y=OP_DEFINE+3, .z=UNDEF        },  // opt-env has type Pair_T
@@ -1250,7 +1250,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_msg,        .x=3,           .y=OP_DEFINE+11,.z=UNDEF        },  // env
     { .t=VM_msg,        .x=1,           .y=OP_DEFINE+12,.z=UNDEF        },  // cust
     { .t=VM_pick,       .x=3,           .y=OP_DEFINE+13,.z=UNDEF        },  // symbol
-    { .t=VM_push,       .x=K_DEFINE,    .y=OP_DEFINE+14,.z=UNDEF        },  // K_DEFINE
+    { .t=VM_push,       .x=K_DEF_B,     .y=OP_DEFINE+14,.z=UNDEF        },  // K_DEF_B
     { .t=VM_new,        .x=2,           .y=OP_DEFINE+15,.z=UNDEF        },  // k_define
     { .t=VM_pick,       .x=4,           .y=OP_DEFINE+16,.z=UNDEF        },  // expr
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (expr k_define env)
@@ -1373,7 +1373,74 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=AP_ACT_P+1,  .y=UNDEF,       .z=UNDEF        },  // (actor? . <values>)
     { .t=VM_push,       .x=F_ACT_P,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_ACT_P
 
-#define F_G_EQ (AP_ACT_P+2)
+/*
+(define k-if-beh
+  (lambda (env cust exprs)
+    (BEH value
+      (if value
+        (SEND (car exprs) (list cust env))
+        (SEND (cadr exprs) (list cust env)))
+    )))
+*/
+#define K_IF_BEH (AP_ACT_P+2)
+//  { .t=VM_push,       .x=_env_,       .y=K_IF_BEH+0,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_cust_,      .y=K_IF_BEH-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_exprs_,     .y=K_IF_BEH-1,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_IF_BEH+1,  .z=UNDEF        },  // value
+    { .t=VM_if,         .x=K_IF_BEH+3,  .y=K_IF_BEH+2,  .z=UNDEF        },
+    { .t=VM_nth,        .x=-1,          .y=K_IF_BEH+3,  .z=UNDEF        },  // exprs = cdr(exprs)
+    { .t=VM_nth,        .x=1,           .y=K_IF_BEH+4,  .z=UNDEF        },  // expr = car(exprs)
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (expr cust env)
+/*
+(define op-if                           ; (if <test> <cnsq> <altn>)
+  (CREATE
+    (BEH (cust params . opt-env)
+      (if (pair? opt-env)
+        (SEND (car params)              ; apply
+          (list (CREATE (k-if-beh cust (cdr params))) (car opt-env)))
+        (SEND cust SELF)                ; eval
+      ))))
+*/
+#define OP_IF (K_IF_BEH+5)
+    { .t=Actor_T,       .x=OP_IF+1,     .y=UNDEF,       .z=UNDEF        },  // (if <test> <cnsq> <altn>)
+    { .t=VM_msg,        .x=-2,          .y=OP_IF+2,     .z=UNDEF        },  // opt-env
+    { .t=VM_typeq,      .x=Pair_T,      .y=OP_IF+3,     .z=UNDEF        },  // opt-env has type Pair_T
+    { .t=VM_if,         .x=OP_IF+4,     .y=SELF_EVAL,   .z=UNDEF        },
+
+    { .t=VM_msg,        .x=3,           .y=OP_IF+5,     .z=UNDEF        },  // env = arg2
+
+    { .t=VM_pick,       .x=1,           .y=OP_IF+6,     .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=1,           .y=OP_IF+7,     .z=UNDEF        },  // cust
+    { .t=VM_msg,        .x=2,           .y=OP_IF+8,     .z=UNDEF        },  // params = arg1
+    { .t=VM_nth,        .x=-1,          .y=OP_IF+9,     .z=UNDEF        },  // exprs = (cnsq altn)
+    { .t=VM_push,       .x=K_IF_BEH,    .y=OP_IF+10,    .z=UNDEF        },  // K_IF_BEH
+    { .t=VM_new,        .x=3,           .y=OP_IF+11,    .z=UNDEF        },  // k_if
+
+    { .t=VM_msg,        .x=2,           .y=OP_IF+12,    .z=UNDEF        },  // params = arg1
+    { .t=VM_nth,        .x=1,           .y=OP_IF+13,    .z=UNDEF        },  // test = car(params)
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (test k_if env)
+
+#define F_EQ_P (OP_IF+14)
+    { .t=Actor_T,       .x=F_EQ_P+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=-2,          .y=F_EQ_P+2,    .z=UNDEF        },  // rest = cdr(args)
+    { .t=VM_pick,       .x=1,           .y=F_EQ_P+3,    .z=UNDEF        },  // rest rest
+    { .t=VM_typeq,      .x=Pair_T,      .y=F_EQ_P+4,    .z=UNDEF        },  // rest has type Pair_T
+    { .t=VM_if,         .x=F_EQ_P+6,    .y=F_EQ_P+5,    .z=UNDEF        },
+    { .t=VM_push,       .x=TRUE,        .y=CUST_SEND,   .z=UNDEF        },  // TRUE
+    { .t=VM_part,       .x=1,           .y=F_EQ_P+7,    .z=UNDEF        },  // rest first
+    { .t=VM_msg,        .x=2,           .y=F_EQ_P+8,    .z=UNDEF        },  // car(args)
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=F_EQ_P+9,    .z=UNDEF        },  // first == car(args)
+    { .t=VM_if,         .x=F_EQ_P+2,    .y=F_EQ_P+10,   .z=UNDEF        },
+    { .t=VM_push,       .x=FALSE,       .y=CUST_SEND,   .z=UNDEF        },  // FALSE
+#define AP_EQ_P (F_EQ_P+11)
+    { .t=Actor_T,       .x=AP_EQ_P+1,   .y=UNDEF,       .z=UNDEF        },  // (eq? . <values>)
+    { .t=VM_push,       .x=F_EQ_P,      .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_EQ_P
+
+//
+// PEG tools
+//
+
+#define F_G_EQ (AP_EQ_P+2)
     { .t=Actor_T,       .x=F_G_EQ+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_G_EQ+2,    .z=UNDEF        },  // token = arg1
     { .t=VM_push,       .x=G_EQ_B,      .y=F_G_EQ+3,    .z=UNDEF        },  // G_EQ_B
@@ -2274,7 +2341,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { OP_QUOTE, "OP_QUOTE" },
     { F_LIST, "F_LIST" },
     { AP_LIST, "AP_LIST" },
-    { K_DEFINE, "K_DEFINE" },
+    { K_DEF_B, "K_DEF_B" },
     { OP_DEFINE, "OP_DEFINE" },
     { F_CONS, "F_CONS" },
     { AP_CONS, "AP_CONS" },
@@ -2299,6 +2366,10 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_SYM_P, "AP_SYM_P" },
     { F_ACT_P, "F_ACT_P" },
     { AP_ACT_P, "AP_ACT_P" },
+    { K_IF_BEH, "K_IF_BEH" },
+    { OP_IF, "OF_IF" },
+    { F_EQ_P, "F_EQ_P" },
+    { AP_EQ_P, "AP_EQ_P" },
 
     { F_G_EQ, "F_G_EQ" },
     { AP_G_EQ, "AP_G_EQ" },
@@ -2954,6 +3025,8 @@ int_t init_global_env() {
     bind_global("number?", AP_NUM_P);
     bind_global("symbol?", AP_SYM_P);
     bind_global("actor?", AP_ACT_P);
+    bind_global("if", OP_IF);
+    bind_global("eq?", AP_EQ_P);
 #if 1
     bind_global("CTL", TO_FIX(CTL));
     bind_global("DGT", TO_FIX(DGT));
