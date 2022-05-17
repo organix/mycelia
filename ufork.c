@@ -429,7 +429,6 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNDEF = #?
     { .t=Unit_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
     { .t=Event_T,       .x=77,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-    //{ .t=Event_T,       .x=983,         .y=NIL,         .z=NIL          },  // <--- START = (G_TEST)
 
 #define SELF_EVAL (START+1)
     { .t=VM_self,       .x=UNDEF,       .y=START+2,     .z=UNDEF        },  // value = SELF
@@ -2029,16 +2028,7 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_push,       .x=AP_CADR,     .y=G_LIST_X+2,  .z=UNDEF        },  // AP_CADR
     { .t=VM_push,       .x=G_LIST,      .y=G_XFORM_B,   .z=UNDEF        },  // (xform cadr list)
 
-#define G_PTRN (G_LIST_X+3)
-    { .t=Actor_T,       .x=G_PTRN+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=G_PTRN+2,    .z=UNDEF        },  // ()
-    { .t=VM_push,       .x=G_S_DGTS,    .y=G_PTRN+3,    .z=UNDEF        },  // (And (Or '+' '-') (Plus Dgt))
-    { .t=VM_push,       .x=G_ATOM_P,    .y=G_PTRN+4,    .z=UNDEF        },  // (Plus Atom)
-    { .t=VM_push,       .x=G_ATOM,      .y=G_PTRN+5,    .z=UNDEF        },  // Atom
-    { .t=VM_push,       .x=G_WSP_S,     .y=G_PTRN+6,    .z=UNDEF        },  // (Star Wsp)
-    { .t=VM_pair,       .x=4,           .y=G_SEQ_B,     .z=UNDEF        },  // (Wsp* Atom Atom+ S_Dgts)
-
-#define S_EMPTY (G_PTRN+7)
+#define S_EMPTY (G_LIST_X+3)
     { .t=Actor_T,       .x=S_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=S_VALUE,     .z=UNDEF        },  // ()
 
@@ -2047,47 +2037,7 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_msg,        .x=0,           .y=A_PRINT+2,   .z=UNDEF        },
     { .t=VM_debug,      .x=TO_FIX(7331),.y=COMMIT,      .z=UNDEF        },
 
-#define A_OK (A_PRINT+3)
-    { .t=Actor_T,       .x=A_OK+1,      .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=A_OK+2,      .z=UNDEF        },
-    { .t=VM_debug,      .x=TO_FIX(777), .y=COMMIT,      .z=UNDEF        },
-
-#define A_FAIL (A_OK+3)
-    { .t=Actor_T,       .x=A_FAIL+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=A_FAIL+2,    .z=UNDEF        },
-    { .t=VM_debug,      .x=TO_FIX(666), .y=COMMIT,      .z=UNDEF        },
-
-#define A_EVAL (A_FAIL+3)
-    { .t=Actor_T,       .x=A_EVAL+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=1,           .y=A_EVAL+2,    .z=UNDEF        },  // sexpr
-    { .t=VM_debug,      .x=TO_FIX(888), .y=A_EVAL+3,    .z=UNDEF        },
-
-    { .t=VM_push,       .x=EMPTY_ENV,   .y=A_EVAL+4,    .z=UNDEF        },  // env = EMPTY_ENV
-    { .t=VM_push,       .x=A_PRINT,     .y=A_EVAL+5,    .z=UNDEF        },  // cust = A_PRINT
-    { .t=VM_msg,        .x=1,           .y=A_EVAL+6,    .z=UNDEF        },  // sexpr
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (sexpr A_PRINT EMPTY_ENV)
-
-#define G_TEST (A_EVAL+7)
-    { .t=Actor_T,       .x=G_TEST+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=A_FAIL,      .y=G_TEST+2,    .z=UNDEF        },  // fail = A_FAIL
-    //{ .t=VM_push,       .x=A_OK,        .y=G_TEST+3,    .z=UNDEF        },  // ok = A_OK
-    { .t=VM_push,       .x=A_EVAL,      .y=G_TEST+3,    .z=UNDEF        },  // ok = A_EVAL
-    { .t=VM_pair,       .x=1,           .y=G_TEST+4,    .z=UNDEF        },  // custs = (ok . fail)
-    //{ .t=VM_push,       .x=G_EMPTY,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_EMPTY
-    //{ .t=VM_push,       .x=G_FAIL,      .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_FAIL
-    //{ .t=VM_push,       .x=G_ANY,       .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_ANY
-    //{ .t=VM_push,       .x=G_SGN_O,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_SGN_O
-    //{ .t=VM_push,       .x=G_DGT_P,     .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_DGT_P
-    { .t=VM_push,       .x=G_SEXPR_X,   .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_SEXPR_X
-    //{ .t=VM_push,       .x=G_PTRN,      .y=G_TEST+5,    .z=UNDEF        },  // ptrn = G_PTRN
-    { .t=VM_push,       .x=G_START,     .y=G_TEST+6,    .z=UNDEF        },  // G_START
-    { .t=VM_new,        .x=2,           .y=G_TEST+7,    .z=UNDEF        },  // start
-    //{ .t=VM_push,       .x=S_EMPTY,     .y=G_TEST+8,    .z=UNDEF        },  // src = S_EMPTY
-    { .t=VM_push,       .x=S_GETC,      .y=G_TEST+8,    .z=UNDEF        },  // S_GETC
-    { .t=VM_new,        .x=0,           .y=G_TEST+9,    .z=UNDEF        },  // src
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (src . start)
-
-#define A_QUIT (G_TEST+10)
+#define A_QUIT (A_PRINT+3)
     { .t=Actor_T,       .x=A_QUIT+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_end,        .x=END_STOP,    .y=UNDEF,       .z=UNDEF        },  // kill thread
 
@@ -2272,15 +2222,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_ALT_EX, "G_ALT_EX" },
     { G_LIST, "G_LIST" },
     { G_LIST_X, "G_LIST_X" },
-    { G_PTRN, "G_PTRN" },
 
     { S_EMPTY, "S_EMPTY" },
     { A_PRINT, "A_PRINT" },
-    { A_OK, "A_OK" },
-    { A_FAIL, "A_FAIL" },
-    { A_EVAL, "A_EVAL" },
-    { G_TEST, "G_TEST" },
-
     { A_QUIT, "A_QUIT" },
     { -1, "" },
 };
