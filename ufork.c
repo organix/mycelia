@@ -346,8 +346,10 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define END_COMMIT  (+1)
 
 // VM_cvt conversions
-#define CVT_LST_NUM (0)
-#define CVT_LST_SYM (1)
+#define CVT_INT_FIX (0)
+#define CVT_FIX_INT (1)
+#define CVT_LST_NUM (2)
+#define CVT_LST_SYM (3)
 
 /*
  * character classes
@@ -1301,7 +1303,19 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=AP_CADDR+1,  .y=UNDEF,       .z=UNDEF        },  // (caddr <pair>)
     { .t=VM_push,       .x=F_CADDR,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CADDR
 
-#define F_NULL_P (AP_CADDR+2)
+#define F_NTH (AP_CADDR+2)
+    { .t=Actor_T,       .x=F_NTH+1,     .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_push,       .x=F_NTH+6,     .y=F_NTH+2,     .z=UNDEF        },  // address of VM_nth instruction
+    { .t=VM_msg,        .x=2,           .y=F_NTH+3,     .z=UNDEF        },  // index = arg1
+    { .t=VM_cvt,        .x=CVT_FIX_INT, .y=F_NTH+4,     .z=UNDEF        },  // TO_INT(index)
+    { .t=VM_set,        .x=FLD_X,       .y=F_NTH+5,     .z=UNDEF        },  // {x:index}
+    { .t=VM_msg,        .x=3,           .y=F_NTH+6,     .z=UNDEF        },  // list = arg2
+    { .t=VM_nth,        .x=0,           .y=CUST_SEND,   .z=UNDEF        },  // nth(list)
+#define AP_NTH (F_NTH+7)
+    { .t=Actor_T,       .x=AP_NTH+1,    .y=UNDEF,       .z=UNDEF        },  // (nth <index> <list>)
+    { .t=VM_push,       .x=F_NTH,       .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_NTH
+
+#define F_NULL_P (AP_NTH+2)
     { .t=Actor_T,       .x=F_NULL_P+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=-1,          .y=F_NULL_P+2,  .z=UNDEF        },  // args
     { .t=VM_pick,       .x=1,           .y=F_NULL_P+3,  .z=UNDEF        },  // args args
@@ -2353,6 +2367,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_CADR, "AP_CADR" },
     { F_CADDR, "F_CADDR" },
     { AP_CADDR, "AP_CADDR" },
+    { F_NTH, "F_NTH" },
+    { AP_NTH, "AP_NTH" },
     { F_NULL_P, "F_NULL_P" },
     { AP_NULL_P, "AP_NULL_P" },
     { F_TYPE_P, "F_TYPE_P" },
@@ -3019,6 +3035,7 @@ int_t init_global_env() {
     bind_global("cdr", AP_CDR);
     bind_global("cadr", AP_CADR);
     bind_global("caddr", AP_CADDR);
+    bind_global("nth", AP_NTH);
     bind_global("null?", AP_NULL_P);
     bind_global("pair?", AP_PAIR_P);
     bind_global("boolean?", AP_BOOL_P);
@@ -3872,8 +3889,10 @@ PROC_DECL(vm_cvt) {
     int_t w = stack_pop();
     int_t v = UNDEF;
     switch (c) {
-        case CVT_LST_SYM:   v = symbol(w);      break;
+        case CVT_INT_FIX:   v = TO_FIX(w);      break;
+        case CVT_FIX_INT:   v = TO_INT(w);      break;
         case CVT_LST_NUM:   v = fixnum(w);      break;
+        case CVT_LST_SYM:   v = symbol(w);      break;
         default:            v = error("unknown conversion");
     }
     stack_push(v);
@@ -4088,6 +4107,8 @@ static char *end_label(int_t t) {
 }
 static char *conversion_label(int_t f) {
     switch (f) {
+        case CVT_INT_FIX:   return "INT_FIX";
+        case CVT_FIX_INT:   return "FIX_INT";
         case CVT_LST_NUM:   return "LST_NUM";
         case CVT_LST_SYM:   return "LST_SYM";
     }
