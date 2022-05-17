@@ -1843,19 +1843,72 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define G_WSP (LAMBDA_C+15)
     { .t=Actor_T,       .x=G_WSP+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=WSP,         .y=G_CLS_B,     .z=UNDEF        },  // class = whitespace
-
 #define G_WSP_S (G_WSP+2)
     { .t=Actor_T,       .x=G_WSP_S+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=G_WSP,       .y=G_STAR_B,    .z=UNDEF        },  // (Star Wsp)
 
-#define G_P_SGN (G_WSP_S+2)
+#define G_HASH (G_WSP_S+2)
+    { .t=Actor_T,       .x=G_HASH+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('#'), .y=G_EQ_B,      .z=UNDEF        },  // value = '#' = 35
+#define G_LWR_F (G_HASH+2)
+    { .t=Actor_T,       .x=G_LWR_F+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('f'), .y=G_EQ_B,      .z=UNDEF        },  // value = 'f' = 102
+#define G_LWR_T (G_LWR_F+2)
+    { .t=Actor_T,       .x=G_LWR_T+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('t'), .y=G_EQ_B,      .z=UNDEF        },  // value = 't' = 116
+#define G_QMARK (G_LWR_T+2)
+    { .t=Actor_T,       .x=G_QMARK+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('?'), .y=G_EQ_B,      .z=UNDEF        },  // value = '?' = 63
+#define G_ALT_KW (G_QMARK+2)
+    { .t=Actor_T,       .x=G_ALT_KW+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=G_ALT_KW+2,  .z=UNDEF        },  // ()
+    { .t=VM_push,       .x=G_QMARK,     .y=G_ALT_KW+3,  .z=UNDEF        },  // '?'
+    { .t=VM_push,       .x=G_LWR_T,     .y=G_ALT_KW+4,  .z=UNDEF        },  // 't'
+    { .t=VM_push,       .x=G_LWR_F,     .y=G_ALT_KW+5,  .z=UNDEF        },  // 'f'
+    { .t=VM_pair,       .x=3,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt 'f' 't' '?')
+#define G_CONST (G_ALT_KW+6)
+    { .t=Actor_T,       .x=G_CONST+1,   .y=UNDEF,       .z=UNDEF        },  // (And G_HASH G_ALT_KW)
+    { .t=VM_push,       .x=G_HASH,      .y=G_CONST+2,   .z=UNDEF        },  // G_HASH
+    { .t=VM_push,       .x=G_ALT_KW,    .y=G_AND_B,     .z=UNDEF        },  // G_ALT_KW
+
+#define G_KW_OK (G_CONST+3)
+//  { .t=VM_push,       .x=_cust_,      .y=G_KW_OK+0,   .z=UNDEF        },
+    { .t=VM_msg,        .x=-1,          .y=G_KW_OK+1,   .z=UNDEF        },  // in
+
+    { .t=VM_msg,        .x=1,           .y=G_KW_OK+2,   .z=UNDEF        },  // value
+    { .t=VM_nth,        .x=-1,          .y=G_KW_OK+3,   .z=UNDEF        },  // kw
+    { .t=VM_eq,         .x=TO_FIX('f'), .y=G_KW_OK+4,   .z=UNDEF        },  // kw == 'f'
+    { .t=VM_if,         .x=G_KW_OK+5,   .y=G_KW_OK+6,   .z=UNDEF        },
+    { .t=VM_push,       .x=FALSE,       .y=G_KW_OK+12,  .z=UNDEF        },  // FALSE
+
+    { .t=VM_msg,        .x=1,           .y=G_KW_OK+7,   .z=UNDEF        },  // value
+    { .t=VM_nth,        .x=-1,          .y=G_KW_OK+8,   .z=UNDEF        },  // kw
+    { .t=VM_eq,         .x=TO_FIX('t'), .y=G_KW_OK+9,   .z=UNDEF        },  // kw == 't'
+    { .t=VM_if,         .x=G_KW_OK+10,  .y=G_KW_OK+11,  .z=UNDEF        },
+    { .t=VM_push,       .x=TRUE,        .y=G_KW_OK+12,  .z=UNDEF        },  // TRUE
+
+    { .t=VM_push,       .x=UNDEF,       .y=G_KW_OK+12,  .z=UNDEF        },  // UNDEF
+
+    { .t=VM_pair,       .x=1,           .y=G_KW_OK+13,  .z=UNDEF        },  // (value' . in)
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
+#define G_CONST_X (G_KW_OK+14)
+    { .t=Actor_T,       .x=G_CONST_X+1, .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=G_CONST_X+2, .z=UNDEF        },  // (custs . resume)
+    { .t=VM_part,       .x=1,           .y=G_CONST_X+3, .z=UNDEF        },  // resume custs
+    { .t=VM_part,       .x=1,           .y=G_CONST_X+4, .z=UNDEF        },  // fail ok
+    { .t=VM_push,       .x=G_KW_OK,     .y=G_CONST_X+5, .z=UNDEF        },  // G_KW_OK
+    { .t=VM_new,        .x=1,           .y=G_CONST_X+6, .z=UNDEF        },  // ok'
+    { .t=VM_pair,       .x=1,           .y=G_CONST_X+7, .z=UNDEF        },  // custs = (ok' . fail)
+    { .t=VM_pair,       .x=1,           .y=G_CONST_X+8, .z=UNDEF        },  // msg = (custs . resume)
+    { .t=VM_push,       .x=G_CONST,     .y=G_CONST_X+9, .z=UNDEF        },  // G_CONST
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (G_CONST (ok' . fail) . resume)
+
+#define G_P_SGN (G_CONST_X+10)
     { .t=Actor_T,       .x=G_P_SGN+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=TO_FIX('+'), .y=G_EQ_B,      .z=UNDEF        },  // value = '+' = 43
-
 #define G_M_SGN (G_P_SGN+2)
     { .t=Actor_T,       .x=G_M_SGN+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=TO_FIX('-'), .y=G_EQ_B,      .z=UNDEF        },  // value = '-' = 45
-
 #define G_SGN (G_M_SGN+2)
     { .t=Actor_T,       .x=G_SGN+1,     .y=UNDEF,       .z=UNDEF        },  // (Or G_P_SGN G_M_SGN)
     { .t=VM_push,       .x=G_P_SGN,     .y=G_SGN+2,     .z=UNDEF        },  // G_P_SGN
@@ -1864,16 +1917,13 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define G_DGT (G_SGN+3)
     { .t=Actor_T,       .x=G_DGT+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=DGT,         .y=G_CLS_B,     .z=UNDEF        },  // class = [0-9]
-
 #define G_DGTS (G_DGT+2)
     { .t=Actor_T,       .x=G_DGTS+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=G_DGT,       .y=G_PLUS_B,    .z=UNDEF        },  // (Plus Dgt)
-
 #define G_S_DGTS (G_DGTS+2)
     { .t=Actor_T,       .x=G_S_DGTS+1,  .y=UNDEF,       .z=UNDEF        },  // (And G_SGN G_DGTS)
     { .t=VM_push,       .x=G_SGN,       .y=G_S_DGTS+2,  .z=UNDEF        },  // G_SGN
     { .t=VM_push,       .x=G_DGTS,      .y=G_AND_B,     .z=UNDEF        },  // G_DGTS
-
 #define G_S_NUM (G_S_DGTS+3)
     { .t=Actor_T,       .x=G_S_NUM+1,   .y=UNDEF,       .z=UNDEF        },  // (Or G_S_DGTS G_DGTS)
     { .t=VM_push,       .x=G_S_DGTS,    .y=G_S_NUM+2,   .z=UNDEF        },  // G_S_DGTS
@@ -1887,7 +1937,6 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_pair,       .x=1,           .y=G_NUM_OK+4,  .z=UNDEF        },  // (fixnum . in)
     { .t=VM_pick,       .x=2,           .y=G_NUM_OK+5,  .z=UNDEF        },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust fixnum . in)
-
 #define G_FIXNUM (G_NUM_OK+6)
     { .t=Actor_T,       .x=G_FIXNUM+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=G_FIXNUM+2,  .z=UNDEF        },  // (custs . resume)
@@ -1903,7 +1952,6 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define G_ATOM (G_FIXNUM+10)
     { .t=Actor_T,       .x=G_ATOM+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,   .x=DGT|LWR|UPR|SYM, .y=G_CLS_B,     .z=UNDEF        },  // class = [0-9A-Za-z...]
-
 #define G_ATOM_P (G_ATOM+2)
     { .t=Actor_T,       .x=G_ATOM_P+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=G_ATOM,      .y=G_PLUS_B,    .z=UNDEF        },  // (Plus Atom)
@@ -1916,7 +1964,6 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_pair,       .x=1,           .y=G_SYM_OK+4, .z=UNDEF         },  // (symbol . in)
     { .t=VM_pick,       .x=2,           .y=G_SYM_OK+5, .z=UNDEF         },  // cust
     { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust symbol . in)
-
 #define G_SYMBOL (G_SYM_OK+6)
     { .t=Actor_T,       .x=G_SYMBOL+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=G_SYMBOL+2,  .z=UNDEF        },  // (custs . resume)
@@ -1932,15 +1979,15 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define G_OPEN (G_SYMBOL+10)
     { .t=Actor_T,       .x=G_OPEN+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=TO_FIX('('), .y=G_EQ_B,      .z=UNDEF        },  // value = '(' = 40
-
 #define G_CLOSE (G_OPEN+2)
     { .t=Actor_T,       .x=G_CLOSE+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=TO_FIX(')'), .y=G_EQ_B,      .z=UNDEF        },  // value = ')' = 41
 
 /*
 sexpr = Seq(Star(Wsp), alt_ex) -> cadr = (lambda (x) (car (cdr x)))
-alt_ex = Alt(list, fixnum, symbol)
+alt_ex = Alt(list, const, fixnum, symbol)
 list = Seq('(', Star(sexpr), Star(Wsp), ')') -> cadr
+const = And('#', Alt('f', 't', '?'))
 fixnum = Or(And(Or('+', '-'), Plus(Dgt)), Plus(Dgt)) -> fixnum
 symbol = Plus(Atom) -> symbol
 */
@@ -1948,7 +1995,7 @@ symbol = Plus(Atom) -> symbol
 #define G_SEXPR_X (G_SEXPR+5)
 #define G_SEXPR_S (G_SEXPR_X+3)
 #define G_ALT_EX (G_SEXPR_S+2)
-#define G_LIST (G_ALT_EX+6)
+#define G_LIST (G_ALT_EX+7)
 #define G_LIST_X (G_LIST+7)
     { .t=Actor_T,       .x=G_SEXPR+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_SEXPR+2,   .z=UNDEF        },  // ()
@@ -1958,29 +2005,30 @@ symbol = Plus(Atom) -> symbol
 
     { .t=Actor_T,       .x=G_SEXPR_X+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=AP_CADR,     .y=G_SEXPR_X+2, .z=UNDEF        },  // AP_CADR
-    { .t=VM_push,       .x=G_SEXPR,     .y=G_XFORM_B,   .z=UNDEF        },  // (xform cadr Sexpr)
+    { .t=VM_push,       .x=G_SEXPR,     .y=G_XFORM_B,   .z=UNDEF        },  // (xform cadr sexpr)
 
     { .t=Actor_T,       .x=G_SEXPR_S+1, .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=G_SEXPR_X,   .y=G_STAR_B,    .z=UNDEF        },  // (Star Sexpr)
+    { .t=VM_push,       .x=G_SEXPR_X,   .y=G_STAR_B,    .z=UNDEF        },  // (Star sexpr)
 
     { .t=Actor_T,       .x=G_ALT_EX+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_ALT_EX+2,  .z=UNDEF        },  // ()
-    { .t=VM_push,       .x=G_SYMBOL,    .y=G_ALT_EX+3,  .z=UNDEF        },  // Symbol
-    { .t=VM_push,       .x=G_FIXNUM,    .y=G_ALT_EX+4,  .z=UNDEF        },  // Fixnum
-    { .t=VM_push,       .x=G_LIST_X,    .y=G_ALT_EX+5,  .z=UNDEF        },  // List
-    { .t=VM_pair,       .x=3,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt List Fixnum Symbol)
+    { .t=VM_push,       .x=G_SYMBOL,    .y=G_ALT_EX+3,  .z=UNDEF        },  // symbol
+    { .t=VM_push,       .x=G_FIXNUM,    .y=G_ALT_EX+4,  .z=UNDEF        },  // fixnum
+    { .t=VM_push,       .x=G_CONST_X,   .y=G_ALT_EX+5,  .z=UNDEF        },  // const
+    { .t=VM_push,       .x=G_LIST_X,    .y=G_ALT_EX+6,  .z=UNDEF        },  // list
+    { .t=VM_pair,       .x=4,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt list const fixnum symbol)
 
     { .t=Actor_T,       .x=G_LIST+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_LIST+2,    .z=UNDEF        },  // ()
     { .t=VM_push,       .x=G_CLOSE,     .y=G_LIST+3,    .z=UNDEF        },  // ')'
     { .t=VM_push,       .x=G_WSP_S,     .y=G_LIST+4,    .z=UNDEF        },  // (Star Wsp)
-    { .t=VM_push,       .x=G_SEXPR_S,   .y=G_LIST+5,    .z=UNDEF        },  // (Star Sexpr)
+    { .t=VM_push,       .x=G_SEXPR_S,   .y=G_LIST+5,    .z=UNDEF        },  // (Star sexpr)
     { .t=VM_push,       .x=G_OPEN,      .y=G_LIST+6,    .z=UNDEF        },  // '('
-    { .t=VM_pair,       .x=4,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq '(' (Star Sexpr) (Star Wsp) ')')
+    { .t=VM_pair,       .x=4,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq '(' (Star sexpr) (Star Wsp) ')')
 
     { .t=Actor_T,       .x=G_LIST_X+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=AP_CADR,     .y=G_LIST_X+2,  .z=UNDEF        },  // AP_CADR
-    { .t=VM_push,       .x=G_LIST,      .y=G_XFORM_B,   .z=UNDEF        },  // (xform cadr List)
+    { .t=VM_push,       .x=G_LIST,      .y=G_XFORM_B,   .z=UNDEF        },  // (xform cadr list)
 
 #define G_PTRN (G_LIST_X+3)
     { .t=Actor_T,       .x=G_PTRN+1,    .y=UNDEF,       .z=UNDEF        },
@@ -2426,6 +2474,14 @@ static struct { int_t addr; char *label; } symbol_table[] = {
 
     { G_WSP, "G_WSP" },
     { G_WSP_S, "G_WSP_S" },
+    { G_HASH, "G_HASH" },
+    { G_LWR_F, "G_LWR_F" },
+    { G_LWR_T, "G_LWR_T" },
+    { G_QMARK, "G_QMARK" },
+    { G_ALT_KW, "G_ALT_KW" },
+    { G_CONST, "G_CONST" },
+    { G_KW_OK, "G_KW_OK" },
+    { G_CONST_X, "G_CONST_X" },
     { G_P_SGN, "G_P_SGN" },
     { G_M_SGN, "G_M_SGN" },
     { G_SGN, "G_SGN" },
