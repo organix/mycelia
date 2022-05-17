@@ -340,32 +340,26 @@ k_queue: [head,tail]--------------------+
 
 Message to Grammar:
 ```
-             custs    accum    in (or NIL)
-message: --->[*|*]--->[*|*]--->[*|*]---> next
-              |        |        |
-              v        v        v
-             [*|*]    value    token
-             /   \
-            v     v
-           ok    fail
+--->[custs,resume]--->[accum,in]---> NIL or --->[token,next]--->
+      |                 |                         |
+      v                 v                         v
+    [ok,fail]
+     /    \
+    v      v
 ```
 
-Reply to _ok_:
+Reply to _ok_ customer:
 ```
-             accum    in (or NIL)
-message: --->[*|*]--->[*|*]---> next
-              |        |
-              v        v
-             value    token
+--->[accum,in]---> NIL or --->[token,next]--->
+      |                         |
+      v                         v
 ```
 
-Reply to _fail_:
+Reply to _fail_ customer:
 ```
-             in (or NIL)
-message: --->[*|*]---> next
-              |
-              v
-             token
+NIL or --->[token,next]--->
+             |
+             v
 ```
 
 ### Character Classes
