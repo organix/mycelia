@@ -509,13 +509,12 @@ NIL or --->[token,next]--->
   (peg-xform list->symbol
     (peg-plus (peg-class UPR LWR DGT SYM)) ))
 (define scm-u-num
-  (peg-xform list->number
-    (peg-plus (peg-class DGT)) ))
+  (peg-plus (peg-class DGT)))
 (define scm-s-num
-  (peg-xform list->number
-    (peg-and (peg-or (peg-eq 45) (peg-eq 43)) (peg-plus (peg-class DGT))) ))
+  (peg-and (peg-or (peg-eq 45) (peg-eq 43)) scm-u-num))
 (define scm-number
-  (peg-or scm-s-num scm-u-num))
+  (peg-xform list->number
+    (peg-or scm-s-num scm-u-num)))
 (define scm-quote
   (peg-xform (lambda x (list (quote quote) (nth -1 x)))
     (peg-and (peg-eq 39) (peg-call scm-expr)) ))
