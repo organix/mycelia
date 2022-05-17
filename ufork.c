@@ -2445,8 +2445,21 @@ static void gc_dump_map() {  // dump memory allocation map
             fprintf(stderr, "\n");
         }
         char c = (gc_get_mark(a) ? 'x' : '.');
-        //if (a >= cell_top) c = '-';
-        //if ((c == 'x') && IS_FREE(a)) c = 'f';  // <-- should not happen
+        if (a >= cell_top) c = '-';
+#if 1
+        /* extra detail */
+        if (c != '.') {
+            int_t t = get_t(a);
+            if (t < 0) c = 't';         // "typed" cell
+            if (t < Free_T) c = 'i';    // instruction
+            if (t == Event_T) c = 'E';  // Event_T
+            if (t == Actor_T) c = 'A';  // Actor_T
+            if (t == Symbol_T) c = 'S'; // Symbol_T
+            if (t == Pair_T) c = 'p';   // Pair_T
+            if (t == Free_T) c = 'f';   // Free_T <-- should not happen
+            if (t >= START) c = 'K';    // continuation
+        }
+#endif
         fprintf(stderr, "%c", c);
     }
     fprintf(stderr, "\n");
