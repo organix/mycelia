@@ -254,6 +254,7 @@ k_queue: [head,tail]--------------------+
  * `(cdr `_list_`)`
  * `(cadr `_list_`)`
  * `(caddr `_list_`)`
+ * `(nth `_index_` `_list_`)`
  * `(null? . `_values_`)`
  * `(pair? . `_values_`)`
  * `(boolean? . `_values_`)`
@@ -340,9 +341,9 @@ k_queue: [head,tail]--------------------+
 
 Message to Grammar:
 ```
---->[custs,resume]--->[accum,in]---> NIL or --->[token,next]--->
-      |                 |                         |
-      v                 v                         v
+--->[custs,context]--->[accum,in]---> NIL or --->[token,next]--->
+      |                  |                         |
+      v                  v                         v
     [ok,fail]
      /    \
     v      v
@@ -494,6 +495,50 @@ NIL or --->[token,next]--->
 | }  | 125 |  7d |     |     |     |     |  x  |     |     |     |
 | ~  | 126 |  7e |     |     |     |     |     |  x  |     |     |
 | ^? | 127 |  7f |  x  |     |     |     |     |     |     |     |
+
+### PEG for LISP/Scheme
+
+```
+(define not-eol
+  (lambda (x) (if (eq? x 10) #f #t)))
+(define scm-comment
+  (peg-seq (peg-eq 59) (peg-star (peg-pred not-eol peg-any)) (peg-eq 10)))
+(define scm-wsp
+  (peg-star (peg-or scm-comment (peg-class WSP)) ))
+(define scm-symbol
+  (peg-xform list->symbol
+    (peg-plus (peg-class UPR LWR DGT SYM)) ))
+(define scm-u-num
+  (peg-xform list->number
+    (peg-plus (peg-class DGT)) ))
+(define scm-s-num
+  (peg-xform list->number
+    (peg-and (peg-or (peg-eq 45) (peg-eq 43)) (peg-plus (peg-class DGT))) ))
+(define scm-number
+  (peg-or scm-s-num scm-u-num))
+(define scm-quote
+  (peg-xform (lambda x (list (quote quote) (nth -1 x)))
+    (peg-and (peg-eq 39) (peg-call scm-expr)) ))
+(define scm-literal
+  (peg-alt
+    (peg-xform (lambda _ #f) (peg-seq 35 102))
+    (peg-xform (lambda _ #t) (peg-seq 35 116))
+    (peg-xform (lambda _ #?) (peg-seq 35 63)) ))
+(define scm-tail
+  (peg-alt
+    (peg-xform (lambda x (cons (nth 1 x) (nth 5 y)))
+      (peg-seq (peg-call scm-sexpr) scm-wsp (peg-eq 46) scm-wsp (peg-call scm-sexpr)))
+    (peg-and (peg-call scm-sexpr) (peg-call scm-tail))
+    peg-empty))
+(define scm-list
+  (peg-xform cadr
+    (peg-seq (peg-eq 40) scm-tail scm-wsp (peg-eq 41)) ))
+(define scm-expr
+  (peg-alt scm-list scm-literal scm-quote scm-number scm-symbol))
+(define scm-sexpr
+  (peg-xform cadr
+    (peg-seq scm-wsp scm-expr)))
+```
 
 ## Inspiration
 
