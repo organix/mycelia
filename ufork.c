@@ -1071,6 +1071,47 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_pair,       .x=1,           .y=G_PRED_B+10, .z=UNDEF        },  // msg = (custs . resume)
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // ptrn
 
+#if 1
+#define G_XLAT_K (G_PRED_B+11)
+//  { .t=VM_push,       .x=_cust_,      .y=G_XLAT_K-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_in_,        .y=G_XLAT_K+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=G_XLAT_K+1,  .z=UNDEF        },  // value
+    { .t=VM_pair,       .x=1,           .y=G_XLAT_K+2,  .z=UNDEF        },  // (value . in)
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
+
+#define G_XLAT_OK (G_XLAT_K+3)
+//  { .t=VM_push,       .x=_cust_,      .y=G_XLAT_OK-1, .z=UNDEF        },
+//  { .t=VM_push,       .x=_func_,      .y=G_XLAT_OK+0, .z=UNDEF        },
+    { .t=VM_msg,        .x=1,           .y=G_XLAT_OK+1, .z=UNDEF        },  // value
+
+    { .t=VM_roll,       .x=3,           .y=G_XLAT_OK+2, .z=UNDEF        },  // cust
+    { .t=VM_msg,        .x=-1,          .y=G_XLAT_OK+3, .z=UNDEF        },  // in
+    { .t=VM_push,       .x=G_XLAT_K,    .y=G_XLAT_OK+4, .z=UNDEF        },  // G_XLAT_K
+    { .t=VM_new,        .x=2,           .y=G_XLAT_OK+5, .z=UNDEF        },  // k_xlat
+
+    { .t=VM_roll,       .x=3,           .y=G_XLAT_OK+6, .z=UNDEF        },  // func
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (func k_xlat value)
+
+#define G_XLAT_B (G_XLAT_OK+7)
+//  { .t=VM_push,       .x=_func_,      .y=G_XLAT_B+0,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_ptrn_,      .y=G_XLAT_B-1,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=G_XLAT_B+1,  .z=UNDEF        },  // (custs . resume)
+    { .t=VM_part,       .x=1,           .y=G_XLAT_B+2,  .z=UNDEF        },  // resume custs
+    { .t=VM_part,       .x=1,           .y=G_XLAT_B+3,  .z=UNDEF        },  // fail ok
+
+    { .t=VM_roll,       .x=5,           .y=G_XLAT_B+4,  .z=UNDEF        },  // func
+    { .t=VM_push,       .x=G_XLAT_OK,   .y=G_XLAT_B+5,  .z=UNDEF        },  // G_XLAT_OK
+    { .t=VM_new,        .x=2,           .y=G_XLAT_B+6,  .z=UNDEF        },  // ok'
+
+    { .t=VM_pair,       .x=1,           .y=G_XLAT_B+7,  .z=UNDEF        },  // custs = (ok' . fail)
+    { .t=VM_pair,       .x=1,           .y=G_XLAT_B+8,  .z=UNDEF        },  // msg = (custs . resume)
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // ptrn
+
+#define G_END (G_XLAT_B+9)
+#else
+#define G_END (G_PRED_B+11)
+#endif
+
 //
 // Global LISP/Scheme Procedures
 //
@@ -1083,7 +1124,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
         (list cust (const-beh args) env)
       ))))
 */
-#define CALL_BEH (G_PRED_B+11)
+#define CALL_BEH (G_END+0)
 //  { .t=VM_push,       .x=_comb_,      .y=CALL_BEH-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_args_,      .y=CALL_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=2,           .y=CALL_BEH+1,  .z=UNDEF        },  // env
@@ -1816,6 +1857,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 //
 // Pre-defined PEGs
 //
+
 #define G_WSP (LAMBDA_C+15)
     { .t=Actor_T,       .x=G_WSP+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=WSP,         .y=G_CLS_B,     .z=UNDEF        },  // class = whitespace
@@ -1974,9 +2016,15 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_push,       .x=G_WSP_S,     .y=G_SEXPR+4,   .z=UNDEF        },  // (Star Wsp)
     { .t=VM_pair,       .x=2,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq (Star Wsp) (Alt ...))
 
+#if 0
     { .t=Actor_T,       .x=G_SEXPR_X+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=AP_CADR,     .y=G_SEXPR_X+2, .z=UNDEF        },  // AP_CADR
     { .t=VM_push,       .x=G_SEXPR,     .y=G_XFORM_B,   .z=UNDEF        },  // (xform cadr sexpr)
+#else
+    { .t=Actor_T,       .x=G_SEXPR_X+1, .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=F_CADR,      .y=G_SEXPR_X+2, .z=UNDEF        },  // F_CADR
+    { .t=VM_push,       .x=G_SEXPR,     .y=G_XLAT_B,    .z=UNDEF        },  // (xlat cadr sexpr)
+#endif
 
     { .t=Actor_T,       .x=G_SEXPR_S+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=G_SEXPR_X,   .y=G_STAR_B,    .z=UNDEF        },  // (Star sexpr)
@@ -1997,9 +2045,15 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_push,       .x=G_OPEN,      .y=G_LIST+6,    .z=UNDEF        },  // '('
     { .t=VM_pair,       .x=4,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq '(' (Star sexpr) (Star Wsp) ')')
 
+#if 0
     { .t=Actor_T,       .x=G_LIST_X+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=AP_CADR,     .y=G_LIST_X+2,  .z=UNDEF        },  // AP_CADR
     { .t=VM_push,       .x=G_LIST,      .y=G_XFORM_B,   .z=UNDEF        },  // (xform cadr list)
+#else
+    { .t=Actor_T,       .x=G_LIST_X+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=F_CADR,      .y=G_LIST_X+2,  .z=UNDEF        },  // F_CADR
+    { .t=VM_push,       .x=G_LIST,      .y=G_XLAT_B,    .z=UNDEF        },  // (xlat cadr list)
+#endif
 
 #define S_EMPTY (G_LIST_X+3)
     { .t=Actor_T,       .x=S_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },
@@ -2083,6 +2137,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_PRED_K, "G_PRED_K" },
     { G_PRED_OK, "G_PRED_OK" },
     { G_PRED_B, "G_PRED_B" },
+    { G_XLAT_K, "G_XLAT_K" },
+    { G_XLAT_OK, "G_XLAT_OK" },
+    { G_XLAT_B, "G_XLAT_B" },
 
     { CALL_BEH, "CALL_BEH" },
     { F_OPER_B, "F_OPER_B" },

@@ -281,6 +281,18 @@ k_queue: [head,tail]--------------------+
 (define cadr (lambda (x) (car (cdr x))))
 ```
 
+#### Execution Statistics Test-Case
+
+```
+((lambda (x) x) (list 1 2 3))
+```
+
+Date       | Events | Instructions | Description
+-----------|--------|--------------|-------------
+2022-05-17 |   1609 |        16435 | baseline measurement
+2022-05-18 |   1279 |        15005 | XLAT in G_SEXPR_X
+2022-05-18 |   1159 |        14485 | XLAT in G_SEXPR_X and G_LIST_X
+
 ## PEG Tools
 
  * `(peg-source `_list_`)`
