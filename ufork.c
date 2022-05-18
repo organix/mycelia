@@ -19,6 +19,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define RUN_DEBUGGER  1 // run program under interactive debugger
 #define EXPLICIT_FREE 1 // explicitly free known-dead memory
 #define MARK_SWEEP_GC 1 // stop-the-world garbage collection
+#define RUNTIME_STATS 1 // collect statistics on the runtime
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -2820,6 +2821,9 @@ int_t init_global_env() {
 
 int_t e_queue_head = START;
 int_t e_queue_tail = START;
+#if RUNTIME_STATS
+static long event_count = 0;
+#endif
 
 #define event_q_empty() (e_queue_head == NIL)
 
@@ -2842,6 +2846,9 @@ int_t event_q_pop() {
     if (event_q_empty()) {
         e_queue_tail = NIL;  // empty queue
     }
+#if RUNTIME_STATS
+    ++event_count;
+#endif
     return event;
 }
 
@@ -2866,6 +2873,9 @@ static int_t event_q_dump() {
 
 int_t k_queue_head = NIL;
 int_t k_queue_tail = NIL;
+#if RUNTIME_STATS
+static long instruction_count = 0;
+#endif
 
 // FIXME: e_queue and k_queue management procedures are the same...
 
@@ -2890,6 +2900,9 @@ int_t cont_q_pop() {
     if (cont_q_empty()) {
         k_queue_tail = NIL;  // empty queue
     }
+#if RUNTIME_STATS
+    ++instruction_count;
+#endif
     return cont;
 }
 
@@ -4109,7 +4122,19 @@ int_t debugger() {
                 event_q_dump();
                 continue;
             }
+#if RUNTIME_STATS
+            if (*cmd == 's') {              // info statistics
+                fprintf(stderr, "events=%ld instructions=%ld\n",
+                    event_count, instruction_count);
+                // reset counters
+                event_count = 0;
+                instruction_count = 0;
+                continue;
+            }
+            fprintf(stderr, "info: r[egs] t[hreads] e[vents] s[tats]\n");
+#else
             fprintf(stderr, "info: r[egs] t[hreads] e[vents]\n");
+#endif
             continue;
         }
         if (*cmd == 'c') {                  // continue
@@ -4194,6 +4219,9 @@ int main(int argc, char const *argv[])
     gc_mark_and_sweep(TRUE);
 #endif // MARK_SWEEP_GC
     DEBUG(fprintf(stderr, "cell_top=%"PuI" gc_free_cnt=%"PRId32"\n", cell_top, gc_free_cnt));
+#if RUNTIME_STATS
+    fprintf(stderr, "events=%ld instructions=%ld\n", event_count, instruction_count);
+#endif
 #endif
     return 0;
 }
