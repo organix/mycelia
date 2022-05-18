@@ -2016,35 +2016,40 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=G_CLOSE+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=TO_FIX(')'), .y=G_EQ_B,      .z=UNDEF        },  // value = ')' = 41
 
+#define F_QUOTED (G_CLOSE+2)
+    { .t=Actor_T,       .x=F_QUOTED+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_QUOTED+2,  .z=UNDEF        },  // arg1
+    { .t=VM_nth,        .x=-1,          .y=F_QUOTED+3,  .z=UNDEF        },  // value = cdr(arg1)
+    { .t=VM_push,       .x=CONST_BEH,   .y=F_QUOTED+4,  .z=UNDEF        },  // CONST_BEH
+    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // a_const
+#define G_QUOTE (F_QUOTED+5)
+    { .t=Actor_T,       .x=G_QUOTE+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('\''),.y=G_EQ_B,      .z=UNDEF        },  // value = '\'' = 39
+
 /*
-sexpr = Seq(Star(Wsp), alt_ex) -> cadr = (lambda (x) (car (cdr x)))
-alt_ex = Alt(list, const, fixnum, symbol)
+sexpr = And(Star(Wsp), alt_ex) -> cdr
+alt_ex = Alt(list, const, quoted, fixnum, symbol)
 list = Seq('(', Star(sexpr), Star(Wsp), ')') -> cadr
 const = And('#', Alt('f', 't', '?'))
+quoted = And('\'', alt_ex)
 fixnum = Or(And(Or('+', '-'), Plus(Dgt)), Plus(Dgt)) -> fixnum
 symbol = Plus(Atom) -> symbol
 */
-#define G_SEXPR (G_CLOSE+2)
-#define G_SEXPR_X (G_SEXPR+5)
+#define G_SEXPR (G_QUOTE+2)
+#define G_SEXPR_X (G_SEXPR+3)
 #define G_SEXPR_S (G_SEXPR_X+3)
 #define G_ALT_EX (G_SEXPR_S+2)
-#define G_LIST (G_ALT_EX+7)
+#define G_QUOTED (G_ALT_EX+8)
+#define G_QUOTED_X (G_QUOTED+3)
+#define G_LIST (G_QUOTED_X+3)
 #define G_LIST_X (G_LIST+7)
     { .t=Actor_T,       .x=G_SEXPR+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=NIL,         .y=G_SEXPR+2,   .z=UNDEF        },  // ()
-    { .t=VM_push,       .x=G_ALT_EX,    .y=G_SEXPR+3,   .z=UNDEF        },  // G_ALT_EX
-    { .t=VM_push,       .x=G_WSP_S,     .y=G_SEXPR+4,   .z=UNDEF        },  // (Star Wsp)
-    { .t=VM_pair,       .x=2,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq (Star Wsp) (Alt ...))
+    { .t=VM_push,       .x=G_WSP_S,     .y=G_SEXPR+2,   .z=UNDEF        },  // (Star Wsp)
+    { .t=VM_push,       .x=G_ALT_EX,    .y=G_AND_B,     .z=UNDEF        },  // G_ALT_EX
 
-#if 0
     { .t=Actor_T,       .x=G_SEXPR_X+1, .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=AP_CADR,     .y=G_SEXPR_X+2, .z=UNDEF        },  // AP_CADR
-    { .t=VM_push,       .x=G_SEXPR,     .y=G_XFORM_B,   .z=UNDEF        },  // (xform cadr sexpr)
-#else
-    { .t=Actor_T,       .x=G_SEXPR_X+1, .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=F_CADR,      .y=G_SEXPR_X+2, .z=UNDEF        },  // F_CADR
-    { .t=VM_push,       .x=G_SEXPR,     .y=G_XLAT_B,    .z=UNDEF        },  // (xlat cadr sexpr)
-#endif
+    { .t=VM_push,       .x=F_CDR,       .y=G_SEXPR_X+2, .z=UNDEF        },  // F_CDR
+    { .t=VM_push,       .x=G_SEXPR,     .y=G_XLAT_B,    .z=UNDEF        },  // (xlat cdr sexpr)
 
     { .t=Actor_T,       .x=G_SEXPR_S+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=G_SEXPR_X,   .y=G_STAR_B,    .z=UNDEF        },  // (Star sexpr)
@@ -2053,9 +2058,18 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_push,       .x=NIL,         .y=G_ALT_EX+2,  .z=UNDEF        },  // ()
     { .t=VM_push,       .x=G_SYMBOL,    .y=G_ALT_EX+3,  .z=UNDEF        },  // symbol
     { .t=VM_push,       .x=G_FIXNUM,    .y=G_ALT_EX+4,  .z=UNDEF        },  // fixnum
-    { .t=VM_push,       .x=G_CONST_X,   .y=G_ALT_EX+5,  .z=UNDEF        },  // const
-    { .t=VM_push,       .x=G_LIST_X,    .y=G_ALT_EX+6,  .z=UNDEF        },  // list
-    { .t=VM_pair,       .x=4,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt list const fixnum symbol)
+    { .t=VM_push,       .x=G_QUOTED_X,  .y=G_ALT_EX+5,  .z=UNDEF        },  // quoted
+    { .t=VM_push,       .x=G_CONST_X,   .y=G_ALT_EX+6,  .z=UNDEF        },  // const
+    { .t=VM_push,       .x=G_LIST_X,    .y=G_ALT_EX+7,  .z=UNDEF        },  // list
+    { .t=VM_pair,       .x=5,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt list const quoted fixnum symbol)
+
+    { .t=Actor_T,       .x=G_QUOTED+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=G_QUOTE,     .y=G_QUOTED+2,  .z=UNDEF        },  // '\''
+    { .t=VM_push,       .x=G_ALT_EX,    .y=G_AND_B,     .z=UNDEF        },  // G_ALT_EX
+
+    { .t=Actor_T,       .x=G_QUOTED_X+1,.y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=F_QUOTED,    .y=G_QUOTED_X+2,.z=UNDEF        },  // F_QUOTED
+    { .t=VM_push,       .x=G_QUOTED,    .y=G_XLAT_B,    .z=UNDEF        },  // (xlat f_quoted quoted)
 
     { .t=Actor_T,       .x=G_LIST+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_LIST+2,    .z=UNDEF        },  // ()
@@ -2065,15 +2079,9 @@ symbol = Plus(Atom) -> symbol
     { .t=VM_push,       .x=G_OPEN,      .y=G_LIST+6,    .z=UNDEF        },  // '('
     { .t=VM_pair,       .x=4,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq '(' (Star sexpr) (Star Wsp) ')')
 
-#if 0
-    { .t=Actor_T,       .x=G_LIST_X+1,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=AP_CADR,     .y=G_LIST_X+2,  .z=UNDEF        },  // AP_CADR
-    { .t=VM_push,       .x=G_LIST,      .y=G_XFORM_B,   .z=UNDEF        },  // (xform cadr list)
-#else
     { .t=Actor_T,       .x=G_LIST_X+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=F_CADR,      .y=G_LIST_X+2,  .z=UNDEF        },  // F_CADR
     { .t=VM_push,       .x=G_LIST,      .y=G_XLAT_B,    .z=UNDEF        },  // (xlat cadr list)
-#endif
 
 #define S_EMPTY (G_LIST_X+3)
     { .t=Actor_T,       .x=S_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },
@@ -2265,10 +2273,14 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_SYMBOL, "G_SYMBOL" },
     { G_OPEN, "G_OPEN" },
     { G_CLOSE, "G_CLOSE" },
+    { F_QUOTED, "F_QUOTED" },
+    { G_QUOTE, "G_QUOTE" },
     { G_SEXPR, "G_SEXPR" },
     { G_SEXPR_X, "G_SEXPR_X" },
     { G_SEXPR_S, "G_SEXPR_S" },
     { G_ALT_EX, "G_ALT_EX" },
+    { G_QUOTED, "G_QUOTED" },
+    { G_QUOTED_X, "G_QUOTED_X" },
     { G_LIST, "G_LIST" },
     { G_LIST_X, "G_LIST_X" },
 
@@ -4125,7 +4137,7 @@ int_t debugger() {
     n_ep = 0;
     while (1) {
         continuation_trace();
-        fprintf(stderr, "# ");  // debugger prompt
+        fprintf(stderr, "@ ");  // debugger prompt
         char *p = fgets(buf, sizeof(buf), stdin);
         if (!p) {
             fprintf(stderr, "\n");

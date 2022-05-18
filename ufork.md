@@ -290,9 +290,11 @@ k_queue: [head,tail]--------------------+
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
 2022-05-17 |   1609 |        16435 | baseline measurement
-2022-05-18 |   1279 |        15005 | G_XLAT_B in G_SEXPR_X
-2022-05-18 |   1159 |        14485 | G_XLAT_B in G_SEXPR_X and G_LIST_X
-2022-05-18 |   1173 |        14676 | G_XLAT_B in G_FIXNUM and G_SYMBOL
+2022-05-18 |   1279 |        15005 | XLAT in G_SEXPR_X
+2022-05-18 |   1159 |        14485 | XLAT in G_SEXPR_X and G_LIST_X
+2022-05-18 |   1173 |        14676 | XLAT in G_FIXNUM and G_SYMBOL
+2022-05-18 |   1117 |        13869 | replace SEQ with AND in G_SEXPR
+2022-05-18 |   1203 |        15029 | parse QUOTE -> CONST_BEH
 
 ## PEG Tools
 
@@ -548,8 +550,8 @@ NIL or --->[token,next]--->
 (define scm-expr
   (peg-alt scm-list scm-literal scm-quote scm-number scm-symbol))
 (define scm-sexpr
-  (peg-xform cadr
-    (peg-seq scm-wsp scm-expr)))
+  (peg-xform cdr
+    (peg-and scm-wsp scm-expr)))
 ```
 
 ## Inspiration
