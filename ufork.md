@@ -290,8 +290,9 @@ k_queue: [head,tail]--------------------+
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
 2022-05-17 |   1609 |        16435 | baseline measurement
-2022-05-18 |   1279 |        15005 | XLAT in G_SEXPR_X
-2022-05-18 |   1159 |        14485 | XLAT in G_SEXPR_X and G_LIST_X
+2022-05-18 |   1279 |        15005 | G_XLAT_B in G_SEXPR_X
+2022-05-18 |   1159 |        14485 | G_XLAT_B in G_SEXPR_X and G_LIST_X
+2022-05-18 |   1173 |        14676 | G_XLAT_B in G_FIXNUM and G_SYMBOL
 
 ## PEG Tools
 
