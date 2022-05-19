@@ -565,7 +565,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=TO_FIX('p'), .y=A_BOOT+11,   .z=UNDEF        },
     { .t=VM_pair,       .x=8,           .y=A_BOOT+12,   .z=UNDEF        },  // "peg-lang"
     { .t=VM_cvt,        .x=CVT_LST_SYM, .y=A_BOOT+13,   .z=UNDEF        },
-    { .t=VM_set,        .x=FLD_X,       .y=REPL_L,      .z=UNDEF        },
+    { .t=VM_set,        .x=FLD_X,       .y=REPL_L,      .z=UNDEF        },  // set_x(symbol)
 
 /*
 (define tag-beh
@@ -738,14 +738,14 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=NIL,         .y=G_EMPTY+3,   .z=UNDEF        },  // ()
     { .t=VM_pair,       .x=1,           .y=G_EMPTY+4,   .z=UNDEF        },  // (() . in)
     { .t=VM_msg,        .x=1,           .y=G_EMPTY+5,   .z=UNDEF        },  // custs = (ok . fail)
-    { .t=VM_get,        .x=FLD_X,       .y=SEND_0,      .z=UNDEF        },  // ok
+    { .t=VM_nth,        .x=1,           .y=SEND_0,      .z=UNDEF        },  // ok = car(custs)
 
 #define G_FAIL (G_EMPTY+6)
     { .t=Actor_T,       .x=G_FAIL+1,    .y=UNDEF,       .z=UNDEF        },
 #define G_FAIL_B (G_FAIL+1)
     { .t=VM_msg,        .x=-2,          .y=G_FAIL+2,    .z=UNDEF        },  // in
     { .t=VM_msg,        .x=1,           .y=G_FAIL+3,    .z=UNDEF        },  // custs = (ok . fail)
-    { .t=VM_get,        .x=FLD_Y,       .y=SEND_0,      .z=UNDEF        },  // fail
+    { .t=VM_nth,        .x=-1,          .y=SEND_0,      .z=UNDEF        },  // fail = cdr(custs)
 
 #define G_NEXT_K (G_FAIL+4)
 //  { .t=VM_push,       .x=_cust_,      .y=G_NEXT_K-1,  .z=UNDEF        },
@@ -816,7 +816,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_new,        .x=2,           .y=G_OR_B+5,    .z=UNDEF        },  // or_fail
 
     { .t=VM_msg,        .x=1,           .y=G_OR_B+6,    .z=UNDEF        },  // custs
-    { .t=VM_get,        .x=FLD_X,       .y=G_OR_B+7,    .z=UNDEF        },  // ok
+    { .t=VM_nth,        .x=1,           .y=G_OR_B+7,    .z=UNDEF        },  // ok = car(custs)
     { .t=VM_pair,       .x=1,           .y=G_OR_B+8,    .z=UNDEF        },  // (ok . or_fail)
     { .t=VM_pair,       .x=1,           .y=G_OR_B+9,    .z=UNDEF        },  // ((ok . or_fail) . resume)
 
@@ -850,7 +850,7 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=VM_push,       .x=_rest_,      .y=G_AND_B+0,   .z=UNDEF        },
     { .t=VM_msg,        .x=-1,          .y=G_AND_B+1,   .z=UNDEF        },  // resume = (value . in)
     { .t=VM_msg,        .x=1,           .y=G_AND_B+2,   .z=UNDEF        },  // custs
-    { .t=VM_get,        .x=FLD_Y,       .y=G_AND_B+3,   .z=UNDEF        },  // fail
+    { .t=VM_nth,        .x=-1,          .y=G_AND_B+3,   .z=UNDEF        },  // fail = cdr(custs)
 
     { .t=VM_msg,        .x=0,           .y=G_AND_B+4,   .z=UNDEF        },  // restart = (custs value . in)
     { .t=VM_pick,       .x=4,           .y=G_AND_B+5,   .z=UNDEF        },  // rest
@@ -858,7 +858,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_new,        .x=2,           .y=G_AND_B+7,   .z=UNDEF        },  // and_fail
 
     { .t=VM_msg,        .x=1,           .y=G_AND_B+8,   .z=UNDEF        },  // custs
-    { .t=VM_get,        .x=FLD_X,       .y=G_AND_B+9,   .z=UNDEF        },  // ok
+    { .t=VM_nth,        .x=1,           .y=G_AND_B+9,   .z=UNDEF        },  // ok = car(custs)
     { .t=VM_pair,       .x=1,           .y=G_AND_B+10,  .z=UNDEF        },  // (ok . and_fail)
     { .t=VM_pick,       .x=4,           .y=G_AND_B+11,  .z=UNDEF        },  // rest
     { .t=VM_push,       .x=G_AND_OK,    .y=G_AND_B+12,  .z=UNDEF        },  // G_AND_OK
@@ -1291,7 +1291,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define F_CAR (AP_CONS+2)
     { .t=Actor_T,       .x=F_CAR+1,     .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_CAR+2,     .z=UNDEF        },  // pair = arg1
-    { .t=VM_get,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // car(pair)
+    { .t=VM_nth,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // car(pair)
 #define AP_CAR (F_CAR+3)
     { .t=Actor_T,       .x=AP_CAR+1,    .y=UNDEF,       .z=UNDEF        },  // (car <pair>)
     { .t=VM_push,       .x=F_CAR,       .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CAR
@@ -1299,7 +1299,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define F_CDR (AP_CAR+2)
     { .t=Actor_T,       .x=F_CDR+1,     .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_CDR+2,     .z=UNDEF        },  // pair = arg1
-    { .t=VM_get,        .x=FLD_Y,       .y=CUST_SEND,   .z=UNDEF        },  // cdr(pair)
+    { .t=VM_nth,        .x=-1,          .y=CUST_SEND,   .z=UNDEF        },  // cdr(pair)
 #define AP_CDR (F_CDR+3)
     { .t=Actor_T,       .x=AP_CDR+1,    .y=UNDEF,       .z=UNDEF        },  // (cdr <pair>)
     { .t=VM_push,       .x=F_CDR,       .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_CDR
@@ -1325,9 +1325,9 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=F_NTH+6,     .y=F_NTH+2,     .z=UNDEF        },  // address of VM_nth instruction
     { .t=VM_msg,        .x=2,           .y=F_NTH+3,     .z=UNDEF        },  // index = arg1
     { .t=VM_cvt,        .x=CVT_FIX_INT, .y=F_NTH+4,     .z=UNDEF        },  // TO_INT(index)
-    { .t=VM_set,        .x=FLD_X,       .y=F_NTH+5,     .z=UNDEF        },  // {x:index}
+    { .t=VM_set,        .x=FLD_X,       .y=F_NTH+5,     .z=UNDEF        },  // set_x(index)
     { .t=VM_msg,        .x=3,           .y=F_NTH+6,     .z=UNDEF        },  // list = arg2
-    { .t=VM_nth,        .x=0,           .y=CUST_SEND,   .z=UNDEF        },  // nth(list)
+    { .t=VM_nth,        .x=0,           .y=CUST_SEND,   .z=UNDEF        },  // nth(list) <-- self-modifying code!
 #define AP_NTH (F_NTH+7)
     { .t=Actor_T,       .x=AP_NTH+1,    .y=UNDEF,       .z=UNDEF        },  // (nth <index> <list>)
     { .t=VM_push,       .x=F_NTH,       .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_NTH
@@ -1665,7 +1665,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_roll,       .x=5,           .y=SEND_0,      .z=UNDEF        },  // cust
 
     { .t=VM_pick,       .x=2,           .y=C_VAR_T+10,  .z=UNDEF        },  // frml
-    { .t=VM_get,        .x=FLD_X,       .y=C_VAR_T+11,  .z=UNDEF        },  // car(frml)
+    { .t=VM_nth,        .x=1,           .y=C_VAR_T+11,  .z=UNDEF        },  // car(frml)
     { .t=VM_pick,       .x=4,           .y=C_VAR_T+12,  .z=UNDEF        },  // name = expr
     { .t=VM_cmp,        .x=CMP_EQ,      .y=C_VAR_T+13,  .z=UNDEF        },  // car(frml) == name
     { .t=VM_if,         .x=C_VAR_T+14,  .y=C_VAR_T+19,  .z=UNDEF        },
@@ -1677,7 +1677,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_roll,       .x=5,           .y=SEND_0,      .z=UNDEF        },  // cust
 
     { .t=VM_pick,       .x=2,           .y=C_VAR_T+20,  .z=UNDEF        },  // frml
-    { .t=VM_get,        .x=FLD_Y,       .y=C_VAR_T+21,  .z=UNDEF        },  // cdr(frml)
+    { .t=VM_nth,        .x=-1,          .y=C_VAR_T+21,  .z=UNDEF        },  // cdr(frml)
     { .t=VM_pick,       .x=4,           .y=C_VAR_T+22,  .z=UNDEF        },  // name = expr
     { .t=VM_cmp,        .x=CMP_EQ,      .y=C_VAR_T+23,  .z=UNDEF        },  // cdr(frml) == name
     { .t=VM_if,         .x=C_VAR_T+24,  .y=C_VAR_T+29,  .z=UNDEF        },
@@ -1689,43 +1689,39 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_roll,       .x=5,           .y=SEND_0,      .z=UNDEF        },  // cust
 
     { .t=VM_pick,       .x=2,           .y=C_VAR_T+30,  .z=UNDEF        },  // frml
-    { .t=VM_get,        .x=FLD_Y,       .y=C_VAR_T+31,  .z=UNDEF        },  // cdr(frml)
-    { .t=VM_get,        .x=FLD_X,       .y=C_VAR_T+32,  .z=UNDEF        },  // cadr(frml)
-    { .t=VM_pick,       .x=4,           .y=C_VAR_T+33,  .z=UNDEF        },  // name = expr
-    { .t=VM_cmp,        .x=CMP_EQ,      .y=C_VAR_T+34,  .z=UNDEF        },  // cadr(frml) == name
-    { .t=VM_if,         .x=C_VAR_T+35,  .y=C_VAR_T+40,  .z=UNDEF        },
+    { .t=VM_nth,        .x=2,           .y=C_VAR_T+31,  .z=UNDEF        },  // cadr(frml)
+    { .t=VM_pick,       .x=4,           .y=C_VAR_T+32,  .z=UNDEF        },  // name = expr
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=C_VAR_T+33,  .z=UNDEF        },  // cadr(frml) == name
+    { .t=VM_if,         .x=C_VAR_T+34,  .y=C_VAR_T+39,  .z=UNDEF        },
 
-    { .t=VM_push,       .x=VM_msg,      .y=C_VAR_T+36,  .z=UNDEF        },  // VM_msg
-    { .t=VM_push,       .x=3,           .y=C_VAR_T+37,  .z=UNDEF        },  // cadr(args)
-    { .t=VM_msg,        .x=0,           .y=C_VAR_T+38,  .z=UNDEF        },  // beh
-    { .t=VM_cell,       .x=3,           .y=C_VAR_T+39,  .z=UNDEF        },  // {t:VM_msg, x:3, y:beh}
+    { .t=VM_push,       .x=VM_msg,      .y=C_VAR_T+35,  .z=UNDEF        },  // VM_msg
+    { .t=VM_push,       .x=3,           .y=C_VAR_T+36,  .z=UNDEF        },  // cadr(args)
+    { .t=VM_msg,        .x=0,           .y=C_VAR_T+37,  .z=UNDEF        },  // beh
+    { .t=VM_cell,       .x=3,           .y=C_VAR_T+38,  .z=UNDEF        },  // {t:VM_msg, x:3, y:beh}
     { .t=VM_roll,       .x=5,           .y=SEND_0,      .z=UNDEF        },  // cust
 
-    { .t=VM_pick,       .x=2,           .y=C_VAR_T+41,  .z=UNDEF        },  // frml
-    { .t=VM_get,        .x=FLD_Y,       .y=C_VAR_T+42,  .z=UNDEF        },  // cdr(frml)
-    { .t=VM_get,        .x=FLD_Y,       .y=C_VAR_T+43,  .z=UNDEF        },  // cddr(frml)
-    { .t=VM_pick,       .x=4,           .y=C_VAR_T+44,  .z=UNDEF        },  // name = expr
-    { .t=VM_cmp,        .x=CMP_EQ,      .y=C_VAR_T+45,  .z=UNDEF        },  // cddr(frml) == name
-    { .t=VM_if,         .x=C_VAR_T+46,  .y=C_VAR_T+51,  .z=UNDEF        },
+    { .t=VM_pick,       .x=2,           .y=C_VAR_T+40,  .z=UNDEF        },  // frml
+    { .t=VM_nth,        .x=-2,          .y=C_VAR_T+41,  .z=UNDEF        },  // cddr(frml)
+    { .t=VM_pick,       .x=4,           .y=C_VAR_T+42,  .z=UNDEF        },  // name = expr
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=C_VAR_T+43,  .z=UNDEF        },  // cddr(frml) == name
+    { .t=VM_if,         .x=C_VAR_T+44,  .y=C_VAR_T+49,  .z=UNDEF        },
 
-    { .t=VM_push,       .x=VM_msg,      .y=C_VAR_T+47,  .z=UNDEF        },  // VM_msg
-    { .t=VM_push,       .x=-3,          .y=C_VAR_T+48,  .z=UNDEF        },  // cddr(args)
-    { .t=VM_msg,        .x=0,           .y=C_VAR_T+49,  .z=UNDEF        },  // beh
-    { .t=VM_cell,       .x=3,           .y=C_VAR_T+50,  .z=UNDEF        },  // {t:VM_msg, x:-3, y:beh}
+    { .t=VM_push,       .x=VM_msg,      .y=C_VAR_T+45,  .z=UNDEF        },  // VM_msg
+    { .t=VM_push,       .x=-3,          .y=C_VAR_T+46,  .z=UNDEF        },  // cddr(args)
+    { .t=VM_msg,        .x=0,           .y=C_VAR_T+47,  .z=UNDEF        },  // beh
+    { .t=VM_cell,       .x=3,           .y=C_VAR_T+48,  .z=UNDEF        },  // {t:VM_msg, x:-3, y:beh}
     { .t=VM_roll,       .x=5,           .y=SEND_0,      .z=UNDEF        },  // cust
 
-    { .t=VM_pick,       .x=2,           .y=C_VAR_T+52,  .z=UNDEF        },  // frml
-    { .t=VM_get,        .x=FLD_Y,       .y=C_VAR_T+53,  .z=UNDEF        },  // cdr(frml)
-    { .t=VM_get,        .x=FLD_Y,       .y=C_VAR_T+54,  .z=UNDEF        },  // cddr(frml)
-    { .t=VM_get,        .x=FLD_X,       .y=C_VAR_T+55,  .z=UNDEF        },  // caddr(frml)
-    { .t=VM_pick,       .x=4,           .y=C_VAR_T+56,  .z=UNDEF        },  // name = expr
-    { .t=VM_cmp,        .x=CMP_EQ,      .y=C_VAR_T+57,  .z=UNDEF        },  // cadr(frml) == name
-    { .t=VM_if,         .x=C_VAR_T+58,  .y=C_UNDEF_T,   .z=UNDEF        },
+    { .t=VM_pick,       .x=2,           .y=C_VAR_T+50,  .z=UNDEF        },  // frml
+    { .t=VM_nth,        .x=3,           .y=C_VAR_T+51,  .z=UNDEF        },  // caddr(frml)
+    { .t=VM_pick,       .x=4,           .y=C_VAR_T+52,  .z=UNDEF        },  // name = expr
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=C_VAR_T+53,  .z=UNDEF        },  // cadr(frml) == name
+    { .t=VM_if,         .x=C_VAR_T+54,  .y=C_UNDEF_T,   .z=UNDEF        },
 
-    { .t=VM_push,       .x=VM_msg,      .y=C_VAR_T+59,  .z=UNDEF        },  // VM_msg
-    { .t=VM_push,       .x=4,           .y=C_VAR_T+60,  .z=UNDEF        },  // caddr(args)
-    { .t=VM_msg,        .x=0,           .y=C_VAR_T+61,  .z=UNDEF        },  // beh
-    { .t=VM_cell,       .x=3,           .y=C_VAR_T+62,  .z=UNDEF        },  // {t:VM_msg, x:4, y:beh}
+    { .t=VM_push,       .x=VM_msg,      .y=C_VAR_T+55,  .z=UNDEF        },  // VM_msg
+    { .t=VM_push,       .x=4,           .y=C_VAR_T+56,  .z=UNDEF        },  // caddr(args)
+    { .t=VM_msg,        .x=0,           .y=C_VAR_T+57,  .z=UNDEF        },  // beh
+    { .t=VM_cell,       .x=3,           .y=C_VAR_T+58,  .z=UNDEF        },  // {t:VM_msg, x:4, y:beh}
     { .t=VM_roll,       .x=5,           .y=SEND_0,      .z=UNDEF        },  // cust
 /*
 (define k-compile
@@ -1744,7 +1740,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
           ;...
       )))))
 */
-#define K_COMPILE (C_VAR_T+63)
+#define K_COMPILE (C_VAR_T+59)
 //  { .t=VM_push,       .x=_cust_,      .y=K_COMPILE-3, .z=UNDEF        },
 //  { .t=VM_push,       .x=_expr_,      .y=K_COMPILE-2, .z=UNDEF        },
 //  { .t=VM_push,       .x=_frml_,      .y=K_COMPILE-1, .z=UNDEF        },
@@ -1842,14 +1838,14 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
     { .t=VM_msg,        .x=3,           .y=LAMBDA_C+5,  .z=UNDEF        },  // env
     { .t=VM_msg,        .x=2,           .y=LAMBDA_C+6,  .z=UNDEF        },  // opnd
-    { .t=VM_get,        .x=FLD_X,       .y=LAMBDA_C+7,  .z=UNDEF        },  // frml = car(opnd)
+    { .t=VM_nth,        .x=1,           .y=LAMBDA_C+7,  .z=UNDEF        },  // frml = car(opnd)
 
     { .t=VM_msg,        .x=1,           .y=LAMBDA_C+8,  .z=UNDEF        },  // cust
     { .t=VM_push,       .x=K_LAMBDAC,   .y=LAMBDA_C+9,  .z=UNDEF        },  // K_LAMBDAC
     { .t=VM_new,        .x=1,           .y=LAMBDA_C+10, .z=UNDEF        },  // k_lambda
 
     { .t=VM_msg,        .x=2,           .y=LAMBDA_C+11, .z=UNDEF        },  // opnd
-    { .t=VM_get,        .x=FLD_Y,       .y=LAMBDA_C+12, .z=UNDEF        },  // body = cdr(opnd)
+    { .t=VM_nth,        .x=-1,          .y=LAMBDA_C+12, .z=UNDEF        },  // body = cdr(opnd)
     { .t=VM_push,       .x=COMPILE_B,   .y=LAMBDA_C+13, .z=UNDEF        },  // COMPILE_B
     { .t=VM_new,        .x=1,           .y=LAMBDA_C+14, .z=UNDEF        },  // compile
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (compile k_lambda frml env)
@@ -2850,8 +2846,6 @@ int_t init_global_env() {
     set_z(s, OP_LAMBDA);
 #endif
     bind_global("peg-lang", G_SEXPR_X);  // language parser start symbol
-    bind_global("#f", FALSE);  // FIXME: should be parsed as a constant
-    bind_global("#t", TRUE);  // FIXME: should be parsed as a constant
     bind_global("quote", OP_QUOTE);
     bind_global("list", AP_LIST);
     bind_global("lambda", LAMBDA_C);
