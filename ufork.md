@@ -269,6 +269,7 @@ k_queue: [head,tail]--------------------+
 ### Lambda Compilation Test-Cases
 
 ```
+(define nop (lambda _))  ; equivalent to _par_
 (define zero (lambda _ 0))
 (define nil (lambda _ ()))
 (define ap (lambda x x))  ; equivalent to _list_
@@ -279,6 +280,55 @@ k_queue: [head,tail]--------------------+
 (define i3 (lambda (x y z) z))
 (define l3 (lambda (x y z) (list x y z)))
 (define cadr (lambda (x) (car (cdr x))))
+```
+
+#### Lambda Compiled Code Structures
+
+```
+            [Event,tgt,msg]--->[Pair,car,cdr]--->[Pair,car,NIL]
+                    |                 |                 |
+                    |                 v                 v
+        +-----------|--------------> cust              env <--------------+
+        |           |                                   ^                 |
+        |           v                                   |                 |
+        |   [Pair,car,cdr]---> params <-----------------|---------+       |
+        |          |                                    |         |       |
+        |          v                                    |         |       |
+        |         comb                                  |         |       |
+        |           ^                                   |         |       |
+        |           |                                   |         |       |
+        |   [Event,tgt,msg]--->[Pair,car,cdr]--->[Pair,car,NIL]   |       |
+        |                             |                           |       |
+        |                             |                           |       |
+        |   [Actor,ip]<---------------+                           |       |
+        |           |                                             |       |
+        +-----------|-----------------+                           |       |
+                    |                 |                           |       |
+                    v                 |                           |       |
+            [PUSH,m,k]                |                 +---------+       |
+                  | |                 |                 |                 |
+                  +-|--------->[Pair,car,cdr]--->[Pair,car,cdr]--->[Pair,car,NIL]
+                    |
+                    v
+K_CALL:     [MSG,+0,k]---+                       [Actor,ip]
+                         |                               |
+                         |                               v
+RESEND:     [MSG,+0,k]   |                       [PUSH,f,k]
+                    |    |                            /  |
+                    v    |                           /   v
+            [SELF,?,k]---+     [Actor,ip]<----------+   AP_FUNC_B
+                         |             |
+                         |             v
+SELF_EVAL:  [SELF,?,k]   |     [PUSH,UNIT,k]
+                    |    |                |
+                    v    |                :
+CUST_SEND:  [MSG,+1,k]<--|----------------+
+                    |    |
+                    v    |
+SEND_0:     [SEND,0,k]<--+
+                    |
+                    v
+COMMIT:     [END,+1,?]
 ```
 
 #### Execution Statistics Test-Case
