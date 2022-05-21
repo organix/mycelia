@@ -345,6 +345,7 @@ Date       | Events | Instructions | Description
 2022-05-18 |   1173 |        14676 | XLAT in G_FIXNUM and G_SYMBOL
 2022-05-18 |   1117 |        13869 | replace SEQ with AND in G_SEXPR
 2022-05-18 |   1203 |        15029 | parse QUOTE -> CONST_BEH
+2022-05-21 |   1205 |        15039 | delegate to GLOBAL_ENV
 
 ## PEG Tools
 

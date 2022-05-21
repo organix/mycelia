@@ -429,7 +429,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // NIL = ()
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNDEF = #?
     { .t=Unit_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
-    { .t=Event_T,       .x=76,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
+    { .t=Event_T,       .x=77,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
 
 #define SELF_EVAL (START+1)
     { .t=VM_self,       .x=UNDEF,       .y=START+2,     .z=UNDEF        },  // value = SELF
@@ -507,16 +507,17 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=UNDEF,       .y=G_CALL_B,    .z=UNDEF        },  // {x:symbol} patched by A_BOOT
 
 /*
-(define empty-env
+(define global-env
   (CREATE
-    (BEH (cust _index)
-      (SEND cust #undefined))))
+    (BEH (cust . key)
+      (SEND cust (get_z key)) )))  ; extract value from global symbol table
 */
-#define EMPTY_ENV (G_LANG+2)
-    { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=UNDEF,       .y=CUST_SEND,   .z=UNDEF        },
+#define GLOBAL_ENV (G_LANG+2)
+    { .t=Actor_T,       .x=GLOBAL_ENV+1,.y=UNDEF,       .z=UNDEF        },
+    { .t=VM_msg,        .x=-1,          .y=GLOBAL_ENV+2,.z=UNDEF        },  // symbol = key
+    { .t=VM_get,        .x=FLD_Z,       .y=CUST_SEND,   .z=UNDEF        },  // get_z(symbol)
 
-#define REPL_R (EMPTY_ENV+2)
+#define REPL_R (GLOBAL_ENV+3)
 #define REPL_E (REPL_R+8)
 #define REPL_P (REPL_E+7)
 #define REPL_L (REPL_P+3)
@@ -533,10 +534,10 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=REPL_E+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=REPL_E+2,    .z=UNDEF        },  // sexpr
     { .t=VM_debug,      .x=TO_FIX(888), .y=REPL_E+3,    .z=UNDEF        },
-    { .t=VM_push,       .x=EMPTY_ENV,   .y=REPL_E+4,    .z=UNDEF        },  // env = EMPTY_ENV
+    { .t=VM_push,       .x=GLOBAL_ENV,  .y=REPL_E+4,    .z=UNDEF        },  // env = GLOBAL_ENV
     { .t=VM_push,       .x=REPL_P,      .y=REPL_E+5,    .z=UNDEF        },  // cust = REPL_P
     { .t=VM_msg,        .x=1,           .y=REPL_E+6,    .z=UNDEF        },  // sexpr
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (sexpr REPL_P EMPTY_ENV)
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (sexpr REPL_P GLOBAL_ENV)
 
     { .t=Actor_T,       .x=REPL_P+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=REPL_P+2,    .z=UNDEF        },
@@ -991,7 +992,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define G_XFM_OK (G_XFM_K+3)
 //  { .t=VM_push,       .x=_cust_,      .y=G_XFM_OK-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_appl_,      .y=G_XFM_OK+0,  .z=UNDEF        },
-    { .t=VM_push,       .x=EMPTY_ENV,   .y=G_XFM_OK+1,  .z=UNDEF        },  // denv = EMPTY_ENV
+    { .t=VM_push,       .x=GLOBAL_ENV,  .y=G_XFM_OK+1,  .z=UNDEF        },  // denv = GLOBAL_ENV
 
     { .t=VM_push,       .x=NIL,         .y=G_XFM_OK+2,  .z=UNDEF        },  // ()
     { .t=VM_msg,        .x=1,           .y=G_XFM_OK+3,  .z=UNDEF        },  // arg = value
@@ -1038,7 +1039,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define G_PRED_OK (G_PRED_K+7)
 //  { .t=VM_push,       .x=_msg0_,      .y=G_PRED_OK-1, .z=UNDEF        },
 //  { .t=VM_push,       .x=_pred_,      .y=G_PRED_OK+0, .z=UNDEF        },
-    { .t=VM_push,       .x=EMPTY_ENV,   .y=G_PRED_OK+1, .z=UNDEF        },  // denv = EMPTY_ENV
+    { .t=VM_push,       .x=GLOBAL_ENV,  .y=G_PRED_OK+1, .z=UNDEF        },  // denv = GLOBAL_ENV
 
     { .t=VM_push,       .x=NIL,         .y=G_PRED_OK+2, .z=UNDEF        },  // ()
     { .t=VM_msg,        .x=1,           .y=G_PRED_OK+3, .z=UNDEF        },  // arg = value'
@@ -1117,6 +1118,39 @@ Star(pattern) = Or(Plus(pattern), Empty)
 //
 
 /*
+(define empty-env
+  (CREATE
+    (BEH (cust . _)
+      (SEND cust #undefined))))
+*/
+#define EMPTY_ENV (G_END+0)
+    { .t=Actor_T,       .x=EMPTY_ENV+1, .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=UNDEF,       .y=CUST_SEND,   .z=UNDEF        },
+
+/*
+(define bound-beh
+  (lambda (var val env)
+    (BEH (cust . key)  ; FIXME: implement (cust key value) to "bind"
+      (if (eq? key var)
+        (SEND cust val)
+        (SEND env (cons cust key))
+      ))))
+*/
+#define BOUND_BEH (EMPTY_ENV+2)
+//  { .t=VM_push,       .x=_var_,       .y=BOUND_BEH-2, .z=UNDEF        },
+//  { .t=VM_push,       .x=_val_,       .y=BOUND_BEH-1, .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=BOUND_BEH+0, .z=UNDEF        },
+    { .t=VM_msg,        .x=-1,          .y=BOUND_BEH+1, .z=UNDEF        },  // key
+    { .t=VM_roll,       .x=4,           .y=BOUND_BEH+2, .z=UNDEF        },  // var
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=BOUND_BEH+3, .z=UNDEF        },  // key == var
+    { .t=VM_if,         .x=BOUND_BEH+4, .y=BOUND_BEH+5, .z=UNDEF        },
+
+    { .t=VM_roll,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // val
+
+    { .t=VM_msg,        .x=0,           .y=BOUND_BEH+6, .z=UNDEF        },  // msg
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // env
+
+/*
 (define call-beh                        ; function call expression
   (lambda (comb args)
     (BEH (cust env)                     ; eval
@@ -1124,7 +1158,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
         (list cust (const-beh args) env)
       ))))
 */
-#define CALL_BEH (G_END+0)
+#define CALL_BEH (BOUND_BEH+7)
 //  { .t=VM_push,       .x=_comb_,      .y=CALL_BEH-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_args_,      .y=CALL_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=2,           .y=CALL_BEH+1,  .z=UNDEF        },  // env
@@ -1871,11 +1905,14 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=UNIT,        .y=K_LAMBDAC+2, .z=UNDEF        },  // UNIT
     { .t=VM_msg,        .x=0,           .y=K_LAMBDAC+3, .z=UNDEF        },  // beh
     { .t=VM_cell,       .x=3,           .y=K_LAMBDAC+4, .z=UNDEF        },  // {t:VM_push, x:UNIT, y:beh}
+
     { .t=VM_new,        .x=0,           .y=K_LAMBDAC+5, .z=UNDEF        },  // func
+
     { .t=VM_push,       .x=VM_push,     .y=K_LAMBDAC+6, .z=UNDEF        },  // VM_push
     { .t=VM_roll,       .x=2,           .y=K_LAMBDAC+7, .z=UNDEF        },  // func
     { .t=VM_push,       .x=AP_FUNC_B,   .y=K_LAMBDAC+8, .z=UNDEF        },  // AP_FUNC_B
     { .t=VM_cell,       .x=3,           .y=K_LAMBDAC+9, .z=UNDEF        },  // {t:VM_push, x:func, y:AP_FUNC_B}
+
     { .t=VM_new,        .x=0,           .y=K_LAMBDAC+10,.z=UNDEF        },  // appl
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
 /*
@@ -1896,6 +1933,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_if,         .x=LAMBDA_C+4,  .y=SELF_EVAL,   .z=UNDEF        },
 
     { .t=VM_msg,        .x=3,           .y=LAMBDA_C+5,  .z=UNDEF        },  // env
+
     { .t=VM_msg,        .x=2,           .y=LAMBDA_C+6,  .z=UNDEF        },  // opnd
     { .t=VM_nth,        .x=1,           .y=LAMBDA_C+7,  .z=UNDEF        },  // frml = car(opnd)
 
@@ -2180,7 +2218,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_START, "G_START" },
     { G_CALL_B, "G_CALL_B" },
     { G_LANG, "G_LANG" },
-    { EMPTY_ENV, "EMPTY_ENV" },
+    { GLOBAL_ENV, "GLOBAL_ENV" },
 
     { REPL_R, "REPL_R" },
     { REPL_E, "REPL_E" },
@@ -2224,6 +2262,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_XLAT_OK, "G_XLAT_OK" },
     { G_XLAT_B, "G_XLAT_B" },
 
+    { EMPTY_ENV, "EMPTY_ENV" },
+    { BOUND_BEH, "BOUND_BEH" },
     { CALL_BEH, "CALL_BEH" },
     { F_OPER_B, "F_OPER_B" },
     { OP_FUNC_B, "OP_FUNC_B" },
@@ -3322,7 +3362,7 @@ PROC_DECL(Pair) {
                 int_t beh = K_CALL;
                 beh = cell_new(VM_push, apply, beh, UNDEF);
                 int_t k_call = cell_new(Actor_T, beh, UNDEF, UNDEF);
-                event = cell_new(Event_T, comb, list_2(k_call, env), NIL);
+                event = cell_new(Event_T, comb, list_2(k_call, env), NIL);  // eval head, apply tail
                 event_q_put(event);
                 return TRUE;  // retry event dispatch
             }
@@ -3350,8 +3390,7 @@ PROC_DECL(Symbol) {
             msg = cdr(msg);
             if ((msg == NIL) && IS_ACTOR(cust)) {
                 // eval message
-                int_t value = get_z(self);  // value of global symbol
-                event = cell_new(Event_T, cust, value, NIL);
+                event = cell_new(Event_T, env, cons(cust, self), NIL);  // delegate to environment
                 event_q_put(event);
                 return TRUE;  // retry event dispatch
             }
