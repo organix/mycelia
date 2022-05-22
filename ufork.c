@@ -680,7 +680,7 @@ cell_t cell_table[CELL_MAX] = {
 /*
 (define evlis-beh
   (lambda (param)
-    (BEH (cust env)           ; eval
+    (BEH (cust env)                     ; eval
       (if (pair? param)
         (SEND
           (CREATE (fork-beh
@@ -720,19 +720,19 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_fork h_req t_req)
 
 /*
-(define k-call-beh  ; used directly by Pair_T
+(define k-comb-beh  ; used directly by Pair_T
   (lambda (msg)
-    (BEH oper
-      (SEND oper msg))))
+    (BEH comb
+      (SEND comb msg))))
 */
-#define K_CALL (EVLIS_BEH+19)
-//  { .t=VM_push,       .x=_msg_,       .y=K_CALL+0,    .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=SEND_0,      .z=UNDEF        },  // oper
+#define K_COMB (EVLIS_BEH+19)
+//  { .t=VM_push,       .x=_msg_,       .y=K_COMB+0,    .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=SEND_0,      .z=UNDEF        },  // comb
 
 //
 // Parsing Expression Grammar (PEG) behaviors
 //
-#define G_EMPTY (K_CALL+1)
+#define G_EMPTY (K_COMB+1)
     { .t=Actor_T,       .x=G_EMPTY+1,   .y=UNDEF,       .z=UNDEF        },
 #define G_EMPTY_B (G_EMPTY+1)
     { .t=VM_msg,        .x=-2,          .y=G_EMPTY+2,   .z=UNDEF        },  // in
@@ -1151,24 +1151,24 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // env
 
 /*
-(define call-beh                        ; function call expression
+(define f-call-beh                      ; function call expression
   (lambda (comb args)
     (BEH (cust env)                     ; eval
       (SEND comb
         (list cust (const-beh args) env)
       ))))
 */
-#define CALL_BEH (BOUND_BEH+7)
-//  { .t=VM_push,       .x=_comb_,      .y=CALL_BEH-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_args_,      .y=CALL_BEH+0,  .z=UNDEF        },
-    { .t=VM_msg,        .x=2,           .y=CALL_BEH+1,  .z=UNDEF        },  // env
+#define F_CALL_B (BOUND_BEH+7)
+//  { .t=VM_push,       .x=_comb_,      .y=F_CALL_B-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_args_,      .y=F_CALL_B+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=2,           .y=F_CALL_B+1,  .z=UNDEF        },  // env
 
-    { .t=VM_roll,       .x=2,           .y=CALL_BEH+2,  .z=UNDEF        },  // args
-    { .t=VM_push,       .x=CONST_BEH,   .y=CALL_BEH+3,  .z=UNDEF        },  // CONST_BEH
-    { .t=VM_new,        .x=1,           .y=CALL_BEH+4,  .z=UNDEF        },  // a_expr
+    { .t=VM_roll,       .x=2,           .y=F_CALL_B+2,  .z=UNDEF        },  // args
+    { .t=VM_push,       .x=CONST_BEH,   .y=F_CALL_B+3,  .z=UNDEF        },  // CONST_BEH
+    { .t=VM_new,        .x=1,           .y=F_CALL_B+4,  .z=UNDEF        },  // a_expr
 
-    { .t=VM_msg,        .x=1,           .y=CALL_BEH+5,  .z=UNDEF        },  // cust
-    { .t=VM_roll,       .x=4,           .y=CALL_BEH+6,  .z=UNDEF        },  // args
+    { .t=VM_msg,        .x=1,           .y=F_CALL_B+5,  .z=UNDEF        },  // cust
+    { .t=VM_roll,       .x=4,           .y=F_CALL_B+6,  .z=UNDEF        },  // args
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (comb cust a_expr env)
 
 /*
@@ -1177,7 +1177,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     (BEH (cust . args)
       (SEND oper (list cust args empty-env)) )))
 */
-#define F_OPER_B (CALL_BEH+7)
+#define F_OPER_B (F_CALL_B+7)
 //  { .t=VM_push,       .x=_oper_,      .y=F_OPER_B+0,  .z=UNDEF        },
     { .t=VM_push,       .x=EMPTY_ENV,   .y=F_OPER_B+1,  .z=UNDEF        },  // env
     { .t=VM_msg,        .x=-1,          .y=F_OPER_B+2,  .z=UNDEF        },  // args
@@ -1207,17 +1207,17 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // func
 
 /*
-(define k-invoke-beh
+(define k-call-beh
   (lambda (cust func)
     (BEH args
       (SEND func (cons cust args)) )))
 */
-#define K_INVOKE (OP_FUNC_B+7)
-//  { .t=VM_push,       .x=_cust_,      .y=K_INVOKE-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_func_,      .y=K_INVOKE+0,  .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=K_INVOKE+1,  .z=UNDEF        },  // args
-    { .t=VM_roll,       .x=3,           .y=K_INVOKE+2,  .z=UNDEF        },  // cust
-    { .t=VM_pair,       .x=1,           .y=K_INVOKE+3,  .z=UNDEF        },  // (cust . args)
+#define K_CALL (OP_FUNC_B+7)
+//  { .t=VM_push,       .x=_cust_,      .y=K_CALL-1,    .z=UNDEF        },
+//  { .t=VM_push,       .x=_func_,      .y=K_CALL+0,    .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_CALL+1,    .z=UNDEF        },  // args
+    { .t=VM_roll,       .x=3,           .y=K_CALL+2,    .z=UNDEF        },  // cust
+    { .t=VM_pair,       .x=1,           .y=K_CALL+3,    .z=UNDEF        },  // (cust . args)
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // func
 /*
 (define ap-func-beh                     ; self-evaluating applicative
@@ -1230,7 +1230,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
         (SEND cust SELF)                ; eval
       ))))
 */
-#define AP_FUNC_B (K_INVOKE+4)
+#define AP_FUNC_B (K_CALL+4)
 //  { .t=VM_push,       .x=_func_,      .y=AP_FUNC_B+0, .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=AP_FUNC_B+1, .z=UNDEF        },  // opt-env
     { .t=VM_typeq,      .x=Pair_T,      .y=AP_FUNC_B+2, .z=UNDEF        },  // opt-env has type Pair_T
@@ -1238,18 +1238,119 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
     { .t=VM_msg,        .x=1,           .y=AP_FUNC_B+4, .z=UNDEF        },  // cust
     { .t=VM_roll,       .x=2,           .y=AP_FUNC_B+5, .z=UNDEF        },  // func
-    { .t=VM_push,       .x=K_INVOKE,    .y=AP_FUNC_B+6, .z=UNDEF        },  // K_INVOKE
-    { .t=VM_new,        .x=2,           .y=AP_FUNC_B+7, .z=UNDEF        },  // k_invoke
+    { .t=VM_push,       .x=K_CALL,      .y=AP_FUNC_B+6, .z=UNDEF        },  // cust func K_CALL
+    { .t=VM_new,        .x=2,           .y=AP_FUNC_B+7, .z=UNDEF        },  // k_call
 
     { .t=VM_msg,        .x=3,           .y=AP_FUNC_B+8, .z=UNDEF        },  // denv
-    { .t=VM_roll,       .x=2,           .y=AP_FUNC_B+9, .z=UNDEF        },  // k_invoke
+    { .t=VM_roll,       .x=2,           .y=AP_FUNC_B+9, .z=UNDEF        },  // k_call
     { .t=VM_msg,        .x=2,           .y=AP_FUNC_B+10,.z=UNDEF        },  // param
-    { .t=VM_push,       .x=EVLIS_BEH,   .y=AP_FUNC_B+11,.z=UNDEF        },  // EVLIS_BEH
+    { .t=VM_push,       .x=EVLIS_BEH,   .y=AP_FUNC_B+11,.z=UNDEF        },  // param EVLIS_BEH
     { .t=VM_new,        .x=1,           .y=AP_FUNC_B+12,.z=UNDEF        },  // ev_list
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_list k_invoke denv)
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_list k_call denv)
+
+#if 1 /* new lambda-family constructors */
+/*
+(define k-apply-beh
+  (lambda (env cust oper)
+    (BEH args
+      (SEND oper
+        (list cust args env)))))
+*/
+#define K_APPLY (AP_FUNC_B+13)
+//  { .t=VM_push,       .x=_env_,       .y=K_APPLY-2,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_cust_,      .y=K_APPLY-1,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_oper_,      .y=K_APPLY+0,   .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_APPLY+1,   .z=UNDEF        },  // args
+    { .t=VM_roll,       .x=-3,          .y=K_APPLY+2,   .z=UNDEF        },  // env args cust oper
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (oper cust args env)
+/*
+(define appl-beh
+  (lambda (oper senv)
+    (BEH (cust params . opt-env)
+      (if (pair? opt-env)
+        (SEND                           ; apply
+          (CREATE (evlis-beh params))
+          (list (CREATE (k-apply-beh senv cust oper)) (car opt-env)))
+        (SEND cust SELF)                ; eval
+      ))))
+*/
+#define APPL_BEH (K_APPLY+3)
+//  { .t=VM_push,       .x=_oper_,      .y=APPL_BEH-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_senv_,      .y=APPL_BEH+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=-2,          .y=APPL_BEH+1,  .z=UNDEF        },  // opt-env
+    { .t=VM_typeq,      .x=Pair_T,      .y=APPL_BEH+2,  .z=UNDEF        },  // opt-env has type Pair_T
+    { .t=VM_if,         .x=APPL_BEH+3,  .y=SELF_EVAL,   .z=UNDEF        },
+
+    { .t=VM_msg,        .x=1,           .y=APPL_BEH+4,  .z=UNDEF        },  // cust
+    { .t=VM_roll,       .x=3,           .y=APPL_BEH+5,  .z=UNDEF        },  // oper
+    { .t=VM_push,       .x=K_APPLY,     .y=APPL_BEH+6,  .z=UNDEF        },  // senv cust oper K_APPLY
+    { .t=VM_new,        .x=3,           .y=APPL_BEH+7,  .z=UNDEF        },  // k_apply
+
+    { .t=VM_msg,        .x=3,           .y=APPL_BEH+8,  .z=UNDEF        },  // denv
+    { .t=VM_roll,       .x=2,           .y=APPL_BEH+9,  .z=UNDEF        },  // k_apply
+    { .t=VM_msg,        .x=2,           .y=APPL_BEH+10, .z=UNDEF        },  // params
+    { .t=VM_push,       .x=EVLIS_BEH,   .y=APPL_BEH+11, .z=UNDEF        },  // params EVLIS_BEH
+    { .t=VM_new,        .x=1,           .y=APPL_BEH+12, .z=UNDEF        },  // ev_list
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_list k_apply denv)
+
+/*
+(define oper-beh
+  (lambda (frml . body)
+    (BEH (cust args . opt-env)
+      (if (pair? opt-env)
+        (SEND body                      ; apply
+          (list cust (extend-env frml args (car opt-env))))
+        (SEND cust SELF)                ; eval
+      ))))
+*/
+#define OPER_BEH (APPL_BEH+13)
+//  { .t=VM_push,       .x=_args_,      .y=OPER_BEH+0,  .z=UNDEF        },  // (frml . body)
+    { .t=VM_msg,        .x=-2,          .y=OPER_BEH+1,  .z=UNDEF        },  // opt-env
+    { .t=VM_typeq,      .x=Pair_T,      .y=OPER_BEH+2,  .z=UNDEF        },  // opt-env has type Pair_T
+    { .t=VM_if,         .x=OPER_BEH+3,  .y=SELF_EVAL,   .z=UNDEF        },
+
+    { .t=VM_part,       .x=1,           .y=OPER_BEH+4,  .z=UNDEF        },  // body frml
+    { .t=VM_msg,        .x=2,           .y=OPER_BEH+5,  .z=UNDEF        },  // args
+    { .t=VM_msg,        .x=3,           .y=OPER_BEH+6,  .z=UNDEF        },  // env
+
+    { .t=VM_push,       .x=BOUND_BEH,   .y=OPER_BEH+7,  .z=UNDEF        },  // var val env BOUND_BEH
+    { .t=VM_new,        .x=3,           .y=OPER_BEH+8,  .z=UNDEF        },  // ext-env
+
+    { .t=VM_msg,        .x=1,           .y=OPER_BEH+9,  .z=UNDEF        },  // cust
+    { .t=VM_roll,       .x=3,           .y=OPER_BEH+10, .z=UNDEF        },  // body
+    { .t=VM_nth,        .x=1,           .y=OPER_BEH+11, .z=UNDEF        },  // first = car(body)
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (first cust ext-env)
+
+/*
+(define op-lambda                       ; applicative constructor
+  (CREATE
+    (BEH (cust args . opt-env)
+      (if (pair? opt-env)
+        (SEND cust                      ; apply
+          (CREATE (appl-beh (CREATE (oper-beh args)) (car opt-env))))
+        (SEND cust SELF)                ; eval
+      ))))
+*/
+#define OP_LAMBDA (OPER_BEH+12)
+    { .t=Actor_T,       .x=OP_LAMBDA+1, .y=UNDEF,       .z=UNDEF        },  // (lambda <frml> . <body>)
+    { .t=VM_msg,        .x=-2,          .y=OP_LAMBDA+2, .z=UNDEF        },  // opt-env
+    { .t=VM_typeq,      .x=Pair_T,      .y=OP_LAMBDA+3, .z=UNDEF        },  // opt-env has type Pair_T
+    { .t=VM_if,         .x=OP_LAMBDA+4, .y=SELF_EVAL,   .z=UNDEF        },
+
+    { .t=VM_msg,        .x=2,           .y=OP_LAMBDA+5, .z=UNDEF        },  // args
+    { .t=VM_push,       .x=OPER_BEH,    .y=OP_LAMBDA+6, .z=UNDEF        },  // OPER_BEH
+    { .t=VM_new,        .x=1,           .y=OP_LAMBDA+7, .z=UNDEF        },  // oper
+
+    { .t=VM_msg,        .x=3,           .y=OP_LAMBDA+8, .z=UNDEF        },  // env
+    { .t=VM_push,       .x=APPL_BEH,    .y=OP_LAMBDA+9, .z=UNDEF        },  // APPL_BEH
+    { .t=VM_new,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // appl
+#define LAMBDA_END (OP_LAMBDA+10)
+#else
+#define LAMBDA_END (AP_FUNC_B+13)
+#endif /* new lambda-family constructors */
 
 
-#define F_QUOTE (AP_FUNC_B+13)
+#define F_QUOTE (LAMBDA_END+0)
     { .t=Actor_T,       .x=F_QUOTE+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // expr = arg1
 #define OP_QUOTE (F_QUOTE+2)
@@ -2233,7 +2334,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { JOIN_BEH, "JOIN_BEH" },
     { FORK_BEH, "FORK_BEH" },
     { EVLIS_BEH, "EVLIS_BEH" },
-    { K_CALL, "K_CALL" },
+    { K_COMB, "K_COMB" },
 
     { G_EMPTY, "G_EMPTY" },
     { G_FAIL, "G_FAIL" },
@@ -2264,11 +2365,18 @@ static struct { int_t addr; char *label; } symbol_table[] = {
 
     { EMPTY_ENV, "EMPTY_ENV" },
     { BOUND_BEH, "BOUND_BEH" },
-    { CALL_BEH, "CALL_BEH" },
+    { F_CALL_B, "F_CALL_B" },
     { F_OPER_B, "F_OPER_B" },
     { OP_FUNC_B, "OP_FUNC_B" },
-    { K_INVOKE, "K_INVOKE" },
+    { K_CALL, "K_CALL" },
     { AP_FUNC_B, "AP_FUNC_B" },
+#if 1
+    { K_APPLY, "K_APPLY" },
+    { APPL_BEH, "APPL_BEH" },
+    { OPER_BEH, "OPER_BEH" },
+    { OP_LAMBDA, "OP_LAMBDA" },
+#endif
+
     { F_QUOTE, "F_QUOTE" },
     { OP_QUOTE, "OP_QUOTE" },
     { F_LIST, "F_LIST" },
@@ -2301,7 +2409,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { F_ACT_P, "F_ACT_P" },
     { AP_ACT_P, "AP_ACT_P" },
     { K_IF_BEH, "K_IF_BEH" },
-    { OP_IF, "OF_IF" },
+    { OP_IF, "OP_IF" },
     { F_EQ_P, "F_EQ_P" },
     { AP_EQ_P, "AP_EQ_P" },
 
@@ -2952,7 +3060,8 @@ int_t init_global_env() {
     bind_global("peg-lang", G_SEXPR_X);  // language parser start symbol
     bind_global("quote", OP_QUOTE);
     bind_global("list", AP_LIST);
-    bind_global("lambda", LAMBDA_C);
+    bind_global("lambda", OP_LAMBDA);
+    //bind_global("lambda", LAMBDA_C);
     bind_global("define", OP_DEFINE);
     bind_global("cons", AP_CONS);
     bind_global("car", AP_CAR);
@@ -3359,7 +3468,7 @@ PROC_DECL(Pair) {
                 int_t comb = car(self);
                 int_t param = cdr(self);
                 int_t apply = list_3(cust, param, env);
-                int_t beh = K_CALL;
+                int_t beh = K_COMB;
                 beh = cell_new(VM_push, apply, beh, UNDEF);
                 int_t k_call = cell_new(Actor_T, beh, UNDEF, UNDEF);
                 event = cell_new(Event_T, comb, list_2(k_call, env), NIL);  // eval head, apply tail
@@ -4396,7 +4505,7 @@ int main(int argc, char const *argv[])
     DEBUG(hexdump("cell memory", ((int_t *)&cell_table[500]), 16*4));
 #endif
     init_global_env();
-    gc_add_root(K_CALL);  // used in Pair_T
+    gc_add_root(K_COMB);  // used in Pair_T
     gc_add_root(clk_handler);
     clk_timeout = clk_ticks();
     int_t result = runtime();
