@@ -270,17 +270,20 @@ k_queue: [head,tail]--------------------+
 ### Lambda Compilation Test-Cases
 
 ```
-(define nop (lambda _))  ; equivalent to _par_
+(define nop (lambda _))                         ; equivalent to _par_
 (define zero (lambda _ 0))
 (define nil (lambda _ ()))
-(define ap (lambda x x))  ; equivalent to _list_
+(define ap (lambda x x))                        ; equivalent to _list_
 (define id (lambda (x) x))
 (define r1 (lambda (x . y) y))
 (define i2 (lambda (x y) y))
 (define r2 (lambda (x y . z) z))
 (define i3 (lambda (x y z) z))
 (define l3 (lambda (x y z) (list x y z)))
-(define cadr (lambda (x) (car (cdr x))))
+(define n1 (lambda (x) (car x)))                ; equivalent to _car_
+(define n2 (lambda (x) (car (cdr x))))          ; equivalent to _cadr_
+(define n3 (lambda (x) (car (cdr (cdr x)))))    ; equivalent to _caddr_
+(define c (lambda (y) (lambda (x) (list y x))))
 ```
 
 #### Lambda Compiled Code Structures
@@ -335,7 +338,7 @@ COMMIT:     [END,+1,?]
 #### Execution Statistics Test-Case
 
 ```
-((lambda (x) x) (list 1 2 3))
+((lambda (x) x) (list 1 2 3))                   ; => (1 2 3)
 ```
 
 Date       | Events | Instructions | Description
@@ -347,6 +350,7 @@ Date       | Events | Instructions | Description
 2022-05-18 |   1117 |        13869 | replace SEQ with AND in G_SEXPR
 2022-05-18 |   1203 |        15029 | parse QUOTE -> CONST_BEH
 2022-05-21 |   1205 |        15039 | delegate to GLOBAL_ENV
+2022-05-22 |   1205 |        15030 | lambda interpreter
 
 ## PEG Tools
 

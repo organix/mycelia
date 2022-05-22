@@ -1343,16 +1343,38 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_msg,        .x=2,           .y=OPER_BEH+5,  .z=UNDEF        },  // args
     { .t=VM_msg,        .x=3,           .y=OPER_BEH+6,  .z=UNDEF        },  // env
 
-    { .t=VM_push,       .x=BOUND_BEH,   .y=OPER_BEH+7,  .z=UNDEF        },  // var val env BOUND_BEH
-    { .t=VM_new,        .x=3,           .y=OPER_BEH+8,  .z=UNDEF        },  // ext-env
+    { .t=VM_pick,       .x=3,           .y=OPER_BEH+7,  .z=UNDEF        },  // frml
+    { .t=VM_typeq,      .x=Pair_T,      .y=OPER_BEH+8,  .z=UNDEF        },  // frml has type Pair_T
+    { .t=VM_if,         .x=OPER_BEH+9,  .y=OPER_BEH+18, .z=UNDEF        },
 
-    { .t=VM_msg,        .x=1,           .y=OPER_BEH+9,  .z=UNDEF        },  // cust
-    { .t=VM_roll,       .x=2,           .y=OPER_BEH+10, .z=UNDEF        },  // ext-env
-    { .t=VM_roll,       .x=3,           .y=OPER_BEH+11, .z=UNDEF        },  // body
-    { .t=VM_push,       .x=K_SEQ_B,     .y=OPER_BEH+12, .z=UNDEF        },  // cust ext-env body K_SEQ_B
-    { .t=VM_new,        .x=3,           .y=OPER_BEH+13, .z=UNDEF        },  // k-seq
+    { .t=VM_roll,       .x=3,           .y=OPER_BEH+10, .z=UNDEF        },  // args env frml
+    { .t=VM_part,       .x=1,           .y=OPER_BEH+11, .z=UNDEF        },  // tail head
+    { .t=VM_roll,       .x=4,           .y=OPER_BEH+12, .z=UNDEF        },  // env tail head args
+    { .t=VM_part,       .x=1,           .y=OPER_BEH+13, .z=UNDEF        },  // rest first
 
-    { .t=VM_push,       .x=UNIT,        .y=OPER_BEH+14, .z=UNDEF        },  // UNIT
+    { .t=VM_roll,       .x=3,           .y=OPER_BEH+14, .z=UNDEF        },  // var = head
+    { .t=VM_roll,       .x=2,           .y=OPER_BEH+15, .z=UNDEF        },  // val = first
+    { .t=VM_roll,       .x=5,           .y=OPER_BEH+16, .z=UNDEF        },  // env
+    { .t=VM_push,       .x=BOUND_BEH,   .y=OPER_BEH+17, .z=UNDEF        },  // var val env BOUND_BEH
+    { .t=VM_new,        .x=3,           .y=OPER_BEH+6,  .z=UNDEF        },  // ext-env
+
+    { .t=VM_pick,       .x=3,           .y=OPER_BEH+19, .z=UNDEF        },  // frml
+    { .t=VM_typeq,      .x=Symbol_T,    .y=OPER_BEH+20, .z=UNDEF        },  // frml has type Symbol_T
+    { .t=VM_if,         .x=OPER_BEH+21, .y=OPER_BEH+23, .z=UNDEF        },
+
+    { .t=VM_push,       .x=BOUND_BEH,   .y=OPER_BEH+22, .z=UNDEF        },  // var val env BOUND_BEH
+    { .t=VM_new,        .x=3,           .y=OPER_BEH+25, .z=UNDEF        },  // ext-env
+
+    { .t=VM_roll,       .x=-3,          .y=OPER_BEH+24, .z=UNDEF        },  // body env frml args
+    { .t=VM_drop,       .x=2,           .y=OPER_BEH+25, .z=UNDEF        },  // body env
+
+    { .t=VM_msg,        .x=1,           .y=OPER_BEH+26, .z=UNDEF        },  // cust
+    { .t=VM_roll,       .x=2,           .y=OPER_BEH+27, .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=3,           .y=OPER_BEH+28, .z=UNDEF        },  // body
+    { .t=VM_push,       .x=K_SEQ_B,     .y=OPER_BEH+29, .z=UNDEF        },  // cust env body K_SEQ_B
+    { .t=VM_new,        .x=3,           .y=OPER_BEH+30, .z=UNDEF        },  // k-seq
+
+    { .t=VM_push,       .x=UNIT,        .y=OPER_BEH+31, .z=UNDEF        },  // UNIT
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // UNIT k-seq
 
 /*
@@ -1365,7 +1387,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
         (SEND cust SELF)                ; eval
       ))))
 */
-#define OP_LAMBDA (OPER_BEH+15)
+#define OP_LAMBDA (OPER_BEH+32)
     { .t=Actor_T,       .x=OP_LAMBDA+1, .y=UNDEF,       .z=UNDEF        },  // (lambda <frml> . <body>)
     { .t=VM_msg,        .x=-2,          .y=OP_LAMBDA+2, .z=UNDEF        },  // opt-env
     { .t=VM_typeq,      .x=Pair_T,      .y=OP_LAMBDA+3, .z=UNDEF        },  // opt-env has type Pair_T
