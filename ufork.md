@@ -248,6 +248,7 @@ k_queue: [head,tail]--------------------+
  * `(quote `_expr_`)`
  * `(list . `_args_`)`
  * `(lambda `_formals_` . `_body_`)`
+ * `(seq . `_body_`)`
  * `(define `_symbol_` `_value_`)`
  * `(cons `_head_` `_tail_`)`
  * `(car `_list_`)`

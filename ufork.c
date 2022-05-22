@@ -1248,7 +1248,6 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_new,        .x=1,           .y=AP_FUNC_B+12,.z=UNDEF        },  // ev_list
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_list k_call denv)
 
-#if 1 /* new lambda-family constructors */
 /*
 (define k-apply-beh
   (lambda (env cust oper)
@@ -1294,16 +1293,47 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_list k_apply denv)
 
 /*
+(define k-seq-beh
+  (lambda (cust env body)
+    (BEH value
+      (if (pair? body)
+        (SEND (car body)
+          (list (CREATE (k-seq-beh cust env (cdr body))) env))
+        (SEND cust value)
+      ))))
+*/
+#define K_SEQ_B (APPL_BEH+13)
+//  { .t=VM_push,       .x=_cust_,      .y=K_SEQ_B-2,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=K_SEQ_B-1,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_body_,      .y=K_SEQ_B+0,   .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=K_SEQ_B+1,   .z=UNDEF        },  // body
+    { .t=VM_typeq,      .x=Pair_T,      .y=K_SEQ_B+2,   .z=UNDEF        },  // body has type Pair_T
+    { .t=VM_if,         .x=K_SEQ_B+5,   .y=K_SEQ_B+3,   .z=UNDEF        },
+
+    { .t=VM_msg,        .x=0,           .y=K_SEQ_B+4,   .z=UNDEF        },  // value
+    { .t=VM_roll,       .x=4,           .y=SEND_0,      .z=UNDEF        },  // (cust . value)
+
+    { .t=VM_part,       .x=1,           .y=K_SEQ_B+6,   .z=UNDEF        },  // rest first
+    { .t=VM_pick,       .x=3,           .y=K_SEQ_B+7,   .z=UNDEF        },  // env
+    { .t=VM_self,       .x=UNDEF,       .y=K_SEQ_B+8,   .z=UNDEF        },  // SELF
+    { .t=VM_roll,       .x=3,           .y=K_SEQ_B+9,   .z=UNDEF        },  // first
+    { .t=VM_send,       .x=2,           .y=K_SEQ_B+10,  .z=UNDEF        },  // (first SELF env)
+
+    { .t=VM_push,       .x=K_SEQ_B,     .y=K_SEQ_B+11,  .z=UNDEF        },  // cust env rest K_SEQ_B
+    { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (k-seq-beh cust env rest)
+
+/*
 (define oper-beh
   (lambda (frml . body)
     (BEH (cust args . opt-env)
       (if (pair? opt-env)
-        (SEND body                      ; apply
-          (list cust (extend-env frml args (car opt-env))))
+        (SEND                           ; apply
+          (CREATE (k-seq-beh cust (extend-env frml args (car opt-env)) body))
+          #unit)
         (SEND cust SELF)                ; eval
       ))))
 */
-#define OPER_BEH (APPL_BEH+13)
+#define OPER_BEH (K_SEQ_B+12)
 //  { .t=VM_push,       .x=_args_,      .y=OPER_BEH+0,  .z=UNDEF        },  // (frml . body)
     { .t=VM_msg,        .x=-2,          .y=OPER_BEH+1,  .z=UNDEF        },  // opt-env
     { .t=VM_typeq,      .x=Pair_T,      .y=OPER_BEH+2,  .z=UNDEF        },  // opt-env has type Pair_T
@@ -1317,9 +1347,13 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_new,        .x=3,           .y=OPER_BEH+8,  .z=UNDEF        },  // ext-env
 
     { .t=VM_msg,        .x=1,           .y=OPER_BEH+9,  .z=UNDEF        },  // cust
-    { .t=VM_roll,       .x=3,           .y=OPER_BEH+10, .z=UNDEF        },  // body
-    { .t=VM_nth,        .x=1,           .y=OPER_BEH+11, .z=UNDEF        },  // first = car(body)
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (first cust ext-env)
+    { .t=VM_roll,       .x=2,           .y=OPER_BEH+10, .z=UNDEF        },  // ext-env
+    { .t=VM_roll,       .x=3,           .y=OPER_BEH+11, .z=UNDEF        },  // body
+    { .t=VM_push,       .x=K_SEQ_B,     .y=OPER_BEH+12, .z=UNDEF        },  // cust ext-env body K_SEQ_B
+    { .t=VM_new,        .x=3,           .y=OPER_BEH+13, .z=UNDEF        },  // k-seq
+
+    { .t=VM_push,       .x=UNIT,        .y=OPER_BEH+14, .z=UNDEF        },  // UNIT
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // UNIT k-seq
 
 /*
 (define op-lambda                       ; applicative constructor
@@ -1331,7 +1365,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
         (SEND cust SELF)                ; eval
       ))))
 */
-#define OP_LAMBDA (OPER_BEH+12)
+#define OP_LAMBDA (OPER_BEH+15)
     { .t=Actor_T,       .x=OP_LAMBDA+1, .y=UNDEF,       .z=UNDEF        },  // (lambda <frml> . <body>)
     { .t=VM_msg,        .x=-2,          .y=OP_LAMBDA+2, .z=UNDEF        },  // opt-env
     { .t=VM_typeq,      .x=Pair_T,      .y=OP_LAMBDA+3, .z=UNDEF        },  // opt-env has type Pair_T
@@ -1344,13 +1378,33 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_msg,        .x=3,           .y=OP_LAMBDA+8, .z=UNDEF        },  // env
     { .t=VM_push,       .x=APPL_BEH,    .y=OP_LAMBDA+9, .z=UNDEF        },  // APPL_BEH
     { .t=VM_new,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // appl
-#define LAMBDA_END (OP_LAMBDA+10)
-#else
-#define LAMBDA_END (AP_FUNC_B+13)
-#endif /* new lambda-family constructors */
+
+/*
+(define op-seq                          ; sequential evaluation
+  (CREATE
+    (BEH (cust args . opt-env)
+      (if (pair? opt-env)
+        (SEND                           ; apply
+          (CREATE (k-seq-beh cust (cdr opt-env) args)) #unit)
+        (SEND cust SELF)                ; eval
+      ))))
+*/
+#define OP_SEQ (OP_LAMBDA+10)
+    { .t=Actor_T,       .x=OP_SEQ+1,    .y=UNDEF,       .z=UNDEF        },  // (seq . <body>)
+    { .t=VM_msg,        .x=-2,          .y=OP_SEQ+2,    .z=UNDEF        },  // opt-env
+    { .t=VM_typeq,      .x=Pair_T,      .y=OP_SEQ+3,    .z=UNDEF        },  // opt-env has type Pair_T
+    { .t=VM_if,         .x=OP_SEQ+4,    .y=SELF_EVAL,   .z=UNDEF        },
+
+    { .t=VM_push,       .x=UNIT,        .y=OP_SEQ+5,    .z=UNDEF        },  // UNIT
+
+    { .t=VM_msg,        .x=1,           .y=OP_SEQ+6,    .z=UNDEF        },  // cust
+    { .t=VM_msg,        .x=3,           .y=OP_SEQ+7,    .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=2,           .y=OP_SEQ+8,    .z=UNDEF        },  // body = args
+    { .t=VM_push,       .x=K_SEQ_B,     .y=OP_SEQ+9,    .z=UNDEF        },  // cust env body K_SEQ_B
+    { .t=VM_new,        .x=3,           .y=SEND_0,      .z=UNDEF        },  // k-seq
 
 
-#define F_QUOTE (LAMBDA_END+0)
+#define F_QUOTE (OP_SEQ+10)
     { .t=Actor_T,       .x=F_QUOTE+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // expr = arg1
 #define OP_QUOTE (F_QUOTE+2)
@@ -2370,12 +2424,12 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { OP_FUNC_B, "OP_FUNC_B" },
     { K_CALL, "K_CALL" },
     { AP_FUNC_B, "AP_FUNC_B" },
-#if 1
     { K_APPLY, "K_APPLY" },
     { APPL_BEH, "APPL_BEH" },
+    { K_SEQ_B, "K_SEQ_B" },
     { OPER_BEH, "OPER_BEH" },
     { OP_LAMBDA, "OP_LAMBDA" },
-#endif
+    { OP_SEQ, "OP_SEQ" },
 
     { F_QUOTE, "F_QUOTE" },
     { OP_QUOTE, "OP_QUOTE" },
@@ -3062,6 +3116,7 @@ int_t init_global_env() {
     bind_global("list", AP_LIST);
     bind_global("lambda", OP_LAMBDA);
     //bind_global("lambda", LAMBDA_C);
+    bind_global("seq", OP_SEQ);
     bind_global("define", OP_DEFINE);
     bind_global("cons", AP_CONS);
     bind_global("car", AP_CAR);
