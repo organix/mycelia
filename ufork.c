@@ -1743,7 +1743,37 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=AP_NUM_LT+1, .y=UNDEF,       .z=UNDEF        },  // (< . <numbers>)
     { .t=VM_push,       .x=F_NUM_LT,    .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_NUM_LT
 
-#define F_NUM_ADD (AP_NUM_LT+2)
+#define F_NUM_LE (AP_NUM_LT+2)
+    { .t=Actor_T,       .x=F_NUM_LE+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=-1,          .y=F_NUM_LE+2,  .z=UNDEF        },  // args
+    { .t=VM_pick,       .x=1,           .y=F_NUM_LE+3,  .z=UNDEF        },  // args args
+    { .t=VM_typeq,      .x=Pair_T,      .y=F_NUM_LE+4,  .z=UNDEF        },  // args has type Pair_T
+    { .t=VM_if,         .x=F_NUM_LE+5,  .y=RV_TRUE,     .z=UNDEF        },
+
+    { .t=VM_part,       .x=1,           .y=F_NUM_LE+6,  .z=UNDEF        },  // rest first
+    { .t=VM_pick,       .x=1,           .y=F_NUM_LE+7,  .z=UNDEF        },  // rest first first
+    { .t=VM_typeq,      .x=Fixnum_T,    .y=F_NUM_LE+8,  .z=UNDEF        },  // first has type Fixnum_T
+    { .t=VM_if,         .x=F_NUM_LE+9,  .y=RV_UNDEF,    .z=UNDEF        },
+
+    { .t=VM_pick,       .x=2,           .y=F_NUM_LE+10, .z=UNDEF        },  // rest
+    { .t=VM_typeq,      .x=Pair_T,      .y=F_NUM_LE+11, .z=UNDEF        },  // rest has type Pair_T
+    { .t=VM_if,         .x=F_NUM_LE+12, .y=RV_TRUE,     .z=UNDEF        },
+
+    { .t=VM_roll,       .x=2,           .y=F_NUM_LE+13, .z=UNDEF        },  // first rest
+    { .t=VM_part,       .x=1,           .y=F_NUM_LE+14, .z=UNDEF        },  // first rest second
+    { .t=VM_pick,       .x=1,           .y=F_NUM_LE+15, .z=UNDEF        },  // second second
+    { .t=VM_typeq,      .x=Fixnum_T,    .y=F_NUM_LE+16, .z=UNDEF        },  // second has type Fixnum_T
+    { .t=VM_if,         .x=F_NUM_LE+17, .y=RV_UNDEF,    .z=UNDEF        },
+
+    { .t=VM_roll,       .x=3,           .y=F_NUM_LE+18, .z=UNDEF        },  // rest second first
+    { .t=VM_pick,       .x=2,           .y=F_NUM_LE+19, .z=UNDEF        },  // rest second first second
+    { .t=VM_cmp,        .x=CMP_LE,      .y=F_NUM_LE+20, .z=UNDEF        },  // first <= second
+    { .t=VM_if,         .x=F_NUM_LE+9,  .y=RV_FALSE,    .z=UNDEF        },
+#define AP_NUM_LE (F_NUM_LE+21)
+    { .t=Actor_T,       .x=AP_NUM_LE+1, .y=UNDEF,       .z=UNDEF        },  // (<= . <numbers>)
+    { .t=VM_push,       .x=F_NUM_LE,    .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_NUM_LE
+
+#define F_NUM_ADD (AP_NUM_LE+2)
     { .t=Actor_T,       .x=F_NUM_ADD+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=-1,          .y=F_NUM_ADD+2, .z=UNDEF        },  // args
     { .t=VM_pick,       .x=1,           .y=F_NUM_ADD+3, .z=UNDEF        },  // args args
@@ -1772,7 +1802,44 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=AP_NUM_ADD+1,.y=UNDEF,       .z=UNDEF        },  // (+ . <numbers>)
     { .t=VM_push,       .x=F_NUM_ADD,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_NUM_ADD
 
-#define F_NUM_MUL (AP_NUM_ADD+2)
+#define F_NUM_SUB (AP_NUM_ADD+2)
+    { .t=Actor_T,       .x=F_NUM_SUB+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=-1,          .y=F_NUM_SUB+2, .z=UNDEF        },  // args
+    { .t=VM_pick,       .x=1,           .y=F_NUM_SUB+3, .z=UNDEF        },  // args args
+    { .t=VM_typeq,      .x=Pair_T,      .y=F_NUM_SUB+4, .z=UNDEF        },  // args has type Pair_T
+    { .t=VM_if,         .x=F_NUM_SUB+5, .y=RV_ZERO,     .z=UNDEF        },
+
+    { .t=VM_part,       .x=1,           .y=F_NUM_SUB+6, .z=UNDEF        },  // rest first
+    { .t=VM_pick,       .x=1,           .y=F_NUM_SUB+7, .z=UNDEF        },  // rest first first
+    { .t=VM_typeq,      .x=Fixnum_T,    .y=F_NUM_SUB+8, .z=UNDEF        },  // first has type Fixnum_T
+    { .t=VM_if,         .x=F_NUM_SUB+9, .y=RV_UNDEF,    .z=UNDEF        },
+
+    { .t=VM_pick,       .x=2,           .y=F_NUM_SUB+10,.z=UNDEF        },  // rest
+    { .t=VM_typeq,      .x=Pair_T,      .y=F_NUM_SUB+11,.z=UNDEF        },  // rest has type Pair_T
+    { .t=VM_if,         .x=F_NUM_SUB+15,.y=F_NUM_SUB+12,.z=UNDEF        },
+
+    { .t=VM_push,       .x=0,           .y=F_NUM_SUB+13,.z=UNDEF        },  // +0
+    { .t=VM_roll,       .x=2,           .y=F_NUM_SUB+14,.z=UNDEF        },  // +0 first
+    { .t=VM_alu,        .x=ALU_SUB,     .y=CUST_SEND,   .z=UNDEF        },  // +0 - first
+
+    { .t=VM_roll,       .x=2,           .y=F_NUM_SUB+16,.z=UNDEF        },  // first rest
+    { .t=VM_part,       .x=1,           .y=F_NUM_SUB+17,.z=UNDEF        },  // first rest second
+    { .t=VM_pick,       .x=1,           .y=F_NUM_SUB+18,.z=UNDEF        },  // second second
+    { .t=VM_typeq,      .x=Fixnum_T,    .y=F_NUM_SUB+19,.z=UNDEF        },  // second has type Fixnum_T
+    { .t=VM_if,         .x=F_NUM_SUB+20,.y=RV_UNDEF,    .z=UNDEF        },
+
+    { .t=VM_roll,       .x=3,           .y=F_NUM_SUB+21,.z=UNDEF        },  // rest second first
+    { .t=VM_roll,       .x=2,           .y=F_NUM_SUB+22,.z=UNDEF        },  // rest first second
+    { .t=VM_alu,        .x=ALU_SUB,     .y=F_NUM_SUB+23,.z=UNDEF        },  // first - second
+
+    { .t=VM_pick,       .x=2,           .y=F_NUM_SUB+24,.z=UNDEF        },  // rest
+    { .t=VM_typeq,      .x=Pair_T,      .y=F_NUM_SUB+25,.z=UNDEF        },  // rest has type Pair_T
+    { .t=VM_if,         .x=F_NUM_SUB+15,.y=CUST_SEND,   .z=UNDEF        },
+#define AP_NUM_SUB (F_NUM_SUB+26)
+    { .t=Actor_T,       .x=AP_NUM_SUB+1,.y=UNDEF,       .z=UNDEF        },  // (- . <numbers>)
+    { .t=VM_push,       .x=F_NUM_SUB,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_NUM_SUB
+
+#define F_NUM_MUL (AP_NUM_SUB+2)
     { .t=Actor_T,       .x=F_NUM_MUL+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=-1,          .y=F_NUM_MUL+2, .z=UNDEF        },  // args
     { .t=VM_pick,       .x=1,           .y=F_NUM_MUL+3, .z=UNDEF        },  // args args
@@ -2622,8 +2689,12 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_NUM_EQ, "AP_NUM_EQ" },
     { F_NUM_LT, "F_NUM_LT" },
     { AP_NUM_LT, "AP_NUM_LT" },
+    { F_NUM_LE, "F_NUM_LE" },
+    { AP_NUM_LE, "AP_NUM_LE" },
     { F_NUM_ADD, "F_NUM_ADD" },
     { AP_NUM_ADD, "AP_NUM_ADD" },
+    { F_NUM_SUB, "F_NUM_SUB" },
+    { AP_NUM_SUB, "AP_NUM_SUB" },
     { F_NUM_MUL, "F_NUM_MUL" },
     { AP_NUM_MUL, "AP_NUM_MUL" },
 
@@ -3294,7 +3365,9 @@ int_t init_global_env() {
     bind_global("eq?", AP_EQ_P);
     bind_global("=", AP_NUM_EQ);
     bind_global("<", AP_NUM_LT);
+    bind_global("<=", AP_NUM_LE);
     bind_global("+", AP_NUM_ADD);
+    bind_global("-", AP_NUM_SUB);
     bind_global("*", AP_NUM_MUL);
 #if 1
     bind_global("CTL", TO_FIX(CTL));

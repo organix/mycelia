@@ -266,7 +266,9 @@ k_queue: [head,tail]--------------------+
   * `(eq? . `_values_`)`
   * `(= . `_numbers_`)`
   * `(< . `_numbers_`)`
+  * `(<= . `_numbers_`)`
   * `(+ . `_numbers_`)`
+  * `(- . `_numbers_`)`
   * `(* . `_numbers_`)`
   * `peg-lang  ; REPL grammar`
   * `(quit)`
