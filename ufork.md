@@ -245,27 +245,27 @@ k_queue: [head,tail]--------------------+
 
 ## LISP/Scheme Ground Environment
 
- * `(quote `_expr_`)`
- * `(list . `_args_`)`
- * `(lambda `_formals_` . `_body_`)`
- * `(seq . `_body_`)`
- * `(define `_symbol_` `_value_`)`
- * `(cons `_head_` `_tail_`)`
- * `(car `_list_`)`
- * `(cdr `_list_`)`
- * `(cadr `_list_`)`
- * `(caddr `_list_`)`
- * `(nth `_index_` `_list_`)`
- * `(null? . `_values_`)`
- * `(pair? . `_values_`)`
- * `(boolean? . `_values_`)`
- * `(number? . `_values_`)`
- * `(symbol? . `_values_`)`
- * `(actor? . `_values_`)`
- * `(if `_bool_` `_consequence_` `_alternative_`)`
- * `(eq? . `_values_`)`
- * `peg-lang  ; REPL grammar`
- * `(quit)`
+  * `(quote `_expr_`)`
+  * `(list . `_args_`)`
+  * `(lambda `_formals_` . `_body_`)`
+  * `(seq . `_body_`)`
+  * `(define `_symbol_` `_value_`)`
+  * `(cons `_head_` `_tail_`)`
+  * `(car `_list_`)`
+  * `(cdr `_list_`)`
+  * `(cadr `_list_`)`
+  * `(caddr `_list_`)`
+  * `(nth `_index_` `_list_`)`
+  * `(null? . `_values_`)`
+  * `(pair? . `_values_`)`
+  * `(boolean? . `_values_`)`
+  * `(number? . `_values_`)`
+  * `(symbol? . `_values_`)`
+  * `(actor? . `_values_`)`
+  * `(if `_bool_` `_consequence_` `_alternative_`)`
+  * `(eq? . `_values_`)`
+  * `peg-lang  ; REPL grammar`
+  * `(quit)`
 
 ### Lambda Compilation Test-Cases
 
@@ -354,27 +354,27 @@ Date       | Events | Instructions | Description
 
 ## PEG Tools
 
- * `(peg-source `_list_`)`
- * `(peg-start `_peg_` `_src_`)`
- * `peg-empty`
- * `peg-fail`
- * `peg-any`
- * `(peg-eq `_token_`)`
- * `(peg-or `_first_` `_rest_`)`
- * `(peg-and `_first_` `_rest_`)`
- * `(peg-class . `_classes_`)`
- * `(peg-opt `_peg_`)`
- * `(peg-plus `_peg_`)`
- * `(peg-star `_peg_`)`
- * `(peg-alt . `_pegs_`)`
- * `(peg-seq . `_pegs_`)`
- * `(peg-call `_name_`)`
- * `(peg-pred `_pred_` `_peg_`)`
- * `(peg-xform `_appl_` `_peg_`)`
- * `(list->number `_chars_`)`
- * `(list->symbol `_chars_`)`
- * `a-print`
- * `peg-lang`
+  * `(peg-source `_list_`)`
+  * `(peg-start `_peg_` `_src_`)`
+  * `peg-empty`
+  * `peg-fail`
+  * `peg-any`
+  * `(peg-eq `_token_`)`
+  * `(peg-or `_first_` `_rest_`)`
+  * `(peg-and `_first_` `_rest_`)`
+  * `(peg-class . `_classes_`)`
+  * `(peg-opt `_peg_`)`
+  * `(peg-plus `_peg_`)`
+  * `(peg-star `_peg_`)`
+  * `(peg-alt . `_pegs_`)`
+  * `(peg-seq . `_pegs_`)`
+  * `(peg-call `_name_`)`
+  * `(peg-pred `_pred_` `_peg_`)`
+  * `(peg-xform `_appl_` `_peg_`)`
+  * `(list->number `_chars_`)`
+  * `(list->symbol `_chars_`)`
+  * `a-print`
+  * `peg-lang`
 
 ### PEG Test-Cases
 
@@ -612,11 +612,11 @@ NIL or --->[token,next]--->
 
 ## Inspiration
 
- * [Parsing Expression Grammars: A Recognition-Based Syntactic Foundation](https://bford.info/pub/lang/peg.pdf)
-   * [OMeta: an Object-Oriented Language for Pattern Matching](http://www.vpri.org/pdf/tr2007003_ometa.pdf)
-   * [PEG-based transformer provides front-, middle and back-end stages in a simple compiler](http://www.vpri.org/pdf/tr2010003_PEG.pdf)
- * [SectorLISP](http://justine.lol/sectorlisp2/)
- * [Ribbit](https://github.com/udem-dlteam/ribbit)
-   * [A Small Scheme VM, Compiler and REPL in 4K](https://www.youtube.com/watch?v=A3r0cYRwrSs)
- * [Schism](https://github.com/schism-lang/schism)
- * [A Simple Scheme Compiler](https://www.cs.rpi.edu/academics/courses/fall00/ai/scheme/reference/schintro-v14/schintro_142.html#SEC271)
+  * [Parsing Expression Grammars: A Recognition-Based Syntactic Foundation](https://bford.info/pub/lang/peg.pdf)
+    * [OMeta: an Object-Oriented Language for Pattern Matching](http://www.vpri.org/pdf/tr2007003_ometa.pdf)
+    * [PEG-based transformer provides front-, middle and back-end stages in a simple compiler](http://www.vpri.org/pdf/tr2010003_PEG.pdf)
+  * [SectorLISP](http://justine.lol/sectorlisp2/)
+  * [Ribbit](https://github.com/udem-dlteam/ribbit)
+    * [A Small Scheme VM, Compiler and REPL in 4K](https://www.youtube.com/watch?v=A3r0cYRwrSs)
+  * [Schism](https://github.com/schism-lang/schism)
+  * [A Simple Scheme Compiler](https://www.cs.rpi.edu/academics/courses/fall00/ai/scheme/reference/schintro-v14/schintro_142.html#SEC271)
