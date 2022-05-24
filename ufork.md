@@ -593,16 +593,17 @@ NIL or --->[token,next]--->
   (peg-xform list->number
     (peg-or scm-s-num scm-u-num)))
 (define scm-quote
-  (peg-xform (lambda x (list (quote quote) (nth -1 x)))
+  (peg-xform (lambda (x) (list (quote quote) (cdr x)))
     (peg-and (peg-eq 39) (peg-call scm-expr)) ))
 (define scm-literal
   (peg-alt
     (peg-xform (lambda _ #f) (peg-seq 35 102))
     (peg-xform (lambda _ #t) (peg-seq 35 116))
+    (peg-xform (lambda _ #unit) (peg-seq 35 117 110 105 116))
     (peg-xform (lambda _ #?) (peg-seq 35 63)) ))
 (define scm-tail
   (peg-alt
-    (peg-xform (lambda x (cons (nth 1 x) (nth 5 y)))
+    (peg-xform (lambda (x) (cons (nth 1 x) (nth 5 x)))
       (peg-seq (peg-call scm-sexpr) scm-wsp (peg-eq 46) scm-wsp (peg-call scm-sexpr)))
     (peg-and (peg-call scm-sexpr) (peg-call scm-tail))
     peg-empty))
@@ -614,6 +615,43 @@ NIL or --->[token,next]--->
 (define scm-sexpr
   (peg-xform cdr
     (peg-and scm-wsp scm-expr)))
+```
+
+#### Test Cases
+
+```
+(define src (peg-source (list 9 32 59 32 120 13 10 121)))  ; "\t ; x\r\n y"
+(define not-eol (lambda (x) (if (eq? x 10) #f #t)))
+(define scm-comment (peg-seq (peg-eq 59) (peg-star (peg-pred not-eol peg-any)) (peg-eq 10)))
+(define scm-wsp (peg-star (peg-or scm-comment (peg-class WSP)) ))
+(define scm-symbol (peg-xform list->symbol (peg-plus (peg-class UPR LWR DGT SYM)) ))
+(define scm-sexpr (peg-xform cdr (peg-and scm-wsp scm-symbol)))
+(peg-start scm-sexpr src)
+```
+
+```
+(define src (peg-source (list 39 97 98 10)))  ; "'ab\n"
+(define scm-quote
+  (peg-xform (lambda (x) (list (quote quote) (cdr x)))
+    (peg-and (peg-eq 39) (peg-call scm-expr)) ))
+(define scm-expr (peg-xform list->symbol (peg-plus (peg-class UPR LWR DGT SYM))))
+(peg-start scm-quote src)
+```
+
+```
+(define src (peg-source (list 40 97 32 46 32 98 41 10)))  ; "(a . b)\n"
+(define scm-wsp (peg-star (peg-class WSP)))
+(define scm-symbol (peg-xform list->symbol (peg-plus (peg-class UPR LWR DGT SYM))))
+;(define scm-tail (peg-alt (peg-and (peg-call scm-sexpr) (peg-call scm-tail)) peg-empty))
+(define scm-tail (peg-alt
+  (peg-xform (lambda (x) (cons (nth 1 x) (nth 5 x)))
+    (peg-seq (peg-call scm-sexpr) scm-wsp (peg-eq 46) scm-wsp (peg-call scm-sexpr)))
+  (peg-and (peg-call scm-sexpr) (peg-call scm-tail))
+  peg-empty))
+(define scm-list (peg-xform cadr (peg-seq (peg-eq 40) (peg-call scm-tail) scm-wsp (peg-eq 41))))
+(define scm-expr (peg-alt scm-list scm-symbol))
+(define scm-sexpr (peg-xform cdr (peg-and scm-wsp scm-expr)))
+(peg-start scm-sexpr src)
 ```
 
 ## Inspiration
