@@ -597,10 +597,10 @@ NIL or --->[token,next]--->
     (peg-and (peg-eq 39) (peg-call scm-expr)) ))
 (define scm-literal
   (peg-alt
-    (peg-xform (lambda _ #f) (peg-seq 35 102))
-    (peg-xform (lambda _ #t) (peg-seq 35 116))
-    (peg-xform (lambda _ #unit) (peg-seq 35 117 110 105 116))
-    (peg-xform (lambda _ #?) (peg-seq 35 63)) ))
+    (peg-xform (lambda _ #f) (peg-seq (peg-eq 35) (peg-eq 102)))
+    (peg-xform (lambda _ #t) (peg-seq (peg-eq 35) (peg-eq 116)))
+    (peg-xform (lambda _ #unit) (peg-seq (peg-eq 35) (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116)))
+    (peg-xform (lambda _ #?) (peg-seq (peg-eq 35) (peg-eq 63))) ))
 (define scm-tail
   (peg-alt
     (peg-xform (lambda (x) (cons (nth 1 x) (nth 5 x)))
