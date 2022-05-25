@@ -20,6 +20,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define EXPLICIT_FREE 1 // explicitly free known-dead memory
 #define MARK_SWEEP_GC 1 // stop-the-world garbage collection
 #define RUNTIME_STATS 1 // collect statistics on the runtime
+#define LAMBDA_COMPIL 0 // include experiement lambda compiler
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -1103,7 +1104,6 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_pair,       .x=1,           .y=G_PRED_B+10, .z=UNDEF        },  // msg = (custs . resume)
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // ptrn
 
-#if 1
 #define G_XLAT_K (G_PRED_B+11)
 //  { .t=VM_push,       .x=_cust_,      .y=G_XLAT_K-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_in_,        .y=G_XLAT_K+0,  .z=UNDEF        },
@@ -1139,16 +1139,11 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_pair,       .x=1,           .y=G_XLAT_B+8,  .z=UNDEF        },  // msg = (custs . resume)
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // ptrn
 
-#define G_END (G_XLAT_B+9)
-#else
-#define G_END (G_PRED_B+11)
-#endif
-
 //
 // Global LISP/Scheme Procedures
 //
 
-#define RV_FALSE (G_END+0)
+#define RV_FALSE (G_XLAT_B+9)
     { .t=VM_push,       .x=FALSE,       .y=CUST_SEND,   .z=UNDEF        },  // FALSE
 #define RV_TRUE (RV_FALSE+1)
     { .t=VM_push,       .x=TRUE,        .y=CUST_SEND,   .z=UNDEF        },  // TRUE
@@ -1577,13 +1572,21 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
 #define F_NTH (AP_CADDR+2)
     { .t=Actor_T,       .x=F_NTH+1,     .y=UNDEF,       .z=UNDEF        },  // (cust . args)
-    { .t=VM_push,       .x=F_NTH+6,     .y=F_NTH+2,     .z=UNDEF        },  // address of VM_nth instruction
-    { .t=VM_msg,        .x=2,           .y=F_NTH+3,     .z=UNDEF        },  // index = arg1
-    { .t=VM_cvt,        .x=CVT_FIX_INT, .y=F_NTH+4,     .z=UNDEF        },  // TO_INT(index)
-    { .t=VM_set,        .x=FLD_X,       .y=F_NTH+5,     .z=UNDEF        },  // set_x(index)
-    { .t=VM_msg,        .x=3,           .y=F_NTH+6,     .z=UNDEF        },  // list = arg2
-    { .t=VM_nth,        .x=0,           .y=CUST_SEND,   .z=UNDEF        },  // nth(list) <-- self-modifying code!
-#define AP_NTH (F_NTH+7)
+    { .t=VM_msg,        .x=0,           .y=F_NTH+2,     .z=UNDEF        },  // msg = (cust . args)
+
+    { .t=VM_push,       .x=VM_nth,      .y=F_NTH+3,     .z=UNDEF        },  // VM_nth
+    { .t=VM_msg,        .x=2,           .y=F_NTH+4,     .z=UNDEF        },  // index = arg1
+    { .t=VM_cvt,        .x=CVT_FIX_INT, .y=F_NTH+5,     .z=UNDEF        },  // TO_INT(index)
+    { .t=VM_push,       .x=CUST_SEND,   .y=F_NTH+6,     .z=UNDEF        },  // CUST_SEND
+    { .t=VM_cell,       .x=3,           .y=F_NTH+7,     .z=UNDEF        },  // beh = {t:VM_nth, x:index, k:CUST_SEND}
+
+    { .t=VM_push,       .x=VM_msg,      .y=F_NTH+8,     .z=UNDEF        },  // VM_msg
+    { .t=VM_push,       .x=3,           .y=F_NTH+9,     .z=UNDEF        },  // 3
+    { .t=VM_roll,       .x=3,           .y=F_NTH+10,    .z=UNDEF        },  // beh
+    { .t=VM_cell,       .x=3,           .y=F_NTH+11,    .z=UNDEF        },  // beh' = {t:VM_msg, x:3, k:beh}
+
+    { .t=VM_new,        .x=0,           .y=SEND_0,      .z=UNDEF        },  // (k_nth cust . args)
+#define AP_NTH (F_NTH+12)
     { .t=Actor_T,       .x=AP_NTH+1,    .y=UNDEF,       .z=UNDEF        },  // (nth <index> <list>)
     { .t=VM_push,       .x=F_NTH,       .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_NTH
 
@@ -2077,6 +2080,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=AP_G_START+1,.y=UNDEF,       .z=UNDEF        },  // (peg-start <peg> <src>)
     { .t=VM_push,       .x=F_G_START,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_START
 
+#if LAMBDA_COMPIL
 //
 // Lambda expression (LISP/Scheme) compiler
 //
@@ -2359,6 +2363,9 @@ Star(pattern) = Or(Plus(pattern), Empty)
 //
 
 #define G_WSP (LAMBDA_C+15)
+#else // !LAMBDA_COMPIL
+#define G_WSP (AP_G_START+2)
+#endif // LAMBDA_COMPIL
     { .t=Actor_T,       .x=G_WSP+1,     .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=WSP,         .y=G_CLS_B,     .z=UNDEF        },  // class = whitespace
 #define G_WSP_S (G_WSP+2)
@@ -2558,7 +2565,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 sexpr = And(Star(Wsp), alt_ex) -> cdr
 alt_ex = Alt(list, const, quoted, fixnum, symbol)
 list = Seq('(', Star(sexpr), Star(Wsp), ')') -> cadr
-const = And('#', Alt('f', 't', '?'))
+const = And('#', Alt('f', 't', '?', "unit"))
 quoted = And('\'', alt_ex)
 fixnum = Or(And(Or('+', '-'), Plus(Dgt)), Plus(Dgt)) -> fixnum
 symbol = Plus(Atom) -> symbol
@@ -2804,6 +2811,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { F_G_START, "F_G_START" },
     { AP_G_START, "AP_G_START" },
 
+#if LAMBDA_COMPIL
     { C_UNDEF_T, "C_UNDEF_T" },
     { C_CONST_T, "C_CONST_T" },
     { C_VAR_T, "C_VAR_T" },
@@ -2813,6 +2821,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { COMPILE_B, "COMPILE_B" },
     { K_LAMBDAC, "K_LAMBDAC" },
     { LAMBDA_C, "LAMBDA_C" },
+#endif // LAMBDA_COMPIL
 
     { G_WSP, "G_WSP" },
     { G_WSP_S, "G_WSP_S" },
@@ -2986,7 +2995,7 @@ int_t list_len(int_t val) {
     return len;
 }
 
-// WARNING! destuctive reverse in-place and append
+// WARNING! destuctive reverse-in-place and append
 int_t append_reverse(int_t head, int_t tail) {
     sane = SANITY;
     while (IS_PAIR(head)) {
@@ -3422,8 +3431,11 @@ int_t init_global_env() {
     bind_global("peg-lang", G_SEXPR_X);  // language parser start symbol
     bind_global("quote", OP_QUOTE);
     bind_global("list", AP_LIST);
+#if LAMBDA_COMPIL
+    bind_global("lambda", LAMBDA_C);  // lambda compiler (experimental)
+#else
     bind_global("lambda", OP_LAMBDA);  // lambda interpreter
-    //bind_global("lambda", LAMBDA_C);  // lambda compiler (experimental)
+#endif
     bind_global("seq", OP_SEQ);
     bind_global("define", OP_DEFINE);
     bind_global("cons", AP_CONS);
@@ -4656,7 +4668,7 @@ static char *db_cmd_token(char **pp) {
     return q;
 }
 static int_t db_cmd_eq(char *actual, char *expect) {
-    sane = SANITY;
+    sane = 16;
     while (*expect) {
         if (*expect++ != *actual++) return FALSE;
         if (sane-- == 0) return panic("insane db_cmd_eq");
@@ -4666,7 +4678,7 @@ static int_t db_cmd_eq(char *actual, char *expect) {
 static int_t db_num_cmd(char *cmd) {
     int_t n = 0;
     nat_t d;
-    sane = SANITY;
+    sane = 16;
     while ((d = NAT(*cmd++ - '0')) < 10) {
         n = (n * 10) + d;
         if (sane-- == 0) return panic("insane db_num_cmd");

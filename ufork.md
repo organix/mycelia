@@ -276,7 +276,7 @@ k_queue: [head,tail]--------------------+
 ### Lambda Compilation Test-Cases
 
 ```
-(define nop (lambda _))                         ; equivalent to _par_
+(define par (lambda _))
 (define zero (lambda _ 0))
 (define nil (lambda _ ()))
 (define ap (lambda x x))                        ; equivalent to _list_
@@ -357,6 +357,7 @@ Date       | Events | Instructions | Description
 2022-05-18 |   1203 |        15029 | parse QUOTE -> CONST_BEH
 2022-05-21 |   1205 |        15039 | delegate to GLOBAL_ENV
 2022-05-22 |   1205 |        15030 | lambda interpreter
+2022-05-25 |   1040 |        12911 | enhanced built-in parser
 
 ## PEG Tools
 
@@ -447,7 +448,6 @@ Date       | Events | Instructions | Description
 ;(peg-start (peg-not (peg-eq 13)) (peg-source (list 48 10)))
 ;(peg-start (peg-not (peg-eq 48)) (peg-source (list 48 10)))
 
-(define peg-end (peg-not peg-any))  ; end of input
 (peg-start peg-end (peg-source (list)))
 (peg-start peg-end (peg-source (list 32)))
 (peg-start peg-end (peg-source (list 10)))
@@ -468,16 +468,10 @@ Date       | Events | Instructions | Description
 (peg-start (peg-not (peg-eq 32)) (peg-source (list 10)))
 (peg-start (peg-not (peg-eq 32)) (peg-source (list 32 10)))
 
-(define peg-peek (lambda (ptrn) (peg-not (peg-not ptrn))))  ; positive lookahead
 (peg-start (peg-peek (peg-eq 32)) (peg-source (list)))
 (peg-start (peg-peek (peg-eq 32)) (peg-source (list 32)))
 (peg-start (peg-peek (peg-eq 32)) (peg-source (list 10)))
 (peg-start (peg-peek (peg-eq 32)) (peg-source (list 32 10)))
-
-(define peg^? (lambda (ptrn) (peg-or (peg-and ptrn peg-empty) peg-empty)))
-(define peg^+ (lambda (ptrn) (peg-and ptrn (peg^* ptrn))))
-(define peg^* (lambda (ptrn) (peg-or (peg^+ ptrn) peg-empty)))
-(define peg-ok? (lambda (x) (if (pair? x) (if (actor? (cdr x)) #f #t) #f)))
 ```
 
 ### PEG Structures
