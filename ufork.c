@@ -869,12 +869,43 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pair,       .x=1,           .y=G_AND_B+15,  .z=UNDEF        },  // ((and_ok . fail) . resume)
     { .t=VM_pick,       .x=3,           .y=SEND_0,      .z=UNDEF        },  // first
 
+#define G_NOT_OK (G_AND_B+16)
+//  { .t=VM_push,       .x=_in_,        .y=G_NOT_OK-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_fail_,      .y=G_NOT_OK+0,  .z=UNDEF        },
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (fail . in)
+#define G_NOT_F (G_NOT_OK+1)
+//  { .t=VM_push,       .x=_ctx_,       .y=G_NOT_F-1,   .z=UNDEF        },  // (value . in)
+//  { .t=VM_push,       .x=_ok_,        .y=G_NOT_F+0,   .z=UNDEF        },
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (ok . ctx)
+#define G_NOT_B (G_NOT_F+1)
+//  { .t=VM_push,       .x=_ptrn_,      .y=G_NOT_B+0,   .z=UNDEF        },
+    { .t=VM_msg,        .x=1,           .y=G_NOT_B+1,   .z=UNDEF        },  // custs
+    { .t=VM_part,       .x=1,           .y=G_NOT_B+2,   .z=UNDEF        },  // fail ok
+
+    { .t=VM_msg,        .x=-2,          .y=G_NOT_B+3,   .z=UNDEF        },  // in
+    { .t=VM_push,       .x=UNIT,        .y=G_NOT_B+4,   .z=UNDEF        },  // value = UNIT
+    { .t=VM_pair,       .x=1,           .y=G_NOT_B+5,   .z=UNDEF        },  // ctx = (#unit . in)
+    { .t=VM_roll,       .x=2,           .y=G_NOT_B+6,   .z=UNDEF        },  // ok
+    { .t=VM_push,       .x=G_NOT_F,     .y=G_NOT_B+7,   .z=UNDEF        },  // G_NOT_F
+    { .t=VM_new,        .x=2,           .y=G_NOT_B+8,   .z=UNDEF        },  // fail' = (G_NOT_F ctx ok)
+
+    { .t=VM_msg,        .x=-2,          .y=G_NOT_B+9,   .z=UNDEF        },  // in
+    { .t=VM_roll,       .x=3,           .y=G_NOT_B+10,  .z=UNDEF        },  // fail
+    { .t=VM_push,       .x=G_NOT_OK,    .y=G_NOT_B+11,  .z=UNDEF        },  // G_NOT_OK
+    { .t=VM_new,        .x=2,           .y=G_NOT_B+12,  .z=UNDEF        },  // ok' = (G_NOT_OK in fail)
+
+    { .t=VM_pair,       .x=1,           .y=G_NOT_B+13,  .z=UNDEF        },  // custs' = (ok' . fail')
+    { .t=VM_msg,        .x=-1,          .y=G_NOT_B+14,  .z=UNDEF        },  // ctx = (value . in)
+    { .t=VM_roll,       .x=2,           .y=G_NOT_B+15,  .z=UNDEF        },  // ctx custs'
+    { .t=VM_pair,       .x=1,           .y=G_NOT_B+16,  .z=UNDEF        },  // msg = (custs' value . in)
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // msg ptrn
+
 /*
 Optional(pattern) = Or(And(pattern, Empty), Empty)
 Plus(pattern) = And(pattern, Star(pattern))
 Star(pattern) = Or(Plus(pattern), Empty)
 */
-#define G_OPT_B (G_AND_B+16)
+#define G_OPT_B (G_NOT_B+17)
 #define G_PLUS_B (G_OPT_B+6)
 #define G_STAR_B (G_PLUS_B+5)
 //  { .t=VM_push,       .x=_ptrn_,      .y=G_OPT_B+0,   .z=UNDEF        },
@@ -1901,7 +1932,16 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=AP_G_AND+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-and <first> <rest>)
     { .t=VM_push,       .x=F_G_AND,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_AND
 
-#define F_G_CLS (AP_G_AND+2)
+#define F_G_NOT (AP_G_AND+2)
+    { .t=Actor_T,       .x=F_G_NOT+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_G_NOT+2,   .z=UNDEF        },  // peg = arg1
+    { .t=VM_push,       .x=G_NOT_B,     .y=F_G_NOT+3,   .z=UNDEF        },  // G_NOT_B
+    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (G_NOT_B peg)
+#define AP_G_NOT (F_G_NOT+4)
+    { .t=Actor_T,       .x=AP_G_NOT+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-not <peg>)
+    { .t=VM_push,       .x=F_G_NOT,     .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_NOT
+
+#define F_G_CLS (AP_G_NOT+2)
     { .t=Actor_T,       .x=F_G_CLS+1,   .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=0,           .y=F_G_CLS+2,   .z=UNDEF        },
     { .t=VM_part,       .x=1,           .y=F_G_CLS+3,   .z=UNDEF        },  // args cust
@@ -2612,6 +2652,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_AND_PR, "G_AND_PR" },
     { G_AND_OK, "G_AND_OK" },
     { G_AND_B, "G_AND_B" },
+    { G_NOT_OK, "G_NOT_OK" },
+    { G_NOT_F, "G_NOT_F" },
+    { G_NOT_B, "G_NOT_B" },
     { G_OPT_B, "G_OPT_B" },
     { G_PLUS_B, "G_PLUS_B" },
     { G_STAR_B, "G_STAR_B" },
@@ -2704,6 +2747,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_G_OR, "AP_G_OR" },
     { F_G_AND, "F_G_AND" },
     { AP_G_AND, "AP_G_AND" },
+    { F_G_NOT, "F_G_NOT" },
+    { AP_G_NOT, "AP_G_NOT" },
     { F_G_CLS, "F_G_CLS" },
     { AP_G_CLS, "AP_G_CLS" },
     { F_G_OPT, "F_G_OPT" },
@@ -3369,7 +3414,6 @@ int_t init_global_env() {
     bind_global("+", AP_NUM_ADD);
     bind_global("-", AP_NUM_SUB);
     bind_global("*", AP_NUM_MUL);
-#if 1
     bind_global("CTL", TO_FIX(CTL));
     bind_global("DGT", TO_FIX(DGT));
     bind_global("UPR", TO_FIX(UPR));
@@ -3384,6 +3428,7 @@ int_t init_global_env() {
     bind_global("peg-eq", AP_G_EQ);
     bind_global("peg-or", AP_G_OR);
     bind_global("peg-and", AP_G_AND);
+    bind_global("peg-not", AP_G_NOT);
     bind_global("peg-class", AP_G_CLS);
     bind_global("peg-opt", AP_G_OPT);
     bind_global("peg-plus", AP_G_PLUS);
@@ -3395,7 +3440,6 @@ int_t init_global_env() {
     bind_global("peg-xform", AP_G_XFORM);
     bind_global("peg-source", AP_G_SRC);
     bind_global("peg-start", AP_G_START);
-#endif
     bind_global("list->number", AP_LST_NUM);
     bind_global("list->symbol", AP_LST_SYM);
     bind_global("a-print", A_PRINT);

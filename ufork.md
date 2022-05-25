@@ -368,6 +368,7 @@ Date       | Events | Instructions | Description
   * `(peg-eq `_token_`)`
   * `(peg-or `_first_` `_rest_`)`
   * `(peg-and `_first_` `_rest_`)`
+  * `(peg-not `_peg_`)`
   * `(peg-class . `_classes_`)`
   * `(peg-opt `_peg_`)`
   * `(peg-plus `_peg_`)`
@@ -385,7 +386,7 @@ Date       | Events | Instructions | Description
 ### PEG Test-Cases
 
 ```
-(define src (peg-source (list 45 52 50 48)))  ; '-' '4' '2' '0'
+(define src (peg-source (list 45 52 50 48)))  ; "-420"
 (peg-start peg-any src)
 (peg-start (peg-and peg-any peg-empty) src)
 (peg-start (peg-or (peg-eq 45) peg-empty) src)
@@ -398,20 +399,59 @@ Date       | Events | Instructions | Description
 (define peg-digits (peg-or (peg-and peg-digit (peg-call peg-digits)) peg-empty))
 (define peg-number (peg-and (peg-or (peg-eq 45) peg-empty) peg-digits))
 (peg-start peg-number src)
-(define src (peg-source (list 70 111 111 10)))  ; 'F' 'o' 'o' '\n'
+
+(define src (peg-source (list 70 111 111 10)))  ; "Foo\n"
 (define peg-alnum (peg-plus (peg-class UPR LWR)))
 (peg-start peg-alnum src)
 (peg-start (peg-and (peg-opt (peg-eq 45)) (peg-star (peg-class DGT))) (peg-source (list 45 52 50 48 10)))
+
 (define sxp-optws (peg-star (peg-alt (peg-eq 9) (peg-eq 10) (peg-eq 13) (peg-eq 32))))
 (define sxp-atom (peg-and sxp-optws (peg-plus (peg-class UPR LWR DGT SYM))))
 (define sxp-list (peg-seq (peg-eq 40) (peg-star sxp-atom) sxp-optws (peg-eq 41)))
-(define src (peg-source (list 40 76 73 83 84 32 49 50 51 9 55 56 57 48 41 13 10)))  ; (LIST 123 7890)
+;(define src (peg-source (list 40 76 73 83 84 32 49 50 51 32 55 56 57 48 41 13 10)))  ; "(LIST 123 7890)"
+(define src (peg-source (list 40 67 65 82 32 40 32 76 73 83 84 32 48 32 49 41 9 41)))  ; "(CAR ( LIST 0 1)\t)"
 (peg-start sxp-list src)
-(define src (peg-source (list 40 67 65 82 32 40 32 76 73 83 84 32 48 32 49 41 9 41)))  ; (CAR (LIST 0 1))
+
 (define scm-pos (peg-xform list->number (peg-plus (peg-class DGT))))
 (define scm-neg (peg-xform list->number (peg-and (peg-eq 45) (peg-plus (peg-class DGT)))))
-(define scm-num (peg-or scm-neg scm-pos))
-(peg-start (peg-pred number? scm-num) (peg-source (list 48 10)))
+;(define scm-num (peg-xform car (peg-and (peg-or scm-neg scm-pos) (peg-eq 10))))
+;(define scm-num (peg-xform car (peg-and (peg-or scm-neg scm-pos) (peg-not peg-any))))
+;(define scm-num (peg-xform car (peg-and (peg-or scm-neg scm-pos) (peg-class UPR LWR SYM))))
+(define scm-num (peg-xform car (peg-and (peg-or scm-neg scm-pos) (peg-not (peg-class UPR LWR SYM)))))
+(peg-start scm-num (peg-source (list 49 115 116 10)))  ; "1st\n"
+;(peg-start (peg-pred number? scm-num) (peg-source (list 48 10)))  ; "0\n"
+(peg-start scm-num (peg-source (list 48 10)))  ; "0\n"
+
+(define peg-end (peg-not peg-any))  ; end of input
+(peg-start peg-end (peg-source (list)))
+(peg-start peg-end (peg-source (list 32)))
+(peg-start peg-end (peg-source (list 10)))
+(peg-start peg-end (peg-source (list 32 10)))
+
+(peg-start peg-any (peg-source (list)))
+(peg-start peg-any (peg-source (list 32)))
+(peg-start peg-any (peg-source (list 10)))
+(peg-start peg-any (peg-source (list 32 10)))
+
+(peg-start (peg-eq 32) (peg-source (list)))
+(peg-start (peg-eq 32) (peg-source (list 32)))
+(peg-start (peg-eq 32) (peg-source (list 10)))
+(peg-start (peg-eq 32) (peg-source (list 32 10)))
+
+(peg-start (peg-not (peg-eq 32)) (peg-source (list)))
+(peg-start (peg-not (peg-eq 32)) (peg-source (list 32)))
+(peg-start (peg-not (peg-eq 32)) (peg-source (list 10)))
+(peg-start (peg-not (peg-eq 32)) (peg-source (list 32 10)))
+
+(define peg-peek (lambda (ptrn) (peg-not (peg-not ptrn))))  ; positive lookahead
+(peg-start (peg-peek (peg-eq 32)) (peg-source (list)))
+(peg-start (peg-peek (peg-eq 32)) (peg-source (list 32)))
+(peg-start (peg-peek (peg-eq 32)) (peg-source (list 10)))
+(peg-start (peg-peek (peg-eq 32)) (peg-source (list 32 10)))
+
+(define peg^? (lambda (ptrn) (peg-or (peg-and ptrn peg-empty) peg-empty)))
+(define peg^+ (lambda (ptrn) (peg-and ptrn (peg^* ptrn))))
+(define peg^* (lambda (ptrn) (peg-or (peg^+ ptrn) peg-empty)))
 ```
 
 ### PEG Structures
@@ -476,6 +516,10 @@ NIL or --->[token,next]--->
 | ^] |  29 |  1d |  x  |     |     |     |     |     |     |     |
 | ^^ |  30 |  1e |  x  |     |     |     |     |     |     |     |
 | ^_ |  31 |  1f |  x  |     |     |     |     |     |     |     |
+
+
+| ch | dec | hex | CTL | DGT | UPR | LWR | DLM | SYM | HEX | WSP |
+|----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
 |    |  32 |  20 |     |     |     |     |     |     |     |  x  |
 | !  |  33 |  21 |     |     |     |     |     |  x  |     |     |
 | "  |  34 |  22 |     |     |     |     |  x  |     |     |     |
@@ -508,6 +552,10 @@ NIL or --->[token,next]--->
 | =  |  61 |  3d |     |     |     |     |     |  x  |     |     |
 | >  |  62 |  3e |     |     |     |     |     |  x  |     |     |
 | ?  |  63 |  3f |     |     |     |     |     |  x  |     |     |
+
+
+| ch | dec | hex | CTL | DGT | UPR | LWR | DLM | SYM | HEX | WSP |
+|----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
 | @  |  64 |  40 |     |     |     |     |     |  x  |     |     |
 | A  |  65 |  41 |     |     |  x  |     |     |     |  x  |     |
 | B  |  66 |  42 |     |     |  x  |     |     |     |  x  |     |
@@ -540,6 +588,10 @@ NIL or --->[token,next]--->
 | ]  |  93 |  5d |     |     |     |     |  x  |     |     |     |
 | ^  |  94 |  5e |     |     |     |     |     |  x  |     |     |
 | \_ |  95 |  5f |     |     |     |     |     |  x  |     |     |
+
+
+| ch | dec | hex | CTL | DGT | UPR | LWR | DLM | SYM | HEX | WSP |
+|----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
 | \` |  96 |  60 |     |     |     |     |  x  |     |     |     |
 | a  |  97 |  61 |     |     |     |  x  |     |     |  x  |     |
 | b  |  98 |  62 |     |     |     |  x  |     |     |  x  |     |
