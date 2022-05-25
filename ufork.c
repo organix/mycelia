@@ -2377,14 +2377,36 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define G_QMARK (G_LWR_T+2)
     { .t=Actor_T,       .x=G_QMARK+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=TO_FIX('?'), .y=G_EQ_B,      .z=UNDEF        },  // value = '?' = 63
-#define G_ALT_KW (G_QMARK+2)
+#define G_LWR_I (G_QMARK+2)
+    { .t=Actor_T,       .x=G_LWR_I+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('i'), .y=G_EQ_B,      .z=UNDEF        },  // value = 'i' = 105
+#define G_IT_S (G_LWR_I+2)
+    { .t=Actor_T,       .x=G_IT_S+1,    .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=G_LWR_I,     .y=G_IT_S+2,    .z=UNDEF        },  // first = 'i'
+    { .t=VM_push,       .x=G_LWR_T,     .y=G_AND_B,     .z=UNDEF        },  // rest = 't'
+#define G_LWR_N (G_IT_S+3)
+    { .t=Actor_T,       .x=G_LWR_N+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('n'), .y=G_EQ_B,      .z=UNDEF        },  // value = 'n' = 110
+#define G_NIT_S (G_LWR_N+2)
+    { .t=Actor_T,       .x=G_NIT_S+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=G_LWR_N,     .y=G_NIT_S+2,   .z=UNDEF        },  // first = 'n'
+    { .t=VM_push,       .x=G_IT_S,      .y=G_AND_B,     .z=UNDEF        },  // rest = "it"
+#define G_LWR_U (G_NIT_S+3)
+    { .t=Actor_T,       .x=G_LWR_U+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=TO_FIX('u'), .y=G_EQ_B,      .z=UNDEF        },  // value = 'u' = 117
+#define G_UNIT_S (G_LWR_U+2)
+    { .t=Actor_T,       .x=G_UNIT_S+1,  .y=UNDEF,       .z=UNDEF        },
+    { .t=VM_push,       .x=G_LWR_U,     .y=G_UNIT_S+2,  .z=UNDEF        },  // first = 'u'
+    { .t=VM_push,       .x=G_NIT_S,     .y=G_AND_B,     .z=UNDEF        },  // rest = "nit"
+#define G_ALT_KW (G_UNIT_S+3)
     { .t=Actor_T,       .x=G_ALT_KW+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_ALT_KW+2,  .z=UNDEF        },  // ()
-    { .t=VM_push,       .x=G_QMARK,     .y=G_ALT_KW+3,  .z=UNDEF        },  // '?'
-    { .t=VM_push,       .x=G_LWR_T,     .y=G_ALT_KW+4,  .z=UNDEF        },  // 't'
-    { .t=VM_push,       .x=G_LWR_F,     .y=G_ALT_KW+5,  .z=UNDEF        },  // 'f'
-    { .t=VM_pair,       .x=3,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt 'f' 't' '?')
-#define G_CONST (G_ALT_KW+6)
+    { .t=VM_push,       .x=G_UNIT_S,    .y=G_ALT_KW+3,  .z=UNDEF        },  // "unit"
+    { .t=VM_push,       .x=G_QMARK,     .y=G_ALT_KW+4,  .z=UNDEF        },  // '?'
+    { .t=VM_push,       .x=G_LWR_T,     .y=G_ALT_KW+5,  .z=UNDEF        },  // 't'
+    { .t=VM_push,       .x=G_LWR_F,     .y=G_ALT_KW+6,  .z=UNDEF        },  // 'f'
+    { .t=VM_pair,       .x=4,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt 'f' 't' '?' "unit")
+#define G_CONST (G_ALT_KW+7)
     { .t=Actor_T,       .x=G_CONST+1,   .y=UNDEF,       .z=UNDEF        },  // (And G_HASH G_ALT_KW)
     { .t=VM_push,       .x=G_HASH,      .y=G_CONST+2,   .z=UNDEF        },  // G_HASH
     { .t=VM_push,       .x=G_ALT_KW,    .y=G_AND_B,     .z=UNDEF        },  // G_ALT_KW
@@ -2397,19 +2419,25 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_nth,        .x=-1,          .y=G_KW_OK+3,   .z=UNDEF        },  // kw
     { .t=VM_eq,         .x=TO_FIX('f'), .y=G_KW_OK+4,   .z=UNDEF        },  // kw == 'f'
     { .t=VM_if,         .x=G_KW_OK+5,   .y=G_KW_OK+6,   .z=UNDEF        },
-    { .t=VM_push,       .x=FALSE,       .y=G_KW_OK+12,  .z=UNDEF        },  // FALSE
+    { .t=VM_push,       .x=FALSE,       .y=G_KW_OK+17,  .z=UNDEF        },  // FALSE
 
     { .t=VM_msg,        .x=1,           .y=G_KW_OK+7,   .z=UNDEF        },  // value
     { .t=VM_nth,        .x=-1,          .y=G_KW_OK+8,   .z=UNDEF        },  // kw
     { .t=VM_eq,         .x=TO_FIX('t'), .y=G_KW_OK+9,   .z=UNDEF        },  // kw == 't'
     { .t=VM_if,         .x=G_KW_OK+10,  .y=G_KW_OK+11,  .z=UNDEF        },
-    { .t=VM_push,       .x=TRUE,        .y=G_KW_OK+12,  .z=UNDEF        },  // TRUE
+    { .t=VM_push,       .x=TRUE,        .y=G_KW_OK+17,  .z=UNDEF        },  // TRUE
 
-    { .t=VM_push,       .x=UNDEF,       .y=G_KW_OK+12,  .z=UNDEF        },  // UNDEF
+    { .t=VM_msg,        .x=1,           .y=G_KW_OK+12,  .z=UNDEF        },  // value
+    { .t=VM_nth,        .x=2,           .y=G_KW_OK+13,  .z=UNDEF        },  // car(kw)
+    { .t=VM_eq,         .x=TO_FIX('u'), .y=G_KW_OK+14,  .z=UNDEF        },  // car(kw) == 'u'
+    { .t=VM_if,         .x=G_KW_OK+15,  .y=G_KW_OK+16,  .z=UNDEF        },
+    { .t=VM_push,       .x=UNIT,        .y=G_KW_OK+17,  .z=UNDEF        },  // UNIT
 
-    { .t=VM_pair,       .x=1,           .y=G_KW_OK+13,  .z=UNDEF        },  // (value' . in)
+    { .t=VM_push,       .x=UNDEF,       .y=G_KW_OK+17,  .z=UNDEF        },  // UNDEF
+
+    { .t=VM_pair,       .x=1,           .y=G_KW_OK+18,  .z=UNDEF        },  // (value' . in)
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
-#define G_CONST_X (G_KW_OK+14)
+#define G_CONST_X (G_KW_OK+19)
     { .t=Actor_T,       .x=G_CONST_X+1, .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=G_CONST_X+2, .z=UNDEF        },  // (custs . resume)
     { .t=VM_part,       .x=1,           .y=G_CONST_X+3, .z=UNDEF        },  // resume custs
@@ -2792,6 +2820,10 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_LWR_F, "G_LWR_F" },
     { G_LWR_T, "G_LWR_T" },
     { G_QMARK, "G_QMARK" },
+    { G_LWR_I, "G_LWR_I" },
+    { G_LWR_N, "G_LWR_N" },
+    { G_LWR_U, "G_LWR_U" },
+    { G_UNIT_S, "G_UNIT_S" },
     { G_ALT_KW, "G_ALT_KW" },
     { G_CONST, "G_CONST" },
     { G_KW_OK, "G_KW_OK" },

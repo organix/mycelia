@@ -383,6 +383,12 @@ Date       | Events | Instructions | Description
   * `a-print`
   * `peg-lang`
 
+### PEG Derivations
+
+  * `(define peg-end (peg-not peg-any))  ; end of input`
+  * `(define peg-peek (lambda (ptrn) (peg-not (peg-not ptrn))))  ; positive lookahead`
+  * `(define peg-ok? (lambda (x) (if (pair? x) (if (actor? (cdr x)) #f #t) #f)))`
+
 ### PEG Test-Cases
 
 ```
