@@ -802,17 +802,17 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=3,           .y=SEND_0,      .z=UNDEF        },  // fail
 
 #define G_FAIL_K (G_EQ_B+19)
-//  { .t=VM_push,       .x=_restart_,   .y=G_FAIL_K-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_rest_,      .y=G_FAIL_K+0,  .z=UNDEF        },
-    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (rest . restart)
+//  { .t=VM_push,       .x=_msg_,       .y=G_FAIL_K-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_cust_,      .y=G_FAIL_K+0,  .z=UNDEF        },
+    { .t=VM_send,       .x=0,           .y=COMMIT,      .z=UNDEF        },  // (cust . msg)
 
 #define G_OR_B (G_FAIL_K+1)
 //  { .t=VM_push,       .x=_first_,     .y=G_OR_B-1,    .z=UNDEF        },
 //  { .t=VM_push,       .x=_rest_,      .y=G_OR_B+0,    .z=UNDEF        },
     { .t=VM_msg,        .x=-1,          .y=G_OR_B+1,    .z=UNDEF        },  // resume = (value . in)
 
-    { .t=VM_msg,        .x=0,           .y=G_OR_B+2,    .z=UNDEF        },  // restart = (custs value . in)
-    { .t=VM_pick,       .x=3,           .y=G_OR_B+3,    .z=UNDEF        },  // rest
+    { .t=VM_msg,        .x=0,           .y=G_OR_B+2,    .z=UNDEF        },  // msg = (custs value . in)
+    { .t=VM_pick,       .x=3,           .y=G_OR_B+3,    .z=UNDEF        },  // cust = rest
     { .t=VM_push,       .x=G_FAIL_K,    .y=G_OR_B+4,    .z=UNDEF        },  // G_FAIL_K
     { .t=VM_new,        .x=2,           .y=G_OR_B+5,    .z=UNDEF        },  // or_fail
 
@@ -853,8 +853,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=1,           .y=G_AND_B+2,   .z=UNDEF        },  // custs
     { .t=VM_nth,        .x=-1,          .y=G_AND_B+3,   .z=UNDEF        },  // fail = cdr(custs)
 
-    { .t=VM_msg,        .x=0,           .y=G_AND_B+4,   .z=UNDEF        },  // restart = (custs value . in)
-    { .t=VM_pick,       .x=4,           .y=G_AND_B+5,   .z=UNDEF        },  // rest
+    { .t=VM_msg,        .x=-2,          .y=G_AND_B+4,   .z=UNDEF        },  // msg = in
+    { .t=VM_pick,       .x=2,           .y=G_AND_B+5,   .z=UNDEF        },  // cust = fail
     { .t=VM_push,       .x=G_FAIL_K,    .y=G_AND_B+6,   .z=UNDEF        },  // G_FAIL_K
     { .t=VM_new,        .x=2,           .y=G_AND_B+7,   .z=UNDEF        },  // and_fail
 

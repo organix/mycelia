@@ -418,9 +418,28 @@ Date       | Events | Instructions | Description
 ;(define scm-num (peg-xform car (peg-and (peg-or scm-neg scm-pos) (peg-not peg-any))))
 ;(define scm-num (peg-xform car (peg-and (peg-or scm-neg scm-pos) (peg-class UPR LWR SYM))))
 (define scm-num (peg-xform car (peg-and (peg-or scm-neg scm-pos) (peg-not (peg-class UPR LWR SYM)))))
+;(define scm-num (peg-xform car (peg-and (peg-plus (peg-class DGT)) (peg-not (peg-class UPR LWR SYM)))))
+;(define scm-num (peg-xform car (peg-and (peg-plus (peg-class DGT)) (peg-not (peg-class LWR)))))
+;(define scm-num (peg-xform car (peg-and (peg-plus (peg-class DGT)) (peg-not (peg-class WSP)))))
+;(define scm-num (peg-and (peg-plus (peg-class DGT)) (peg-not (peg-class WSP))))
+;(define scm-num (peg-and (peg-plus (peg-class DGT)) (peg-not (peg-eq 10))))
+;(define scm-num (peg-and (peg-class DGT) (peg-not (peg-eq 10))))
+;(define scm-num (peg-and (peg-eq 48) (peg-not (peg-eq 10))))
 (peg-start scm-num (peg-source (list 49 115 116 10)))  ; "1st\n"
 ;(peg-start (peg-pred number? scm-num) (peg-source (list 48 10)))  ; "0\n"
 (peg-start scm-num (peg-source (list 48 10)))  ; "0\n"
+;(peg-start (peg-and (peg-eq 48) (peg-eq 10)) (peg-source (list 48 10)))
+;(peg-start (peg-and (peg-eq 48) (peg-eq 13)) (peg-source (list 48 10)))
+;(peg-start (peg-and (peg-eq 48) peg-any) (peg-source (list 48 10)))
+;(peg-start (peg-and (peg-eq 48) peg-empty) (peg-source (list 48 10)))
+;(peg-start (peg-and (peg-eq 48) peg-fail) (peg-source (list 48 10)))
+;(peg-start (peg-and (peg-eq 48) (peg-not peg-any)) (peg-source (list 48 10)))
+;(peg-start (peg-and (peg-eq 48) (peg-not peg-empty)) (peg-source (list 48 10)))
+;(peg-start (peg-and (peg-eq 48) (peg-not peg-fail)) (peg-source (list 48 10)))
+;(peg-start (peg-and (peg-eq 48) (peg-not (peg-eq 13))) (peg-source (list 48 10)))
+(peg-start (peg-and (peg-eq 48) (peg-not (peg-eq 10))) (peg-source (list 48 10)))
+;(peg-start (peg-not (peg-eq 13)) (peg-source (list 48 10)))
+;(peg-start (peg-not (peg-eq 48)) (peg-source (list 48 10)))
 
 (define peg-end (peg-not peg-any))  ; end of input
 (peg-start peg-end (peg-source (list)))
@@ -452,6 +471,7 @@ Date       | Events | Instructions | Description
 (define peg^? (lambda (ptrn) (peg-or (peg-and ptrn peg-empty) peg-empty)))
 (define peg^+ (lambda (ptrn) (peg-and ptrn (peg^* ptrn))))
 (define peg^* (lambda (ptrn) (peg-or (peg^+ ptrn) peg-empty)))
+(define peg-ok? (lambda (x) (if (pair? x) (if (actor? (cdr x)) #f #t) #f)))
 ```
 
 ### PEG Structures
