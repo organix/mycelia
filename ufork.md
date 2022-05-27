@@ -379,6 +379,7 @@ Date       | Events | Instructions | Description
   * `(peg-call `_name_`)`
   * `(peg-pred `_pred_` `_peg_`)`
   * `(peg-xform `_appl_` `_peg_`)`
+  * `(peg-chain `_peg_` `_src_`)`
   * `(list->number `_chars_`)`
   * `(list->symbol `_chars_`)`
   * `a-print`
@@ -472,6 +473,19 @@ Date       | Events | Instructions | Description
 (peg-start (peg-peek (peg-eq 32)) (peg-source (list 32)))
 (peg-start (peg-peek (peg-eq 32)) (peg-source (list 10)))
 (peg-start (peg-peek (peg-eq 32)) (peg-source (list 32 10)))
+
+(define src (peg-source (list 57 13 10)))  ; "9\r\n"
+(peg-start (peg-and (peg-class DGT) (peg-class WSP)) (peg-chain peg-any src))
+
+(define src (peg-source (list 9 32 49 32 50 51 32 52 53 54 32 55 56 57 48 13 10)))  ; "\t 1 23 456 7890\r\n"
+;(define wsp-number (peg-xform cdr (peg-and (peg-star (peg-class WSP)) (peg-plus (peg-class DGT))) ))
+;(peg-start (peg-plus (peg-xform list->number wsp-number)) src)
+;(define lang-numbers (peg-plus (peg-xform list->number peg-any)))
+(define wsp-token (peg-xform cdr
+  (peg-and (peg-star (peg-class CTL WSP)) (peg-or (peg-class DLM) (peg-plus (peg-class DGT UPR LWR SYM)))) ))
+(define lang-tokens (peg-plus peg-any))
+;(peg-start lang-numbers (peg-chain wsp-number src))
+(peg-start lang-tokens (peg-chain wsp-token src))
 ```
 
 ### PEG Structures
