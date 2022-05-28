@@ -358,11 +358,13 @@ Date       | Events | Instructions | Description
 2022-05-21 |   1205 |        15039 | delegate to GLOBAL_ENV
 2022-05-22 |   1205 |        15030 | lambda interpreter
 2022-05-25 |   1040 |        12911 | enhanced built-in parser
+2022-05-28 |   1144 |        14334 | refactored built-in parser
 
 ## PEG Tools
 
   * `(peg-source `_list_`)`
   * `(peg-start `_peg_` `_src_`)`
+  * `(peg-chain `_peg_` `_src_`)`
   * `peg-empty`
   * `peg-fail`
   * `peg-any`
@@ -379,7 +381,6 @@ Date       | Events | Instructions | Description
   * `(peg-call `_name_`)`
   * `(peg-pred `_pred_` `_peg_`)`
   * `(peg-xform `_appl_` `_peg_`)`
-  * `(peg-chain `_peg_` `_src_`)`
   * `(list->number `_chars_`)`
   * `(list->symbol `_chars_`)`
   * `a-print`
@@ -390,6 +391,27 @@ Date       | Events | Instructions | Description
   * `(define peg-end (peg-not peg-any))  ; end of input`
   * `(define peg-peek (lambda (ptrn) (peg-not (peg-not ptrn))))  ; positive lookahead`
   * `(define peg-ok? (lambda (x) (if (pair? x) (if (actor? (cdr x)) #f #t) #f)))`
+
+### Lexical Tokens
+
+```
+(define lex-optwsp (peg-star (peg-class WSP)))
+(define scm-to-eol (peg-or (peg-eq 10) (peg-and peg-any (peg-call scm-to-eol))))
+(define scm-comment (peg-and (peg-eq 59) scm-to-eol))
+(define scm-optwsp (peg-star (peg-or scm-comment (peg-class WSP))))
+```
+
+```
+;(peg-or (peg-eq 45) (peg-eq 43))  ; [-+]
+;(peg-plus (peg-or (peg-class DGT) (peg-eq 95)))  ; [0-9_]+
+(define lex-digits
+  (peg-xform car (peg-and
+    (peg-plus (peg-or (peg-class DGT) (peg-eq 95)))
+    (peg-not (peg-class CTL UPR LWR SYM)) )))
+(define lex-integer (peg-xform list->number
+  (peg-or (peg-and (peg-or (peg-eq 45) (peg-eq 43)) lex-digits) lex-digits)))
+;(define peg-lang (peg-xform cdr (peg-and lex-optwsp lex-integer)))
+```
 
 ### PEG Test-Cases
 

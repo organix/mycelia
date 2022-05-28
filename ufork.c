@@ -2424,21 +2424,66 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_new,        .x=1,           .y=LAMBDA_C+14, .z=UNDEF        },  // compile
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (compile k_lambda frml env)
 
+#define END_COMPIL (LAMBDA_C+15)
+#else // !LAMBDA_COMPIL
+#define END_COMPIL (AP_S_CHAIN+2)
+#endif // LAMBDA_COMPIL
+
 //
 // Pre-defined PEGs
 //
 
-#define G_WSP (LAMBDA_C+15)
-#else // !LAMBDA_COMPIL
-#define G_WSP (AP_S_CHAIN+2)
-#endif // LAMBDA_COMPIL
-    { .t=Actor_T,       .x=G_WSP+1,     .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=WSP,         .y=G_CLS_B,     .z=UNDEF        },  // class = whitespace
+/*
+ * (define lex-optwsp (peg-star (peg-class WSP)))
+ */
+#define G_WSP (END_COMPIL+0)
+    { .t=Actor_T,       .x=G_WSP+1,     .y=UNDEF,       .z=UNDEF        },  // (peg-class WSP)
+    { .t=VM_push,       .x=WSP,         .y=G_CLS_B,     .z=UNDEF        },
 #define G_WSP_S (G_WSP+2)
-    { .t=Actor_T,       .x=G_WSP_S+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=G_WSP,       .y=G_STAR_B,    .z=UNDEF        },  // (Star Wsp)
+    { .t=Actor_T,       .x=G_WSP_S+1,   .y=UNDEF,       .z=UNDEF        },  // (peg-star (peg-class WSP))
+    { .t=VM_push,       .x=G_WSP,       .y=G_STAR_B,    .z=UNDEF        },
 
-#define G_HASH (G_WSP_S+2)
+/*
+ * (define scm-to-eol (peg-or (peg-eq 10) (peg-and peg-any (peg-call scm-to-eol))))
+ */
+#define G_CTL_NL (G_WSP_S+2)
+    { .t=Actor_T,       .x=G_CTL_NL+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-eq 10)
+    { .t=VM_push,       .x=TO_FIX('\n'),.y=G_EQ_B,      .z=UNDEF        },
+#define G_TO_EOL (G_CTL_NL+2)
+    { .t=Actor_T,       .x=G_TO_EOL+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-or <first> <rest>)
+    { .t=VM_push,       .x=G_CTL_NL,    .y=G_TO_EOL+2,  .z=UNDEF        },  // first
+    { .t=VM_push,       .x=G_TO_EOL+3,  .y=G_OR_B,      .z=UNDEF        },  // rest
+
+    { .t=Actor_T,       .x=G_TO_EOL+4,  .y=UNDEF,       .z=UNDEF        },  // (peg-and peg-any scm-to-eol)
+    { .t=VM_push,       .x=G_ANY,       .y=G_TO_EOL+5,  .z=UNDEF        },  // first
+    { .t=VM_push,       .x=G_TO_EOL,    .y=G_AND_B,     .z=UNDEF        },  // rest
+
+/*
+ * (define scm-comment (peg-and (peg-eq 59) scm-to-eol))
+ */
+#define G_SEMIC (G_TO_EOL+6)
+    { .t=Actor_T,       .x=G_SEMIC+1,   .y=UNDEF,       .z=UNDEF        },  // (peg-eq 59)
+    { .t=VM_push,       .x=TO_FIX(';'), .y=G_EQ_B,      .z=UNDEF        },  // value = ';' = 59
+#define G_COMMENT (G_SEMIC+2)
+    { .t=Actor_T,       .x=G_COMMENT+1, .y=UNDEF,       .z=UNDEF        },  // (peg-and (peg-eq 59) scm-to-eol)
+    { .t=VM_push,       .x=G_SEMIC,     .y=G_COMMENT+2, .z=UNDEF        },  // first
+    { .t=VM_push,       .x=G_TO_EOL,    .y=G_AND_B,     .z=UNDEF        },  // rest
+
+/*
+ * (define scm-optwsp (peg-star (peg-or scm-comment (peg-class WSP))))
+ */
+#define G_OPTWSP (G_COMMENT+3)
+    { .t=Actor_T,       .x=G_OPTWSP+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-star <ptrn>)
+    { .t=VM_push,       .x=G_OPTWSP+2,  .y=G_STAR_B,    .z=UNDEF        },  // ptrn
+
+    { .t=Actor_T,       .x=G_OPTWSP+3,  .y=UNDEF,       .z=UNDEF        },  // (peg-or scm-comment (peg-class WSP))
+    { .t=VM_push,       .x=G_COMMENT,   .y=G_OPTWSP+4,  .z=UNDEF        },  // first
+    { .t=VM_push,       .x=G_WSP,       .y=G_OR_B,      .z=UNDEF        },  // rest
+
+/*
+ * (define scm-const ...)
+ */
+#define G_HASH (G_OPTWSP+5)
     { .t=Actor_T,       .x=G_HASH+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=TO_FIX('#'), .y=G_EQ_B,      .z=UNDEF        },  // value = '#' = 35
 #define G_LWR_F (G_HASH+2)
@@ -2628,9 +2673,10 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=TO_FIX('\''),.y=G_EQ_B,      .z=UNDEF        },  // value = '\'' = 39
 
 /*
-sexpr = And(Star(Wsp), alt_ex) -> cdr
+optwsp = Star(Wsp)
+sexpr = And(optwsp, alt_ex) -> cdr
 alt_ex = Alt(list, const, quoted, fixnum, symbol)
-list = Seq('(', Star(sexpr), Star(Wsp), ')') -> cadr
+list = Seq('(', Star(sexpr), optwsp, ')') -> cadr
 const = And('#', Alt('f', 't', '?', "unit"))
 quoted = And('\'', alt_ex)
 fixnum = Or(And(Or('+', '-'), Plus(Dgt)), Plus(Dgt)) -> fixnum
@@ -2645,7 +2691,7 @@ symbol = Plus(Atom) -> symbol
 #define G_LIST (G_QUOTED_X+3)
 #define G_LIST_X (G_LIST+7)
     { .t=Actor_T,       .x=G_SEXPR+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=G_WSP_S,     .y=G_SEXPR+2,   .z=UNDEF        },  // (Star Wsp)
+    { .t=VM_push,       .x=G_OPTWSP,    .y=G_SEXPR+2,   .z=UNDEF        },  // optwsp
     { .t=VM_push,       .x=G_ALT_EX,    .y=G_AND_B,     .z=UNDEF        },  // G_ALT_EX
 
     { .t=Actor_T,       .x=G_SEXPR_X+1, .y=UNDEF,       .z=UNDEF        },
@@ -2675,7 +2721,7 @@ symbol = Plus(Atom) -> symbol
     { .t=Actor_T,       .x=G_LIST+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_LIST+2,    .z=UNDEF        },  // ()
     { .t=VM_push,       .x=G_CLOSE,     .y=G_LIST+3,    .z=UNDEF        },  // ')'
-    { .t=VM_push,       .x=G_WSP_S,     .y=G_LIST+4,    .z=UNDEF        },  // (Star Wsp)
+    { .t=VM_push,       .x=G_OPTWSP,    .y=G_LIST+4,    .z=UNDEF        },  // optwsp
     { .t=VM_push,       .x=G_SEXPR_S,   .y=G_LIST+5,    .z=UNDEF        },  // (Star sexpr)
     { .t=VM_push,       .x=G_OPEN,      .y=G_LIST+6,    .z=UNDEF        },  // '('
     { .t=VM_pair,       .x=4,           .y=G_SEQ_B,     .z=UNDEF        },  // (Seq '(' (Star sexpr) (Star Wsp) ')')
@@ -2896,6 +2942,11 @@ static struct { int_t addr; char *label; } symbol_table[] = {
 
     { G_WSP, "G_WSP" },
     { G_WSP_S, "G_WSP_S" },
+    { G_CTL_NL, "G_CTL_NL" },
+    { G_TO_EOL, "G_TO_EOL" },
+    { G_SEMIC, "G_SEMIC" },
+    { G_COMMENT, "G_COMMENT" },
+    { G_OPTWSP, "G_OPTWSP" },
     { G_HASH, "G_HASH" },
     { G_LWR_F, "G_LWR_F" },
     { G_LWR_T, "G_LWR_T" },
@@ -3529,6 +3580,7 @@ int_t init_global_env() {
     bind_global("+", AP_NUM_ADD);
     bind_global("-", AP_NUM_SUB);
     bind_global("*", AP_NUM_MUL);
+
     bind_global("CTL", TO_FIX(CTL));
     bind_global("DGT", TO_FIX(DGT));
     bind_global("UPR", TO_FIX(UPR));
@@ -3558,6 +3610,12 @@ int_t init_global_env() {
     bind_global("peg-chain", AP_S_CHAIN);
     bind_global("list->number", AP_LST_NUM);
     bind_global("list->symbol", AP_LST_SYM);
+
+    bind_global("lex-optwsp", G_WSP_S);
+    bind_global("scm-to-eol", G_TO_EOL);
+    bind_global("scm-comment", G_COMMENT);
+    bind_global("scm-optwsp", G_OPTWSP);
+
     bind_global("a-print", A_PRINT);
     bind_global("quit", A_QUIT);
     return UNIT;
