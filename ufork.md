@@ -392,24 +392,33 @@ Date       | Events | Instructions | Description
   * `(define peg-peek (lambda (ptrn) (peg-not (peg-not ptrn))))  ; positive lookahead`
   * `(define peg-ok? (lambda (x) (if (pair? x) (if (actor? (cdr x)) #f #t) #f)))`
 
-### Lexical Tokens
+#### Lexical Tokens
 
 ```
+(define lex-eol (peg-eq 10))  ; end of line
 (define lex-optwsp (peg-star (peg-class WSP)))
-(define scm-to-eol (peg-or (peg-eq 10) (peg-and peg-any (peg-call scm-to-eol))))
+(define scm-to-eol (peg-or lex-eol (peg-and peg-any (peg-call scm-to-eol))))
 (define scm-comment (peg-and (peg-eq 59) scm-to-eol))
 (define scm-optwsp (peg-star (peg-or scm-comment (peg-class WSP))))
 ```
 
 ```
-;(peg-or (peg-eq 45) (peg-eq 43))  ; [-+]
-;(peg-plus (peg-or (peg-class DGT) (peg-eq 95)))  ; [0-9_]+
-(define lex-digits
-  (peg-xform car (peg-and
-    (peg-plus (peg-or (peg-class DGT) (peg-eq 95)))
-    (peg-not (peg-class CTL UPR LWR SYM)) )))
-(define lex-integer (peg-xform list->number
-  (peg-or (peg-and (peg-or (peg-eq 45) (peg-eq 43)) lex-digits) lex-digits)))
+(define lex-eot (peg-not (peg-class DGT UPR LWR SYM)))  ; end of token
+(define scm-const (peg-xform cadr (peg-seq
+  (peg-eq 35)
+  (peg-alt
+    (peg-xform (lambda _ #f) (peg-eq 102))
+    (peg-xform (lambda _ #t) (peg-eq 116))
+    (peg-xform (lambda _ #?) (peg-eq 63))
+    (peg-xform (lambda _ #unit) (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116))))
+  lex-eot)))
+```
+
+```
+(define lex-sign (peg-or (peg-eq 45) (peg-eq 43)))  ; [-+]
+(define lex-digit (peg-or (peg-class DGT) (peg-eq 95)))  ; [0-9_]
+(define lex-digits (peg-xform car (peg-and (peg-plus lex-digit) lex-eot)))
+(define lex-integer (peg-xform list->number (peg-or (peg-and lex-sign lex-digits) lex-digits)))
 ;(define peg-lang (peg-xform cdr (peg-and lex-optwsp lex-integer)))
 ```
 
