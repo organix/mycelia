@@ -418,8 +418,8 @@ Date       | Events | Instructions | Description
 (define lex-sign (peg-or (peg-eq 45) (peg-eq 43)))  ; [-+]
 (define lex-digit (peg-or (peg-class DGT) (peg-eq 95)))  ; [0-9_]
 (define lex-digits (peg-xform car (peg-and (peg-plus lex-digit) lex-eot)))
-(define lex-integer (peg-xform list->number (peg-or (peg-and lex-sign lex-digits) lex-digits)))
-;(define peg-lang (peg-xform cdr (peg-and lex-optwsp lex-integer)))
+(define lex-number (peg-xform list->number (peg-or (peg-and lex-sign lex-digits) lex-digits)))
+;(define peg-lang (peg-xform cdr (peg-and lex-optwsp lex-number)))
 ```
 
 ### PEG Test-Cases
