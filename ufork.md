@@ -419,7 +419,12 @@ Date       | Events | Instructions | Description
 (define lex-digit (peg-or (peg-class DGT) (peg-eq 95)))  ; [0-9_]
 (define lex-digits (peg-xform car (peg-and (peg-plus lex-digit) lex-eot)))
 (define lex-number (peg-xform list->number (peg-or (peg-and lex-sign lex-digits) lex-digits)))
-;(define peg-lang (peg-xform cdr (peg-and lex-optwsp lex-number)))
+```
+
+```
+(define scm-symbol (peg-xform list->symbol (peg-plus (peg-class DGT UPR LWR SYM))))
+(define scm-quoted (peg-xform (lambda (x) (list 'quote (cdr x)))
+  (peg-and (peg-eq 39) (peg-call scm-expr))))
 ```
 
 ### PEG Test-Cases

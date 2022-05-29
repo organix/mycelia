@@ -2598,7 +2598,6 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_UNDEF,     .y=G_CONST+17,  .z=UNDEF        },  // first = G_UNDEF
     { .t=VM_push,       .x=G_UNIT,      .y=G_OR_B,      .z=UNDEF        },  // rest = G_UNIT
 
-#if 1
 /*
  * (define lex-sign (peg-or (peg-eq 45) (peg-eq 43)))  ; [-+]
  */
@@ -2658,115 +2657,37 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_SIGN,      .y=G_NUMBER+8,  .z=UNDEF        },  // first = lex-sign
     { .t=VM_push,       .x=G_DIGITS,    .y=G_AND_B,     .z=UNDEF        },  // rest = lex-digits
 
-#define G_NUM_END (G_NUMBER+9)
-#else
-#define G_P_SGN (G_CONST+18)
-    { .t=Actor_T,       .x=G_P_SGN+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=TO_FIX('+'), .y=G_EQ_B,      .z=UNDEF        },  // value = '+' = 43
-#define G_M_SGN (G_P_SGN+2)
-    { .t=Actor_T,       .x=G_M_SGN+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=TO_FIX('-'), .y=G_EQ_B,      .z=UNDEF        },  // value = '-' = 45
-#define G_SGN (G_M_SGN+2)
-    { .t=Actor_T,       .x=G_SGN+1,     .y=UNDEF,       .z=UNDEF        },  // (Or G_P_SGN G_M_SGN)
-    { .t=VM_push,       .x=G_P_SGN,     .y=G_SGN+2,     .z=UNDEF        },  // G_P_SGN
-    { .t=VM_push,       .x=G_M_SGN,     .y=G_OR_B,      .z=UNDEF        },  // G_M_SGN
+/*
+ * (define scm-symbol (peg-xform list->symbol (peg-plus (peg-class DGT UPR LWR SYM))))
+ */
+#define G_SYMBOL (G_NUMBER+9)
+    { .t=Actor_T,       .x=G_SYMBOL+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-xform list->symbol <ptrn>)
+    { .t=VM_push,       .x=F_LST_SYM,   .y=G_SYMBOL+2,  .z=UNDEF        },  // func = F_LST_SYM
+    { .t=VM_push,       .x=G_SYMBOL+3,  .y=G_XLAT_B,    .z=UNDEF        },  // ptrn = (peg-plus (peg-class DGT UPR LWR SYM))
 
-#define G_DGT (G_SGN+3)
-    { .t=Actor_T,       .x=G_DGT+1,     .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=DGT,         .y=G_CLS_B,     .z=UNDEF        },  // class = [0-9]
-#define G_DGTS (G_DGT+2)
-    { .t=Actor_T,       .x=G_DGTS+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=G_DGT,       .y=G_PLUS_B,    .z=UNDEF        },  // (Plus Dgt)
-#define G_S_DGTS (G_DGTS+2)
-    { .t=Actor_T,       .x=G_S_DGTS+1,  .y=UNDEF,       .z=UNDEF        },  // (And G_SGN G_DGTS)
-    { .t=VM_push,       .x=G_SGN,       .y=G_S_DGTS+2,  .z=UNDEF        },  // G_SGN
-    { .t=VM_push,       .x=G_DGTS,      .y=G_AND_B,     .z=UNDEF        },  // G_DGTS
-#define G_S_NUM (G_S_DGTS+3)
-    { .t=Actor_T,       .x=G_S_NUM+1,   .y=UNDEF,       .z=UNDEF        },  // (Or G_S_DGTS G_DGTS)
-    { .t=VM_push,       .x=G_S_DGTS,    .y=G_S_NUM+2,   .z=UNDEF        },  // G_S_DGTS
-    { .t=VM_push,       .x=G_DGTS,      .y=G_OR_B,      .z=UNDEF        },  // G_DGTS
+    { .t=Actor_T,       .x=G_SYMBOL+4,  .y=UNDEF,       .z=UNDEF        },  // (peg-plus <ptrn>)
+    { .t=VM_push,       .x=G_PRT,       .y=G_PLUS_B,    .z=UNDEF        },  // ptrn = (peg-class DGT UPR LWR SYM)
 
-#if 0
-#define G_NUM_OK (G_S_NUM+3)
-//  { .t=VM_push,       .x=_cust_,      .y=G_NUM_OK+0,  .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=G_NUM_OK+1,  .z=UNDEF        },  // (value . in)
-    { .t=VM_part,       .x=1,           .y=G_NUM_OK+2,  .z=UNDEF        },  // in value
-    { .t=VM_cvt,        .x=CVT_LST_NUM, .y=G_NUM_OK+3,  .z=UNDEF        },  // fixnum
-    { .t=VM_pair,       .x=1,           .y=G_NUM_OK+4,  .z=UNDEF        },  // (fixnum . in)
-    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
-#define G_FIXNUM (G_NUM_OK+5)
-    { .t=Actor_T,       .x=G_FIXNUM+1,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=G_FIXNUM+2,  .z=UNDEF        },  // (custs . resume)
-    { .t=VM_part,       .x=1,           .y=G_FIXNUM+3,  .z=UNDEF        },  // resume custs
-    { .t=VM_part,       .x=1,           .y=G_FIXNUM+4,  .z=UNDEF        },  // fail ok
-    { .t=VM_push,       .x=G_NUM_OK,    .y=G_FIXNUM+5,  .z=UNDEF        },  // G_NUM_OK
-    { .t=VM_new,        .x=1,           .y=G_FIXNUM+6,  .z=UNDEF        },  // ok'
-    { .t=VM_pair,       .x=1,           .y=G_FIXNUM+7,  .z=UNDEF        },  // custs = (ok' . fail)
-    { .t=VM_pair,       .x=1,           .y=G_FIXNUM+8,  .z=UNDEF        },  // msg = (custs . resume)
-    { .t=VM_push,       .x=G_S_NUM,     .y=SEND_0,      .z=UNDEF        },  // G_S_NUM
-#define G_NUM_END (G_FIXNUM+9)
-#else
-#define G_FIXNUM (G_S_NUM+3)
-    { .t=Actor_T,       .x=G_FIXNUM+1,  .y=UNDEF,       .z=UNDEF        },
-#define G_NUM_OK (G_FIXNUM+1)
-    { .t=VM_push,       .x=F_LST_NUM,   .y=G_FIXNUM+2,  .z=UNDEF        },  // F_LST_NUM
-    { .t=VM_push,       .x=G_S_NUM,     .y=G_XLAT_B,    .z=UNDEF        },  // (xlat list->number s_num)
-#define G_NUM_END (G_FIXNUM+3)
-#endif
-
-#endif
-
-#define G_ATOM (G_NUM_END+0)
-    { .t=Actor_T,       .x=G_ATOM+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,   .x=DGT|LWR|UPR|SYM, .y=G_CLS_B,     .z=UNDEF        },  // class = [0-9A-Za-z...]
-#define G_ATOM_P (G_ATOM+2)
-    { .t=Actor_T,       .x=G_ATOM_P+1,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=G_ATOM,      .y=G_PLUS_B,    .z=UNDEF        },  // (Plus Atom)
-
-#if 0
-#define G_SYM_OK (G_ATOM_P+2)
-//  { .t=VM_push,       .x=_cust_,      .y=G_SYM_OK+0,  .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=G_SYM_OK+1,  .z=UNDEF        },  // (value . in)
-    { .t=VM_part,       .x=1,           .y=G_SYM_OK+2,  .z=UNDEF        },  // in value
-    { .t=VM_cvt,        .x=CVT_LST_SYM, .y=G_SYM_OK+3,  .z=UNDEF        },  // symbol
-    { .t=VM_pair,       .x=1,           .y=G_SYM_OK+4,  .z=UNDEF        },  // (symbol . in)
-    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // cust
-#define G_SYMBOL (G_SYM_OK+5)
-    { .t=Actor_T,       .x=G_SYMBOL+1,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=G_SYMBOL+2,  .z=UNDEF        },  // (custs . resume)
-    { .t=VM_part,       .x=1,           .y=G_SYMBOL+3,  .z=UNDEF        },  // resume custs
-    { .t=VM_part,       .x=1,           .y=G_SYMBOL+4,  .z=UNDEF        },  // fail ok
-    { .t=VM_push,       .x=G_SYM_OK,    .y=G_SYMBOL+5,  .z=UNDEF        },  // G_SYM_OK
-    { .t=VM_new,        .x=1,           .y=G_SYMBOL+6,  .z=UNDEF        },  // ok'
-    { .t=VM_pair,       .x=1,           .y=G_SYMBOL+7,  .z=UNDEF        },  // custs = (ok' . fail)
-    { .t=VM_pair,       .x=1,           .y=G_SYMBOL+8,  .z=UNDEF        },  // msg = (custs . resume)
-    { .t=VM_push,       .x=G_ATOM_P,    .y=SEND_0,      .z=UNDEF        },  // G_ATOM_P
-#define G_SYM_END (G_SYMBOL+9)
-#else
-#define G_SYMBOL (G_ATOM_P+2)
-    { .t=Actor_T,       .x=G_SYMBOL+1,  .y=UNDEF,       .z=UNDEF        },
-#define G_SYM_OK (G_SYMBOL+1)
-    { .t=VM_push,       .x=F_LST_SYM,   .y=G_SYMBOL+2,  .z=UNDEF        },  // F_LST_SYM
-    { .t=VM_push,       .x=G_ATOM_P,    .y=G_XLAT_B,    .z=UNDEF        },  // (xlat list->symbol atom+)
-#define G_SYM_END (G_SYMBOL+3)
-#endif
-
-#define G_OPEN (G_SYM_END+0)
-    { .t=Actor_T,       .x=G_OPEN+1,    .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=TO_FIX('('), .y=G_EQ_B,      .z=UNDEF        },  // value = '(' = 40
-#define G_CLOSE (G_OPEN+2)
-    { .t=Actor_T,       .x=G_CLOSE+1,   .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=TO_FIX(')'), .y=G_EQ_B,      .z=UNDEF        },  // value = ')' = 41
-
-#define F_QUOTED (G_CLOSE+2)
+/*
+ * (define scm-quoted (peg-xform (lambda (x) (list 'quote (cdr x)))
+ *   (peg-and (peg-eq 39) (peg-call scm-sexpr))))
+ */
+#define F_QUOTED (G_SYMBOL+5)
     { .t=Actor_T,       .x=F_QUOTED+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_QUOTED+2,  .z=UNDEF        },  // arg1
     { .t=VM_nth,        .x=-1,          .y=F_QUOTED+3,  .z=UNDEF        },  // value = cdr(arg1)
     { .t=VM_push,       .x=CONST_BEH,   .y=F_QUOTED+4,  .z=UNDEF        },  // CONST_BEH
     { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // a_const
 #define G_QUOTE (F_QUOTED+5)
-    { .t=Actor_T,       .x=G_QUOTE+1,   .y=UNDEF,       .z=UNDEF        },
+    { .t=Actor_T,       .x=G_QUOTE+1,   .y=UNDEF,       .z=UNDEF        },  // (peg-eq 39)
     { .t=VM_push,       .x=TO_FIX('\''),.y=G_EQ_B,      .z=UNDEF        },  // value = '\'' = 39
+
+#define G_OPEN (G_QUOTE+2)
+    { .t=Actor_T,       .x=G_OPEN+1,    .y=UNDEF,       .z=UNDEF        },  // (peg-eq 40)
+    { .t=VM_push,       .x=TO_FIX('('), .y=G_EQ_B,      .z=UNDEF        },  // value = '(' = 40
+#define G_CLOSE (G_OPEN+2)
+    { .t=Actor_T,       .x=G_CLOSE+1,   .y=UNDEF,       .z=UNDEF        },  // (peg-eq 41)
+    { .t=VM_push,       .x=TO_FIX(')'), .y=G_EQ_B,      .z=UNDEF        },  // value = ')' = 41
 
 /*
 optwsp = Star(Wsp)
@@ -2778,13 +2699,12 @@ quoted = And('\'', alt_ex)
 number = Or(And(Or('+', '-'), Plus(Dgt)), Plus(Dgt)) -> list->number
 symbol = Plus(Atom) -> list->symbol
 */
-#define G_SEXPR (G_QUOTE+2)
+#define G_SEXPR (G_CLOSE+2)
 #define G_SEXPR_X (G_SEXPR+3)
 #define G_SEXPR_S (G_SEXPR_X+3)
 #define G_ALT_EX (G_SEXPR_S+2)
 #define G_QUOTED (G_ALT_EX+8)
-#define G_QUOTED_X (G_QUOTED+3)
-#define G_LIST (G_QUOTED_X+3)
+#define G_LIST (G_QUOTED+6)
 #define G_LIST_X (G_LIST+7)
     { .t=Actor_T,       .x=G_SEXPR+1,   .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=G_OPTWSP,    .y=G_SEXPR+2,   .z=UNDEF        },  // optwsp
@@ -2800,21 +2720,19 @@ symbol = Plus(Atom) -> list->symbol
     { .t=Actor_T,       .x=G_ALT_EX+1,  .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_ALT_EX+2,  .z=UNDEF        },  // ()
     { .t=VM_push,       .x=G_SYMBOL,    .y=G_ALT_EX+3,  .z=UNDEF        },  // symbol
-    //{ .t=VM_push,       .x=G_FIXNUM,    .y=G_ALT_EX+4,  .z=UNDEF        },  // fixnum
     { .t=VM_push,       .x=G_NUMBER,    .y=G_ALT_EX+4,  .z=UNDEF        },  // number
-    { .t=VM_push,       .x=G_QUOTED_X,  .y=G_ALT_EX+5,  .z=UNDEF        },  // quoted
-    //{ .t=VM_push,       .x=G_CONST_X,   .y=G_ALT_EX+6,  .z=UNDEF        },  // const
+    { .t=VM_push,       .x=G_QUOTED,    .y=G_ALT_EX+5,  .z=UNDEF        },  // quoted
     { .t=VM_push,       .x=G_CONST,     .y=G_ALT_EX+6,  .z=UNDEF        },  // const
     { .t=VM_push,       .x=G_LIST_X,    .y=G_ALT_EX+7,  .z=UNDEF        },  // list
     { .t=VM_pair,       .x=5,           .y=G_ALT_B,     .z=UNDEF        },  // (Alt list const quoted number symbol)
 
-    { .t=Actor_T,       .x=G_QUOTED+1,  .y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=G_QUOTE,     .y=G_QUOTED+2,  .z=UNDEF        },  // '\''
-    { .t=VM_push,       .x=G_ALT_EX,    .y=G_AND_B,     .z=UNDEF        },  // G_ALT_EX
+    { .t=Actor_T,       .x=G_QUOTED+1,  .y=UNDEF,       .z=UNDEF        },  // (peg-xform <func> <ptrn>)
+    { .t=VM_push,       .x=F_QUOTED,    .y=G_QUOTED+2,  .z=UNDEF        },  // func = (lambda (x) (list 'quote (cdr x)))
+    { .t=VM_push,       .x=G_QUOTED+3,  .y=G_XLAT_B,    .z=UNDEF        },  // ptrn = (peg-and (peg-eq 39) (peg-call scm-expr))
 
-    { .t=Actor_T,       .x=G_QUOTED_X+1,.y=UNDEF,       .z=UNDEF        },
-    { .t=VM_push,       .x=F_QUOTED,    .y=G_QUOTED_X+2,.z=UNDEF        },  // F_QUOTED
-    { .t=VM_push,       .x=G_QUOTED,    .y=G_XLAT_B,    .z=UNDEF        },  // (xlat f_quoted quoted)
+    { .t=Actor_T,       .x=G_QUOTED+4,  .y=UNDEF,       .z=UNDEF        },  // (peg-and (peg-eq 39) (peg-call scm-expr))
+    { .t=VM_push,       .x=G_QUOTE,     .y=G_QUOTED+5,  .z=UNDEF        },  // first = (peg-eq 39)
+    { .t=VM_push,       .x=G_ALT_EX,    .y=G_AND_B,     .z=UNDEF        },  // rest = G_ALT_EX
 
     { .t=Actor_T,       .x=G_LIST+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_push,       .x=NIL,         .y=G_LIST+2,    .z=UNDEF        },  // ()
@@ -3064,7 +2982,6 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { F_UNIT, "F_UNIT" },
     { G_UNIT, "G_UNIT" },
     { G_CONST, "G_CONST" },
-#if 1
     { G_M_SGN, "G_M_SGN" },
     { G_P_SGN, "G_P_SGN" },
     { G_SIGN, "G_SIGN" },
@@ -3073,31 +2990,16 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_DIGIT, "G_DIGIT" },
     { G_DIGITS, "G_DIGITS" },
     { G_NUMBER, "G_NUMBER" },
-#else
-    { G_P_SGN, "G_P_SGN" },
-    { G_M_SGN, "G_M_SGN" },
-    { G_SGN, "G_SGN" },
-    { G_DGT, "G_DGT" },
-    { G_DGTS, "G_DGTS" },
-    { G_S_DGTS, "G_S_DGTS" },
-    { G_S_NUM, "G_S_NUM" },
-    { G_NUM_OK, "G_NUM_OK" },
-    { G_FIXNUM, "G_FIXNUM" },
-#endif
-    { G_ATOM, "G_ATOM" },
-    { G_ATOM_P, "G_ATOM_P" },
-    { G_SYM_OK, "G_SYM_OK" },
     { G_SYMBOL, "G_SYMBOL" },
-    { G_OPEN, "G_OPEN" },
-    { G_CLOSE, "G_CLOSE" },
     { F_QUOTED, "F_QUOTED" },
     { G_QUOTE, "G_QUOTE" },
+    { G_OPEN, "G_OPEN" },
+    { G_CLOSE, "G_CLOSE" },
     { G_SEXPR, "G_SEXPR" },
     { G_SEXPR_X, "G_SEXPR_X" },
     { G_SEXPR_S, "G_SEXPR_S" },
     { G_ALT_EX, "G_ALT_EX" },
     { G_QUOTED, "G_QUOTED" },
-    { G_QUOTED_X, "G_QUOTED_X" },
     { G_LIST, "G_LIST" },
     { G_LIST_X, "G_LIST_X" },
 
@@ -3739,6 +3641,8 @@ int_t init_global_env() {
     bind_global("lex-digit", G_DIGIT);
     bind_global("lex-digits", G_DIGITS);
     bind_global("lex-number", G_NUMBER);
+    bind_global("scm-symbol", G_SYMBOL);
+    bind_global("scm-quoted", G_QUOTED);
 
     bind_global("a-print", A_PRINT);
     bind_global("quit", A_QUIT);
