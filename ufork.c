@@ -20,7 +20,8 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define EXPLICIT_FREE 1 // explicitly free known-dead memory
 #define MARK_SWEEP_GC 1 // stop-the-world garbage collection
 #define RUNTIME_STATS 1 // collect statistics on the runtime
-#define LAMBDA_COMPIL 0 // include experiement lambda compiler
+#define LAMBDA_COMPIL 0 // include experimental lambda compiler
+#define COMPILE_QUOTE 0 // compile ' immediately in parser
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -2669,16 +2670,26 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_PRT,       .y=G_PLUS_B,    .z=UNDEF        },  // ptrn = (peg-class DGT UPR LWR SYM)
 
 /*
- * (define scm-quoted (peg-xform (lambda (x) (list 'quote (cdr x)))
+ * (define scm-quoted (peg-xform (lambda (x) (list quote (cdr x)))
  *   (peg-and (peg-eq 39) (peg-call scm-sexpr))))
  */
 #define F_QUOTED (G_SYMBOL+5)
+#if COMPILE_QUOTE
     { .t=Actor_T,       .x=F_QUOTED+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_QUOTED+2,  .z=UNDEF        },  // arg1
     { .t=VM_nth,        .x=-1,          .y=F_QUOTED+3,  .z=UNDEF        },  // value = cdr(arg1)
     { .t=VM_push,       .x=CONST_BEH,   .y=F_QUOTED+4,  .z=UNDEF        },  // CONST_BEH
     { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // a_const
 #define G_QUOTE (F_QUOTED+5)
+#else
+    { .t=Actor_T,       .x=F_QUOTED+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_push,       .x=NIL,         .y=F_QUOTED+2,  .z=UNDEF        },  // ()
+    { .t=VM_msg,        .x=2,           .y=F_QUOTED+3,  .z=UNDEF        },  // arg1
+    { .t=VM_nth,        .x=-1,          .y=F_QUOTED+4,  .z=UNDEF        },  // value = cdr(arg1)
+    { .t=VM_push,       .x=OP_QUOTE,    .y=F_QUOTED+5,  .z=UNDEF        },  // OP_QUOTE
+    { .t=VM_pair,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (OP_QUOTE value)
+#define G_QUOTE (F_QUOTED+6)
+#endif
     { .t=Actor_T,       .x=G_QUOTE+1,   .y=UNDEF,       .z=UNDEF        },  // (peg-eq 39)
     { .t=VM_push,       .x=TO_FIX('\''),.y=G_EQ_B,      .z=UNDEF        },  // value = '\'' = 39
 
