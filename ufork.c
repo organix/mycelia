@@ -22,6 +22,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define RUNTIME_STATS 1 // collect statistics on the runtime
 #define LAMBDA_COMPIL 0 // include experimental lambda compiler
 #define COMPILE_QUOTE 0 // compile ' immediately in parser
+#define SCM_PEG_TOOLS 0 // include PEG tools for LISP/Scheme
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -1959,11 +1960,27 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=AP_NUM_MUL+1,.y=UNDEF,       .z=UNDEF        },  // (* . <numbers>)
     { .t=VM_push,       .x=F_NUM_MUL,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_NUM_MUL
 
+#define F_LST_NUM (AP_NUM_MUL+2)
+    { .t=Actor_T,       .x=F_LST_NUM+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_LST_NUM+2, .z=UNDEF        },  // chars = arg1
+    { .t=VM_cvt,        .x=CVT_LST_NUM, .y=CUST_SEND,   .z=UNDEF        },  // lst_num(chars)
+#define AP_LST_NUM (F_LST_NUM+3)
+    { .t=Actor_T,       .x=AP_LST_NUM+1,.y=UNDEF,       .z=UNDEF        },  // (list->number <chars>)
+    { .t=VM_push,       .x=F_LST_NUM,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_LST_NUM
+
+#define F_LST_SYM (AP_LST_NUM+2)
+    { .t=Actor_T,       .x=F_LST_SYM+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_LST_SYM+2, .z=UNDEF        },  // chars = arg1
+    { .t=VM_cvt,        .x=CVT_LST_SYM, .y=CUST_SEND,   .z=UNDEF        },  // lst_sym(chars)
+#define AP_LST_SYM (F_LST_SYM+3)
+    { .t=Actor_T,       .x=AP_LST_SYM+1,.y=UNDEF,       .z=UNDEF        },  // (list->symbol <chars>)
+    { .t=VM_push,       .x=F_LST_SYM,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_LST_SYM
+
 //
 // PEG tools
 //
 
-#define F_G_EQ (AP_NUM_MUL+2)
+#define F_G_EQ (AP_LST_SYM+2)
     { .t=Actor_T,       .x=F_G_EQ+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_G_EQ+2,    .z=UNDEF        },  // token = arg1
     { .t=VM_push,       .x=G_EQ_B,      .y=F_G_EQ+3,    .z=UNDEF        },  // G_EQ_B
@@ -2099,23 +2116,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=AP_G_XFORM+1,.y=UNDEF,       .z=UNDEF        },  // (peg-xform <appl> <peg>)
     { .t=VM_push,       .x=F_G_XFORM,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_G_XFORM
 
-#define F_LST_NUM (AP_G_XFORM+2)
-    { .t=Actor_T,       .x=F_LST_NUM+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
-    { .t=VM_msg,        .x=2,           .y=F_LST_NUM+2, .z=UNDEF        },  // chars = arg1
-    { .t=VM_cvt,        .x=CVT_LST_NUM, .y=CUST_SEND,   .z=UNDEF        },  // lst_num(chars)
-#define AP_LST_NUM (F_LST_NUM+3)
-    { .t=Actor_T,       .x=AP_LST_NUM+1,.y=UNDEF,       .z=UNDEF        },  // (list->number <chars>)
-    { .t=VM_push,       .x=F_LST_NUM,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_LST_NUM
-
-#define F_LST_SYM (AP_LST_NUM+2)
-    { .t=Actor_T,       .x=F_LST_SYM+1, .y=UNDEF,       .z=UNDEF        },  // (cust . args)
-    { .t=VM_msg,        .x=2,           .y=F_LST_SYM+2, .z=UNDEF        },  // chars = arg1
-    { .t=VM_cvt,        .x=CVT_LST_SYM, .y=CUST_SEND,   .z=UNDEF        },  // lst_sym(chars)
-#define AP_LST_SYM (F_LST_SYM+3)
-    { .t=Actor_T,       .x=AP_LST_SYM+1,.y=UNDEF,       .z=UNDEF        },  // (list->symbol <chars>)
-    { .t=VM_push,       .x=F_LST_SYM,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_LST_SYM
-
-#define F_S_LIST (AP_LST_SYM+2)
+#define F_S_LIST (AP_G_XFORM+2)
     { .t=Actor_T,       .x=F_S_LIST+1,  .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_S_LIST+2,  .z=UNDEF        },  // list = arg1
     { .t=VM_push,       .x=S_LIST_B,    .y=F_S_LIST+3,  .z=UNDEF        },  // S_LIST_B
@@ -2831,10 +2832,11 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=A_QUIT+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_end,        .x=END_STOP,    .y=UNDEF,       .z=UNDEF        },  // kill thread
 
+#define CELL_BASE (A_QUIT+2)
 };
 cell_t *cell_zero = &cell_table[0];  // base for cell offsets
 int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
-int_t cell_top = A_QUIT+2; // limit of allocated cell memory
+int_t cell_top = CELL_BASE; // limit of allocated cell memory
 
 static struct { int_t addr; char *label; } symbol_table[] = {
     { FALSE, "FALSE" },
@@ -2978,6 +2980,10 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_NUM_SUB, "AP_NUM_SUB" },
     { F_NUM_MUL, "F_NUM_MUL" },
     { AP_NUM_MUL, "AP_NUM_MUL" },
+    { F_LST_NUM, "F_LST_NUM" },
+    { AP_LST_NUM, "AP_LST_NUM" },
+    { F_LST_SYM, "F_LST_SYM" },
+    { AP_LST_SYM, "AP_LST_SYM" },
 
     { F_G_EQ, "F_G_EQ" },
     { AP_G_EQ, "AP_G_EQ" },
@@ -3005,10 +3011,6 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_G_PRED, "AP_G_PRED" },
     { F_G_XFORM, "F_G_XFORM" },
     { AP_G_XFORM, "AP_G_XFORM" },
-    { F_LST_NUM, "F_LST_NUM" },
-    { AP_LST_NUM, "AP_LST_NUM" },
-    { F_LST_SYM, "F_LST_SYM" },
-    { AP_LST_SYM, "AP_LST_SYM" },
     { F_S_LIST, "F_S_LIST" },
     { AP_S_LIST, "AP_S_LIST" },
     { F_G_START, "F_G_START" },
@@ -3079,6 +3081,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { S_EMPTY, "S_EMPTY" },
     { A_PRINT, "A_PRINT" },
     { A_QUIT, "A_QUIT" },
+    { CELL_BASE, "CELL_BASE" },
     { -1, "" },
 };
 void dump_symbol_table() {
@@ -3673,7 +3676,7 @@ int_t init_global_env() {
     bind_global("*", AP_NUM_MUL);
     bind_global("list->number", AP_LST_NUM);
     bind_global("list->symbol", AP_LST_SYM);
-
+#if SCM_PEG_TOOLS
     bind_global("CTL", TO_FIX(CTL));
     bind_global("DGT", TO_FIX(DGT));
     bind_global("UPR", TO_FIX(UPR));
@@ -3721,7 +3724,7 @@ int_t init_global_env() {
     bind_global("scm-list", G_LIST);
     bind_global("scm-expr", G_EXPR);
     bind_global("scm-sexpr", G_SEXPR);
-
+#endif // SCM_PEG_TOOLS
     bind_global("a-print", A_PRINT);
     bind_global("quit", A_QUIT);
     return UNIT;
