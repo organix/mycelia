@@ -22,7 +22,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define RUNTIME_STATS 1 // collect statistics on the runtime
 #define LAMBDA_COMPIL 0 // include experimental lambda compiler
 #define COMPILE_QUOTE 0 // compile ' immediately in parser
-#define SCM_PEG_TOOLS 0 // include PEG tools for LISP/Scheme
+#define SCM_PEG_TOOLS 1 // include PEG tools for LISP/Scheme
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -5117,18 +5117,15 @@ int main(int argc, char const *argv[])
 #else
     DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
     //DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 16*4));
-#if 1
     DEBUG(dump_symbol_table());
-#else
-    DEBUG(test_symbol_intern());
-    DEBUG(hexdump("cell memory", ((int_t *)&cell_table[500]), 16*4));
-#endif
     init_global_env();
     gc_add_root(K_COMB);  // used in Pair_T
     gc_add_root(clk_handler);
     clk_timeout = clk_ticks();
     int_t result = runtime();
     DEBUG(debug_print("main result", result));
+    DEBUG(test_symbol_intern());
+    //DEBUG(hexdump("cell memory", ((int_t *)&cell_table[500]), 16*4));
 #if MARK_SWEEP_GC
     gc_mark_and_sweep(TRUE);
 #endif // MARK_SWEEP_GC
