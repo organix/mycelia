@@ -243,6 +243,30 @@ k_queue: [head,tail]--------------------+
                              ...
 ```
 
+### Common Code Structures
+
+```
+K_CALL:     [MSG,+0,k]---+
+                         |
+                         |
+RESEND:     [MSG,+0,k]   |
+                    |    |
+                    v    |
+            [SELF,?,k]---+
+                         |
+                         |
+SELF_EVAL:  [SELF,?,k]   |
+                    |    |
+                    v    |
+CUST_SEND:  [MSG,+1,k]   |
+                    |    |
+                    v    |
+SEND_0:     [SEND,0,k]<--+
+                    |
+                    v
+COMMIT:     [END,+1,?]
+```
+
 ## LISP/Scheme Ground Environment
 
   * `(quote `_expr_`)`
@@ -290,55 +314,7 @@ k_queue: [head,tail]--------------------+
 (define n2 (lambda (x) (car (cdr x))))          ; equivalent to _cadr_
 (define n3 (lambda (x) (car (cdr (cdr x)))))    ; equivalent to _caddr_
 (define c (lambda (y) (lambda (x) (list y x))))
-```
-
-#### Lambda Compiled Code Structures
-
-```
-            [Event,tgt,msg]--->[Pair,car,cdr]--->[Pair,car,NIL]
-                    |                 |                 |
-                    |                 v                 v
-        +-----------|--------------> cust              env <--------------+
-        |           |                                   ^                 |
-        |           v                                   |                 |
-        |   [Pair,car,cdr]---> params <-----------------|---------+       |
-        |          |                                    |         |       |
-        |          v                                    |         |       |
-        |         comb                                  |         |       |
-        |           ^                                   |         |       |
-        |           |                                   |         |       |
-        |   [Event,tgt,msg]--->[Pair,car,cdr]--->[Pair,car,NIL]   |       |
-        |                             |                           |       |
-        |                             |                           |       |
-        |   [Actor,ip]<---------------+                           |       |
-        |           |                                             |       |
-        +-----------|-----------------+                           |       |
-                    |                 |                           |       |
-                    v                 |                           |       |
-            [PUSH,m,k]                |                 +---------+       |
-                  | |                 |                 |                 |
-                  +-|--------->[Pair,car,cdr]--->[Pair,car,cdr]--->[Pair,car,NIL]
-                    |
-                    v
-K_CALL:     [MSG,+0,k]---+                       [Actor,ip]
-                         |                               |
-                         |                               v
-RESEND:     [MSG,+0,k]   |                       [PUSH,f,k]
-                    |    |                            /  |
-                    v    |                           /   v
-            [SELF,?,k]---+     [Actor,ip]<----------+   AP_FUNC_B
-                         |             |
-                         |             v
-SELF_EVAL:  [SELF,?,k]   |     [PUSH,UNIT,k]
-                    |    |                |
-                    v    |                :
-CUST_SEND:  [MSG,+1,k]<--|----------------+
-                    |    |
-                    v    |
-SEND_0:     [SEND,0,k]<--+
-                    |
-                    v
-COMMIT:     [END,+1,?]
+(define length (lambda (p) (if (pair? p) (+ (length (cdr p)) 1) 0)))
 ```
 
 #### Execution Statistics Test-Case
@@ -358,7 +334,7 @@ Date       | Events | Instructions | Description
 2022-05-21 |   1205 |        15039 | delegate to GLOBAL_ENV
 2022-05-22 |   1205 |        15030 | lambda interpreter
 2022-05-25 |   1040 |        12911 | enhanced built-in parser
-2022-05-28 |   1144 |        14334 | refactored built-in parser
+2022-05-30 |   1228 |        15259 | full-featured built-in parser
 
 ## PEG Tools
 
@@ -392,7 +368,33 @@ Date       | Events | Instructions | Description
   * `(define peg-peek (lambda (ptrn) (peg-not (peg-not ptrn))))  ; positive lookahead`
   * `(define peg-ok? (lambda (x) (if (pair? x) (if (actor? (cdr x)) #f #t) #f)))`
 
-#### Lexical Tokens
+### PEG Structures
+
+Message to Grammar:
+```
+--->[custs,context]--->[accum,in]---> NIL or --->[token,next]--->
+      |                  |                         |
+      v                  v                         v
+    [ok,fail]
+     /    \
+    v      v
+```
+
+Reply to _ok_ customer:
+```
+--->[accum,in]---> NIL or --->[token,next]--->
+      |                         |
+      v                         v
+```
+
+Reply to _fail_ customer:
+```
+NIL or --->[token,next]--->
+             |
+             v
+```
+
+### LISP/Scheme Grammar
 
 ```
 (define lex-eol (peg-eq 10))  ; end of line
@@ -423,8 +425,24 @@ Date       | Events | Instructions | Description
 
 ```
 (define scm-symbol (peg-xform list->symbol (peg-plus (peg-class DGT UPR LWR SYM))))
-(define scm-quoted (peg-xform (lambda (x) (list 'quote (cdr x)))
+(define scm-quoted (peg-xform (lambda (x) (list quote (cdr x)))
   (peg-and (peg-eq 39) (peg-call scm-expr))))
+
+(define scm-dotted (peg-xform caddr
+  (peg-seq scm-optwsp (peg-eq 46) (peg-call scm-sexpr) scm-optwsp (peg-eq 41))))
+(define scm-tail (peg-xform cdr (peg-and
+  scm-optwsp
+  (peg-or
+    (peg-xform (lambda _ ()) (peg-eq 41))
+    (peg-and
+      (peg-call scm-expr)
+      (peg-or scm-dotted (peg-call scm-tail)) )) )))
+(define scm-list (peg-xform cdr (peg-and (peg-eq 40) scm-tail)))
+(define scm-expr (peg-alt scm-list scm-const lex-number scm-symbol scm-quoted))
+(define scm-sexpr (peg-xform cdr (peg-and scm-optwsp scm-expr)))
+
+;(define src (peg-source '(9 40 97 32 46 32 98 41 10)))  ; "\t(a . b)\n"
+;(define rv (peg-start scm-sexpr src))
 ```
 
 ### PEG Test-Cases
@@ -524,30 +542,39 @@ Date       | Events | Instructions | Description
 (peg-start lang-tokens (peg-chain wsp-token src))
 ```
 
-### PEG Structures
-
-Message to Grammar:
 ```
---->[custs,context]--->[accum,in]---> NIL or --->[token,next]--->
-      |                  |                         |
-      v                  v                         v
-    [ok,fail]
-     /    \
-    v      v
+(define src (peg-source (list 9 32 59 32 120 13 10 121)))  ; "\t ; x\r\n y"
+(define not-eol (lambda (x) (if (eq? x 10) #f #t)))
+(define scm-comment (peg-seq (peg-eq 59) (peg-star (peg-pred not-eol peg-any)) (peg-eq 10)))
+(define scm-wsp (peg-star (peg-or scm-comment (peg-class WSP)) ))
+(define scm-symbol (peg-xform list->symbol (peg-plus (peg-class UPR LWR DGT SYM)) ))
+(define scm-sexpr (peg-xform cdr (peg-and scm-wsp scm-symbol)))
+(peg-start scm-sexpr src)
 ```
 
-Reply to _ok_ customer:
 ```
---->[accum,in]---> NIL or --->[token,next]--->
-      |                         |
-      v                         v
+(define src (peg-source (list 39 97 98 10)))  ; "'ab\n"
+(define scm-quote
+  (peg-xform (lambda (x) (list (quote quote) (cdr x)))
+    (peg-and (peg-eq 39) (peg-call scm-expr)) ))
+(define scm-expr (peg-xform list->symbol (peg-plus (peg-class UPR LWR DGT SYM))))
+(peg-start scm-quote src)
 ```
 
-Reply to _fail_ customer:
 ```
-NIL or --->[token,next]--->
-             |
-             v
+(define src (peg-source (list 40 97 32 46 32 98 41 10)))  ; "(a . b)\n"
+(define scm-wsp (peg-star (peg-class WSP)))
+(define scm-symbol (peg-xform list->symbol (peg-plus (peg-class UPR LWR DGT SYM))))
+;(define scm-tail (peg-alt (peg-and (peg-call scm-sexpr) (peg-call scm-tail)) peg-empty))
+(define scm-tail (peg-alt
+  (peg-xform (lambda (x) (cons (nth 1 x) (nth 5 x)))
+    (peg-seq (peg-call scm-sexpr) scm-wsp (peg-eq 46) scm-wsp (peg-call scm-sexpr)))
+  (peg-and (peg-call scm-sexpr) (peg-call scm-tail))
+  peg-empty))
+(define scm-list (peg-xform cadr (peg-seq (peg-eq 40) (peg-call scm-tail) scm-wsp (peg-eq 41))))
+(define scm-expr (peg-alt scm-list scm-symbol))
+(define scm-sexpr (peg-xform cdr (peg-and scm-wsp scm-expr)))
+(peg-start scm-sexpr src)
 ```
 
 ### Character Classes
@@ -695,86 +722,6 @@ NIL or --->[token,next]--->
 | ~  | 126 |  7e |     |     |     |     |     |  x  |     |     |
 | ^? | 127 |  7f |  x  |     |     |     |     |     |     |     |
 
-### PEG for LISP/Scheme
-
-```
-(define not-eol
-  (lambda (x) (if (eq? x 10) #f #t)))
-(define scm-comment
-  (peg-seq (peg-eq 59) (peg-star (peg-pred not-eol peg-any)) (peg-eq 10)))
-(define scm-wsp
-  (peg-star (peg-or scm-comment (peg-class WSP)) ))
-(define scm-symbol
-  (peg-xform list->symbol
-    (peg-plus (peg-class UPR LWR DGT SYM)) ))
-(define scm-u-num
-  (peg-plus (peg-class DGT)))
-(define scm-s-num
-  (peg-and (peg-or (peg-eq 45) (peg-eq 43)) scm-u-num))
-(define scm-number
-  (peg-xform list->number
-    (peg-or scm-s-num scm-u-num)))
-(define scm-quote
-  (peg-xform (lambda (x) (list (quote quote) (cdr x)))
-    (peg-and (peg-eq 39) (peg-call scm-expr)) ))
-(define scm-literal
-  (peg-alt
-    (peg-xform (lambda _ #f) (peg-seq (peg-eq 35) (peg-eq 102)))
-    (peg-xform (lambda _ #t) (peg-seq (peg-eq 35) (peg-eq 116)))
-    (peg-xform (lambda _ #unit) (peg-seq (peg-eq 35) (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116)))
-    (peg-xform (lambda _ #?) (peg-seq (peg-eq 35) (peg-eq 63))) ))
-(define scm-tail
-  (peg-alt
-    (peg-xform (lambda (x) (cons (nth 1 x) (nth 5 x)))
-      (peg-seq (peg-call scm-sexpr) scm-wsp (peg-eq 46) scm-wsp (peg-call scm-sexpr)))
-    (peg-and (peg-call scm-sexpr) (peg-call scm-tail))
-    peg-empty))
-(define scm-list
-  (peg-xform cadr
-    (peg-seq (peg-eq 40) scm-tail scm-wsp (peg-eq 41)) ))
-(define scm-expr
-  (peg-alt scm-list scm-literal scm-quote scm-number scm-symbol))
-(define scm-sexpr
-  (peg-xform cdr
-    (peg-and scm-wsp scm-expr)))
-```
-
-#### Test Cases
-
-```
-(define src (peg-source (list 9 32 59 32 120 13 10 121)))  ; "\t ; x\r\n y"
-(define not-eol (lambda (x) (if (eq? x 10) #f #t)))
-(define scm-comment (peg-seq (peg-eq 59) (peg-star (peg-pred not-eol peg-any)) (peg-eq 10)))
-(define scm-wsp (peg-star (peg-or scm-comment (peg-class WSP)) ))
-(define scm-symbol (peg-xform list->symbol (peg-plus (peg-class UPR LWR DGT SYM)) ))
-(define scm-sexpr (peg-xform cdr (peg-and scm-wsp scm-symbol)))
-(peg-start scm-sexpr src)
-```
-
-```
-(define src (peg-source (list 39 97 98 10)))  ; "'ab\n"
-(define scm-quote
-  (peg-xform (lambda (x) (list (quote quote) (cdr x)))
-    (peg-and (peg-eq 39) (peg-call scm-expr)) ))
-(define scm-expr (peg-xform list->symbol (peg-plus (peg-class UPR LWR DGT SYM))))
-(peg-start scm-quote src)
-```
-
-```
-(define src (peg-source (list 40 97 32 46 32 98 41 10)))  ; "(a . b)\n"
-(define scm-wsp (peg-star (peg-class WSP)))
-(define scm-symbol (peg-xform list->symbol (peg-plus (peg-class UPR LWR DGT SYM))))
-;(define scm-tail (peg-alt (peg-and (peg-call scm-sexpr) (peg-call scm-tail)) peg-empty))
-(define scm-tail (peg-alt
-  (peg-xform (lambda (x) (cons (nth 1 x) (nth 5 x)))
-    (peg-seq (peg-call scm-sexpr) scm-wsp (peg-eq 46) scm-wsp (peg-call scm-sexpr)))
-  (peg-and (peg-call scm-sexpr) (peg-call scm-tail))
-  peg-empty))
-(define scm-list (peg-xform cadr (peg-seq (peg-eq 40) (peg-call scm-tail) scm-wsp (peg-eq 41))))
-(define scm-expr (peg-alt scm-list scm-symbol))
-(define scm-sexpr (peg-xform cdr (peg-and scm-wsp scm-expr)))
-(peg-start scm-sexpr src)
-```
 
 ## Inspiration
 
