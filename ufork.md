@@ -367,6 +367,7 @@ Date       | Events | Instructions | Description
   * `(define peg-end (peg-not peg-any))  ; end of input`
   * `(define peg-peek (lambda (ptrn) (peg-not (peg-not ptrn))))  ; positive lookahead`
   * `(define peg-ok? (lambda (x) (if (pair? x) (if (actor? (cdr x)) #f #t) #f)))`
+  * `(define peg-value (lambda (x) (if (pair? x) (if (actor? (cdr x)) #? (car x)) #?)))`
 
 ### PEG Structures
 

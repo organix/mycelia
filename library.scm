@@ -34,6 +34,14 @@
       ) x)
       x) ))
 
+(define filter
+  (lambda (pred? list)
+    (if (pair? list)
+      (if (pred? (car list))
+        (cons (car list) (filter pred? (cdr list)))
+        (filter pred? (cdr list)))
+      ())))
+
 (define reduce
   (lambda (args binop zero)
     (if (null? args)
@@ -63,6 +71,14 @@
   (lambda (xs)
     (define rcons (lambda (x y) (cons y x)))
     (foldl xs rcons ())))
+; An alternative using an explicit helper function.
+;(define push-pop (lambda (to from)
+;  (if (pair? from) (push-pop (cons (car from) to) (cdr from)) to)))
+(define reverse
+  (lambda (xs)
+    (define push-pop (lambda (to from)
+      (if (pair? from) (push-pop (cons (car from) to) (cdr from)) to)))
+    (push-pop () xs)))
 
 (define provide
   (macro (symbols . body)

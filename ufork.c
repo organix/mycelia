@@ -1977,10 +1977,65 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=F_LST_SYM,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_LST_SYM
 
 //
+// Static Symbols
+//
+
+#define S_QUOTE (AP_LST_SYM+2)
+    { .t=Symbol_T,      .x=0,           .y=S_QUOTE+1,   .z=OP_QUOTE     },
+    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QUOTE+2,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QUOTE+3,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_QUOTE+4,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_QUOTE+5,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
+
+#define S_CONS (S_QUOTE+6)
+    { .t=Symbol_T,      .x=0,           .y=S_CONS+1,    .z=AP_CONS      },
+    { .t=Pair_T,        .x=TO_FIX('c'), .y=S_CONS+2,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_CONS+3,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_CONS+4,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('s'), .y=NIL,         .z=UNDEF        },
+
+#define S_CAR (S_CONS+5)
+    { .t=Symbol_T,      .x=0,           .y=S_CAR+1,     .z=AP_CAR       },
+    { .t=Pair_T,        .x=TO_FIX('c'), .y=S_CAR+2,     .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('a'), .y=S_CAR+3,     .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('r'), .y=NIL,         .z=UNDEF        },
+
+#define S_CDR (S_CAR+4)
+    { .t=Symbol_T,      .x=0,           .y=S_CDR+1,     .z=AP_CDR       },
+    { .t=Pair_T,        .x=TO_FIX('c'), .y=S_CDR+2,     .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('d'), .y=S_CDR+3,     .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('r'), .y=NIL,         .z=UNDEF        },
+
+#define S_EQ_P (S_CDR+4)
+    { .t=Symbol_T,      .x=0,           .y=S_EQ_P+1,    .z=AP_EQ_P      },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=S_EQ_P+2,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_EQ_P+3,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('?'), .y=NIL,         .z=UNDEF        },
+
+#define S_IF (S_EQ_P+4)
+    { .t=Symbol_T,      .x=0,           .y=S_IF+1,      .z=OP_IF        },
+    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_IF+2,      .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('f'), .y=NIL,         .z=UNDEF        },
+
+#define S_LAMBDA (S_IF+3)
+#if LAMBDA_COMPIL
+    { .t=Symbol_T,      .x=0,           .y=S_LAMBDA+1,  .z=LAMBDA_C     },
+#else
+    { .t=Symbol_T,      .x=0,           .y=S_LAMBDA+1,  .z=OP_LAMBDA    },
+#endif
+    { .t=Pair_T,        .x=TO_FIX('l'), .y=S_LAMBDA+2,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('a'), .y=S_LAMBDA+3,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('m'), .y=S_LAMBDA+4,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('b'), .y=S_LAMBDA+5,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('d'), .y=S_LAMBDA+6,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('a'), .y=NIL,         .z=UNDEF        },
+
+//
 // PEG tools
 //
 
-#define F_G_EQ (AP_LST_SYM+2)
+#define F_G_EQ (S_LAMBDA+7)
     { .t=Actor_T,       .x=F_G_EQ+1,    .y=UNDEF,       .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_G_EQ+2,    .z=UNDEF        },  // token = arg1
     { .t=VM_push,       .x=G_EQ_B,      .y=F_G_EQ+3,    .z=UNDEF        },  // G_EQ_B
@@ -2699,8 +2754,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=NIL,         .y=F_QUOTED+2,  .z=UNDEF        },  // ()
     { .t=VM_msg,        .x=2,           .y=F_QUOTED+3,  .z=UNDEF        },  // arg1
     { .t=VM_nth,        .x=-1,          .y=F_QUOTED+4,  .z=UNDEF        },  // value = cdr(arg1)
-    { .t=VM_push,       .x=OP_QUOTE,    .y=F_QUOTED+5,  .z=UNDEF        },  // OP_QUOTE
-    { .t=VM_pair,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (OP_QUOTE value)
+    { .t=VM_push,       .x=S_QUOTE,     .y=F_QUOTED+5,  .z=UNDEF        },  // S_QUOTE
+    { .t=VM_pair,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (S_QUOTE value)
 #define G_QUOTED (F_QUOTED+6)
 #endif
 
@@ -2984,6 +3039,14 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_LST_NUM, "AP_LST_NUM" },
     { F_LST_SYM, "F_LST_SYM" },
     { AP_LST_SYM, "AP_LST_SYM" },
+
+    { S_QUOTE, "S_QUOTE" },
+    { S_CONS, "S_CONS" },
+    { S_CAR, "S_CAR" },
+    { S_CDR, "S_CDR" },
+    { S_EQ_P, "S_EQ_P" },
+    { S_IF, "S_IF" },
+    { S_LAMBDA, "S_LAMBDA" },
 
     { F_G_EQ, "F_G_EQ" },
     { AP_G_EQ, "AP_G_EQ" },
@@ -3520,6 +3583,21 @@ int_t symbol(int_t str) {
     return sym;
 }
 
+// install static symbol into symbol table
+static void sym_install(int_t sym) {
+    int_t str = get_y(sym);
+    int_t hash = (int_t)list_crc(str);
+    set_x(sym, hash);
+    int_t slot = hash & SYM_MASK;
+    int_t chain = sym_intern[slot];
+    if (!chain) {
+        chain = NIL;
+        sym_intern[slot] = chain;  // fix static init
+    }
+    // add symbol to hash-chain
+    sym_intern[slot] = cons(sym, sym_intern[slot]);
+}
+
 void print_symbol(int_t symbol) {
     if (IS_SYM(symbol)) {
         for (int_t p = get_y(symbol); IS_PAIR(p); p = cdr(p)) {
@@ -3639,24 +3717,26 @@ static int_t test_symbol_intern() {
 #define bind_global(cstr,val) set_z(cstr_intern(cstr), (val))
 
 int_t init_global_env() {
+    sym_install(S_QUOTE);
+    sym_install(S_CONS);
+    sym_install(S_CAR);
+    sym_install(S_CDR);
+    sym_install(S_EQ_P);
+    sym_install(S_IF);
+    sym_install(S_LAMBDA);
 #if 0
     int_t s;
     s = cstr_intern("lambda");
     set_z(s, OP_LAMBDA);
 #endif
     bind_global("peg-lang", G_SEXPR);  // language parser start symbol
-    bind_global("quote", OP_QUOTE);
+    //bind_global("quote", OP_QUOTE);
     bind_global("list", AP_LIST);
-#if LAMBDA_COMPIL
-    bind_global("lambda", LAMBDA_C);  // lambda compiler (experimental)
-#else
-    bind_global("lambda", OP_LAMBDA);  // lambda interpreter
-#endif
     bind_global("seq", OP_SEQ);
     bind_global("define", OP_DEFINE);
-    bind_global("cons", AP_CONS);
-    bind_global("car", AP_CAR);
-    bind_global("cdr", AP_CDR);
+    //bind_global("cons", AP_CONS);
+    //bind_global("car", AP_CAR);
+    //bind_global("cdr", AP_CDR);
     bind_global("cadr", AP_CADR);
     bind_global("caddr", AP_CADDR);
     bind_global("nth", AP_NTH);
@@ -3666,8 +3746,8 @@ int_t init_global_env() {
     bind_global("number?", AP_NUM_P);
     bind_global("symbol?", AP_SYM_P);
     bind_global("actor?", AP_ACT_P);
-    bind_global("if", OP_IF);
-    bind_global("eq?", AP_EQ_P);
+    //bind_global("if", OP_IF);
+    //bind_global("eq?", AP_EQ_P);
     bind_global("=", AP_NUM_EQ);
     bind_global("<", AP_NUM_LT);
     bind_global("<=", AP_NUM_LE);
@@ -4647,7 +4727,7 @@ void hexdump(char *label, int_t *addr, size_t cnt) {
     fprintf(stderr, "%s:", label);
     for (nat_t n = 0; n < cnt; ++n) {
         if ((n & 0x7) == 0x0) {
-            fprintf(stderr, "\n%04"PxI":", NAT(addr));
+            fprintf(stderr, "\n%08"PRIxPTR":", (intptr_t)addr);
         }
         if ((n & 0x3) == 0x0) {
             fprintf(stderr, " ");

@@ -16,6 +16,7 @@
     (if (> n 1)
       (* n (fact (- n 1)))
       1)))
+;(define fact (lambda (n) (if (< n 2) 1 (* n (fact (- n 1))))))
 
 (define fib  ; O(n^3) performance?
   (lambda (n)
