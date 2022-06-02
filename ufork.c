@@ -2007,18 +2007,36 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Pair_T,        .x=TO_FIX('d'), .y=S_CDR+3,     .z=UNDEF        },
     { .t=Pair_T,        .x=TO_FIX('r'), .y=NIL,         .z=UNDEF        },
 
-#define S_EQ_P (S_CDR+4)
+#define S_IF (S_CDR+4)
+    { .t=Symbol_T,      .x=0,           .y=S_IF+1,      .z=OP_IF        },
+    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_IF+2,      .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('f'), .y=NIL,         .z=UNDEF        },
+
+#define S_EQ_P (S_IF+3)
     { .t=Symbol_T,      .x=0,           .y=S_EQ_P+1,    .z=AP_EQ_P      },
     { .t=Pair_T,        .x=TO_FIX('e'), .y=S_EQ_P+2,    .z=UNDEF        },
     { .t=Pair_T,        .x=TO_FIX('q'), .y=S_EQ_P+3,    .z=UNDEF        },
     { .t=Pair_T,        .x=TO_FIX('?'), .y=NIL,         .z=UNDEF        },
 
-#define S_IF (S_EQ_P+4)
-    { .t=Symbol_T,      .x=0,           .y=S_IF+1,      .z=OP_IF        },
-    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_IF+2,      .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('f'), .y=NIL,         .z=UNDEF        },
+#define S_PAIR_P (S_EQ_P+4)
+    { .t=Symbol_T,      .x=0,           .y=S_PAIR_P+1,  .z=AP_PAIR_P    },
+    { .t=Pair_T,        .x=TO_FIX('p'), .y=S_PAIR_P+2,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('a'), .y=S_PAIR_P+3,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_PAIR_P+4,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('r'), .y=S_PAIR_P+5,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('?'), .y=NIL,         .z=UNDEF        },
 
-#define S_LAMBDA (S_IF+3)
+#define S_SYMBOL_P (S_PAIR_P+6)
+    { .t=Symbol_T,      .x=0,           .y=S_SYMBOL_P+1,.z=AP_SYM_P     },
+    { .t=Pair_T,        .x=TO_FIX('s'), .y=S_SYMBOL_P+2,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('y'), .y=S_SYMBOL_P+3,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('m'), .y=S_SYMBOL_P+4,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('b'), .y=S_SYMBOL_P+5,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_SYMBOL_P+6,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('l'), .y=S_SYMBOL_P+7,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('?'), .y=NIL,         .z=UNDEF        },
+
+#define S_LAMBDA (S_SYMBOL_P+8)
 #if LAMBDA_COMPIL
     { .t=Symbol_T,      .x=0,           .y=S_LAMBDA+1,  .z=LAMBDA_C     },
 #else
@@ -3044,8 +3062,10 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { S_CONS, "S_CONS" },
     { S_CAR, "S_CAR" },
     { S_CDR, "S_CDR" },
-    { S_EQ_P, "S_EQ_P" },
     { S_IF, "S_IF" },
+    { S_EQ_P, "S_EQ_P" },
+    { S_PAIR_P, "S_PAIR_P" },
+    { S_SYMBOL_P, "S_SYMBOL_P" },
     { S_LAMBDA, "S_LAMBDA" },
 
     { F_G_EQ, "F_G_EQ" },
@@ -3721,8 +3741,10 @@ int_t init_global_env() {
     sym_install(S_CONS);
     sym_install(S_CAR);
     sym_install(S_CDR);
-    sym_install(S_EQ_P);
     sym_install(S_IF);
+    sym_install(S_EQ_P);
+    sym_install(S_PAIR_P);
+    sym_install(S_SYMBOL_P);
     sym_install(S_LAMBDA);
 #if 0
     int_t s;
@@ -3741,10 +3763,10 @@ int_t init_global_env() {
     bind_global("caddr", AP_CADDR);
     bind_global("nth", AP_NTH);
     bind_global("null?", AP_NULL_P);
-    bind_global("pair?", AP_PAIR_P);
+    //bind_global("pair?", AP_PAIR_P);
     bind_global("boolean?", AP_BOOL_P);
     bind_global("number?", AP_NUM_P);
-    bind_global("symbol?", AP_SYM_P);
+    //bind_global("symbol?", AP_SYM_P);
     bind_global("actor?", AP_ACT_P);
     //bind_global("if", OP_IF);
     //bind_global("eq?", AP_EQ_P);
