@@ -295,6 +295,7 @@ COMMIT:     [END,+1,?]
   * `(- . `_numbers_`)`
   * `(* . `_numbers_`)`
   * `peg-lang  ; REPL grammar`
+  * `(eval `_form_`)`  ; meta-circular interpreter
   * `(quit)`
 
 ### Lambda Compilation Test-Cases
