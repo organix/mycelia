@@ -336,6 +336,7 @@ Date       | Events | Instructions | Description
 2022-05-22 |   1205 |        15030 | lambda interpreter
 2022-05-25 |   1040 |        12911 | enhanced built-in parser
 2022-05-30 |   1228 |        15259 | full-featured built-in parser
+2022-06-03 |   1194 |        15062 | meta-circular interpreter
 
 ## PEG Tools
 

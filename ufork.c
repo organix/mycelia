@@ -433,7 +433,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // NIL = ()
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNDEF = #?
     { .t=Unit_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
-    { .t=Event_T,       .x=77,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
+    { .t=Event_T,       .x=78,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
 
 #define SELF_EVAL (START+1)
     { .t=VM_self,       .x=UNDEF,       .y=START+2,     .z=UNDEF        },  // value = SELF
@@ -523,7 +523,7 @@ cell_t cell_table[CELL_MAX] = {
 
 #define REPL_R (GLOBAL_ENV+3)
 #define REPL_E (REPL_R+8)
-#define REPL_P (REPL_E+7)
+#define REPL_P (REPL_E+8)
 #define REPL_L (REPL_P+3)
 #define REPL_F (REPL_L+4)
     { .t=VM_push,       .x=REPL_F,      .y=REPL_R+1,    .z=UNDEF        },  // fail = REPL_F
@@ -538,10 +538,19 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=REPL_E+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=REPL_E+2,    .z=UNDEF        },  // sexpr
     { .t=VM_debug,      .x=TO_FIX(888), .y=REPL_E+3,    .z=UNDEF        },
+#if 0
     { .t=VM_push,       .x=GLOBAL_ENV,  .y=REPL_E+4,    .z=UNDEF        },  // env = GLOBAL_ENV
     { .t=VM_push,       .x=REPL_P,      .y=REPL_E+5,    .z=UNDEF        },  // cust = REPL_P
     { .t=VM_msg,        .x=1,           .y=REPL_E+6,    .z=UNDEF        },  // sexpr
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (sexpr REPL_P GLOBAL_ENV)
+    { .t=VM_drop,       .x=0,           .y=REPL_E+7,    .z=UNDEF        },  // NO-OP
+#else
+    { .t=VM_push,       .x=NIL,         .y=REPL_E+4,    .z=UNDEF        },  // env = ()
+    { .t=VM_msg,        .x=1,           .y=REPL_E+5,    .z=UNDEF        },  // form = sexpr
+    { .t=VM_push,       .x=REPL_P,      .y=REPL_E+6,    .z=UNDEF        },  // cust = REPL_P
+    { .t=VM_push,       .x=938,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL cust form env)
+#endif
 
     { .t=Actor_T,       .x=REPL_P+1,    .y=UNDEF,       .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=REPL_P+2,    .z=UNDEF        },
