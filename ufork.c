@@ -433,7 +433,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // NIL = ()
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNDEF = #?
     { .t=Unit_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
-    { .t=Event_T,       .x=78,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
+    { .t=Event_T,       .x=79,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
 
 #define SELF_EVAL (START+1)
     { .t=VM_self,       .x=UNDEF,       .y=START+2,     .z=UNDEF        },  // value = SELF
@@ -452,15 +452,22 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=A_CLOCK+1,   .y=NIL,         .z=UNDEF        },
     { .t=VM_push,       .x=TO_FIX(-1),  .y=A_CLOCK+2,   .z=UNDEF        },
 #define CLOCK_BEH (A_CLOCK+2)
+#if 0
     { .t=VM_msg,        .x=0,           .y=A_CLOCK+3,   .z=UNDEF        },
     { .t=VM_push,       .x=CLOCK_BEH,   .y=A_CLOCK+4,   .z=UNDEF        },
     { .t=VM_beh,        .x=1,           .y=COMMIT,      .z=UNDEF        },
+#else
+    { .t=VM_push,       .x=A_CLOCK+1,   .y=A_CLOCK+3,   .z=UNDEF        },  // address of VM_push instruction
+    { .t=VM_msg,        .x=0,           .y=A_CLOCK+4,   .z=UNDEF        },  // clock value
+    { .t=VM_set,        .x=FLD_X,       .y=COMMIT,      .z=UNDEF        },  // update stored value (WARNING! SELF-MODIFYING CODE)
+#endif
 
 #define S_VALUE (A_CLOCK+5)
 //  { .t=VM_push,       .x=_in_,        .y=S_VALUE+0,   .z=UNDEF        },  // (token . next) -or- NIL
+    { .t=VM_pick,       .x=1,           .y=S_VALUE+1,   .z=UNDEF        },  // in
     { .t=VM_msg,        .x=0,           .y=SEND_0,      .z=UNDEF        },  // cust
 
-#define S_GETC (S_VALUE+1)
+#define S_GETC (S_VALUE+2)
 #define S_END_X (S_GETC+9)
 #define S_VAL_X (S_GETC+10)
     { .t=VM_getc,       .x=UNDEF,       .y=S_GETC+1,    .z=UNDEF        },  // ch
@@ -475,6 +482,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pair,       .x=1,           .y=S_VAL_X,     .z=UNDEF        },  // in = (ch . next)
 
     { .t=VM_push,       .x=NIL,         .y=S_GETC+10,   .z=UNDEF        },  // in = ()
+
     { .t=VM_push,       .x=S_VALUE,     .y=S_GETC+11,   .z=UNDEF        },  // S_VALUE
     { .t=VM_beh,        .x=1,           .y=RESEND,      .z=UNDEF        },  // BECOME (S_VALUE in)
 
@@ -699,7 +707,7 @@ cell_t cell_table[CELL_MAX] = {
           (CREATE (fork-beh
             cust
             (car param)
-            (CREATE (evlis-beh (cdr param))))) ; could BECOME this...
+            (CREATE (evlis-beh (cdr param))))) ; BECOME this...
           (list
             (list env)
             (list env)))
@@ -4303,9 +4311,12 @@ int_t stack_pop() {
 }
 
 int_t stack_clear() {
+    int_t ep = GET_EP();
+    int_t me = get_x(ep);
+    int_t stop = get_y(me);  // stop at new stack top
     int_t sp = GET_SP();
     sane = SANITY;
-    while (IS_PAIR(sp)) {
+    while ((sp != stop) && IS_PAIR(sp)) {
         int_t rest = cdr(sp);
         XFREE(sp);
         sp = rest;
@@ -4566,11 +4577,12 @@ PROC_DECL(Actor) {
         return FALSE;  // actor busy
     }
     int_t beh = get_x(actor);  // actor behavior (initial IP)
+    int_t isp = get_y(actor);  // actor state (initial SP)
+    ASSERT((isp == NIL) || IS_PAIR(isp));
     // begin actor transaction
-    int_t sp = get_y(actor);  // actor state (initial SP)
-    set_z(actor, NIL);  // empty set of new events
+    set_z(actor, NIL);  // start with empty set of new events
     // spawn new "thread" to handle event
-    int_t cont = cell_new(beh, sp, event, NIL);  // ip=beh, sp=(), ep=event
+    int_t cont = cell_new(beh, isp, event, NIL);  // ip=beh, sp=isp, ep=event
     return cont;
 }
 
@@ -4933,13 +4945,22 @@ PROC_DECL(vm_beh) {
     int_t ep = GET_EP();
     int_t me = get_x(ep);
     int_t ip = stack_pop();  // behavior
-    while (n--) {
-        // compose behavior
-        int_t v = stack_pop();  // value
-        ip = cell_new(VM_push, v, ip, UNDEF);
-    }
     set_x(me, ip);
-    set_y(me, NIL);
+    if (n > 0) {
+        int_t sp = GET_SP();
+        set_y(me, sp);
+        while (--n && IS_PAIR(sp)) {
+            sp = cdr(sp);
+        }
+        if (IS_PAIR(sp)) {
+            SET_SP(cdr(sp));
+            set_cdr(sp, NIL);
+        } else {
+            SET_SP(NIL);
+        }
+    } else {
+        set_y(me, NIL);
+    }
     return get_y(self);
 }
 

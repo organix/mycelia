@@ -477,8 +477,8 @@ NIL or --->[token,next]--->
 (define sxp-optws (peg-star (peg-alt (peg-eq 9) (peg-eq 10) (peg-eq 13) (peg-eq 32))))
 (define sxp-atom (peg-and sxp-optws (peg-plus (peg-class UPR LWR DGT SYM))))
 (define sxp-list (peg-seq (peg-eq 40) (peg-star sxp-atom) sxp-optws (peg-eq 41)))
-;(define src (peg-source (list 40 76 73 83 84 32 49 50 51 32 55 56 57 48 41 13 10)))  ; "(LIST 123 7890)"
-(define src (peg-source (list 40 67 65 82 32 40 32 76 73 83 84 32 48 32 49 41 9 41)))  ; "(CAR ( LIST 0 1)\t)"
+(define src (peg-source (list 40 76 73 83 84 32 49 50 51 32 55 56 57 48 41 13 10)))  ; "(LIST 123 7890)"
+;(define src (peg-source (list 40 67 65 82 32 40 32 76 73 83 84 32 48 32 49 41 9 41)))  ; "(CAR ( LIST 0 1)\t)"
 (peg-start sxp-list src)
 
 (define scm-pos (peg-xform list->number (peg-plus (peg-class DGT))))
