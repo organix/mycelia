@@ -349,6 +349,7 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 #define END_ABORT   (-1)
 #define END_STOP    (0)
 #define END_COMMIT  (+1)
+#define END_RELEASE (+2)
 
 // VM_cvt conversions
 #define CVT_INT_FIX (0)
@@ -433,7 +434,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // NIL = ()
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNDEF = #?
     { .t=Unit_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
-    { .t=Event_T,       .x=79,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
+    { .t=Event_T,       .x=80,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
 
 #define SELF_EVAL (START+1)
     { .t=VM_self,       .x=UNDEF,       .y=START+2,     .z=UNDEF        },  // value = SELF
@@ -443,8 +444,10 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_send,       .x=0,           .y=START+4,     .z=UNDEF        },  // (cust . value)
 #define COMMIT (START+4)
     { .t=VM_end,        .x=END_COMMIT,  .y=UNDEF,       .z=UNDEF        },  // commit actor transaction
+#define RELEASE (START+5)
+    { .t=VM_end,        .x=END_RELEASE, .y=UNDEF,       .z=UNDEF        },  // commit transaction and free actor
 
-#define RESEND (COMMIT+1)
+#define RESEND (START+6)
     { .t=VM_msg,        .x=0,           .y=RESEND+1,    .z=UNDEF        },  // msg
     { .t=VM_self,       .x=UNDEF,       .y=SEND_0,      .z=UNDEF        },  // SELF
 
@@ -3234,6 +3237,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { CUST_SEND, "CUST_SEND" },
     { SEND_0, "SEND_0" },
     { COMMIT, "COMMIT" },
+    { RELEASE, "RELEASE" },
     { RESEND, "RESEND" },
 
     { A_CLOCK, "A_CLOCK" },
@@ -3538,10 +3542,6 @@ int_t get_proc(int_t value) {  // get dispatch proc for _value_
     if (IS_PROC(value)) return Proc_T;
     if (IS_CELL(value)) return get_t(value);
     return error("no dispatch proc for value");
-}
-
-PROC_DECL(Free) {
-    return panic("DISPATCH TO FREE CELL!");
 }
 
 static i32 gc_free_cnt;  // FORWARD DECLARATION
@@ -4590,6 +4590,10 @@ PROC_DECL(Event) {
     return Self_Eval(self, arg);
 }
 
+PROC_DECL(Free) {
+    return panic("DISPATCH TO FREE CELL!");
+}
+
 PROC_DECL(vm_typeq) {
     int_t t = get_x(self);
     int_t v = stack_pop();
@@ -4976,6 +4980,9 @@ PROC_DECL(vm_end) {
         set_z(me, UNDEF);  // abort actor transaction
         rv = FALSE;
     } else if (n > 0) {  // COMMIT
+        if (n == END_RELEASE) {
+            set_y(me, NIL);
+        }
         stack_clear();
         int_t e = get_z(me);
         sane = SANITY;
@@ -4985,7 +4992,11 @@ PROC_DECL(vm_end) {
             e = es;
             if (sane-- == 0) return panic("insane COMMIT");
         }
-        set_z(me, UNDEF);  // commit actor transaction
+        if (n == END_RELEASE) {
+            me = XFREE(me);
+        } else {
+            set_z(me, UNDEF);  // commit actor transaction
+        }
         rv = TRUE;
     }
     return rv;  // terminate thread
@@ -5209,6 +5220,7 @@ static char *relation_label(int_t r) {
 }
 static char *end_label(int_t t) {
     if (t < 0) return "ABORT";
+    if (t == END_RELEASE) return "RELEASE";
     if (t > 0) return "COMMIT";
     return "STOP";
 }

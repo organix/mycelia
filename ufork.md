@@ -199,6 +199,7 @@ _v_<sub>1</sub> ... _v_<sub>_n_</sub> _beh_ | {t:VM_beh, x:_n_, y:_K_} | &mdash;
 _reason_          | {t:VM_end, x:ABORT}           | &mdash;  | abort actor transaction with _reason_
 &mdash;           | {t:VM_end, x:STOP}            | &mdash;  | stop current continuation (thread)
 &mdash;           | {t:VM_end, x:COMMIT}          | &mdash;  | commit actor transaction
+&mdash;           | {t:VM_end, x:RELEASE}         | &mdash;  | commit transaction and free actor
 _rawint_          | {t:VM_cvt, x:INT_FIX, y:_K_}  | _fixnum_ | convert _rawint_ to _fixnum_
 _fixnum_          | {t:VM_cvt, x:FIX_INT, y:_K_}  | _rawint_ | convert _fixnum_ to _rawint_
 _chars_           | {t:VM_cvt, x:LST_NUM, y:_K_}  | _fixnum_ | convert _chars_ to _fixnum_
