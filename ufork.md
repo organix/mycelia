@@ -138,8 +138,8 @@ based on their 2 MSBs.
 {t:Pair_T, x:item, y:rest}              | stack entry holding _item_
 {t:IP, x:SP, y:EP, z:next}              | continuation queue entry
 {t:Event_T, x:target, y:msg, z:next}    | actor event queue entry
-{t:Actor_T, x:beh, y:?, z:?}            | idle actor
-{t:Actor_T, x:beh, y:events', z:beh'}   | busy actor, intially {y:(), z:?}
+{t:Actor_T, x:beh, y:sp, z:?}           | idle actor
+{t:Actor_T, x:beh', y:sp', z:events}    | busy actor, intially {z:()}
 {t:Symbol_T, x:hash, y:string, z:value} | immutable symbolic-name
 
 #### Instructions
@@ -199,6 +199,8 @@ _v_<sub>1</sub> ... _v_<sub>_n_</sub> _beh_ | {t:VM_beh, x:_n_, y:_K_} | &mdash;
 _reason_          | {t:VM_end, x:ABORT}           | &mdash;  | abort actor transaction with _reason_
 &mdash;           | {t:VM_end, x:STOP}            | &mdash;  | stop current continuation (thread)
 &mdash;           | {t:VM_end, x:COMMIT}          | &mdash;  | commit actor transaction
+_rawint_          | {t:VM_cvt, x:INT_FIX, y:_K_}  | _fixnum_ | convert _rawint_ to _fixnum_
+_fixnum_          | {t:VM_cvt, x:FIX_INT, y:_K_}  | _rawint_ | convert _fixnum_ to _rawint_
 _chars_           | {t:VM_cvt, x:LST_NUM, y:_K_}  | _fixnum_ | convert _chars_ to _fixnum_
 _chars_           | {t:VM_cvt, x:LST_SYM, y:_K_}  | _symbol_ | convert _chars_ to _symbol_
 _char_            | {t:VM_putc, y:_K_}            | &mdash;  | write _char_ to console
@@ -214,9 +216,11 @@ e_queue: [head,tail]--------------------------+
                      |  |
                      |  +--> actor message content
                      V
-                    [Actor,beh,?,?]
+                    [Actor,beh,sp,?]
+                           |   |
+                           |   +--> actor state (initial SP)
                            |
-                           +--> actor behavior code (initial IP)
+                           +--> actor behavior (initial IP)
 
 k_queue: [head,tail]--------------------+
           |                             V
@@ -226,7 +230,7 @@ k_queue: [head,tail]--------------------+
                |  |             |  |
                |  |             |  +--> ...
                |  |             V
-               |  |            [Actor,beh,es',beh']
+               |  |            [Actor,beh',sp',events]---> ... -->[Event,to,msg,NIL]
                |  V
                | [Pair,car,cdr,?]
                |       |   |
