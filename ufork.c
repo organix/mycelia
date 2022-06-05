@@ -1263,14 +1263,14 @@ Star(pattern) = Or(Plus(pattern), Empty)
 //  { .t=VM_push,       .x=_val_,       .y=BOUND_BEH-1, .z=UNDEF        },
 //  { .t=VM_push,       .x=_env_,       .y=BOUND_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=-1,          .y=BOUND_BEH+1, .z=UNDEF        },  // key
-    { .t=VM_roll,       .x=4,           .y=BOUND_BEH+2, .z=UNDEF        },  // var
+    { .t=VM_pick,       .x=4,           .y=BOUND_BEH+2, .z=UNDEF        },  // var
     { .t=VM_cmp,        .x=CMP_EQ,      .y=BOUND_BEH+3, .z=UNDEF        },  // key == var
     { .t=VM_if,         .x=BOUND_BEH+4, .y=BOUND_BEH+5, .z=UNDEF        },
 
-    { .t=VM_roll,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // val
+    { .t=VM_pick,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // val
 
     { .t=VM_msg,        .x=0,           .y=BOUND_BEH+6, .z=UNDEF        },  // msg
-    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // env
+    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // env
 
 /*
 (define f-call-beh                      ; function call expression
@@ -1285,12 +1285,12 @@ Star(pattern) = Or(Plus(pattern), Empty)
 //  { .t=VM_push,       .x=_args_,      .y=F_CALL_B+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=2,           .y=F_CALL_B+1,  .z=UNDEF        },  // env
 
-    { .t=VM_roll,       .x=2,           .y=F_CALL_B+2,  .z=UNDEF        },  // args
+    { .t=VM_pick,       .x=2,           .y=F_CALL_B+2,  .z=UNDEF        },  // args
     { .t=VM_push,       .x=CONST_BEH,   .y=F_CALL_B+3,  .z=UNDEF        },  // CONST_BEH
     { .t=VM_new,        .x=1,           .y=F_CALL_B+4,  .z=UNDEF        },  // a_expr
 
     { .t=VM_msg,        .x=1,           .y=F_CALL_B+5,  .z=UNDEF        },  // cust
-    { .t=VM_roll,       .x=4,           .y=F_CALL_B+6,  .z=UNDEF        },  // args
+    { .t=VM_pick,       .x=5,           .y=F_CALL_B+6,  .z=UNDEF        },  // comb
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (comb cust a_expr env)
 
 /*
@@ -1304,7 +1304,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=EMPTY_ENV,   .y=F_OPER_B+1,  .z=UNDEF        },  // env
     { .t=VM_msg,        .x=-1,          .y=F_OPER_B+2,  .z=UNDEF        },  // args
     { .t=VM_msg,        .x=1,           .y=F_OPER_B+3,  .z=UNDEF        },  // cust
-    { .t=VM_roll,       .x=4,           .y=F_OPER_B+4,  .z=UNDEF        },  // oper
+    { .t=VM_pick,       .x=4,           .y=F_OPER_B+4,  .z=UNDEF        },  // oper
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (oper cust args env)
 
 /*
@@ -1326,7 +1326,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_if,         .x=OP_FUNC_B+5, .y=SELF_EVAL,   .z=UNDEF        },
 
     { .t=VM_pair,       .x=1,           .y=OP_FUNC_B+6, .z=UNDEF        },  // (cust . args)
-    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // func
+    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // func
 
 /*
 (define k-call-beh
@@ -1338,9 +1338,9 @@ Star(pattern) = Or(Plus(pattern), Empty)
 //  { .t=VM_push,       .x=_cust_,      .y=K_CALL-1,    .z=UNDEF        },
 //  { .t=VM_push,       .x=_func_,      .y=K_CALL+0,    .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_CALL+1,    .z=UNDEF        },  // args
-    { .t=VM_roll,       .x=3,           .y=K_CALL+2,    .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=3,           .y=K_CALL+2,    .z=UNDEF        },  // cust
     { .t=VM_pair,       .x=1,           .y=K_CALL+3,    .z=UNDEF        },  // (cust . args)
-    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // func
+    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // func
 /*
 (define ap-func-beh                     ; self-evaluating applicative
   (lambda (func)                        ; (func cust . args)
@@ -1348,7 +1348,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
       (if (pair? opt-env)
         (SEND                           ; apply
           (CREATE (evlis-beh param))
-          (list (CREATE (k-invoke-beh cust func)) (car opt-env)))
+          (list (CREATE (k-call-beh cust func)) (car opt-env)))
         (SEND cust SELF)                ; eval
       ))))
 */
@@ -1359,15 +1359,15 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_if,         .x=AP_FUNC_B+3, .y=SELF_EVAL,   .z=UNDEF        },
 
     { .t=VM_msg,        .x=1,           .y=AP_FUNC_B+4, .z=UNDEF        },  // cust
-    { .t=VM_roll,       .x=2,           .y=AP_FUNC_B+5, .z=UNDEF        },  // func
-    { .t=VM_push,       .x=K_CALL,      .y=AP_FUNC_B+6, .z=UNDEF        },  // cust func K_CALL
-    { .t=VM_new,        .x=2,           .y=AP_FUNC_B+7, .z=UNDEF        },  // k_call
+    { .t=VM_pick,       .x=2,           .y=AP_FUNC_B+5, .z=UNDEF        },  // func
+    { .t=VM_push,       .x=K_CALL,      .y=AP_FUNC_B+6, .z=UNDEF        },  // K_CALL
+    { .t=VM_new,        .x=2,           .y=AP_FUNC_B+7, .z=UNDEF        },  // k_call = (K_CALL cust func)
 
     { .t=VM_msg,        .x=3,           .y=AP_FUNC_B+8, .z=UNDEF        },  // denv
     { .t=VM_roll,       .x=2,           .y=AP_FUNC_B+9, .z=UNDEF        },  // k_call
     { .t=VM_msg,        .x=2,           .y=AP_FUNC_B+10,.z=UNDEF        },  // param
-    { .t=VM_push,       .x=EVLIS_BEH,   .y=AP_FUNC_B+11,.z=UNDEF        },  // param EVLIS_BEH
-    { .t=VM_new,        .x=1,           .y=AP_FUNC_B+12,.z=UNDEF        },  // ev_list
+    { .t=VM_push,       .x=EVLIS_BEH,   .y=AP_FUNC_B+11,.z=UNDEF        },  // EVLIS_BEH
+    { .t=VM_new,        .x=1,           .y=AP_FUNC_B+12,.z=UNDEF        },  // ev_list = (EVLIS_BEH param)
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_list k_call denv)
 
 /*
@@ -1381,8 +1381,9 @@ Star(pattern) = Or(Plus(pattern), Empty)
 //  { .t=VM_push,       .x=_env_,       .y=K_APPLY-2,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_cust_,      .y=K_APPLY-1,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_oper_,      .y=K_APPLY+0,   .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=K_APPLY+1,   .z=UNDEF        },  // args
-    { .t=VM_roll,       .x=-3,          .y=K_APPLY+2,   .z=UNDEF        },  // env args cust oper
+    { .t=VM_dup,        .x=3,           .y=K_APPLY+1,   .z=UNDEF        },  // env cust oper
+    { .t=VM_msg,        .x=0,           .y=K_APPLY+2,   .z=UNDEF        },  // args
+    { .t=VM_roll,       .x=-3,          .y=K_APPLY+3,   .z=UNDEF        },  // env args cust oper
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (oper cust args env)
 /*
 (define appl-beh
@@ -1395,23 +1396,24 @@ Star(pattern) = Or(Plus(pattern), Empty)
         (SEND cust SELF)                ; eval
       ))))
 */
-#define APPL_BEH (K_APPLY+3)
+#define APPL_BEH (K_APPLY+4)
 //  { .t=VM_push,       .x=_oper_,      .y=APPL_BEH-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_senv_,      .y=APPL_BEH+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=APPL_BEH+1,  .z=UNDEF        },  // opt-env
     { .t=VM_typeq,      .x=Pair_T,      .y=APPL_BEH+2,  .z=UNDEF        },  // opt-env has type Pair_T
     { .t=VM_if,         .x=APPL_BEH+3,  .y=SELF_EVAL,   .z=UNDEF        },
 
-    { .t=VM_msg,        .x=1,           .y=APPL_BEH+4,  .z=UNDEF        },  // cust
-    { .t=VM_roll,       .x=3,           .y=APPL_BEH+5,  .z=UNDEF        },  // oper
-    { .t=VM_push,       .x=K_APPLY,     .y=APPL_BEH+6,  .z=UNDEF        },  // senv cust oper K_APPLY
-    { .t=VM_new,        .x=3,           .y=APPL_BEH+7,  .z=UNDEF        },  // k_apply
+    { .t=VM_pick,       .x=1,           .y=APPL_BEH+4,  .z=UNDEF        },  // senv
+    { .t=VM_msg,        .x=1,           .y=APPL_BEH+5,  .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=4,           .y=APPL_BEH+6,  .z=UNDEF        },  // oper
+    { .t=VM_push,       .x=K_APPLY,     .y=APPL_BEH+7,  .z=UNDEF        },  // K_APPLY
+    { .t=VM_new,        .x=3,           .y=APPL_BEH+8,  .z=UNDEF        },  // k_apply = (K_APPLY senv cust oper)
 
-    { .t=VM_msg,        .x=3,           .y=APPL_BEH+8,  .z=UNDEF        },  // denv
-    { .t=VM_roll,       .x=2,           .y=APPL_BEH+9,  .z=UNDEF        },  // k_apply
-    { .t=VM_msg,        .x=2,           .y=APPL_BEH+10, .z=UNDEF        },  // params
-    { .t=VM_push,       .x=EVLIS_BEH,   .y=APPL_BEH+11, .z=UNDEF        },  // params EVLIS_BEH
-    { .t=VM_new,        .x=1,           .y=APPL_BEH+12, .z=UNDEF        },  // ev_list
+    { .t=VM_msg,        .x=3,           .y=APPL_BEH+9,  .z=UNDEF        },  // denv
+    { .t=VM_roll,       .x=2,           .y=APPL_BEH+10, .z=UNDEF        },  // k_apply
+    { .t=VM_msg,        .x=2,           .y=APPL_BEH+11, .z=UNDEF        },  // params
+    { .t=VM_push,       .x=EVLIS_BEH,   .y=APPL_BEH+12, .z=UNDEF        },  // EVLIS_BEH
+    { .t=VM_new,        .x=1,           .y=APPL_BEH+13, .z=UNDEF        },  // ev_list = (EVLIS_BEH params)
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_list k_apply denv)
 
 /*
@@ -1424,7 +1426,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
         (SEND cust value)
       ))))
 */
-#define K_SEQ_B (APPL_BEH+13)
+#define K_SEQ_B (APPL_BEH+14)
 //  { .t=VM_push,       .x=_cust_,      .y=K_SEQ_B-2,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_env_,       .y=K_SEQ_B-1,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_body_,      .y=K_SEQ_B+0,   .z=UNDEF        },
@@ -1433,7 +1435,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_if,         .x=K_SEQ_B+5,   .y=K_SEQ_B+3,   .z=UNDEF        },
 
     { .t=VM_msg,        .x=0,           .y=K_SEQ_B+4,   .z=UNDEF        },  // value
-    { .t=VM_roll,       .x=4,           .y=SEND_0,      .z=UNDEF        },  // (cust . value)
+    { .t=VM_pick,       .x=4,           .y=SEND_0,      .z=UNDEF        },  // (cust . value)
 
     { .t=VM_part,       .x=1,           .y=K_SEQ_B+6,   .z=UNDEF        },  // rest first
     { .t=VM_pick,       .x=3,           .y=K_SEQ_B+7,   .z=UNDEF        },  // env
@@ -1456,47 +1458,48 @@ Star(pattern) = Or(Plus(pattern), Empty)
       ))))
 */
 #define OPER_BEH (K_SEQ_B+12)
-//  { .t=VM_push,       .x=_args_,      .y=OPER_BEH+0,  .z=UNDEF        },  // (frml . body)
+//  { .t=VM_push,       .x=_form_,      .y=OPER_BEH+0,  .z=UNDEF        },  // (frml . body)
     { .t=VM_msg,        .x=-2,          .y=OPER_BEH+1,  .z=UNDEF        },  // opt-env
     { .t=VM_typeq,      .x=Pair_T,      .y=OPER_BEH+2,  .z=UNDEF        },  // opt-env has type Pair_T
     { .t=VM_if,         .x=OPER_BEH+3,  .y=SELF_EVAL,   .z=UNDEF        },
 
-    { .t=VM_part,       .x=1,           .y=OPER_BEH+4,  .z=UNDEF        },  // body frml
-    { .t=VM_msg,        .x=2,           .y=OPER_BEH+5,  .z=UNDEF        },  // args
-    { .t=VM_msg,        .x=3,           .y=OPER_BEH+6,  .z=UNDEF        },  // env
+    { .t=VM_pick,       .x=1,           .y=OPER_BEH+4,  .z=UNDEF        },  // form
+    { .t=VM_part,       .x=1,           .y=OPER_BEH+5,  .z=UNDEF        },  // body frml
+    { .t=VM_msg,        .x=2,           .y=OPER_BEH+6,  .z=UNDEF        },  // args
+    { .t=VM_msg,        .x=3,           .y=OPER_BEH+7,  .z=UNDEF        },  // env
 
-    { .t=VM_pick,       .x=3,           .y=OPER_BEH+7,  .z=UNDEF        },  // frml
-    { .t=VM_typeq,      .x=Pair_T,      .y=OPER_BEH+8,  .z=UNDEF        },  // frml has type Pair_T
-    { .t=VM_if,         .x=OPER_BEH+9,  .y=OPER_BEH+18, .z=UNDEF        },
+    { .t=VM_pick,       .x=3,           .y=OPER_BEH+8,  .z=UNDEF        },  // frml
+    { .t=VM_typeq,      .x=Pair_T,      .y=OPER_BEH+9,  .z=UNDEF        },  // frml has type Pair_T
+    { .t=VM_if,         .x=OPER_BEH+10, .y=OPER_BEH+19, .z=UNDEF        },
 
-    { .t=VM_roll,       .x=3,           .y=OPER_BEH+10, .z=UNDEF        },  // args env frml
-    { .t=VM_part,       .x=1,           .y=OPER_BEH+11, .z=UNDEF        },  // tail head
-    { .t=VM_roll,       .x=4,           .y=OPER_BEH+12, .z=UNDEF        },  // env tail head args
-    { .t=VM_part,       .x=1,           .y=OPER_BEH+13, .z=UNDEF        },  // rest first
+    { .t=VM_roll,       .x=3,           .y=OPER_BEH+11, .z=UNDEF        },  // args env frml
+    { .t=VM_part,       .x=1,           .y=OPER_BEH+12, .z=UNDEF        },  // tail head
+    { .t=VM_roll,       .x=4,           .y=OPER_BEH+13, .z=UNDEF        },  // env tail head args
+    { .t=VM_part,       .x=1,           .y=OPER_BEH+14, .z=UNDEF        },  // rest first
 
-    { .t=VM_roll,       .x=3,           .y=OPER_BEH+14, .z=UNDEF        },  // var = head
-    { .t=VM_roll,       .x=2,           .y=OPER_BEH+15, .z=UNDEF        },  // val = first
-    { .t=VM_roll,       .x=5,           .y=OPER_BEH+16, .z=UNDEF        },  // env
-    { .t=VM_push,       .x=BOUND_BEH,   .y=OPER_BEH+17, .z=UNDEF        },  // var val env BOUND_BEH
-    { .t=VM_new,        .x=3,           .y=OPER_BEH+6,  .z=UNDEF        },  // ext-env
+    { .t=VM_roll,       .x=3,           .y=OPER_BEH+15, .z=UNDEF        },  // var = head
+    { .t=VM_roll,       .x=2,           .y=OPER_BEH+16, .z=UNDEF        },  // val = first
+    { .t=VM_roll,       .x=5,           .y=OPER_BEH+17, .z=UNDEF        },  // env
+    { .t=VM_push,       .x=BOUND_BEH,   .y=OPER_BEH+18, .z=UNDEF        },  // var val env BOUND_BEH
+    { .t=VM_new,        .x=3,           .y=OPER_BEH+7,  .z=UNDEF        },  // ext-env
 
-    { .t=VM_pick,       .x=3,           .y=OPER_BEH+19, .z=UNDEF        },  // frml
-    { .t=VM_typeq,      .x=Symbol_T,    .y=OPER_BEH+20, .z=UNDEF        },  // frml has type Symbol_T
-    { .t=VM_if,         .x=OPER_BEH+21, .y=OPER_BEH+23, .z=UNDEF        },
+    { .t=VM_pick,       .x=3,           .y=OPER_BEH+20, .z=UNDEF        },  // frml
+    { .t=VM_typeq,      .x=Symbol_T,    .y=OPER_BEH+21, .z=UNDEF        },  // frml has type Symbol_T
+    { .t=VM_if,         .x=OPER_BEH+22, .y=OPER_BEH+24, .z=UNDEF        },
 
-    { .t=VM_push,       .x=BOUND_BEH,   .y=OPER_BEH+22, .z=UNDEF        },  // var val env BOUND_BEH
-    { .t=VM_new,        .x=3,           .y=OPER_BEH+25, .z=UNDEF        },  // ext-env
+    { .t=VM_push,       .x=BOUND_BEH,   .y=OPER_BEH+23, .z=UNDEF        },  // var val env BOUND_BEH
+    { .t=VM_new,        .x=3,           .y=OPER_BEH+26, .z=UNDEF        },  // ext-env
 
-    { .t=VM_roll,       .x=-3,          .y=OPER_BEH+24, .z=UNDEF        },  // body env frml args
-    { .t=VM_drop,       .x=2,           .y=OPER_BEH+25, .z=UNDEF        },  // body env
+    { .t=VM_roll,       .x=-3,          .y=OPER_BEH+25, .z=UNDEF        },  // body env frml args
+    { .t=VM_drop,       .x=2,           .y=OPER_BEH+26, .z=UNDEF        },  // body env
 
-    { .t=VM_msg,        .x=1,           .y=OPER_BEH+26, .z=UNDEF        },  // cust
-    { .t=VM_roll,       .x=2,           .y=OPER_BEH+27, .z=UNDEF        },  // env
-    { .t=VM_roll,       .x=3,           .y=OPER_BEH+28, .z=UNDEF        },  // body
-    { .t=VM_push,       .x=K_SEQ_B,     .y=OPER_BEH+29, .z=UNDEF        },  // cust env body K_SEQ_B
-    { .t=VM_new,        .x=3,           .y=OPER_BEH+30, .z=UNDEF        },  // k-seq
+    { .t=VM_msg,        .x=1,           .y=OPER_BEH+27, .z=UNDEF        },  // cust
+    { .t=VM_roll,       .x=2,           .y=OPER_BEH+28, .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=3,           .y=OPER_BEH+29, .z=UNDEF        },  // body
+    { .t=VM_push,       .x=K_SEQ_B,     .y=OPER_BEH+30, .z=UNDEF        },  // cust env body K_SEQ_B
+    { .t=VM_new,        .x=3,           .y=OPER_BEH+31, .z=UNDEF        },  // k-seq
 
-    { .t=VM_push,       .x=UNIT,        .y=OPER_BEH+31, .z=UNDEF        },  // UNIT
+    { .t=VM_push,       .x=UNIT,        .y=OPER_BEH+32, .z=UNDEF        },  // UNIT
     { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // UNIT k-seq
 
 /*
@@ -1509,7 +1512,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
         (SEND cust SELF)                ; eval
       ))))
 */
-#define OP_LAMBDA (OPER_BEH+32)
+#define OP_LAMBDA (OPER_BEH+33)
     { .t=Actor_T,       .x=OP_LAMBDA+1, .y=NIL,         .z=UNDEF        },  // (lambda <frml> . <body>)
     { .t=VM_msg,        .x=-2,          .y=OP_LAMBDA+2, .z=UNDEF        },  // opt-env
     { .t=VM_typeq,      .x=Pair_T,      .y=OP_LAMBDA+3, .z=UNDEF        },  // opt-env has type Pair_T
@@ -1575,7 +1578,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_msg,        .x=0,           .y=K_DEF_B+1,   .z=UNDEF        },  // value
     { .t=VM_set,        .x=FLD_Z,       .y=K_DEF_B+2,   .z=UNDEF        },  // bind(symbol, value)
     { .t=VM_push,       .x=UNIT,        .y=K_DEF_B+3,   .z=UNDEF        },  // #unit
-    { .t=VM_pick,       .x=3,           .y=SEND_0,      .z=UNDEF        },  // cust
+    { .t=VM_roll,       .x=3,           .y=K_DEF_B+4,   .z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=RELEASE,     .z=UNDEF        },  // (cust #unit)
 /*
 (define op-define                       ; (define <symbol> <expr>)
   (CREATE
@@ -1586,7 +1590,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
         (SEND cust SELF)                ; eval
       ))))
 */
-#define OP_DEFINE (K_DEF_B+4)
+#define OP_DEFINE (K_DEF_B+5)
     { .t=Actor_T,       .x=OP_DEFINE+1, .y=NIL,         .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=OP_DEFINE+2, .z=UNDEF        },  // opt-env
     { .t=VM_typeq,      .x=Pair_T,      .y=OP_DEFINE+3, .z=UNDEF        },  // opt-env has type Pair_T
@@ -1602,7 +1606,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_msg,        .x=1,           .y=OP_DEFINE+11,.z=UNDEF        },  // cust
     { .t=VM_pick,       .x=3,           .y=OP_DEFINE+12,.z=UNDEF        },  // symbol
     { .t=VM_push,       .x=K_DEF_B,     .y=OP_DEFINE+13,.z=UNDEF        },  // K_DEF_B
-    { .t=VM_new,        .x=2,           .y=OP_DEFINE+14,.z=UNDEF        },  // k_define
+    { .t=VM_new,        .x=2,           .y=OP_DEFINE+14,.z=UNDEF        },  // k_define = (K_DEF_B cust symbol)
     { .t=VM_pick,       .x=4,           .y=OP_DEFINE+15,.z=UNDEF        },  // expr
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (expr k_define env)
 
@@ -4936,12 +4940,30 @@ PROC_DECL(vm_new) {
     int_t n = get_x(self);
     if (n < 0) return error("vm_new (n < 0) invalid");
     int_t ip = stack_pop();  // behavior
+#if 0
     while (n--) {
         // compose behavior
         int_t v = stack_pop();  // value
         ip = cell_new(VM_push, v, ip, UNDEF);
     }
     int_t a = cell_new(Actor_T, ip, NIL, UNDEF);
+#else
+    int_t sp = NIL;
+    if (n > 0) {
+        sp = GET_SP();
+        int_t np = sp;
+        while (--n && IS_PAIR(np)) {
+            np = cdr(np);
+        }
+        if (IS_PAIR(np)) {
+            SET_SP(cdr(np));
+            set_cdr(np, NIL);
+        } else {
+            SET_SP(NIL);
+        }
+    }
+    int_t a = cell_new(Actor_T, ip, sp, UNDEF);
+#endif
     stack_push(a);
     return get_y(self);
 }
