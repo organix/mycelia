@@ -266,10 +266,10 @@ SELF_EVAL:  [SELF,?,k]   |
 CUST_SEND:  [MSG,+1,k]   |
                     |    |
                     v    |
-SEND_0:     [SEND,0,k]<--+
-                    |
-                    v
-COMMIT:     [END,+1,?]
+SEND_0:     [SEND,0,k]<--+    RELEASE_0:  [SEND,0,k]
+                    |                             |
+                    v                             v
+COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 ```
 
 ## LISP/Scheme Ground Environment
