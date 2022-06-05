@@ -344,6 +344,7 @@ Date       | Events | Instructions | Description
 2022-06-03 |   1194 |        15062 | meta-circular interpreter
 2022-06-04 |   1226 |        14986 | set SP in BECOME
 2022-06-04 |   1226 |        14170 | set SP in CREATE
+2022-06-05 |   1226 |        13867 | use RELEASE and RELEASE_0
 
 ## PEG Tools
 
