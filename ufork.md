@@ -734,11 +734,103 @@ NIL or --->[token,next]--->
 | ^? | 127 |  7f |  x  |     |     |     |     |     |     |     |
 
 
+## Meta-circular LISP Interpreter
+
+The `META_EVALUATE` compile-time feature switch
+enables an assembly-coded implementation
+of a McCarthy-style meta-circular LISP interpreter.
+The algorithm is based on the listing on page 13 of
+"The LISP 1.5 Programmer's Manual".
+
+```
+eval[e;a] =
+    [atom[e] → cdr[assoc[e;a]];
+     atom[car[e]] →
+             [eq[car[e];QUOTE] → cadr[e];
+              eq[car[e];COND] → evcon[cdr[e];a];
+              T → apply[car[e];evlis[cdr[e];a];a]];
+     T → apply[car[e];evlis[cdr[e];a];a]] 
+apply[fn;x;a] =
+     [atom[fn] → [eq[fn;CAR] → caar[x];
+                  eq[fn;CDR] → cdar[x];
+                  eq[fn;CONS] → cons[car[x]; cadr[x]];
+                  eq[fn;ATOM] → atom[car[x]];
+                  eq[fn;EQ] → eq[car[x];cadr[x]];
+                  T → apply[eval[fn;a];x;a]];
+      eq[car[fn];LAMBDA] →
+                  eval[caddr[fn];pairlis[cadr[fn];x;a]];
+      eq[car[fn];LABEL] →
+                  apply[caddr[fn];x;cons[cons[cadr[fn];caddr[fn]];a]]]
+```
+
+A LISP rendition of the assembly-coded implementation
+might look like this:
+
+```
+(define eval
+  (lambda (form env)
+    (if (symbol? form)
+      (lookup form env)                 ; bound variable
+      (if (pair? form)
+        (if (eq? (car form) 'quote)     ; (quote <form>)
+          (cadr form)
+          (if (eq? (car form) 'if)      ; (if <pred> <cnsq> <altn>)
+            (evalif (eval (cadr form) env) (caddr form) (cadddr form) env)
+            (apply (car form) (evlis (cdr form) env) env)))
+        form))))                        ; self-evaluating form
+
+(define apply
+  (lambda (fn args env)
+    (if (symbol? fn)
+      (if (eq? fn 'list)                ; (list . <args>)
+        args
+        (if (eq? fn 'cons)              ; (cons <first> <rest>)
+          (cons (car args) (cadr args))
+          (if (eq? fn 'car)             ; (car <pair>)
+            (caar args)
+            (if (eq? fn 'cdr)           ; (cdr <pair>)
+              (cdar args)
+              (if (eq? fn 'eq?)         ; (eq? <left> <right>)
+                (eq? (car args) (cadr args))
+                (if (eq? fn 'pair?)     ; (pair? <value>)
+                  (pair? (car args))
+                  (if (eq? fn 'symbol?) ; (symbol? <value>)
+                    (symbol? (car args))
+                    (apply (lookup fn env) args env))))))))
+      (if (pair? fn)
+        (if (eq? (car fn) 'lambda)      ; ((lambda <frml> <body>) <args>)
+          (eval (caddr fn) (zip (cadr fn) args env))
+          (apply (eval fn env) args env))
+        #?)))
+
+(define lookup                          ; look up variable binding in environment
+  (lambda (key alist)
+    (if (pair? alist)
+      (if (eq? (caar alist) key)
+        (cdar alist)
+        (lookup key (cdr alist)))
+      #?)))                             ; value is undefined
+
+(define evalif                          ; if `test` is #f, evaluate `altn`,
+  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
+    (if test
+      (eval cnsq env)
+      (eval altn env))))
+
+(define evlis
+  (lambda (opnds env)
+    (if (pair? opnds)
+      (cons (eval (car opnds) env) (evlis (cdr opnds) env))
+      ())))                             ; value is NIL
+```
+
+
 ## Inspiration
 
   * [Parsing Expression Grammars: A Recognition-Based Syntactic Foundation](https://bford.info/pub/lang/peg.pdf)
     * [OMeta: an Object-Oriented Language for Pattern Matching](http://www.vpri.org/pdf/tr2007003_ometa.pdf)
     * [PEG-based transformer provides front-, middle and back-end stages in a simple compiler](http://www.vpri.org/pdf/tr2010003_PEG.pdf)
+  * [The LISP 1.5 Programmer's Manual](https://www.softwarepreservation.org/projects/LISP/book/LISP%201.5%20Programmers%20Manual.pdf)
   * [SectorLISP](http://justine.lol/sectorlisp2/)
   * [Ribbit](https://github.com/udem-dlteam/ribbit)
     * [A Small Scheme VM, Compiler and REPL in 4K](https://www.youtube.com/watch?v=A3r0cYRwrSs)

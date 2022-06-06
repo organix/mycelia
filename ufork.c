@@ -24,6 +24,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define COMPILE_QUOTE 0 // compile ' immediately in parser
 #define SCM_PEG_TOOLS 1 // include PEG tools for LISP/Scheme
 #define META_EVALUATE 1 // include meta-circular LISP interpreter
+#define USE_META_EVAL 0 // use meta-circular interpreter in REPL
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -552,18 +553,18 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=REPL_E+1,    .y=NIL,         .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=REPL_E+2,    .z=UNDEF        },  // sexpr
     { .t=VM_debug,      .x=TO_FIX(888), .y=REPL_E+3,    .z=UNDEF        },
-#if 1
+#if USE_META_EVAL
+    { .t=VM_push,       .x=NIL,         .y=REPL_E+4,    .z=UNDEF        },  // env = ()
+    { .t=VM_msg,        .x=1,           .y=REPL_E+5,    .z=UNDEF        },  // form = sexpr
+    { .t=VM_push,       .x=REPL_P,      .y=REPL_E+6,    .z=UNDEF        },  // cust = REPL_P
+    { .t=VM_push,       .x=940,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL cust form env)
+#else
     { .t=VM_push,       .x=GLOBAL_ENV,  .y=REPL_E+4,    .z=UNDEF        },  // env = GLOBAL_ENV
     { .t=VM_push,       .x=REPL_P,      .y=REPL_E+5,    .z=UNDEF        },  // cust = REPL_P
     { .t=VM_msg,        .x=1,           .y=REPL_E+6,    .z=UNDEF        },  // sexpr
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (sexpr REPL_P GLOBAL_ENV)
     { .t=VM_drop,       .x=0,           .y=REPL_E+7,    .z=UNDEF        },  // NO-OP
-#else
-    { .t=VM_push,       .x=NIL,         .y=REPL_E+4,    .z=UNDEF        },  // env = ()
-    { .t=VM_msg,        .x=1,           .y=REPL_E+5,    .z=UNDEF        },  // form = sexpr
-    { .t=VM_push,       .x=REPL_P,      .y=REPL_E+6,    .z=UNDEF        },  // cust = REPL_P
-    { .t=VM_push,       .x=942,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL
-    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL cust form env)
 #endif
 
     { .t=Actor_T,       .x=REPL_P+1,    .y=NIL,         .z=UNDEF        },
@@ -2091,7 +2092,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define M_EVLIS (M_EVLIS_K+6)
 #define M_EVAL_K (M_EVLIS+14)
 #define M_APPLY (M_EVAL_K+4)
-#define M_APPLY_K (M_APPLY+70)
+#define M_APPLY_K (M_APPLY+80)
 #define M_ZIP (M_APPLY_K+4)
 #define M_EVAL_B (M_ZIP+19)
     { .t=Actor_T,       .x=M_EVAL+1,    .y=NIL,         .z=UNDEF        },  // (cust form env)
@@ -2297,7 +2298,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_msg,        .x=2,           .y=M_APPLY+58,  .z=UNDEF        },  // proc = (lambda <frml> <body>)
     { .t=VM_part,       .x=3,           .y=M_APPLY+59,  .z=UNDEF        },  // () body frml lambda
     { .t=VM_eq,         .x=S_LAMBDA,    .y=M_APPLY+60,  .z=UNDEF        },  // (lambda == 'lambda)
-    { .t=VM_if,         .x=M_APPLY+61,  .y=RV_UNDEF,    .z=UNDEF        },
+    { .t=VM_if,         .x=M_APPLY+61,  .y=M_APPLY+70,  .z=UNDEF        },
 
     { .t=VM_msg,        .x=4,           .y=M_APPLY+62,  .z=UNDEF        },  // tail = env
     { .t=VM_msg,        .x=3,           .y=M_APPLY+63,  .z=UNDEF        },  // ys = args
@@ -2310,6 +2311,18 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
     { .t=VM_push,       .x=M_ZIP,       .y=M_APPLY+69,  .z=UNDEF        },  // M_ZIP
     { .t=VM_send,       .x=4,           .y=COMMIT,      .z=UNDEF        },  // (M_ZIP k_eval xs ys tail)
+
+    { .t=VM_msg,        .x=4,           .y=M_APPLY+71,  .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=3,           .y=M_APPLY+72,  .z=UNDEF        },  // args
+    { .t=VM_msg,        .x=1,           .y=M_APPLY+73,  .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=M_APPLY_K,   .y=M_APPLY+74,  .z=UNDEF        },  // M_APPLY_K
+    { .t=VM_new,        .x=3,           .y=M_APPLY+75,  .z=UNDEF        },  // k_apply = (M_APPLY_K env args cust)
+
+    { .t=VM_msg,        .x=4,           .y=M_APPLY+76,  .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=2,           .y=M_APPLY+77,  .z=UNDEF        },  // form = proc
+    { .t=VM_roll,       .x=3,           .y=M_APPLY+78,  .z=UNDEF        },  // cust = k_apply
+    { .t=VM_push,       .x=M_EVAL,      .y=M_APPLY+79,  .z=UNDEF        },  // M_EVAL
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_apply proc env)
 
 //  { .t=VM_push,       .x=_env_,       .y=M_APPLY_K-2, .z=UNDEF        },
 //  { .t=VM_push,       .x=_args_,      .y=M_APPLY_K-1, .z=UNDEF        },
