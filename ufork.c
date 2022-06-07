@@ -115,6 +115,8 @@ int_t sane = 0;  // run-away loop prevention
 int_t panic(char *reason);
 int_t error(char *reason);
 int_t failure(char *_file_, int _line_);
+int_t console_putc(int_t c);
+int_t console_getc();
 void print_sexpr(int_t x);
 #if INCLUDE_DEBUG
 void hexdump(char *label, int_t *addr, size_t cnt);
@@ -5074,15 +5076,12 @@ PROC_DECL(vm_cvt) {
 
 PROC_DECL(vm_putc) {
     int_t c = stack_pop();
-    ASSERT(IS_FIX(c));
-    c = TO_INT(c);
-    putchar(c);
+    console_putc(c);
     return get_y(self);
 }
 
 PROC_DECL(vm_getc) {
-    int_t c = getchar();
-    c = TO_FIX(c);
+    int_t c = console_getc();
     stack_push(c);
     return get_y(self);
 }
@@ -5596,8 +5595,45 @@ int_t debugger() {
  * bootstrap
  */
 
+static char repl_lib[] =
+//" (define par (lambda _))"
+" (define caar (lambda (x) (car (car x))))"
+" (define cdar (lambda (x) (cdr (car x))))"
+" (define cddr (lambda (x) (nth -2 x))))"
+" (define cadddr (lambda (x) (nth 4 x))))"
+" (define length (lambda (x) (if (pair? x) (+ (length (cdr x)) 1) 0)))"
+" \0";
+static char *repl_inp = repl_lib;
+
+int_t console_stdio = FALSE;  // enable stdio
+
+int_t console_putc(int_t c) {
+    ASSERT(IS_FIX(c));
+    c = TO_INT(c);
+    if (console_stdio) {
+        putchar(c);
+    }
+    return UNIT;
+}
+
+int_t console_getc() {
+    int_t c = -1;  // EOS
+    if (console_stdio) {
+        c = getchar();
+    } else if (repl_inp && (c = *repl_inp)) {
+        if (*++repl_inp == '\0') {
+            console_stdio = TRUE;  // switch to stdio
+        }
+    } else {
+        console_stdio = TRUE;  // switch to stdio
+    }
+    c = TO_FIX(c);
+    return c;
+}
+
 int main(int argc, char const *argv[])
 {
+    DEBUG(hexdump("repl_lib", ((int_t *)repl_lib), 16));
 #if 0
     // display character class table
     printf("| ch | dec | hex | CTL | DGT | UPR | LWR | DLM | SYM | HEX | WSP |\n");

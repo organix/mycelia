@@ -274,6 +274,8 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 
 ## LISP/Scheme Ground Environment
 
+### Primitive Procedures
+
   * `(quote `_expr_`)`
   * `(list . `_args_`)`
   * `(lambda `_formals_` . `_body_`)`
@@ -302,6 +304,14 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `peg-lang  ; REPL grammar`
   * `(eval `_form_`)`  ; meta-circular interpreter
   * `(quit)`
+
+### Derived Procedures
+
+  * `(caar `_list_`)`
+  * `(cdar `_list_`)`
+  * `(cddr `_list_`)`
+  * `(cadddr `_list_`)`
+  * `(length `_list_`)`
 
 ### Lambda Compilation Test-Cases
 
@@ -345,6 +355,16 @@ Date       | Events | Instructions | Description
 2022-06-04 |   1226 |        14986 | set SP in BECOME
 2022-06-04 |   1226 |        14170 | set SP in CREATE
 2022-06-05 |   1226 |        13867 | use RELEASE and RELEASE_0
+
+Bootstrap Library
+
+Date       | Events | Instructions | Description
+-----------|--------|--------------|-------------
+2022-06-07 |   7123 |        82277 | baseline measurement
+
+Date       | Events | Instructions | Description
+-----------|--------|--------------|-------------
+2022-06-07 |   8274 |        95369 | baseline w/ test-case
 
 ## PEG Tools
 
@@ -882,8 +902,6 @@ The current reference-implementation looks like this:
           (apply (eval fn env) args env))
         #?)))
 
-;(define caar (lambda (x) (car (car x))))
-;(define cdar (lambda (x) (cdr (car x))))
 (define lookup                          ; look up variable binding in environment
   (lambda (key alist)
     (if (pair? alist)
