@@ -822,8 +822,96 @@ might look like this:
     (if (pair? opnds)
       (cons (eval (car opnds) env) (evlis (cdr opnds) env))
       ())))                             ; value is NIL
+
+(define zip
+  (lambda (xs ys env)
+    (if (pair? xs)
+      (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
+      env)))
 ```
 
+### Meta-circular Evolution
+
+A series of evolutionary steps
+take the meta-circular evaluator above
+and enhance it with various new features.
+The features implemented so far are:
+
+  * Match dotted-tail in `lambda` parameters
+
+Features planned for future implementation include:
+
+  * Lexical scope in `lambda` definition and evaluation
+
+The current reference-implementation looks like this:
+
+```
+(define eval
+  (lambda (form env)
+    (if (symbol? form)
+      (lookup form env)                 ; bound variable
+      (if (pair? form)
+        (if (eq? (car form) 'quote)     ; (quote <form>)
+          (cadr form)
+          (if (eq? (car form) 'if)      ; (if <pred> <cnsq> <altn>)
+            (evalif (eval (cadr form) env) (caddr form) (cadddr form) env)
+            (apply (car form) (evlis (cdr form) env) env)))
+        form))))                        ; self-evaluating form
+
+(define apply
+  (lambda (fn args env)
+    (if (symbol? fn)
+      (if (eq? fn 'list)                ; (list . <args>)
+        args
+        (if (eq? fn 'cons)              ; (cons <first> <rest>)
+          (cons (car args) (cadr args))
+          (if (eq? fn 'car)             ; (car <pair>)
+            (caar args)
+            (if (eq? fn 'cdr)           ; (cdr <pair>)
+              (cdar args)
+              (if (eq? fn 'eq?)         ; (eq? <left> <right>)
+                (eq? (car args) (cadr args))
+                (if (eq? fn 'pair?)     ; (pair? <value>)
+                  (pair? (car args))
+                  (if (eq? fn 'symbol?) ; (symbol? <value>)
+                    (symbol? (car args))
+                    (apply (lookup fn env) args env))))))))
+      (if (pair? fn)
+        (if (eq? (car fn) 'lambda)      ; ((lambda <frml> <body>) <args>)
+          (eval (caddr fn) (zip (cadr fn) args env))
+          (apply (eval fn env) args env))
+        #?)))
+
+;(define caar (lambda (x) (car (car x))))
+;(define cdar (lambda (x) (cdr (car x))))
+(define lookup                          ; look up variable binding in environment
+  (lambda (key alist)
+    (if (pair? alist)
+      (if (eq? (caar alist) key)
+        (cdar alist)
+        (lookup key (cdr alist)))
+      #?)))                             ; value is undefined
+
+(define evalif                          ; if `test` is #f, evaluate `altn`,
+  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
+    (if test
+      (eval cnsq env)
+      (eval altn env))))
+
+(define evlis
+  (lambda (opnds env)
+    (if (pair? opnds)
+      (cons (eval (car opnds) env) (evlis (cdr opnds) env))
+      ())))                             ; value is NIL
+
+(define zip
+  (lambda (xs ys env)
+    (if (pair? xs)
+      (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
+      (if (symbol? xs)
+        (cons (cons xs ys) env)         ; dotted-tail binds to &rest
+        env))))
+```
 
 ## Inspiration
 

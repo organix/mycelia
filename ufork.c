@@ -2094,7 +2094,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define M_APPLY (M_EVAL_K+4)
 #define M_APPLY_K (M_APPLY+80)
 #define M_ZIP (M_APPLY_K+4)
-#define M_EVAL_B (M_ZIP+19)
+#define M_EVAL_B (M_ZIP+26)
     { .t=Actor_T,       .x=M_EVAL+1,    .y=NIL,         .z=UNDEF        },  // (cust form env)
     { .t=VM_msg,        .x=2,           .y=M_EVAL+2,    .z=UNDEF        },  // form = arg1
     { .t=VM_typeq,      .x=Symbol_T,    .y=M_EVAL+3,    .z=UNDEF        },  // form has type Symbol_T
@@ -2339,7 +2339,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
     { .t=VM_pick,       .x=3,           .y=M_ZIP+5,     .z=UNDEF        },  // xs
     { .t=VM_typeq,      .x=Pair_T,      .y=M_ZIP+6,     .z=UNDEF        },  // xs has type Pair_T
-    { .t=VM_if,         .x=M_ZIP+7,     .y=CUST_SEND,   .z=UNDEF        },
+    { .t=VM_if,         .x=M_ZIP+7,     .y=M_ZIP+19,    .z=UNDEF        },
 
     { .t=VM_pick,       .x=2,           .y=M_ZIP+8,     .z=UNDEF        },  // ys
     { .t=VM_nth,        .x=1,           .y=M_ZIP+9,     .z=UNDEF        },  // y = car(ys)
@@ -2355,6 +2355,15 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_roll,       .x=2,           .y=M_ZIP+17,    .z=UNDEF        },  // xs' tail' ys
     { .t=VM_nth,        .x=-1,          .y=M_ZIP+18,    .z=UNDEF        },  // ys' = cdr(ys)
     { .t=VM_roll,       .x=-2,          .y=M_ZIP+4,     .z=UNDEF        },  // xs' ys' tail'
+
+    { .t=VM_pick,       .x=3,           .y=M_ZIP+20,    .z=UNDEF        },  // xs
+    { .t=VM_typeq,      .x=Symbol_T,    .y=M_ZIP+21,    .z=UNDEF        },  // xs has type Symbol_T
+    { .t=VM_if,         .x=M_ZIP+22,    .y=CUST_SEND,   .z=UNDEF        },
+
+    { .t=VM_roll,       .x=2,           .y=M_ZIP+23,    .z=UNDEF        },  // xs tail ys
+    { .t=VM_roll,       .x=3,           .y=M_ZIP+24,    .z=UNDEF        },  // tail ys xs
+    { .t=VM_pair,       .x=1,           .y=M_ZIP+25,    .z=UNDEF        },  // tail (xs . ys)
+    { .t=VM_pair,       .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // tail' = ((x . y) . tail)
 
 //  { .t=VM_push,       .x=_form_,      .y=M_EVAL_B-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_cust_,      .y=M_EVAL_B+0,  .z=UNDEF        },
