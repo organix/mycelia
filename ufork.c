@@ -22,7 +22,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define RUNTIME_STATS 1 // collect statistics on the runtime
 #define LAMBDA_COMPIL 0 // include experimental lambda compiler
 #define COMPILE_QUOTE 0 // compile ' immediately in parser
-#define SCM_PEG_TOOLS 1 // include PEG tools for LISP/Scheme
+#define SCM_PEG_TOOLS 0 // include PEG tools for LISP/Scheme
 #define META_EVALUATE 1 // include meta-circular LISP interpreter
 #define USE_META_EVAL 0 // use meta-circular interpreter in REPL
 
@@ -560,7 +560,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=NIL,         .y=REPL_E+4,    .z=UNDEF        },  // env = ()
     { .t=VM_msg,        .x=1,           .y=REPL_E+5,    .z=UNDEF        },  // form = sexpr
     { .t=VM_push,       .x=REPL_P,      .y=REPL_E+6,    .z=UNDEF        },  // cust = REPL_P
-    { .t=VM_push,       .x=340,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
+    { .t=VM_push,       .x=349,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL cust form env)
 #else
     { .t=VM_push,       .x=GLOBAL_ENV,  .y=REPL_E+4,    .z=UNDEF        },  // env = GLOBAL_ENV
@@ -1065,7 +1065,11 @@ cell_t cell_table[CELL_MAX] = {
 // Static Symbols
 //
 
-#define S_QUOTE (OPER_BEH+33)
+#define S_IGNORE (OPER_BEH+33)
+    { .t=Symbol_T,      .x=0,           .y=S_IGNORE+1,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('_'), .y=NIL,         .z=UNDEF        },
+
+#define S_QUOTE (S_IGNORE+2)
     { .t=Symbol_T,      .x=0,           .y=S_QUOTE+1,   .z=UNDEF        },
     { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QUOTE+2,   .z=UNDEF        },
     { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QUOTE+3,   .z=UNDEF        },
@@ -1137,22 +1141,32 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Pair_T,        .x=TO_FIX('d'), .y=S_LAMBDA+6,  .z=UNDEF        },
     { .t=Pair_T,        .x=TO_FIX('a'), .y=NIL,         .z=UNDEF        },
 
+#define S_DEFINE (S_LAMBDA+7)
+    { .t=Symbol_T,      .x=0,           .y=S_DEFINE+1,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('d'), .y=S_DEFINE+2,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=S_DEFINE+3,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('f'), .y=S_DEFINE+4,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_DEFINE+5,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_DEFINE+6,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
+
 //
 // Meta-circular LISP Interpreter
 //
 
 #if META_EVALUATE
-#define M_EVAL (S_LAMBDA+7)
-#define M_LOOKUP (M_EVAL+40)
+#define M_EVAL (S_DEFINE+7)
+#define M_LOOKUP (M_EVAL+50)
 #define M_IF_K (M_LOOKUP+13)
 #define M_EVLIS_P (M_IF_K+7)
 #define M_EVLIS_K (M_EVLIS_P+4)
 #define M_EVLIS (M_EVLIS_K+6)
 #define M_EVAL_K (M_EVLIS+14)
 #define M_APPLY (M_EVAL_K+4)
-#define M_APPLY_K (M_APPLY+80)
+#define M_APPLY_K (M_APPLY+87)
 #define M_ZIP (M_APPLY_K+4)
 #define M_EVAL_B (M_ZIP+26)
+#define CLOSURE_B (M_EVAL_B+4)
     { .t=Actor_T,       .x=M_EVAL+1,    .y=NIL,         .z=UNDEF        },  // (cust form env)
     { .t=VM_msg,        .x=2,           .y=M_EVAL+2,    .z=UNDEF        },  // form = arg1
     { .t=VM_typeq,      .x=Symbol_T,    .y=M_EVAL+3,    .z=UNDEF        },  // form has type Symbol_T
@@ -1163,7 +1177,7 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_msg,        .x=2,           .y=M_EVAL+7,    .z=UNDEF        },  // form = arg1
     { .t=VM_typeq,      .x=Pair_T,      .y=M_EVAL+8,    .z=UNDEF        },  // form has type Pair_T
-    { .t=VM_if,         .x=M_EVAL+9,    .y=M_EVAL+39,   .z=UNDEF        },
+    { .t=VM_if,         .x=M_EVAL+9,    .y=M_EVAL+49,   .z=UNDEF        },
 
     { .t=VM_msg,        .x=2,           .y=M_EVAL+10,   .z=UNDEF        },  // form = arg1
     { .t=VM_part,       .x=1,           .y=M_EVAL+11,   .z=UNDEF        },  // tail head
@@ -1191,15 +1205,27 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=M_EVAL,      .y=M_EVAL+29,   .z=UNDEF        },  // M_EVAL
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_if pred env)
 
-    { .t=VM_msg,        .x=3,           .y=M_EVAL+31,   .z=UNDEF        },  // env
-    { .t=VM_roll,       .x=2,           .y=M_EVAL+32,   .z=UNDEF        },  // proc = head
-    { .t=VM_msg,        .x=1,           .y=M_EVAL+33,   .z=UNDEF        },  // cust
-    { .t=VM_push,       .x=M_EVAL_K,    .y=M_EVAL+34,   .z=UNDEF        },  // M_EVAL_K
-    { .t=VM_new,        .x=3,           .y=M_EVAL+35,   .z=UNDEF        },  // k_eval = (M_EVAL_K env proc cust)
+    { .t=VM_pick,       .x=1,           .y=M_EVAL+31,   .z=UNDEF        },  // tail head head
+    { .t=VM_eq,         .x=S_LAMBDA,    .y=M_EVAL+32,   .z=UNDEF        },  // (head == 'lambda)
+    { .t=VM_if,         .x=M_EVAL+33,   .y=M_EVAL+40,   .z=UNDEF        },
 
-    { .t=VM_msg,        .x=3,           .y=M_EVAL+36,   .z=UNDEF        },  // env
-    { .t=VM_roll,       .x=-3,          .y=M_EVAL+37,   .z=UNDEF        },  // env tail k_eval
-    { .t=VM_push,       .x=M_EVLIS,     .y=M_EVAL+38,   .z=UNDEF        },  // M_EVLIS
+    { .t=VM_drop,       .x=1,           .y=M_EVAL+34,   .z=UNDEF        },  // tail
+    { .t=VM_part,       .x=1,           .y=M_EVAL+35,   .z=UNDEF        },  // tail' frml
+    { .t=VM_roll,       .x=2,           .y=M_EVAL+36,   .z=UNDEF        },  // frml tail'
+    { .t=VM_nth,        .x=1,           .y=M_EVAL+37,   .z=UNDEF        },  // frml body
+    { .t=VM_msg,        .x=3,           .y=M_EVAL+38,   .z=UNDEF        },  // env
+    { .t=VM_push,       .x=CLOSURE_B,   .y=M_EVAL+39,   .z=UNDEF        },  // CLOSURE_B
+    { .t=VM_new,        .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // closure = (CLOSURE_B frml body env)
+
+    { .t=VM_msg,        .x=3,           .y=M_EVAL+41,   .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=2,           .y=M_EVAL+42,   .z=UNDEF        },  // proc = head
+    { .t=VM_msg,        .x=1,           .y=M_EVAL+43,   .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=M_EVAL_K,    .y=M_EVAL+44,   .z=UNDEF        },  // M_EVAL_K
+    { .t=VM_new,        .x=3,           .y=M_EVAL+45,   .z=UNDEF        },  // k_eval = (M_EVAL_K env proc cust)
+
+    { .t=VM_msg,        .x=3,           .y=M_EVAL+46,   .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=-3,          .y=M_EVAL+47,   .z=UNDEF        },  // env tail k_eval
+    { .t=VM_push,       .x=M_EVLIS,     .y=M_EVAL+48,   .z=UNDEF        },  // M_EVLIS
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVLIS k_eval tail env)
 
     { .t=VM_msg,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // self-eval form
@@ -1351,11 +1377,12 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_msg,        .x=2,           .y=M_APPLY+55,  .z=UNDEF        },  // proc = arg1
     { .t=VM_typeq,      .x=Pair_T,      .y=M_APPLY+56,  .z=UNDEF        },  // proc has type Pair_T
-    { .t=VM_if,         .x=M_APPLY+57,  .y=RV_UNDEF,    .z=UNDEF        },
+    { .t=VM_if,         .x=M_APPLY+57,  .y=M_APPLY+80,  .z=UNDEF        },
 
     { .t=VM_msg,        .x=2,           .y=M_APPLY+58,  .z=UNDEF        },  // proc = (lambda <frml> <body>)
     { .t=VM_part,       .x=3,           .y=M_APPLY+59,  .z=UNDEF        },  // () body frml lambda
-    { .t=VM_eq,         .x=S_LAMBDA,    .y=M_APPLY+60,  .z=UNDEF        },  // (lambda == 'lambda)
+    //{ .t=VM_eq,         .x=S_LAMBDA,    .y=M_APPLY+60,  .z=UNDEF        },  // (lambda == 'lambda)
+    { .t=VM_eq,         .x=S_IGNORE,    .y=M_APPLY+60,  .z=UNDEF        },  // (lambda == '_)
     { .t=VM_if,         .x=M_APPLY+61,  .y=M_APPLY+70,  .z=UNDEF        },
 
     { .t=VM_msg,        .x=4,           .y=M_APPLY+62,  .z=UNDEF        },  // tail = env
@@ -1381,6 +1408,15 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_roll,       .x=3,           .y=M_APPLY+78,  .z=UNDEF        },  // cust = k_apply
     { .t=VM_push,       .x=M_EVAL,      .y=M_APPLY+79,  .z=UNDEF        },  // M_EVAL
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_apply proc env)
+
+    { .t=VM_msg,        .x=2,           .y=M_APPLY+81,  .z=UNDEF        },  // proc = arg1
+    { .t=VM_typeq,      .x=Actor_T,     .y=M_APPLY+82,  .z=UNDEF        },  // proc has type Actor_T
+    { .t=VM_if,         .x=M_APPLY+83,  .y=RV_UNDEF,    .z=UNDEF        },
+
+    { .t=VM_msg,        .x=3,           .y=M_APPLY+84,  .z=UNDEF        },  // args
+    { .t=VM_msg,        .x=1,           .y=M_APPLY+85,  .z=UNDEF        },  // cust
+    { .t=VM_pair,       .x=1,           .y=M_APPLY+86,  .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=SEND_0,      .z=UNDEF        },  // proc
 
 //  { .t=VM_push,       .x=_env_,       .y=M_APPLY_K-2, .z=UNDEF        },
 //  { .t=VM_push,       .x=_args_,      .y=M_APPLY_K-1, .z=UNDEF        },
@@ -1430,7 +1466,28 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=M_EVAL,      .y=M_EVAL_B+3,  .z=UNDEF        },  // M_EVAL
     { .t=VM_send,       .x=3,           .y=RELEASE,     .z=UNDEF        },  // (M_EVAL cust form env)
 
-#define F_EVAL (M_EVAL_B+4)
+/*
+ * (define closure-beh
+ *   (lambda (frml body env)
+ *     (BEH (cust . args)
+ *       (eval body (zip frml args env)))))
+ */
+//  { .t=VM_push,       .x=_frml_,      .y=CLOSURE_B-2, .z=UNDEF        },
+//  { .t=VM_push,       .x=_body_,      .y=CLOSURE_B-1, .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=CLOSURE_B+0, .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=CLOSURE_B+1, .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=-1,          .y=CLOSURE_B+2, .z=UNDEF        },  // args
+    { .t=VM_pick,       .x=5,           .y=CLOSURE_B+3, .z=UNDEF        },  // frml
+
+    { .t=VM_pick,       .x=5,           .y=CLOSURE_B+4, .z=UNDEF        },  // body
+    { .t=VM_msg,        .x=1,           .y=CLOSURE_B+5, .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=M_EVAL_B,    .y=CLOSURE_B+6, .z=UNDEF        },  // M_EVAL_B
+    { .t=VM_new,        .x=2,           .y=CLOSURE_B+7, .z=UNDEF        },  // k_eval = (M_EVAL_B body cust)
+
+    { .t=VM_push,       .x=M_ZIP,       .y=CLOSURE_B+8, .z=UNDEF        },  // M_ZIP
+    { .t=VM_send,       .x=4,           .y=COMMIT,      .z=UNDEF        },  // (M_ZIP k_eval frml args env)
+
+#define F_EVAL (CLOSURE_B+9)
     { .t=Actor_T,       .x=F_EVAL+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=VM_push,       .x=NIL,         .y=F_EVAL+2,    .z=UNDEF        },  // env = ()
     { .t=VM_msg,        .x=2,           .y=F_EVAL+3,    .z=UNDEF        },  // form = arg1
@@ -3324,6 +3381,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { K_SEQ_B, "K_SEQ_B" },
     { OPER_BEH, "OPER_BEH" },
 
+    { S_IGNORE, "S_IGNORE" },
     { S_QUOTE, "S_QUOTE" },
     { S_LIST, "S_LIST" },
     { S_CONS, "S_CONS" },
@@ -3334,6 +3392,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { S_PAIR_P, "S_PAIR_P" },
     { S_SYMBOL_P, "S_SYMBOL_P" },
     { S_LAMBDA, "S_LAMBDA" },
+    { S_DEFINE, "S_DEFINE" },
 
 #if META_EVALUATE
     { M_EVAL, "M_EVAL" },
@@ -3347,6 +3406,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { M_APPLY_K, "M_APPLY_K" },
     { M_ZIP, "M_ZIP" },
     { M_EVAL_B, "M_EVAL_B" },
+    { CLOSURE_B, "CLOSURE_B" },
     { F_EVAL, "F_EVAL" },
     { AP_EVAL, "AP_EVAL" },
 #endif // META_EVALUATE
@@ -4100,6 +4160,7 @@ static int_t test_symbol_intern() {
 #define bind_global(cstr,val) set_z(cstr_intern(cstr), (val))
 
 int_t init_global_env() {
+    sym_install(S_IGNORE);
     sym_install(S_QUOTE);
     sym_install(S_LIST);
     sym_install(S_CONS);
@@ -4110,6 +4171,7 @@ int_t init_global_env() {
     sym_install(S_PAIR_P);
     sym_install(S_SYMBOL_P);
     sym_install(S_LAMBDA);
+    sym_install(S_DEFINE);
 #if 0
     int_t s;
     s = cstr_intern("lambda");

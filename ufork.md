@@ -858,10 +858,11 @@ and enhance it with various new features.
 The features implemented so far are:
 
   * Match dotted-tail in `lambda` parameters
+  * Lexical scope in `lambda` definition and evaluation
 
 Features planned for future implementation include:
 
-  * Lexical scope in `lambda` definition and evaluation
+  * _TBD_
 
 The current reference-implementation looks like this:
 
@@ -875,7 +876,9 @@ The current reference-implementation looks like this:
           (cadr form)
           (if (eq? (car form) 'if)      ; (if <pred> <cnsq> <altn>)
             (evalif (eval (cadr form) env) (caddr form) (cadddr form) env)
-            (apply (car form) (evlis (cdr form) env) env)))
+            (if (eq? (car form) 'lambda); (lambda <frml> <body>)
+              (CREATE (closure-beh (cadr form) (caddr form) env))
+              (apply (car form) (evlis (cdr form) env) env))))
         form))))                        ; self-evaluating form
 
 (define apply
@@ -900,7 +903,9 @@ The current reference-implementation looks like this:
         (if (eq? (car fn) 'lambda)      ; ((lambda <frml> <body>) <args>)
           (eval (caddr fn) (zip (cadr fn) args env))
           (apply (eval fn env) args env))
-        #?)))
+        (if (actor? fn)
+          (CALL fn args)                ; delegate to "functional" actor
+          #?)))))
 
 (define lookup                          ; look up variable binding in environment
   (lambda (key alist)
@@ -929,6 +934,22 @@ The current reference-implementation looks like this:
       (if (symbol? xs)
         (cons (cons xs ys) env)         ; dotted-tail binds to &rest
         env))))
+
+(define closure-beh
+  (lambda (frml body env)
+    (BEH (cust . args)
+      (eval body (zip frml args env)))))
+```
+
+#### Test-Cases
+
+```
+(eval '(cons (car '(a b c)) (cdr '(x y z))))
+(eval '(lambda (x) x))
+(eval '((lambda (x) x) (list 1 2 3)))
+(eval '((lambda (x) x) '(lambda (x) x)))
+(eval '((lambda (f) (f 42)) '(lambda (x) x)))
+(eval '((lambda (f) (f 42)) (lambda (x) x)))
 ```
 
 ## Inspiration
