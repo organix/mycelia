@@ -881,8 +881,8 @@ The current reference-implementation looks like this:
             (evalif (eval (cadr form) env) (caddr form) (cadddr form) env)
             (if (eq? (car form) 'lambda) ; (lambda <frml> <body>)
               (CREATE (closure-beh (cadr form) (caddr form) env))
-              (if (eq? (car form) 'define) ; (define <symbol> <value>)
-                (set_z (cadr form) (caddr form))
+              (if (eq? (car form) 'define) ; (define <symbol> <expr>)
+                (set_z (cadr form) (eval (caddr form) env))
                 (apply (car form) (evlis (cdr form) env) env)))))
         form))))                        ; self-evaluating form
 

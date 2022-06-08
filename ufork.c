@@ -560,7 +560,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=NIL,         .y=REPL_E+4,    .z=UNDEF        },  // env = ()
     { .t=VM_msg,        .x=1,           .y=REPL_E+5,    .z=UNDEF        },  // form = sexpr
     { .t=VM_push,       .x=REPL_P,      .y=REPL_E+6,    .z=UNDEF        },  // cust = REPL_P
-    { .t=VM_push,       .x=349,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
+    { .t=VM_push,       .x=353,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL cust form env)
 #else
     { .t=VM_push,       .x=GLOBAL_ENV,  .y=REPL_E+4,    .z=UNDEF        },  // env = GLOBAL_ENV
@@ -736,12 +736,27 @@ cell_t cell_table[CELL_MAX] = {
 //
 
 /*
+(define k-define-beh
+  (lambda (cust symbol)
+    (BEH value
+      (SEND cust
+        (set_z symbol value)))))
+*/
+#define K_DEF_B (FORK_BEH+18)
+//  { .t=VM_push,       .x=_cust_,      .y=K_DEF_B-1,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_symbol_,    .y=K_DEF_B+0,   .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_DEF_B+1,   .z=UNDEF        },  // value
+    { .t=VM_set,        .x=FLD_Z,       .y=K_DEF_B+2,   .z=UNDEF        },  // bind(symbol, value)
+    { .t=VM_push,       .x=UNIT,        .y=K_DEF_B+3,   .z=UNDEF        },  // #unit
+    { .t=VM_roll,       .x=3,           .y=RELEASE_0,   .z=UNDEF        },  // cust
+
+/*
 (define k-comb-beh  ; used directly by Pair_T
   (lambda (msg)
     (BEH comb
       (SEND comb msg))))
 */
-#define K_COMB (FORK_BEH+18)
+#define K_COMB (K_DEF_B+4)
 //  { .t=VM_push,       .x=_msg_,       .y=K_COMB+0,    .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=RELEASE_0,   .z=UNDEF        },  // comb
 
@@ -1156,7 +1171,7 @@ cell_t cell_table[CELL_MAX] = {
 
 #if META_EVALUATE
 #define M_EVAL (S_DEFINE+7)
-#define M_LOOKUP (M_EVAL+50)
+#define M_LOOKUP (M_EVAL+63)
 #define M_IF_K (M_LOOKUP+13)
 #define M_EVLIS_P (M_IF_K+7)
 #define M_EVLIS_K (M_EVLIS_P+4)
@@ -1177,7 +1192,7 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_msg,        .x=2,           .y=M_EVAL+7,    .z=UNDEF        },  // form = arg1
     { .t=VM_typeq,      .x=Pair_T,      .y=M_EVAL+8,    .z=UNDEF        },  // form has type Pair_T
-    { .t=VM_if,         .x=M_EVAL+9,    .y=M_EVAL+49,   .z=UNDEF        },
+    { .t=VM_if,         .x=M_EVAL+9,    .y=M_EVAL+62,   .z=UNDEF        },
 
     { .t=VM_msg,        .x=2,           .y=M_EVAL+10,   .z=UNDEF        },  // form = arg1
     { .t=VM_part,       .x=1,           .y=M_EVAL+11,   .z=UNDEF        },  // tail head
@@ -1217,15 +1232,38 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=CLOSURE_B,   .y=M_EVAL+39,   .z=UNDEF        },  // CLOSURE_B
     { .t=VM_new,        .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // closure = (CLOSURE_B frml body env)
 
-    { .t=VM_msg,        .x=3,           .y=M_EVAL+41,   .z=UNDEF        },  // env
-    { .t=VM_roll,       .x=2,           .y=M_EVAL+42,   .z=UNDEF        },  // proc = head
-    { .t=VM_msg,        .x=1,           .y=M_EVAL+43,   .z=UNDEF        },  // cust
-    { .t=VM_push,       .x=M_EVAL_K,    .y=M_EVAL+44,   .z=UNDEF        },  // M_EVAL_K
-    { .t=VM_new,        .x=3,           .y=M_EVAL+45,   .z=UNDEF        },  // k_eval = (M_EVAL_K env proc cust)
+//  (if (eq? (car form) 'define) ; (define <symbol> <expr>)
 
+    { .t=VM_pick,       .x=1,           .y=M_EVAL+41,   .z=UNDEF        },  // tail head head
+    { .t=VM_eq,         .x=S_DEFINE,    .y=M_EVAL+42,   .z=UNDEF        },  // (head == 'define)
+    { .t=VM_if,         .x=M_EVAL+43,   .y=M_EVAL+53,   .z=UNDEF        },
+
+//    (set_z (cadr form) (eval (caddr form) env))
+
+    { .t=VM_drop,       .x=1,           .y=M_EVAL+44,   .z=UNDEF        },  // tail
+    { .t=VM_part,       .x=2,           .y=M_EVAL+45,   .z=UNDEF        },  // () expr symbol
     { .t=VM_msg,        .x=3,           .y=M_EVAL+46,   .z=UNDEF        },  // env
-    { .t=VM_roll,       .x=-3,          .y=M_EVAL+47,   .z=UNDEF        },  // env tail k_eval
-    { .t=VM_push,       .x=M_EVLIS,     .y=M_EVAL+48,   .z=UNDEF        },  // M_EVLIS
+    { .t=VM_roll,       .x=-3,          .y=M_EVAL+47,   .z=UNDEF        },  // () env expr symbol
+
+    { .t=VM_msg,        .x=1,           .y=M_EVAL+48,   .z=UNDEF        },  // cust
+    { .t=VM_roll,       .x=2,           .y=M_EVAL+49,   .z=UNDEF        },  // symbol
+    { .t=VM_push,       .x=K_DEF_B,     .y=M_EVAL+50,   .z=UNDEF        },  // K_DEF_B
+    { .t=VM_new,        .x=2,           .y=M_EVAL+51,   .z=UNDEF        },  // k_define = (K_DEF_B cust symbol)
+
+    { .t=VM_push,       .x=M_EVAL,      .y=M_EVAL+52,   .z=UNDEF        },  // M_EVAL
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_define expr env)
+
+//    (apply (car form) (evlis (cdr form) env) env)) )))
+
+    { .t=VM_msg,        .x=3,           .y=M_EVAL+54,   .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=2,           .y=M_EVAL+55,   .z=UNDEF        },  // proc = head
+    { .t=VM_msg,        .x=1,           .y=M_EVAL+56,   .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=M_EVAL_K,    .y=M_EVAL+57,   .z=UNDEF        },  // M_EVAL_K
+    { .t=VM_new,        .x=3,           .y=M_EVAL+58,   .z=UNDEF        },  // k_eval = (M_EVAL_K env proc cust)
+
+    { .t=VM_msg,        .x=3,           .y=M_EVAL+59,   .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=-3,          .y=M_EVAL+60,   .z=UNDEF        },  // env tail k_eval
+    { .t=VM_push,       .x=M_EVLIS,     .y=M_EVAL+61,   .z=UNDEF        },  // M_EVLIS
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVLIS k_eval tail env)
 
     { .t=VM_msg,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // self-eval form
@@ -2018,20 +2056,6 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=F_LIST,      .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_LIST
 
 /*
-(define k-define-beh
-  (lambda (cust symbol)
-    (BEH value
-      (SEND cust
-        (eval `(define ,symbol ',value))))))
-*/
-#define K_DEF_B (AP_LIST+2)
-//  { .t=VM_push,       .x=_cust_,      .y=K_DEF_B-1,   .z=UNDEF        },
-//  { .t=VM_push,       .x=_symbol_,    .y=K_DEF_B+0,   .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=K_DEF_B+1,   .z=UNDEF        },  // value
-    { .t=VM_set,        .x=FLD_Z,       .y=K_DEF_B+2,   .z=UNDEF        },  // bind(symbol, value)
-    { .t=VM_push,       .x=UNIT,        .y=K_DEF_B+3,   .z=UNDEF        },  // #unit
-    { .t=VM_roll,       .x=3,           .y=RELEASE_0,   .z=UNDEF        },  // cust
-/*
 (define op-define                       ; (define <symbol> <expr>)
   (CREATE
     (BEH (cust params . opt-env)
@@ -2041,7 +2065,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
         (SEND cust SELF)                ; eval
       ))))
 */
-#define OP_DEFINE (K_DEF_B+4)
+#define OP_DEFINE (AP_LIST+2)
     { .t=Actor_T,       .x=OP_DEFINE+1, .y=NIL,         .z=UNDEF        },
     { .t=VM_msg,        .x=-2,          .y=OP_DEFINE+2, .z=UNDEF        },  // opt-env
     { .t=VM_typeq,      .x=Pair_T,      .y=OP_DEFINE+3, .z=UNDEF        },  // opt-env has type Pair_T
@@ -3366,6 +3390,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { JOIN_BEH, "JOIN_BEH" },
     { FORK_BEH, "FORK_BEH" },
 
+    { K_DEF_B, "K_DEF_B" },
     { K_COMB, "K_COMB" },
     { CONST_BEH, "CONST_BEH" },
     { EMPTY_ENV, "EMPTY_ENV" },
@@ -3447,7 +3472,6 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { OP_QUOTE, "OP_QUOTE" },
     { F_LIST, "F_LIST" },
     { AP_LIST, "AP_LIST" },
-    { K_DEF_B, "K_DEF_B" },
     { OP_DEFINE, "OP_DEFINE" },
     { F_CONS, "F_CONS" },
     { AP_CONS, "AP_CONS" },
