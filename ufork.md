@@ -859,9 +859,12 @@ The features implemented so far are:
 
   * Match dotted-tail in `lambda` parameters
   * Lexical scope in `lambda` definition and evaluation
+  * Implement `define` for top-level symbol binding
 
 Features planned for future implementation include:
 
+  * Remove literal match for `lambda` in `apply`
+  * Replace special-cases in `apply` with environment bindings
   * _TBD_
 
 The current reference-implementation looks like this:
@@ -876,9 +879,11 @@ The current reference-implementation looks like this:
           (cadr form)
           (if (eq? (car form) 'if)      ; (if <pred> <cnsq> <altn>)
             (evalif (eval (cadr form) env) (caddr form) (cadddr form) env)
-            (if (eq? (car form) 'lambda); (lambda <frml> <body>)
+            (if (eq? (car form) 'lambda) ; (lambda <frml> <body>)
               (CREATE (closure-beh (cadr form) (caddr form) env))
-              (apply (car form) (evlis (cdr form) env) env))))
+              (if (eq? (car form) 'define) ; (define <symbol> <value>)
+                (set_z (cadr form) (caddr form))
+                (apply (car form) (evlis (cdr form) env) env)))))
         form))))                        ; self-evaluating form
 
 (define apply

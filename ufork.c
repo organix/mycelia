@@ -24,7 +24,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define COMPILE_QUOTE 0 // compile ' immediately in parser
 #define SCM_PEG_TOOLS 0 // include PEG tools for LISP/Scheme
 #define META_EVALUATE 1 // include meta-circular LISP interpreter
-#define USE_META_EVAL 0 // use meta-circular interpreter in REPL
+#define USE_META_EVAL 1 // use meta-circular interpreter in REPL
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -4178,6 +4178,32 @@ int_t init_global_env() {
     set_z(s, OP_LAMBDA);
 #endif
     bind_global("peg-lang", G_SEXPR);  // language parser start symbol
+#if USE_META_EVAL
+    //bind_global("quote", OP_QUOTE);
+    //bind_global("list", F_LIST);
+    //bind_global("cons", F_CONS);
+    //bind_global("car", F_CAR);
+    //bind_global("cdr", F_CDR);
+    //bind_global("if", OP_IF);
+    //bind_global("eq?", F_EQ_P);
+    //bind_global("pair?", F_PAIR_P);
+    //bind_global("symbol?", F_SYM_P);
+    //bind_global("lambda", OP_LAMBDA);
+    //bind_global("define", OP_DEFINE);
+    bind_global("cadr", F_CADR);
+    bind_global("caddr", F_CADDR);
+    bind_global("nth", F_NTH);
+    bind_global("null?", F_NULL_P);
+    bind_global("boolean?", F_BOOL_P);
+    bind_global("number?", F_NUM_P);
+    bind_global("actor?", F_ACT_P);
+    bind_global("=", F_NUM_EQ);
+    bind_global("<", F_NUM_LT);
+    bind_global("<=", F_NUM_LE);
+    bind_global("+", F_NUM_ADD);
+    bind_global("-", F_NUM_SUB);
+    bind_global("*", F_NUM_MUL);
+#else // !USE_META_EVAL
 #if META_EVALUATE
     bind_global("eval", AP_EVAL);
 #endif
@@ -4262,6 +4288,7 @@ int_t init_global_env() {
     bind_global("scm-sexpr", G_SEXPR);
 #endif // SCM_PEG_TOOLS
     bind_global("a-print", A_PRINT);
+#endif // USE_META_EVAL
     bind_global("quit", A_QUIT);
     return UNIT;
 }
