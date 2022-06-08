@@ -918,7 +918,9 @@ The current reference-implementation looks like this:
       (if (eq? (caar alist) key)
         (cdar alist)
         (lookup key (cdr alist)))
-      #?)))                             ; value is undefined
+      (if (symbol? key)
+        (get_z key)                     ; get top-level binding
+        #?))))                          ; value is undefined
 
 (define evalif                          ; if `test` is #f, evaluate `altn`,
   (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.

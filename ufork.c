@@ -1172,7 +1172,7 @@ cell_t cell_table[CELL_MAX] = {
 #if META_EVALUATE
 #define M_EVAL (S_DEFINE+7)
 #define M_LOOKUP (M_EVAL+63)
-#define M_IF_K (M_LOOKUP+13)
+#define M_IF_K (M_LOOKUP+16)
 #define M_EVLIS_P (M_IF_K+7)
 #define M_EVLIS_K (M_EVLIS_P+4)
 #define M_EVLIS (M_EVLIS_K+6)
@@ -1283,6 +1283,9 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_drop,       .x=1,           .y=M_LOOKUP+2,  .z=UNDEF        },  // alist = tail
 
     { .t=VM_msg,        .x=2,           .y=M_LOOKUP+12, .z=UNDEF        },  // key = arg1
+    { .t=VM_pick,       .x=1,           .y=M_LOOKUP+13, .z=UNDEF        },  // key key
+    { .t=VM_typeq,      .x=Symbol_T,    .y=M_LOOKUP+14, .z=UNDEF        },  // key has type Symbol_T
+    { .t=VM_if,         .x=M_LOOKUP+15, .y=RV_UNDEF,    .z=UNDEF        },
     { .t=VM_get,        .x=FLD_Z,       .y=CUST_SEND,   .z=UNDEF        },  // global binding from Symbol_T
 
 //  { .t=VM_push,       .x=_cust_,      .y=M_IF_K-2,    .z=UNDEF        },
@@ -4227,6 +4230,8 @@ int_t init_global_env() {
     bind_global("+", F_NUM_ADD);
     bind_global("-", F_NUM_SUB);
     bind_global("*", F_NUM_MUL);
+    bind_global("eval", M_EVAL);
+    bind_global("apply", M_APPLY);
 #else // !USE_META_EVAL
 #if META_EVALUATE
     bind_global("eval", AP_EVAL);
