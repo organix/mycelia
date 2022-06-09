@@ -1232,13 +1232,9 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=CLOSURE_B,   .y=M_EVAL+39,   .z=UNDEF        },  // CLOSURE_B
     { .t=VM_new,        .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // closure = (CLOSURE_B frml body env)
 
-//  (if (eq? (car form) 'define) ; (define <symbol> <expr>)
-
     { .t=VM_pick,       .x=1,           .y=M_EVAL+41,   .z=UNDEF        },  // tail head head
     { .t=VM_eq,         .x=S_DEFINE,    .y=M_EVAL+42,   .z=UNDEF        },  // (head == 'define)
     { .t=VM_if,         .x=M_EVAL+43,   .y=M_EVAL+53,   .z=UNDEF        },
-
-//    (set_z (cadr form) (eval (caddr form) env))
 
     { .t=VM_drop,       .x=1,           .y=M_EVAL+44,   .z=UNDEF        },  // tail
     { .t=VM_part,       .x=2,           .y=M_EVAL+45,   .z=UNDEF        },  // () expr symbol
@@ -1252,8 +1248,6 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_push,       .x=M_EVAL,      .y=M_EVAL+52,   .z=UNDEF        },  // M_EVAL
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_define expr env)
-
-//    (apply (car form) (evlis (cdr form) env) env)) )))
 
     { .t=VM_msg,        .x=3,           .y=M_EVAL+54,   .z=UNDEF        },  // env
     { .t=VM_roll,       .x=2,           .y=M_EVAL+55,   .z=UNDEF        },  // proc = head
@@ -1348,7 +1342,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=M_APPLY+1,   .y=NIL,         .z=UNDEF        },  // (cust proc args env)
     { .t=VM_msg,        .x=2,           .y=M_APPLY+2,   .z=UNDEF        },  // proc = arg1
     { .t=VM_typeq,      .x=Symbol_T,    .y=M_APPLY+3,   .z=UNDEF        },  // proc has type Symbol_T
-    { .t=VM_if,         .x=M_APPLY+4,   .y=M_APPLY+54,  .z=UNDEF        },
+    //{ .t=VM_if,         .x=M_APPLY+4,   .y=M_APPLY+54,  .z=UNDEF        },
+    { .t=VM_if,         .x=M_APPLY+44,  .y=M_APPLY+54,  .z=UNDEF        },  // <--- BYPASS BUILT-IN SYMBOLS
 
     { .t=VM_msg,        .x=2,           .y=M_APPLY+5,   .z=UNDEF        },  // proc = arg1
     { .t=VM_eq,         .x=S_LIST,      .y=M_APPLY+6,   .z=UNDEF        },  // (proc == 'list)
@@ -1418,7 +1413,8 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_msg,        .x=2,           .y=M_APPLY+55,  .z=UNDEF        },  // proc = arg1
     { .t=VM_typeq,      .x=Pair_T,      .y=M_APPLY+56,  .z=UNDEF        },  // proc has type Pair_T
-    { .t=VM_if,         .x=M_APPLY+57,  .y=M_APPLY+80,  .z=UNDEF        },
+    //{ .t=VM_if,         .x=M_APPLY+57,  .y=M_APPLY+80,  .z=UNDEF        },
+    { .t=VM_if,         .x=M_APPLY+70,  .y=M_APPLY+80,  .z=UNDEF        },  // <--- BYPASS LAMBDA SPECIAL FORM
 
     { .t=VM_msg,        .x=2,           .y=M_APPLY+58,  .z=UNDEF        },  // proc = (lambda <frml> <body>)
     { .t=VM_part,       .x=3,           .y=M_APPLY+59,  .z=UNDEF        },  // () body frml lambda
@@ -4207,14 +4203,14 @@ int_t init_global_env() {
     bind_global("peg-lang", G_SEXPR);  // language parser start symbol
 #if USE_META_EVAL
     //bind_global("quote", OP_QUOTE);
-    //bind_global("list", F_LIST);
-    //bind_global("cons", F_CONS);
-    //bind_global("car", F_CAR);
-    //bind_global("cdr", F_CDR);
+    bind_global("list", F_LIST);
+    bind_global("cons", F_CONS);
+    bind_global("car", F_CAR);
+    bind_global("cdr", F_CDR);
     //bind_global("if", OP_IF);
-    //bind_global("eq?", F_EQ_P);
-    //bind_global("pair?", F_PAIR_P);
-    //bind_global("symbol?", F_SYM_P);
+    bind_global("eq?", F_EQ_P);
+    bind_global("pair?", F_PAIR_P);
+    bind_global("symbol?", F_SYM_P);
     //bind_global("lambda", OP_LAMBDA);
     //bind_global("define", OP_DEFINE);
     bind_global("cadr", F_CADR);
