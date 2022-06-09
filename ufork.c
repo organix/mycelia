@@ -1178,10 +1178,28 @@ cell_t cell_table[CELL_MAX] = {
 #define M_EVLIS (M_EVLIS_K+6)
 #define M_EVAL_K (M_EVLIS+14)
 #define M_APPLY (M_EVAL_K+4)
-#define M_APPLY_K (M_APPLY+87)
+#define M_APPLY_K (M_APPLY+34)
 #define M_ZIP (M_APPLY_K+4)
 #define M_EVAL_B (M_ZIP+26)
 #define CLOSURE_B (M_EVAL_B+4)
+
+/*
+ * (define eval
+ *   (lambda (form env)
+ *     (if (symbol? form)
+ *       (lookup form env)                 ; bound variable
+ *       (if (pair? form)
+ *         (if (eq? (car form) 'quote)     ; (quote <form>)
+ *           (cadr form)
+ *           (if (eq? (car form) 'if)      ; (if <pred> <cnsq> <altn>)
+ *             (evalif (eval (cadr form) env) (caddr form) (cadddr form) env)
+ *             (if (eq? (car form) 'lambda) ; (lambda <frml> <body>)
+ *               (CREATE (closure-beh (cadr form) (caddr form) env))
+ *               (if (eq? (car form) 'define) ; (define <symbol> <expr>)
+ *                 (set_z (cadr form) (eval (caddr form) env))
+ *                 (apply (car form) (evlis (cdr form) env) env)))))
+ *         form))))                        ; self-evaluating form
+ */
     { .t=Actor_T,       .x=M_EVAL+1,    .y=NIL,         .z=UNDEF        },  // (cust form env)
     { .t=VM_msg,        .x=2,           .y=M_EVAL+2,    .z=UNDEF        },  // form = arg1
     { .t=VM_typeq,      .x=Symbol_T,    .y=M_EVAL+3,    .z=UNDEF        },  // form has type Symbol_T
@@ -1262,6 +1280,17 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_msg,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // self-eval form
 
+/*
+ * (define lookup                          ; look up variable binding in environment
+ *   (lambda (key alist)
+ *     (if (pair? alist)
+ *       (if (eq? (caar alist) key)
+ *         (cdar alist)
+ *         (lookup key (cdr alist)))
+ *       (if (symbol? key)
+ *         (get_z key)                     ; get top-level binding
+ *         #?))))                          ; value is undefined
+ */
     { .t=Actor_T,       .x=M_LOOKUP+1,  .y=NIL,         .z=UNDEF        },  // (cust key alist)
     { .t=VM_msg,        .x=3,           .y=M_LOOKUP+2,  .z=UNDEF        },  // alist = arg2
 
@@ -1282,6 +1311,13 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_if,         .x=M_LOOKUP+15, .y=RV_UNDEF,    .z=UNDEF        },
     { .t=VM_get,        .x=FLD_Z,       .y=CUST_SEND,   .z=UNDEF        },  // global binding from Symbol_T
 
+/*
+ * (define evalif                          ; if `test` is #f, evaluate `altn`,
+ *   (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
+ *     (if test
+ *       (eval cnsq env)
+ *       (eval altn env))))
+ */
 //  { .t=VM_push,       .x=_cust_,      .y=M_IF_K-2,    .z=UNDEF        },
 //  { .t=VM_push,       .x=_env_,       .y=M_IF_K-1,    .z=UNDEF        },
 //  { .t=VM_push,       .x=_cont_,      .y=M_IF_K+0,    .z=UNDEF        },  // (cnsq altn)
@@ -1313,6 +1349,13 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=M_EVLIS,     .y=M_EVLIS_K+5, .z=UNDEF        },  // M_EVLIS
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVLIS SELF rest env)
 
+/*
+ * (define evlis
+ *   (lambda (opnds env)
+ *     (if (pair? opnds)
+ *       (cons (eval (car opnds) env) (evlis (cdr opnds) env))
+ *       ())))                             ; value is NIL
+ */
     { .t=Actor_T,       .x=M_EVLIS+1,   .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=VM_msg,        .x=2,           .y=M_EVLIS+2,   .z=UNDEF        },  // opnds = arg1
     { .t=VM_typeq,      .x=Pair_T,      .y=M_EVLIS+3,   .z=UNDEF        },  // opnds has type Pair_T
@@ -1339,120 +1382,57 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=M_APPLY,     .y=M_EVAL_K+3,  .z=UNDEF        },  // M_APPLY
     { .t=VM_send,       .x=4,           .y=RELEASE,     .z=UNDEF        },  // (M_APPLY cust proc args env)
 
+/*
+ * (define apply
+ *   (lambda (fn args env)
+ *     (if (symbol? fn)
+ *       (apply (lookup fn env) args env)
+ *       (if (pair? fn)
+ *         (apply (eval fn env) args env)
+ *         (if (actor? fn)
+ *           (CALL fn args)                ; delegate to "functional" actor
+ *           #?)))))
+ */
     { .t=Actor_T,       .x=M_APPLY+1,   .y=NIL,         .z=UNDEF        },  // (cust proc args env)
     { .t=VM_msg,        .x=2,           .y=M_APPLY+2,   .z=UNDEF        },  // proc = arg1
     { .t=VM_typeq,      .x=Symbol_T,    .y=M_APPLY+3,   .z=UNDEF        },  // proc has type Symbol_T
-    //{ .t=VM_if,         .x=M_APPLY+4,   .y=M_APPLY+54,  .z=UNDEF        },
-    { .t=VM_if,         .x=M_APPLY+44,  .y=M_APPLY+54,  .z=UNDEF        },  // <--- BYPASS BUILT-IN SYMBOLS
+    { .t=VM_if,         .x=M_APPLY+4,   .y=M_APPLY+14,  .z=UNDEF        },
 
-    { .t=VM_msg,        .x=2,           .y=M_APPLY+5,   .z=UNDEF        },  // proc = arg1
-    { .t=VM_eq,         .x=S_LIST,      .y=M_APPLY+6,   .z=UNDEF        },  // (proc == 'list)
-    { .t=VM_if,         .x=M_APPLY+7,   .y=M_APPLY+8,   .z=UNDEF        },
+    { .t=VM_msg,        .x=4,           .y=M_APPLY+5,   .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=3,           .y=M_APPLY+6,   .z=UNDEF        },  // args
+    { .t=VM_msg,        .x=1,           .y=M_APPLY+7,   .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=M_APPLY_K,   .y=M_APPLY+8,   .z=UNDEF        },  // M_APPLY_K
+    { .t=VM_new,        .x=3,           .y=M_APPLY+9,   .z=UNDEF        },  // k_apply = (M_APPLY_K env args cust)
 
-    { .t=VM_msg,        .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // args = arg2
-
-    { .t=VM_msg,        .x=2,           .y=M_APPLY+9,   .z=UNDEF        },  // proc = arg1
-    { .t=VM_eq,         .x=S_CONS,      .y=M_APPLY+10,  .z=UNDEF        },  // (proc == 'cons)
-    { .t=VM_if,         .x=M_APPLY+11,  .y=M_APPLY+14,  .z=UNDEF        },
-
-    { .t=VM_msg,        .x=3,           .y=M_APPLY+12,  .z=UNDEF        },  // args = arg2
-    { .t=VM_part,       .x=2,           .y=M_APPLY+13,  .z=UNDEF        },  // () second first
-    { .t=VM_pair,       .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (first . second)
-
-    { .t=VM_msg,        .x=2,           .y=M_APPLY+15,  .z=UNDEF        },  // proc = arg1
-    { .t=VM_eq,         .x=S_CAR,       .y=M_APPLY+16,  .z=UNDEF        },  // (proc == 'car)
-    { .t=VM_if,         .x=M_APPLY+17,  .y=M_APPLY+20,  .z=UNDEF        },
-
-    { .t=VM_msg,        .x=3,           .y=M_APPLY+18,  .z=UNDEF        },  // args = arg2
-    { .t=VM_nth,        .x=1,           .y=M_APPLY+19,  .z=UNDEF        },  // first = car(args)
-    { .t=VM_nth,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // car(first)
-
-    { .t=VM_msg,        .x=2,           .y=M_APPLY+21,  .z=UNDEF        },  // proc = arg1
-    { .t=VM_eq,         .x=S_CDR,       .y=M_APPLY+22,  .z=UNDEF        },  // (proc == 'cdr)
-    { .t=VM_if,         .x=M_APPLY+23,  .y=M_APPLY+26,  .z=UNDEF        },
-
-    { .t=VM_msg,        .x=3,           .y=M_APPLY+24,  .z=UNDEF        },  // args = arg2
-    { .t=VM_nth,        .x=1,           .y=M_APPLY+25,  .z=UNDEF        },  // first = car(args)
-    { .t=VM_nth,        .x=-1,          .y=CUST_SEND,   .z=UNDEF        },  // cdr(first)
-
-    { .t=VM_msg,        .x=2,           .y=M_APPLY+27,  .z=UNDEF        },  // proc = arg1
-    { .t=VM_eq,         .x=S_EQ_P,      .y=M_APPLY+28,  .z=UNDEF        },  // (proc == 'eq?)
-    { .t=VM_if,         .x=M_APPLY+29,  .y=M_APPLY+32,  .z=UNDEF        },
-
-    { .t=VM_msg,        .x=3,           .y=M_APPLY+30,  .z=UNDEF        },  // args = arg2
-    { .t=VM_part,       .x=2,           .y=M_APPLY+31,  .z=UNDEF        },  // () second first
-    { .t=VM_cmp,        .x=CMP_EQ,      .y=CUST_SEND,   .z=UNDEF        },  // (first == second)
-
-    { .t=VM_msg,        .x=2,           .y=M_APPLY+33,  .z=UNDEF        },  // proc = arg1
-    { .t=VM_eq,         .x=S_PAIR_P,    .y=M_APPLY+34,  .z=UNDEF        },  // (proc == 'pair?)
-    { .t=VM_if,         .x=M_APPLY+35,  .y=M_APPLY+38,  .z=UNDEF        },
-
-    { .t=VM_msg,        .x=3,           .y=M_APPLY+36,  .z=UNDEF        },  // args = arg2
-    { .t=VM_nth,        .x=1,           .y=M_APPLY+37,  .z=UNDEF        },  // first = car(args)
-    { .t=VM_typeq,      .x=Pair_T,      .y=CUST_SEND,   .z=UNDEF        },  // car(first) has type Pair_T
-
-    { .t=VM_msg,        .x=2,           .y=M_APPLY+39,  .z=UNDEF        },  // proc = arg1
-    { .t=VM_eq,         .x=S_SYMBOL_P,  .y=M_APPLY+40,  .z=UNDEF        },  // (proc == 'symbol?)
-    { .t=VM_if,         .x=M_APPLY+41,  .y=M_APPLY+44,  .z=UNDEF        },
-
-    { .t=VM_msg,        .x=3,           .y=M_APPLY+42,  .z=UNDEF        },  // args = arg2
-    { .t=VM_nth,        .x=1,           .y=M_APPLY+43,  .z=UNDEF        },  // first = car(args)
-    { .t=VM_typeq,      .x=Symbol_T,    .y=CUST_SEND,   .z=UNDEF        },  // car(first) has type Symbol_T
-
-    { .t=VM_msg,        .x=4,           .y=M_APPLY+45,  .z=UNDEF        },  // env
-    { .t=VM_msg,        .x=3,           .y=M_APPLY+46,  .z=UNDEF        },  // args
-    { .t=VM_msg,        .x=1,           .y=M_APPLY+47,  .z=UNDEF        },  // cust
-    { .t=VM_push,       .x=M_APPLY_K,   .y=M_APPLY+48,  .z=UNDEF        },  // M_APPLY_K
-    { .t=VM_new,        .x=3,           .y=M_APPLY+49,  .z=UNDEF        },  // k_apply = (M_APPLY_K env args cust)
-
-    { .t=VM_msg,        .x=4,           .y=M_APPLY+50,  .z=UNDEF        },  // alist = env
-    { .t=VM_msg,        .x=2,           .y=M_APPLY+51,  .z=UNDEF        },  // key = proc
-    { .t=VM_roll,       .x=3,           .y=M_APPLY+52,  .z=UNDEF        },  // cust = k_apply
-    { .t=VM_push,       .x=M_LOOKUP,    .y=M_APPLY+53,  .z=UNDEF        },  // M_LOOKUP
+    { .t=VM_msg,        .x=4,           .y=M_APPLY+10,  .z=UNDEF        },  // alist = env
+    { .t=VM_msg,        .x=2,           .y=M_APPLY+11,  .z=UNDEF        },  // key = proc
+    { .t=VM_roll,       .x=3,           .y=M_APPLY+12,  .z=UNDEF        },  // cust = k_apply
+    { .t=VM_push,       .x=M_LOOKUP,    .y=M_APPLY+13,  .z=UNDEF        },  // M_LOOKUP
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_LOOKUP k_apply key alist)
 
-    { .t=VM_msg,        .x=2,           .y=M_APPLY+55,  .z=UNDEF        },  // proc = arg1
-    { .t=VM_typeq,      .x=Pair_T,      .y=M_APPLY+56,  .z=UNDEF        },  // proc has type Pair_T
-    //{ .t=VM_if,         .x=M_APPLY+57,  .y=M_APPLY+80,  .z=UNDEF        },
-    { .t=VM_if,         .x=M_APPLY+70,  .y=M_APPLY+80,  .z=UNDEF        },  // <--- BYPASS LAMBDA SPECIAL FORM
+    { .t=VM_msg,        .x=2,           .y=M_APPLY+15,  .z=UNDEF        },  // proc = arg1
+    { .t=VM_typeq,      .x=Pair_T,      .y=M_APPLY+16,  .z=UNDEF        },  // proc has type Pair_T
+    { .t=VM_if,         .x=M_APPLY+17,  .y=M_APPLY+27,  .z=UNDEF        },
 
-    { .t=VM_msg,        .x=2,           .y=M_APPLY+58,  .z=UNDEF        },  // proc = (lambda <frml> <body>)
-    { .t=VM_part,       .x=3,           .y=M_APPLY+59,  .z=UNDEF        },  // () body frml lambda
-    //{ .t=VM_eq,         .x=S_LAMBDA,    .y=M_APPLY+60,  .z=UNDEF        },  // (lambda == 'lambda)
-    { .t=VM_eq,         .x=S_IGNORE,    .y=M_APPLY+60,  .z=UNDEF        },  // (lambda == '_)
-    { .t=VM_if,         .x=M_APPLY+61,  .y=M_APPLY+70,  .z=UNDEF        },
+    { .t=VM_msg,        .x=4,           .y=M_APPLY+18,  .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=3,           .y=M_APPLY+19,  .z=UNDEF        },  // args
+    { .t=VM_msg,        .x=1,           .y=M_APPLY+20,  .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=M_APPLY_K,   .y=M_APPLY+21,  .z=UNDEF        },  // M_APPLY_K
+    { .t=VM_new,        .x=3,           .y=M_APPLY+22,  .z=UNDEF        },  // k_apply = (M_APPLY_K env args cust)
 
-    { .t=VM_msg,        .x=4,           .y=M_APPLY+62,  .z=UNDEF        },  // tail = env
-    { .t=VM_msg,        .x=3,           .y=M_APPLY+63,  .z=UNDEF        },  // ys = args
-    { .t=VM_roll,       .x=3,           .y=M_APPLY+64,  .z=UNDEF        },  // xs = frml
-
-    { .t=VM_roll,       .x=4,           .y=M_APPLY+65,  .z=UNDEF        },  // form = body
-    { .t=VM_msg,        .x=1,           .y=M_APPLY+66,  .z=UNDEF        },  // cust
-    { .t=VM_push,       .x=M_EVAL_B,    .y=M_APPLY+67,  .z=UNDEF        },  // M_EVAL_B
-    { .t=VM_new,        .x=2,           .y=M_APPLY+68,  .z=UNDEF        },  // k_eval = (M_EVAL_B body cust)
-
-    { .t=VM_push,       .x=M_ZIP,       .y=M_APPLY+69,  .z=UNDEF        },  // M_ZIP
-    { .t=VM_send,       .x=4,           .y=COMMIT,      .z=UNDEF        },  // (M_ZIP k_eval xs ys tail)
-
-    { .t=VM_msg,        .x=4,           .y=M_APPLY+71,  .z=UNDEF        },  // env
-    { .t=VM_msg,        .x=3,           .y=M_APPLY+72,  .z=UNDEF        },  // args
-    { .t=VM_msg,        .x=1,           .y=M_APPLY+73,  .z=UNDEF        },  // cust
-    { .t=VM_push,       .x=M_APPLY_K,   .y=M_APPLY+74,  .z=UNDEF        },  // M_APPLY_K
-    { .t=VM_new,        .x=3,           .y=M_APPLY+75,  .z=UNDEF        },  // k_apply = (M_APPLY_K env args cust)
-
-    { .t=VM_msg,        .x=4,           .y=M_APPLY+76,  .z=UNDEF        },  // env
-    { .t=VM_msg,        .x=2,           .y=M_APPLY+77,  .z=UNDEF        },  // form = proc
-    { .t=VM_roll,       .x=3,           .y=M_APPLY+78,  .z=UNDEF        },  // cust = k_apply
-    { .t=VM_push,       .x=M_EVAL,      .y=M_APPLY+79,  .z=UNDEF        },  // M_EVAL
+    { .t=VM_msg,        .x=4,           .y=M_APPLY+23,  .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=2,           .y=M_APPLY+24,  .z=UNDEF        },  // form = proc
+    { .t=VM_roll,       .x=3,           .y=M_APPLY+25,  .z=UNDEF        },  // cust = k_apply
+    { .t=VM_push,       .x=M_EVAL,      .y=M_APPLY+26,  .z=UNDEF        },  // M_EVAL
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_apply proc env)
 
-    { .t=VM_msg,        .x=2,           .y=M_APPLY+81,  .z=UNDEF        },  // proc = arg1
-    { .t=VM_typeq,      .x=Actor_T,     .y=M_APPLY+82,  .z=UNDEF        },  // proc has type Actor_T
-    { .t=VM_if,         .x=M_APPLY+83,  .y=RV_UNDEF,    .z=UNDEF        },
+    { .t=VM_msg,        .x=2,           .y=M_APPLY+28,  .z=UNDEF        },  // proc = arg1
+    { .t=VM_typeq,      .x=Actor_T,     .y=M_APPLY+29,  .z=UNDEF        },  // proc has type Actor_T
+    { .t=VM_if,         .x=M_APPLY+30,  .y=RV_UNDEF,    .z=UNDEF        },
 
-    { .t=VM_msg,        .x=3,           .y=M_APPLY+84,  .z=UNDEF        },  // args
-    { .t=VM_msg,        .x=1,           .y=M_APPLY+85,  .z=UNDEF        },  // cust
-    { .t=VM_pair,       .x=1,           .y=M_APPLY+86,  .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=3,           .y=M_APPLY+31,  .z=UNDEF        },  // args
+    { .t=VM_msg,        .x=1,           .y=M_APPLY+32,  .z=UNDEF        },  // cust
+    { .t=VM_pair,       .x=1,           .y=M_APPLY+33,  .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=SEND_0,      .z=UNDEF        },  // proc
 
 //  { .t=VM_push,       .x=_env_,       .y=M_APPLY_K-2, .z=UNDEF        },
@@ -1463,6 +1443,15 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=M_APPLY,     .y=M_APPLY_K+3, .z=UNDEF        },  // M_APPLY
     { .t=VM_send,       .x=4,           .y=RELEASE,     .z=UNDEF        },  // (M_APPLY cust proc args env)
 
+/*
+ * (define zip
+ *   (lambda (xs ys env)
+ *     (if (pair? xs)
+ *       (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
+ *       (if (symbol? xs)
+ *         (cons (cons xs ys) env)         ; dotted-tail binds to &rest
+ *         env))))
+ */
     { .t=Actor_T,       .x=M_ZIP+1,     .y=NIL,         .z=UNDEF        },  // (cust xs ys tail)
     { .t=VM_msg,        .x=2,           .y=M_ZIP+2,     .z=UNDEF        },  // xs = arg1
     { .t=VM_msg,        .x=3,           .y=M_ZIP+3,     .z=UNDEF        },  // ys = arg2
