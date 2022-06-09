@@ -151,7 +151,7 @@ PROC_DECL(Boolean);
 PROC_DECL(Null);
 PROC_DECL(Pair);
 PROC_DECL(Symbol);
-PROC_DECL(Unit);
+PROC_DECL(Fexpr);
 PROC_DECL(Actor);
 PROC_DECL(Event);
 PROC_DECL(Free);
@@ -190,7 +190,7 @@ PROC_DECL(vm_debug);
 #define Null_T      (-3)
 #define Pair_T      (-4)
 #define Symbol_T    (-5)
-#define Unit_T      (-6)
+#define Fexpr_T     (-6)
 #define Actor_T     (-7)
 #define Event_T     (-8)
 #define Free_T      (-9)
@@ -254,7 +254,7 @@ proc_t proc_table[] = {
     Free,  // free-cell marker
     Event,
     Actor,
-    Unit,
+    Fexpr,
     Symbol,
     Pair,
     Null,
@@ -270,7 +270,7 @@ static char *proc_label(int_t proc) {
         "Null_T",
         "Pair_T",
         "Symbol_T",
-        "Unit_T",
+        "Fexpr_T",
         "Actor_T",
         "Event_T",
         "Free_T",
@@ -436,7 +436,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Boolean_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // TRUE = #t
     { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // NIL = ()
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNDEF = #?
-    { .t=Unit_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
+    { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
     { .t=Event_T,       .x=83,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
 
 #define SELF_EVAL (START+1)
@@ -1171,8 +1171,8 @@ cell_t cell_table[CELL_MAX] = {
 
 #if META_EVALUATE
 #define M_EVAL (S_DEFINE+7)
-#define M_LOOKUP (M_EVAL+63)
-#define M_IF_K (M_LOOKUP+16)
+#define M_LOOKUP (M_EVAL+72)
+#define M_IF_K (M_LOOKUP+23)
 #define M_EVLIS_P (M_IF_K+7)
 #define M_EVLIS_K (M_EVLIS_P+4)
 #define M_EVLIS (M_EVLIS_K+6)
@@ -1197,8 +1197,10 @@ cell_t cell_table[CELL_MAX] = {
  *               (CREATE (closure-beh (cadr form) (caddr form) env))
  *               (if (eq? (car form) 'define) ; (define <symbol> <expr>)
  *                 (set_z (cadr form) (eval (caddr form) env))
- *                 (apply (car form) (evlis (cdr form) env) env)))))
- *         form))))                        ; self-evaluating form
+ *                 (if (fexpr? (car form))
+ *                   (CALL (get_x (car form)) (list (cdr form) env))
+ *                   (apply (car form) (evlis (cdr form) env) env))))))
+ *         form)))))                       ; self-evaluating form
  */
     { .t=Actor_T,       .x=M_EVAL+1,    .y=NIL,         .z=UNDEF        },  // (cust form env)
     { .t=VM_msg,        .x=2,           .y=M_EVAL+2,    .z=UNDEF        },  // form = arg1
@@ -1210,7 +1212,7 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_msg,        .x=2,           .y=M_EVAL+7,    .z=UNDEF        },  // form = arg1
     { .t=VM_typeq,      .x=Pair_T,      .y=M_EVAL+8,    .z=UNDEF        },  // form has type Pair_T
-    { .t=VM_if,         .x=M_EVAL+9,    .y=M_EVAL+62,   .z=UNDEF        },
+    { .t=VM_if,         .x=M_EVAL+9,    .y=M_EVAL+71,   .z=UNDEF        },
 
     { .t=VM_msg,        .x=2,           .y=M_EVAL+10,   .z=UNDEF        },  // form = arg1
     { .t=VM_part,       .x=1,           .y=M_EVAL+11,   .z=UNDEF        },  // tail head
@@ -1267,35 +1269,48 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=M_EVAL,      .y=M_EVAL+52,   .z=UNDEF        },  // M_EVAL
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_define expr env)
 
-    { .t=VM_msg,        .x=3,           .y=M_EVAL+54,   .z=UNDEF        },  // env
-    { .t=VM_roll,       .x=2,           .y=M_EVAL+55,   .z=UNDEF        },  // proc = head
-    { .t=VM_msg,        .x=1,           .y=M_EVAL+56,   .z=UNDEF        },  // cust
-    { .t=VM_push,       .x=M_EVAL_K,    .y=M_EVAL+57,   .z=UNDEF        },  // M_EVAL_K
-    { .t=VM_new,        .x=3,           .y=M_EVAL+58,   .z=UNDEF        },  // k_eval = (M_EVAL_K env proc cust)
+    { .t=VM_pick,       .x=1,           .y=M_EVAL+54,   .z=UNDEF        },  // tail head head
+    { .t=VM_typeq,      .x=Fexpr_T,     .y=M_EVAL+55,   .z=UNDEF        },  // head has type Fexpr_T
+    { .t=VM_if,         .x=M_EVAL+56,   .y=M_EVAL+62,   .z=UNDEF        },
 
-    { .t=VM_msg,        .x=3,           .y=M_EVAL+59,   .z=UNDEF        },  // env
-    { .t=VM_roll,       .x=-3,          .y=M_EVAL+60,   .z=UNDEF        },  // env tail k_eval
-    { .t=VM_push,       .x=M_EVLIS,     .y=M_EVAL+61,   .z=UNDEF        },  // M_EVLIS
+    { .t=VM_msg,        .x=3,           .y=M_EVAL+57,   .z=UNDEF        },  // env = arg2
+    { .t=VM_roll,       .x=3,           .y=M_EVAL+58,   .z=UNDEF        },  // opnds = tail
+    { .t=VM_msg,        .x=1,           .y=M_EVAL+59,   .z=UNDEF        },  // cust = arg0
+    { .t=VM_roll,       .x=4,           .y=M_EVAL+60,   .z=UNDEF        },  // head
+    { .t=VM_get,        .x=FLD_X,       .y=M_EVAL+61,   .z=UNDEF        },  // actor(head)
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (actor cust opnds env)
+
+    { .t=VM_msg,        .x=3,           .y=M_EVAL+63,   .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=2,           .y=M_EVAL+64,   .z=UNDEF        },  // proc = head
+    { .t=VM_msg,        .x=1,           .y=M_EVAL+65,   .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=M_EVAL_K,    .y=M_EVAL+66,   .z=UNDEF        },  // M_EVAL_K
+    { .t=VM_new,        .x=3,           .y=M_EVAL+67,   .z=UNDEF        },  // k_eval = (M_EVAL_K env proc cust)
+
+    { .t=VM_msg,        .x=3,           .y=M_EVAL+68,   .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=-3,          .y=M_EVAL+69,   .z=UNDEF        },  // env tail k_eval
+    { .t=VM_push,       .x=M_EVLIS,     .y=M_EVAL+70,   .z=UNDEF        },  // M_EVLIS
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVLIS k_eval tail env)
 
     { .t=VM_msg,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // self-eval form
 
 /*
  * (define lookup                          ; look up variable binding in environment
- *   (lambda (key alist)
- *     (if (pair? alist)
- *       (if (eq? (caar alist) key)
- *         (cdar alist)
- *         (lookup key (cdr alist)))
- *       (if (symbol? key)
- *         (get_z key)                     ; get top-level binding
- *         #?))))                          ; value is undefined
+ *   (lambda (key env)
+ *     (if (pair? env)                     ; association list
+ *       (if (eq? (caar env) key)
+ *         (cdar env)
+ *         (lookup key (cdr env)))
+ *       (if (actor? env)
+ *         (CALL env key)                  ; delegate to actor environment
+ *         (if (symbol? key)
+ *           (get_z key)                   ; get top-level binding
+ *           #?))))                        ; value is undefined
  */
-    { .t=Actor_T,       .x=M_LOOKUP+1,  .y=NIL,         .z=UNDEF        },  // (cust key alist)
-    { .t=VM_msg,        .x=3,           .y=M_LOOKUP+2,  .z=UNDEF        },  // alist = arg2
+    { .t=Actor_T,       .x=M_LOOKUP+1,  .y=NIL,         .z=UNDEF        },  // (cust key env)
+    { .t=VM_msg,        .x=3,           .y=M_LOOKUP+2,  .z=UNDEF        },  // env = arg2
 
-    { .t=VM_pick,       .x=1,           .y=M_LOOKUP+3,  .z=UNDEF        },  // alist alist
-    { .t=VM_typeq,      .x=Pair_T,      .y=M_LOOKUP+4,  .z=UNDEF        },  // alist has type Pair_T
+    { .t=VM_pick,       .x=1,           .y=M_LOOKUP+3,  .z=UNDEF        },  // env env
+    { .t=VM_typeq,      .x=Pair_T,      .y=M_LOOKUP+4,  .z=UNDEF        },  // env has type Pair_T
     { .t=VM_if,         .x=M_LOOKUP+5,  .y=M_LOOKUP+11, .z=UNDEF        },
 
     { .t=VM_part,       .x=1,           .y=M_LOOKUP+6,  .z=UNDEF        },  // tail head
@@ -1303,12 +1318,21 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=2,           .y=M_LOOKUP+8,  .z=UNDEF        },  // key = arg1
     { .t=VM_cmp,        .x=CMP_EQ,      .y=M_LOOKUP+9,  .z=UNDEF        },  // (name == key)
     { .t=VM_if,         .x=CUST_SEND,   .y=M_LOOKUP+10, .z=UNDEF        },
-    { .t=VM_drop,       .x=1,           .y=M_LOOKUP+2,  .z=UNDEF        },  // alist = tail
+    { .t=VM_drop,       .x=1,           .y=M_LOOKUP+2,  .z=UNDEF        },  // env = tail
 
-    { .t=VM_msg,        .x=2,           .y=M_LOOKUP+12, .z=UNDEF        },  // key = arg1
-    { .t=VM_pick,       .x=1,           .y=M_LOOKUP+13, .z=UNDEF        },  // key key
-    { .t=VM_typeq,      .x=Symbol_T,    .y=M_LOOKUP+14, .z=UNDEF        },  // key has type Symbol_T
-    { .t=VM_if,         .x=M_LOOKUP+15, .y=RV_UNDEF,    .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=M_LOOKUP+12, .z=UNDEF        },  // env env
+    { .t=VM_typeq,      .x=Actor_T,     .y=M_LOOKUP+13, .z=UNDEF        },  // env has type Actor_T
+    { .t=VM_if,         .x=M_LOOKUP+14, .y=M_LOOKUP+18, .z=UNDEF        },
+
+    { .t=VM_msg,        .x=2,           .y=M_LOOKUP+15, .z=UNDEF        },  // key = arg1
+    { .t=VM_msg,        .x=1,           .y=M_LOOKUP+16, .z=UNDEF        },  // cust = arg0
+    { .t=VM_pair,       .x=1,           .y=M_LOOKUP+17, .z=UNDEF        },  // (cust . key)
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // (cust . key) env
+
+    { .t=VM_msg,        .x=2,           .y=M_LOOKUP+19, .z=UNDEF        },  // key = arg1
+    { .t=VM_pick,       .x=1,           .y=M_LOOKUP+20, .z=UNDEF        },  // key key
+    { .t=VM_typeq,      .x=Symbol_T,    .y=M_LOOKUP+21, .z=UNDEF        },  // key has type Symbol_T
+    { .t=VM_if,         .x=M_LOOKUP+22, .y=RV_UNDEF,    .z=UNDEF        },
     { .t=VM_get,        .x=FLD_Z,       .y=CUST_SEND,   .z=UNDEF        },  // global binding from Symbol_T
 
 /*
@@ -2467,11 +2491,66 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=AP_LST_SYM+1,.y=NIL,         .z=UNDEF        },  // (list->symbol <chars>)
     { .t=VM_push,       .x=F_LST_SYM,   .y=AP_FUNC_B,   .z=UNDEF        },  // func = F_LST_SYM
 
+/*
+(define op-cond                         ; (cond (<test> <expr>) . <clauses>)
+  (CREATE
+    (BEH (cust opnds env)
+      (if (pair? opnds)
+        (if (eval (caar opnds) env)
+          (eval (cadar opnds) env)
+          (SEND SELF (list cust (cdr opnds) env)))
+        #?)
+      )))
+*/
+#define FX_COND (AP_LST_SYM+2)
+#define OP_COND (FX_COND+1)
+#define K_COND (OP_COND+17)
+    { .t=Fexpr_T,       .x=OP_COND,     .y=UNDEF,       .z=UNDEF        },
+
+    { .t=Actor_T,       .x=OP_COND+1,   .y=NIL,         .z=UNDEF        },  // (cond (<test> <expr>) . <clauses>)
+    { .t=VM_msg,        .x=2,           .y=OP_COND+2,   .z=UNDEF        },  // opnds
+    { .t=VM_typeq,      .x=Pair_T,      .y=OP_COND+3,   .z=UNDEF        },  // opnds has type Pair_T
+    { .t=VM_if,         .x=OP_COND+4,   .y=RV_UNDEF,    .z=UNDEF        },
+
+    { .t=VM_msg,        .x=2,           .y=OP_COND+5,   .z=UNDEF        },  // opnds
+    { .t=VM_part,       .x=1,           .y=OP_COND+6,   .z=UNDEF        },  // rest first
+    { .t=VM_part,       .x=2,           .y=OP_COND+7,   .z=UNDEF        },  // rest () expr test
+
+    { .t=VM_msg,        .x=3,           .y=OP_COND+8,   .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=2,           .y=OP_COND+9,   .z=UNDEF        },  // test
+
+    { .t=VM_msg,        .x=1,           .y=OP_COND+10,  .z=UNDEF        },  // cust
+    { .t=VM_roll,       .x=4,           .y=OP_COND+11,  .z=UNDEF        },  // expr
+    { .t=VM_roll,       .x=6,           .y=OP_COND+12,  .z=UNDEF        },  // opnds' = rest
+    { .t=VM_msg,        .x=3,           .y=OP_COND+13,  .z=UNDEF        },  // env
+    { .t=VM_push,       .x=K_COND,      .y=OP_COND+14,  .z=UNDEF        },  // K_COND
+    { .t=VM_new,        .x=4,           .y=OP_COND+15,  .z=UNDEF        },  // k_cond = (K_COND cust expr opnds' env)
+
+    { .t=VM_push,       .x=M_EVAL,      .y=OP_COND+16,  .z=UNDEF        },  // M_EVAL
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_cond test env)
+
+//  { .t=VM_push,       .x=_cust_,      .y=K_COND-3,    .z=UNDEF        },
+//  { .t=VM_push,       .x=_expr_,      .y=K_COND-2,    .z=UNDEF        },
+//  { .t=VM_push,       .x=_opnds_,     .y=K_COND-1,    .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=K_COND+0,    .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_COND+1,    .z=UNDEF        },  // test result
+    { .t=VM_if,         .x=K_COND+2,    .y=K_COND+6,    .z=UNDEF        },
+
+    { .t=VM_roll,       .x=3,           .y=K_COND+3,    .z=UNDEF        },  // cust opnds env expr
+    { .t=VM_roll,       .x=4,           .y=K_COND+4,    .z=UNDEF        },  // opnds env expr cust
+    { .t=VM_push,       .x=M_EVAL,      .y=K_COND+5,    .z=UNDEF        },  // M_EVAL
+    { .t=VM_send,       .x=3,           .y=RELEASE,     .z=UNDEF        },  // (M_EVAL cust expr env)
+
+    { .t=VM_roll,       .x=2,           .y=K_COND+7,    .z=UNDEF        },  // cust expr env opnds
+    { .t=VM_roll,       .x=4,           .y=K_COND+8,    .z=UNDEF        },  // expr env opnds cust
+    { .t=VM_push,       .x=OP_COND,     .y=K_COND+9,    .z=UNDEF        },  // OP_COND
+    { .t=VM_send,       .x=3,           .y=RELEASE,     .z=UNDEF        },  // (OP_COND cust opnds env)
+
 //
 // PEG tools
 //
 
-#define F_G_EQ (AP_LST_SYM+2)
+#define F_G_EQ (K_COND+10)
     { .t=Actor_T,       .x=F_G_EQ+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=VM_msg,        .x=2,           .y=F_G_EQ+2,    .z=UNDEF        },  // token = arg1
     { .t=VM_push,       .x=G_EQ_B,      .y=F_G_EQ+3,    .z=UNDEF        },  // G_EQ_B
@@ -3506,6 +3585,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { AP_LST_NUM, "AP_LST_NUM" },
     { F_LST_SYM, "F_LST_SYM" },
     { AP_LST_SYM, "AP_LST_SYM" },
+    { FX_COND, "FX_COND" },
+    { OP_COND, "OP_COND" },
+    { K_COND, "K_COND" },
 
     { F_G_EQ, "F_G_EQ" },
     { AP_G_EQ, "AP_G_EQ" },
@@ -3641,6 +3723,7 @@ char *get_symbol_label(int_t addr) {
 #define IS_FREE(n)  TYPEQ(Free_T,(n))
 #define IS_PAIR(n)  TYPEQ(Pair_T,(n))
 #define IS_ACTOR(n) TYPEQ(Actor_T,(n))
+#define IS_FEXPR(n) TYPEQ(Fexpr_T,(n))
 #define IS_SYM(n)   TYPEQ(Symbol_T,(n))
 
 int_t get_proc(int_t value) {  // get dispatch proc for _value_
@@ -3828,6 +3911,7 @@ static void gc_dump_map() {  // dump memory allocation map
             if (t < Free_T) c = 'i';    // instruction
             if (t == Event_T) c = 'E';  // Event_T
             if (t == Actor_T) c = 'A';  // Actor_T
+            if (t == Fexpr_T) c = 'F';  // Fexpr_T
             if (t == Symbol_T) c = 'S'; // Symbol_T
             if (t == Pair_T) c = 'p';   // Pair_T
             if (t == Free_T) c = 'f';   // Free_T <-- should not happen
@@ -4215,8 +4299,11 @@ int_t init_global_env() {
     bind_global("+", F_NUM_ADD);
     bind_global("-", F_NUM_SUB);
     bind_global("*", F_NUM_MUL);
+    bind_global("list->number", F_LST_NUM);
+    bind_global("list->symbol", F_LST_SYM);
     bind_global("eval", M_EVAL);
     bind_global("apply", M_APPLY);
+    bind_global("cond", FX_COND);
 #else // !USE_META_EVAL
 #if META_EVALUATE
     bind_global("eval", AP_EVAL);
@@ -4303,6 +4390,8 @@ int_t init_global_env() {
 #endif // SCM_PEG_TOOLS
     bind_global("a-print", A_PRINT);
 #endif // USE_META_EVAL
+    bind_global("empty-env", EMPTY_ENV);
+    bind_global("global-env", GLOBAL_ENV);
     bind_global("quit", A_QUIT);
     return UNIT;
 }
@@ -4731,9 +4820,9 @@ PROC_DECL(Symbol) {
 #endif
 }
 
-PROC_DECL(Unit) {
+PROC_DECL(Fexpr) {
 #if USE_META_EVAL
-    return panic("Dispatch to Unit!?");
+    return panic("Dispatch to Fexpr!?");
 #else
     return Self_Eval(self, arg);
 #endif
@@ -5279,6 +5368,8 @@ void print_sexpr(int_t x) {
         fprintf(stderr, ")");
     } else if (IS_ACTOR(x)) {
         fprintf(stderr, "#actor@%"PdI"", x);
+    } else if (IS_FEXPR(x)) {
+        fprintf(stderr, "#fexpr@%"PdI"", x);
     } else {
         fprintf(stderr, "^%"PdI"", x);
     }

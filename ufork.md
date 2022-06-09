@@ -141,6 +141,7 @@ based on their 2 MSBs.
 {t:Actor_T, x:beh, y:sp, z:?}           | idle actor
 {t:Actor_T, x:beh', y:sp', z:events}    | busy actor, intially {z:()}
 {t:Symbol_T, x:hash, y:string, z:value} | immutable symbolic-name
+{t:Fexpr_T, x:actor, y:?, z:?}          | interpreter (cust ast env)
 
 #### Instructions
 
@@ -293,7 +294,8 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(number? . `_values_`)`
   * `(symbol? . `_values_`)`
   * `(actor? . `_values_`)`
-  * `(if `_bool_` `_consequence_` `_alternative_`)`
+  * `(if `_test_` `_consequence_` `_alternative_`)`
+  * `(cond (`_test_` `_expr_`) . `_clauses_`)`
   * `(eq? . `_values_`)`
   * `(= . `_numbers_`)`
   * `(< . `_numbers_`)`
@@ -302,7 +304,10 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(- . `_numbers_`)`
   * `(* . `_numbers_`)`
   * `peg-lang  ; REPL grammar`
-  * `(eval `_form_`)`  ; meta-circular interpreter
+  * `(eval `_form_` . `_optenv_`)`
+  * `(apply `_func_` `_args_` . `_optenv_`)`
+  * `empty-env`
+  * `global-env`
   * `(quit)`
 
 ### Derived Procedures
@@ -361,10 +366,12 @@ Bootstrap Library
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
 2022-06-07 |   7123 |        82277 | baseline measurement
+2022-06-09 |   7083 |        82342 | M_EVAL pruned `apply`
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
 2022-06-07 |   8274 |        95369 | baseline w/ test-case
+2022-06-09 |   8210 |        95399 | M_EVAL pruned `apply`
 
 ## PEG Tools
 
@@ -949,6 +956,8 @@ Additional features implemented here are:
 
   * Replace special-cases in `apply` with environment bindings
   * Remove literal match for `lambda` in `apply`
+  * Allow delegation to actor environments
+  * Introduce `Fexpr_T` for explict interpreters
 
 The current reference-implementation looks like this:
 
@@ -966,8 +975,10 @@ The current reference-implementation looks like this:
               (CREATE (closure-beh (cadr form) (caddr form) env))
               (if (eq? (car form) 'define) ; (define <symbol> <expr>)
                 (set_z (cadr form) (eval (caddr form) env))
-                (apply (car form) (evlis (cdr form) env) env)))))
-        form))))                        ; self-evaluating form
+                (if (fexpr? (car form))
+                  (CALL (get_x (car form)) (list (cdr form) env))
+                  (apply (car form) (evlis (cdr form) env) env))))))
+        form)))))                       ; self-evaluating form
 
 (define apply
   (lambda (fn args env)
@@ -980,14 +991,16 @@ The current reference-implementation looks like this:
           #?)))))
 
 (define lookup                          ; look up variable binding in environment
-  (lambda (key alist)
-    (if (pair? alist)
-      (if (eq? (caar alist) key)
-        (cdar alist)
-        (lookup key (cdr alist)))
-      (if (symbol? key)
-        (get_z key)                     ; get top-level binding
-        #?))))                          ; value is undefined
+  (lambda (key env)
+    (if (pair? env)                     ; association list
+      (if (eq? (caar env) key)
+        (cdar env)
+        (lookup key (cdr env)))
+      (if (actor? env)
+        (CALL env key)                  ; delegate to actor environment
+        (if (symbol? key)
+          (get_z key)                   ; get top-level binding
+          #?))))                        ; value is undefined
 
 (define evalif                          ; if `test` is #f, evaluate `altn`,
   (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
@@ -1013,6 +1026,16 @@ The current reference-implementation looks like this:
   (lambda (frml body env)
     (BEH (cust . args)
       (eval body (zip frml args env)))))
+
+(define op-cond                         ; (cond (<test> <expr>) . <clauses>)
+  (CREATE
+    (BEH (cust opnds env)
+      (if (pair? opnds)
+        (if (eval (caar opnds) env)
+          (eval (cadar opnds) env)
+          (SEND SELF (list cust (cdr opnds) env)))
+        #?)
+      )))
 ```
 
 #### Test-Cases
