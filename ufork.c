@@ -4607,11 +4607,19 @@ static PROC_DECL(Self_Eval) {  // common code for self-evaluating types
 }
 
 PROC_DECL(Fixnum) {
+#if USE_META_EVAL
+    return panic("Dispatch to Fixnum!?");
+#else
     return Self_Eval(self, arg);
+#endif
 }
 
 PROC_DECL(Proc) {
+#if USE_META_EVAL
+    return panic("Dispatch to Proc!?");
+#else
     return Self_Eval(self, arg);
+#endif
 }
 
 PROC_DECL(Undef) {
@@ -4638,14 +4646,25 @@ PROC_DECL(Undef) {
 }
 
 PROC_DECL(Boolean) {
+#if USE_META_EVAL
+    return panic("Dispatch to Boolean!?");
+#else
     return Self_Eval(self, arg);
+#endif
 }
 
 PROC_DECL(Null) {
+#if USE_META_EVAL
+    return panic("Dispatch to Null!?");
+#else
     return Self_Eval(self, arg);
+#endif
 }
 
 PROC_DECL(Pair) {
+#if USE_META_EVAL
+    return panic("Dispatch to Pair!?");
+#else
     int_t event = arg;
 #if INCLUDE_DEBUG
     if (runtime_trace) {
@@ -4677,9 +4696,13 @@ PROC_DECL(Pair) {
         }
     }
     return error("message not understood");
+#endif
 }
 
 PROC_DECL(Symbol) {
+#if USE_META_EVAL
+    return panic("Dispatch to Symbol!?");
+#else
     int_t event = arg;
 #if INCLUDE_DEBUG
     if (runtime_trace) {
@@ -4705,10 +4728,15 @@ PROC_DECL(Symbol) {
         }
     }
     return error("message not understood");
+#endif
 }
 
 PROC_DECL(Unit) {
+#if USE_META_EVAL
+    return panic("Dispatch to Unit!?");
+#else
     return Self_Eval(self, arg);
+#endif
 }
 
 PROC_DECL(Actor) {
@@ -4729,7 +4757,11 @@ PROC_DECL(Actor) {
 }
 
 PROC_DECL(Event) {
+#if USE_META_EVAL
+    return panic("Dispatch to Event!?");
+#else
     return Self_Eval(self, arg);
+#endif
 }
 
 PROC_DECL(Free) {
