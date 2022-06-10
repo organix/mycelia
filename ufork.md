@@ -1040,6 +1040,11 @@ The current reference-implementation looks like this:
 Moving operatives (special forms) into the environment,
 and making it possible to define new ones,
 requires a refactoring of the basic meta-circular interpreter.
+The key idea is that we can't decide if the operands should be evaluated
+until we know if the function is applicative or operative.
+However, the traditional `apply` takes a list of arguments (already evaluated).
+Instead, we have `eval` call `invoke`,
+which evalutes the operands for applicatives only.
 
 Additional features implemented here are:
 
@@ -1061,20 +1066,22 @@ The refactored reference-implementation looks like this:
               (CREATE (closure-beh (cadr form) (caddr form) env))
               (if (eq? (car form) 'define) ; (define <symbol> <expr>)
                 (set-z (cadr form) (eval (caddr form) env))
-                (apply (car form) (cdr form) env)))))
+                (invoke (eval (car form) env) (cdr form) env)))))
         form))))                        ; self-evaluating form
+
+(define invoke
+  (lambda (fn opnds env)
+    (if (actor? fn)                     ; _applicative_
+      (apply fn (evlis opnds env) env)
+      (apply fn opnds env))))
 
 (define apply
   (lambda (fn args env)
-    (if (symbol? fn)
-      (apply (lookup fn env) args env)
-      (if (pair? fn)
-        (apply (eval fn env) args env)
-        (if (actor? fn)                 ; delegate to _applicative_ actor
-          (CALL fn (evlis args env))
-          (if (fexpr? fn)               ; delegate to _operative_ actor
-            (CALL (get-x (car fn)) (list args env))
-            #?)))))
+    (if (actor? fn)
+      (CALL fn args)
+      (if (fexpr? fn)
+        (CALL (get-x fn) (list args env))
+        #?))))
 
 (define lookup                          ; look up variable binding in environment
   (lambda (key env)
