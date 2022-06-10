@@ -883,7 +883,7 @@ The hybrid reference-implementation looks like this:
             (if (eq? (car form) 'lambda) ; (lambda <frml> <body>)
               (CREATE (closure-beh (cadr form) (caddr form) env))
               (if (eq? (car form) 'define) ; (define <symbol> <expr>)
-                (set_z (cadr form) (eval (caddr form) env))
+                (set-z (cadr form) (eval (caddr form) env))
                 (apply (car form) (evlis (cdr form) env) env)))))
         form))))                        ; self-evaluating form
 
@@ -920,7 +920,7 @@ The hybrid reference-implementation looks like this:
         (cdar alist)
         (lookup key (cdr alist)))
       (if (symbol? key)
-        (get_z key)                     ; get top-level binding
+        (get-z key)                     ; get top-level binding
         #?))))                          ; value is undefined
 
 (define evalif                          ; if `test` is #f, evaluate `altn`,
@@ -957,7 +957,6 @@ Additional features implemented here are:
   * Replace special-cases in `apply` with environment bindings
   * Remove literal match for `lambda` in `apply`
   * Allow delegation to actor environments
-  * Introduce `Fexpr_T` for explict interpreters
 
 The current reference-implementation looks like this:
 
@@ -971,14 +970,14 @@ The current reference-implementation looks like this:
           (cadr form)
           (if (eq? (car form) 'if)      ; (if <pred> <cnsq> <altn>)
             (evalif (eval (cadr form) env) (caddr form) (cadddr form) env)
-            (if (eq? (car form) 'lambda) ; (lambda <frml> <body>)
-              (CREATE (closure-beh (cadr form) (caddr form) env))
-              (if (eq? (car form) 'define) ; (define <symbol> <expr>)
-                (set_z (cadr form) (eval (caddr form) env))
-                (if (fexpr? (car form))
-                  (CALL (get_x (car form)) (list (cdr form) env))
+            (if (eq? (car form) 'cond)  ; (cond (<test> <expr>) . <clauses>)
+              (evcon (cdr form) env)
+              (if (eq? (car form) 'lambda) ; (lambda <frml> <body>)
+                (CREATE (closure-beh (cadr form) (caddr form) env))
+                (if (eq? (car form) 'define) ; (define <symbol> <expr>)
+                  (set-z (cadr form) (eval (caddr form) env))
                   (apply (car form) (evlis (cdr form) env) env))))))
-        form)))))                       ; self-evaluating form
+        form))))                        ; self-evaluating form
 
 (define apply
   (lambda (fn args env)
@@ -999,7 +998,7 @@ The current reference-implementation looks like this:
       (if (actor? env)
         (CALL env key)                  ; delegate to actor environment
         (if (symbol? key)
-          (get_z key)                   ; get top-level binding
+          (get-z key)                   ; get top-level binding
           #?))))                        ; value is undefined
 
 (define evalif                          ; if `test` is #f, evaluate `altn`,
@@ -1008,13 +1007,100 @@ The current reference-implementation looks like this:
       (eval cnsq env)
       (eval altn env))))
 
-(define evlis
+(define evcon                           ; (cond (<test> <expr>) . <clauses>)
+  (lambda (clauses env)
+    ((lambda (clause)
+      (if (pair? clause)
+        (if (eval (car clause) env)
+          (eval (cadr clause) env)
+          (evcon (cdr clauses) env))
+        #?)
+    ) (car clauses))))
+
+(define evlis                           ; map `eval` over a list of operands
   (lambda (opnds env)
     (if (pair? opnds)
       (cons (eval (car opnds) env) (evlis (cdr opnds) env))
       ())))                             ; value is NIL
 
-(define zip
+(define zip                             ; extend `env` by binding names `xs` to values `ys`
+  (lambda (xs ys env)
+    (if (pair? xs)
+      (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
+      (if (symbol? xs)
+        (cons (cons xs ys) env)         ; dotted-tail binds to &rest
+        env))))
+
+(define closure-beh
+  (lambda (frml body env)
+    (BEH (cust . args)
+      (eval body (zip frml args env)))))
+```
+
+Moving operatives (special forms) into the environment,
+and making it possible to define new ones,
+requires a refactoring of the basic meta-circular interpreter.
+
+Additional features implemented here are:
+
+  * Introduce `Fexpr_T` for operative interpreters
+
+The refactored reference-implementation looks like this:
+
+```
+(define eval
+  (lambda (form env)
+    (if (symbol? form)
+      (lookup form env)                 ; bound variable
+      (if (pair? form)
+        (if (eq? (car form) 'quote)     ; (quote <form>)
+          (cadr form)
+          (if (eq? (car form) 'if)      ; (if <pred> <cnsq> <altn>)
+            (evalif (eval (cadr form) env) (caddr form) (cadddr form) env)
+            (if (eq? (car form) 'lambda) ; (lambda <frml> <body>)
+              (CREATE (closure-beh (cadr form) (caddr form) env))
+              (if (eq? (car form) 'define) ; (define <symbol> <expr>)
+                (set-z (cadr form) (eval (caddr form) env))
+                (apply (car form) (cdr form) env)))))
+        form))))                        ; self-evaluating form
+
+(define apply
+  (lambda (fn args env)
+    (if (symbol? fn)
+      (apply (lookup fn env) args env)
+      (if (pair? fn)
+        (apply (eval fn env) args env)
+        (if (actor? fn)                 ; delegate to _applicative_ actor
+          (CALL fn (evlis args env))
+          (if (fexpr? fn)               ; delegate to _operative_ actor
+            (CALL (get-x (car fn)) (list args env))
+            #?)))))
+
+(define lookup                          ; look up variable binding in environment
+  (lambda (key env)
+    (if (pair? env)                     ; association list
+      (if (eq? (caar env) key)
+        (cdar env)
+        (lookup key (cdr env)))
+      (if (actor? env)
+        (CALL env key)                  ; delegate to actor environment
+        (if (symbol? key)
+          (get-z key)                   ; get top-level binding
+          #?))))                        ; value is undefined
+
+(define evalif                          ; if `test` is #f, evaluate `altn`,
+  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
+    (if test
+      (eval cnsq env)
+      (eval altn env))))
+
+(define evlis                           ; map `eval` over a list of operands
+  (lambda (opnds env)
+    (if (pair? opnds)
+      (cons (eval (car opnds) env) (evlis (cdr opnds) env))
+      ())))                             ; value is NIL
+
+(define zip                             ; extend `env` by binding names `xs` to values `ys`
   (lambda (xs ys env)
     (if (pair? xs)
       (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
@@ -1030,9 +1116,9 @@ The current reference-implementation looks like this:
 (define op-cond                         ; (cond (<test> <expr>) . <clauses>)
   (CREATE
     (BEH (cust opnds env)
-      (if (pair? opnds)
-        (if (eval (caar opnds) env)
-          (eval (cadar opnds) env)
+      (if (pair? (car opnds))
+        (if (eval (caar opnds)) env)
+          (eval (cadr (car opnds)) env)
           (SEND SELF (list cust (cdr opnds) env)))
         #?)
       )))
