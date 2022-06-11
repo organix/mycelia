@@ -275,8 +275,10 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 
 ## LISP/Scheme Ground Environment
 
-### Primitive Procedures
+### Primitive Procedures (and values)
 
+  * `empty-env`
+  * `global-env`
   * `(quote `_expr_`)`
   * `(list . `_args_`)`
   * `(lambda `_formals_` . `_body_`)`
@@ -305,9 +307,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(* . `_numbers_`)`
   * `peg-lang  ; REPL grammar`
   * `(eval `_form_` . `_optenv_`)`
-  * `(apply `_func_` `_args_` . `_optenv_`)`
-  * `empty-env`
-  * `global-env`
+  * `(apply `_proc_` `_args_` . `_optenv_`)`
   * `(quit)`
 
 ### Derived Procedures
@@ -317,6 +317,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(cddr `_list_`)`
   * `(cadddr `_list_`)`
   * `(length `_list_`)`
+  * `(list* `_value_` . `_values_`)`
 
 ### Lambda Compilation Test-Cases
 
