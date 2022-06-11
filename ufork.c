@@ -568,7 +568,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=NIL,         .y=REPL_E+4,    .z=UNDEF        },  // env = ()
     { .t=VM_msg,        .x=1,           .y=REPL_E+5,    .z=UNDEF        },  // form = sexpr
     { .t=VM_push,       .x=REPL_P,      .y=REPL_E+6,    .z=UNDEF        },  // cust = REPL_P
-    { .t=VM_push,       .x=266,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
+    { .t=VM_push,       .x=204,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL cust form env)
 
     { .t=Actor_T,       .x=REPL_P+1,    .y=NIL,         .z=UNDEF        },
@@ -752,22 +752,12 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_roll,       .x=3,           .y=RELEASE_0,   .z=UNDEF        },  // cust
 
 /*
-(define k-comb-beh  ; used directly by Pair_T
-  (lambda (msg)
-    (BEH comb
-      (SEND comb msg))))
-*/
-#define K_COMB (K_DEF_B+4)
-//  { .t=VM_push,       .x=_msg_,       .y=K_COMB+0,    .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=RELEASE_0,   .z=UNDEF        },  // comb
-
-/*
 (define const-beh                       ; constant/literal value
   (lambda (value)
     (BEH (cust . _)
       (SEND value SELF))))
 */
-#define CONST_BEH (K_COMB+1)
+#define CONST_BEH (K_DEF_B+4)
 //  { .t=VM_push,       .x=_value_,     .y=CONST_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=CONST_BEH+1, .z=UNDEF        },  // cust
     { .t=VM_typeq,      .x=Actor_T,     .y=CONST_BEH+2, .z=UNDEF        },  // cust has type Actor_T
@@ -885,99 +875,10 @@ cell_t cell_table[CELL_MAX] = {
 */
 
 //
-// Static Symbols
-//
-
-#define S_IGNORE (K_SEQ_B+12)
-    { .t=Symbol_T,      .x=0,           .y=S_IGNORE+1,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('_'), .y=NIL,         .z=UNDEF        },
-
-#define S_QUOTE (S_IGNORE+2)
-    { .t=Symbol_T,      .x=0,           .y=S_QUOTE+1,   .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QUOTE+2,   .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QUOTE+3,   .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_QUOTE+4,   .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_QUOTE+5,   .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
-
-#define S_LIST (S_QUOTE+6)
-    { .t=Symbol_T,      .x=0,           .y=S_LIST+1,    .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('l'), .y=S_LIST+2,    .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_LIST+3,    .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('s'), .y=S_LIST+4,    .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('t'), .y=NIL,         .z=UNDEF        },
-
-#define S_CONS (S_LIST+5)
-    { .t=Symbol_T,      .x=0,           .y=S_CONS+1,    .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('c'), .y=S_CONS+2,    .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_CONS+3,    .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_CONS+4,    .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('s'), .y=NIL,         .z=UNDEF        },
-
-#define S_CAR (S_CONS+5)
-    { .t=Symbol_T,      .x=0,           .y=S_CAR+1,     .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('c'), .y=S_CAR+2,     .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('a'), .y=S_CAR+3,     .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('r'), .y=NIL,         .z=UNDEF        },
-
-#define S_CDR (S_CAR+4)
-    { .t=Symbol_T,      .x=0,           .y=S_CDR+1,     .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('c'), .y=S_CDR+2,     .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('d'), .y=S_CDR+3,     .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('r'), .y=NIL,         .z=UNDEF        },
-
-#define S_IF (S_CDR+4)
-    { .t=Symbol_T,      .x=0,           .y=S_IF+1,      .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_IF+2,      .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('f'), .y=NIL,         .z=UNDEF        },
-
-#define S_EQ_P (S_IF+3)
-    { .t=Symbol_T,      .x=0,           .y=S_EQ_P+1,    .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('e'), .y=S_EQ_P+2,    .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_EQ_P+3,    .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('?'), .y=NIL,         .z=UNDEF        },
-
-#define S_PAIR_P (S_EQ_P+4)
-    { .t=Symbol_T,      .x=0,           .y=S_PAIR_P+1,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('p'), .y=S_PAIR_P+2,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('a'), .y=S_PAIR_P+3,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_PAIR_P+4,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('r'), .y=S_PAIR_P+5,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('?'), .y=NIL,         .z=UNDEF        },
-
-#define S_SYMBOL_P (S_PAIR_P+6)
-    { .t=Symbol_T,      .x=0,           .y=S_SYMBOL_P+1,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('s'), .y=S_SYMBOL_P+2,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('y'), .y=S_SYMBOL_P+3,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('m'), .y=S_SYMBOL_P+4,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('b'), .y=S_SYMBOL_P+5,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_SYMBOL_P+6,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('l'), .y=S_SYMBOL_P+7,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('?'), .y=NIL,         .z=UNDEF        },
-
-#define S_LAMBDA (S_SYMBOL_P+8)
-    { .t=Symbol_T,      .x=0,           .y=S_LAMBDA+1,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('l'), .y=S_LAMBDA+2,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('a'), .y=S_LAMBDA+3,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('m'), .y=S_LAMBDA+4,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('b'), .y=S_LAMBDA+5,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('d'), .y=S_LAMBDA+6,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('a'), .y=NIL,         .z=UNDEF        },
-
-#define S_DEFINE (S_LAMBDA+7)
-    { .t=Symbol_T,      .x=0,           .y=S_DEFINE+1,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('d'), .y=S_DEFINE+2,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('e'), .y=S_DEFINE+3,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('f'), .y=S_DEFINE+4,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_DEFINE+5,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_DEFINE+6,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
-
-//
 // Meta-circular LISP Interpreter
 //
 
-#define M_EVAL (S_DEFINE+7)
+#define M_EVAL (K_SEQ_B+12)
 #define M_INVOKE_K (M_EVAL+20)
 #define M_INVOKE (M_INVOKE_K+4)
 #define M_APPLY_K (M_INVOKE+13)
@@ -2155,10 +2056,26 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_cvt,        .x=CVT_LST_SYM, .y=CUST_SEND,   .z=UNDEF        },  // lst_sym(chars)
 
 //
+// Static Symbols
+//
+
+#define S_IGNORE (F_LST_SYM+3)
+    { .t=Symbol_T,      .x=0,           .y=S_IGNORE+1,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('_'), .y=NIL,         .z=UNDEF        },
+
+#define S_QUOTE (S_IGNORE+2)
+    { .t=Symbol_T,      .x=0,           .y=S_QUOTE+1,   .z=FX_QUOTE     },
+    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QUOTE+2,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QUOTE+3,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_QUOTE+4,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_QUOTE+5,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
+
+//
 // PEG tools
 //
 
-#define F_G_EQ (F_LST_SYM+3)
+#define F_G_EQ (S_QUOTE+6)
     { .t=Actor_T,       .x=F_G_EQ+1,    .y=NIL,         .z=UNDEF        },  // (peg-eq <token>)
     { .t=VM_msg,        .x=2,           .y=F_G_EQ+2,    .z=UNDEF        },  // token = arg1
     { .t=VM_push,       .x=G_EQ_B,      .y=F_G_EQ+3,    .z=UNDEF        },  // G_EQ_B
@@ -2759,24 +2676,10 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { FORK_BEH, "FORK_BEH" },
 
     { K_DEF_B, "K_DEF_B" },
-    { K_COMB, "K_COMB" },
     { CONST_BEH, "CONST_BEH" },
     { BOUND_BEH, "BOUND_BEH" },
     { EVLIS_BEH, "EVLIS_BEH" },
     { K_SEQ_B, "K_SEQ_B" },
-
-    { S_IGNORE, "S_IGNORE" },
-    { S_QUOTE, "S_QUOTE" },
-    { S_LIST, "S_LIST" },
-    { S_CONS, "S_CONS" },
-    { S_CAR, "S_CAR" },
-    { S_CDR, "S_CDR" },
-    { S_IF, "S_IF" },
-    { S_EQ_P, "S_EQ_P" },
-    { S_PAIR_P, "S_PAIR_P" },
-    { S_SYMBOL_P, "S_SYMBOL_P" },
-    { S_LAMBDA, "S_LAMBDA" },
-    { S_DEFINE, "S_DEFINE" },
 
     { M_EVAL, "M_EVAL" },
     { M_INVOKE_K, "M_INVOKE_K" },
@@ -2857,6 +2760,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { F_NUM_MUL, "F_NUM_MUL" },
     { F_LST_NUM, "F_LST_NUM" },
     { F_LST_SYM, "F_LST_SYM" },
+
+    { S_IGNORE, "S_IGNORE" },
+    { S_QUOTE, "S_QUOTE" },
 
     { F_G_EQ, "F_G_EQ" },
     { F_G_OR, "F_G_OR" },
@@ -3427,28 +3333,14 @@ static int_t test_symbol_intern() {
 int_t init_global_env() {
     sym_install(S_IGNORE);
     sym_install(S_QUOTE);
-    sym_install(S_LIST);
-    sym_install(S_CONS);
-    sym_install(S_CAR);
-    sym_install(S_CDR);
-    sym_install(S_IF);
-    sym_install(S_EQ_P);
-    sym_install(S_PAIR_P);
-    sym_install(S_SYMBOL_P);
-    sym_install(S_LAMBDA);
-    sym_install(S_DEFINE);
-#if 0
-    int_t s;
-    s = cstr_intern("lambda");
-    set_z(s, OP_LAMBDA);
-#endif
+
     bind_global("peg-lang", G_SEXPR);  // language parser start symbol
     bind_global("empty-env", EMPTY_ENV);
     bind_global("global-env", GLOBAL_ENV);
 
     bind_global("eval", M_EVAL);
     bind_global("apply", M_APPLY);
-    bind_global("quote", FX_QUOTE);
+    //bind_global("quote", FX_QUOTE);  // statically bound
     bind_global("lambda", FX_LAMBDA);
     bind_global("define", FX_DEFINE);
     bind_global("if", FX_IF);
@@ -4916,7 +4808,6 @@ int main(int argc, char const *argv[])
     //DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 16*4));
     DEBUG(dump_symbol_table());
     init_global_env();
-    gc_add_root(K_COMB);  // used in Pair_T
     gc_add_root(clk_handler);
     clk_timeout = clk_ticks();
     int_t result = runtime();

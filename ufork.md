@@ -280,7 +280,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `empty-env`
   * `global-env`
   * `(quote `_expr_`)`
-  * `(list . `_args_`)`
+  * `(list . `_values_`)`
   * `(lambda `_formals_` . `_body_`)`
   * `(seq . `_body_`)`
   * `(define `_symbol_` `_value_`)`
@@ -306,7 +306,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(- . `_numbers_`)`
   * `(* . `_numbers_`)`
   * `peg-lang  ; REPL grammar`
-  * `(eval `_form_` . `_optenv_`)`
+  * `(eval `_expr_` . `_optenv_`)`
   * `(apply `_proc_` `_args_` . `_optenv_`)`
   * `(quit)`
 
