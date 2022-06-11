@@ -367,11 +367,13 @@ Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
 2022-06-07 |   7123 |        82277 | baseline measurement
 2022-06-09 |   7083 |        82342 | M_EVAL pruned `apply`
+2022-06-10 |   9360 |       108706 | M_EVAL pruned `eval`
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
 2022-06-07 |   8274 |        95369 | baseline w/ test-case
 2022-06-09 |   8210 |        95399 | M_EVAL pruned `apply`
+2022-06-10 |  10493 |       121761 | M_EVAL pruned `eval`
 
 ## PEG Tools
 
@@ -1049,24 +1051,18 @@ which evalutes the operands for applicatives only.
 Additional features implemented here are:
 
   * Introduce `Fexpr_T` for operative interpreters
+  * `eval`/`invoke`/`apply` distinguish applicatives/operatives
+  * Replace special-cases in `eval` with environment bindings
 
 The refactored reference-implementation looks like this:
 
 ```
 (define eval
   (lambda (form env)
-    (if (symbol? form)
-      (lookup form env)                 ; bound variable
-      (if (pair? form)
-        (if (eq? (car form) 'quote)     ; (quote <form>)
-          (cadr form)
-          (if (eq? (car form) 'if)      ; (if <pred> <cnsq> <altn>)
-            (evalif (eval (cadr form) env) (caddr form) (cadddr form) env)
-            (if (eq? (car form) 'lambda) ; (lambda <frml> <body>)
-              (CREATE (closure-beh (cadr form) (caddr form) env))
-              (if (eq? (car form) 'define) ; (define <symbol> <expr>)
-                (set-z (cadr form) (eval (caddr form) env))
-                (invoke (eval (car form) env) (cdr form) env)))))
+    (if (symbol? form)                  ; bound variable
+      (lookup form env)
+      (if (pair? form)                  ; procedure call
+        (invoke (eval (car form) env) (cdr form) env)
         form))))                        ; self-evaluating form
 
 (define invoke
@@ -1115,20 +1111,47 @@ The refactored reference-implementation looks like this:
         (cons (cons xs ys) env)         ; dotted-tail binds to &rest
         env))))
 
-(define closure-beh
+(define closure-beh                     ; lexically-bound applicative function
   (lambda (frml body env)
     (BEH (cust . args)
       (eval body (zip frml args env)))))
+
+(define op-quote                        ; (quote <form>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust
+        (car opnds)
+      ))))
+
+(define op-lambda                       ; (lambda <frml> <body>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust
+        (CREATE (closure-beh (car opnds) (cadr opnds) env))
+      ))))
+
+(define op-define                       ; (define <symbol> <expr>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust
+        (set-z (car opnds) (eval (cadr opnds) env))
+      ))))
+
+(define op-if                           ; (if <pred> <cnsq> <altn>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust
+        (evalif (eval (car opnds) env) (cadr opnds) (caddr opnds) env)
+      ))))
 
 (define op-cond                         ; (cond (<test> <expr>) . <clauses>)
   (CREATE
     (BEH (cust opnds env)
       (if (pair? (car opnds))
-        (if (eval (caar opnds)) env)
-          (eval (cadr (car opnds)) env)
+        (if (eval (caar opnds) env)
+          (SEND cust (eval (cadr (car opnds)) env))
           (SEND SELF (list cust (cdr opnds) env)))
-        #?)
-      )))
+        (SEND cust #?)) )))
 ```
 
 #### Test-Cases
