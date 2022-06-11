@@ -368,12 +368,14 @@ Date       | Events | Instructions | Description
 2022-06-07 |   7123 |        82277 | baseline measurement
 2022-06-09 |   7083 |        82342 | M_EVAL pruned `apply`
 2022-06-10 |   9360 |       108706 | M_EVAL pruned `eval`
+2022-06-11 |   9697 |       113301 | parse "\_" as Symbol_T
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
-2022-06-07 |   8274 |        95369 | baseline w/ test-case
-2022-06-09 |   8210 |        95399 | M_EVAL pruned `apply`
-2022-06-10 |  10493 |       121761 | M_EVAL pruned `eval`
+2022-06-07 |   1151 |        13092 | (testcase - baseline)
+2022-06-09 |   1127 |        13057 | M_EVAL pruned `apply`
+2022-06-10 |   1133 |        13055 | M_EVAL pruned `eval`
+2022-06-11 |   1175 |        13629 | parse "\_" as Symbol_T
 
 ## PEG Tools
 
@@ -446,6 +448,7 @@ NIL or --->[token,next]--->
 
 ```
 (define lex-eot (peg-not (peg-class DGT UPR LWR SYM)))  ; end of token
+(define scm-ignore (peg-xform (lambda _ '_) (peg-and (peg-plus (peg-eq 95)) lex-eot)))
 (define scm-const (peg-xform cadr (peg-seq
   (peg-eq 35)
   (peg-alt
@@ -478,7 +481,7 @@ NIL or --->[token,next]--->
       (peg-call scm-expr)
       (peg-or scm-dotted (peg-call scm-tail)) )) )))
 (define scm-list (peg-xform cdr (peg-and (peg-eq 40) scm-tail)))
-(define scm-expr (peg-alt scm-list scm-const lex-number scm-symbol scm-quoted))
+(define scm-expr (peg-alt scm-list scm-ignore scm-const lex-number scm-symbol scm-quoted))
 (define scm-sexpr (peg-xform cdr (peg-and scm-optwsp scm-expr)))
 
 ;(define src (peg-source '(9 40 97 32 46 32 98 41 10)))  ; "\t(a . b)\n"
@@ -1046,7 +1049,7 @@ The key idea is that we can't decide if the operands should be evaluated
 until we know if the function is applicative or operative.
 However, the traditional `apply` takes a list of arguments (already evaluated).
 Instead, we have `eval` call `invoke`,
-which evalutes the operands for applicatives only.
+which evaluates the operands for applicatives only.
 
 Additional features implemented here are:
 
