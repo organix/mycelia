@@ -20,10 +20,10 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define EXPLICIT_FREE 1 // explicitly free known-dead memory
 #define MARK_SWEEP_GC 1 // stop-the-world garbage collection
 #define RUNTIME_STATS 1 // collect statistics on the runtime
-#define COMPILE_QUOTE 0 // compile ' immediately in parser
-#define SCM_PEG_TOOLS 0 // include PEG tools for LISP/Scheme
+#define COMPILE_QUOTE 0 // compile ' immediately in parser -- DOES NOT WORK!
+#define SCM_PEG_TOOLS 1 // include PEG tools for LISP/Scheme
 #define BOOTSTRAP_LIB 1 // include bootstrap library definitions
-#define EVLIS_IS_PAR  1 // concurrent argument-list evaluation
+#define EVLIS_IS_PAR  0 // concurrent argument-list evaluation
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -1586,49 +1586,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_msg,        .x=-2,          .y=G_CLS_B+19,  .z=UNDEF        },  // in
     { .t=VM_pick,       .x=3,           .y=SEND_0,      .z=UNDEF        },  // fail
 
-#define G_XFM_K (G_CLS_B+20)
-//  { .t=VM_push,       .x=_ok_,        .y=G_XFM_K-1,   .z=UNDEF        },
-//  { .t=VM_push,       .x=_in_,        .y=G_XFM_K+0,   .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=G_XFM_K+1,   .z=UNDEF        },  // value
-    { .t=VM_pair,       .x=1,           .y=G_XFM_K+2,   .z=UNDEF        },  // (value . in)
-    { .t=VM_roll,       .x=2,           .y=RELEASE_0,   .z=UNDEF        },  // ok
-
-#define G_XFM_OK (G_XFM_K+3)
-//  { .t=VM_push,       .x=_cust_,      .y=G_XFM_OK-1,  .z=UNDEF        },
-//  { .t=VM_push,       .x=_appl_,      .y=G_XFM_OK+0,  .z=UNDEF        },
-    { .t=VM_push,       .x=GLOBAL_ENV,  .y=G_XFM_OK+1,  .z=UNDEF        },  // denv = GLOBAL_ENV
-
-    { .t=VM_push,       .x=NIL,         .y=G_XFM_OK+2,  .z=UNDEF        },  // ()
-    { .t=VM_msg,        .x=1,           .y=G_XFM_OK+3,  .z=UNDEF        },  // arg = value
-    { .t=VM_push,       .x=CONST_BEH,   .y=G_XFM_OK+4,  .z=UNDEF        },  // CONST_BEH
-    { .t=VM_new,        .x=1,           .y=G_XFM_OK+5,  .z=UNDEF        },  // a_expr
-    { .t=VM_pair,       .x=1,           .y=G_XFM_OK+6,  .z=UNDEF        },  // (a_expr)
-
-    { .t=VM_roll,       .x=4,           .y=G_XFM_OK+7,  .z=UNDEF        },  // cust
-    { .t=VM_msg,        .x=-1,          .y=G_XFM_OK+8,  .z=UNDEF        },  // in
-    { .t=VM_push,       .x=G_XFM_K,     .y=G_XFM_OK+9,  .z=UNDEF        },  // G_XFM_K
-    { .t=VM_beh,        .x=2,           .y=G_XFM_OK+10, .z=UNDEF        },  // BECOME (G_XFM_K cust in)
-    { .t=VM_self,       .x=UNDEF,       .y=G_XFM_OK+11, .z=UNDEF        },  // k_xfm = SELF
-
-    { .t=VM_roll,       .x=4,           .y=G_XFM_OK+12, .z=UNDEF        },  // appl
-    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (appl k_xfm (a_expr) denv)
-
-#define G_XFORM_B (G_XFM_OK+13)
-//  { .t=VM_push,       .x=_appl_,      .y=G_XFORM_B+0, .z=UNDEF        },
-//  { .t=VM_push,       .x=_ptrn_,      .y=G_XFORM_B-1, .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=G_XFORM_B+1, .z=UNDEF        },  // (custs . resume)
-    { .t=VM_part,       .x=1,           .y=G_XFORM_B+2, .z=UNDEF        },  // resume custs
-    { .t=VM_part,       .x=1,           .y=G_XFORM_B+3, .z=UNDEF        },  // fail ok
-
-    { .t=VM_pick,       .x=5,           .y=G_XFORM_B+4, .z=UNDEF        },  // appl
-    { .t=VM_push,       .x=G_XFM_OK,    .y=G_XFORM_B+5, .z=UNDEF        },  // G_XFM_OK
-    { .t=VM_new,        .x=2,           .y=G_XFORM_B+6, .z=UNDEF        },  // ok' = (G_XFM_OK ok appl)
-
-    { .t=VM_pair,       .x=1,           .y=G_XFORM_B+7, .z=UNDEF        },  // custs = (ok' . fail)
-    { .t=VM_pair,       .x=1,           .y=G_XFORM_B+8, .z=UNDEF        },  // msg = (custs . resume)
-    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // ptrn
-
-#define G_PRED_K (G_XFORM_B+9)
+#define G_PRED_K (G_CLS_B+20)
 //  { .t=VM_push,       .x=_more_,      .y=G_PRED_K-1,  .z=UNDEF        },  // (value' . in')
 //  { .t=VM_push,       .x=_msg0_,      .y=G_PRED_K+0,  .z=UNDEF        },  // ((ok . fail) value . in)
     { .t=VM_msg,        .x=0,           .y=G_PRED_K+1,  .z=UNDEF        },  // cond
@@ -1644,24 +1602,18 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define G_PRED_OK (G_PRED_K+7)
 //  { .t=VM_push,       .x=_msg0_,      .y=G_PRED_OK-1, .z=UNDEF        },
 //  { .t=VM_push,       .x=_pred_,      .y=G_PRED_OK+0, .z=UNDEF        },
-    { .t=VM_push,       .x=GLOBAL_ENV,  .y=G_PRED_OK+1, .z=UNDEF        },  // denv = GLOBAL_ENV
+    { .t=VM_msg,        .x=1,           .y=G_PRED_OK+1, .z=UNDEF        },  // value
 
-    { .t=VM_push,       .x=NIL,         .y=G_PRED_OK+2, .z=UNDEF        },  // ()
-    { .t=VM_msg,        .x=1,           .y=G_PRED_OK+3, .z=UNDEF        },  // arg = value'
-    { .t=VM_push,       .x=CONST_BEH,   .y=G_PRED_OK+4, .z=UNDEF        },  // CONST_BEH
-    { .t=VM_new,        .x=1,           .y=G_PRED_OK+5, .z=UNDEF        },  // a_expr
-    { .t=VM_pair,       .x=1,           .y=G_PRED_OK+6, .z=UNDEF        },  // (a_expr)
+    { .t=VM_msg,        .x=0,           .y=G_PRED_OK+2, .z=UNDEF        },  // more
+    { .t=VM_roll,       .x=4,           .y=G_PRED_OK+3, .z=UNDEF        },  // msg0
+    { .t=VM_push,       .x=G_PRED_K,    .y=G_PRED_OK+4, .z=UNDEF        },  // G_PRED_K
+    { .t=VM_beh,        .x=2,           .y=G_PRED_OK+5, .z=UNDEF        },  // BECOME (G_PRED_K more msg0)
+    { .t=VM_self,       .x=UNDEF,       .y=G_PRED_OK+6, .z=UNDEF        },  // k_pred = SELF
 
-    { .t=VM_msg,        .x=0,           .y=G_PRED_OK+7, .z=UNDEF        },  // more
-    { .t=VM_roll,       .x=5,           .y=G_PRED_OK+8, .z=UNDEF        },  // msg0
-    { .t=VM_push,       .x=G_PRED_K,    .y=G_PRED_OK+9, .z=UNDEF        },  // G_PRED_K
-    { .t=VM_beh,        .x=2,           .y=G_PRED_OK+10,.z=UNDEF        },  // BECOME (G_PRED_K more msg0)
-    { .t=VM_self,       .x=UNDEF,       .y=G_PRED_OK+11,.z=UNDEF        },  // k_pred = SELF
+    { .t=VM_roll,       .x=3,           .y=G_PRED_OK+7, .z=UNDEF        },  // pred
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (pred k_pred value)
 
-    { .t=VM_roll,       .x=4,           .y=G_PRED_OK+12,.z=UNDEF        },  // pred
-    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (pred k_pred (a_expr) denv)
-
-#define G_PRED_B (G_PRED_OK+13)
+#define G_PRED_B (G_PRED_OK+8)
 //  { .t=VM_push,       .x=_pred_,      .y=G_PRED_B-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_ptrn_,      .y=G_PRED_B+0,  .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=G_PRED_B+1,  .z=UNDEF        },  // (custs . resume)
@@ -2159,26 +2111,29 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_SEQ_B,     .y=F_G_SEQ+3,   .z=UNDEF        },  // G_SEQ_B
     { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (G_SEQ_B pegs)
 
-#define F_G_CALL (F_G_SEQ+4)
-    { .t=Actor_T,       .x=F_G_CALL+1,  .y=NIL,         .z=UNDEF        },  // (peg-call <name>)
-    { .t=VM_msg,        .x=2,           .y=F_G_CALL+2,  .z=UNDEF        },  // name = arg1
-    { .t=VM_push,       .x=G_CALL_B,    .y=F_G_CALL+3,  .z=UNDEF        },  // G_CALL_B
+#define FX_G_CALL (F_G_SEQ+4)
+#define OP_G_CALL (FX_G_CALL+1)
+    { .t=Fexpr_T,       .x=OP_G_CALL,   .y=UNDEF,       .z=UNDEF        },  // (peg-call <name>)
+
+    { .t=Actor_T,       .x=OP_G_CALL+1, .y=NIL,         .z=UNDEF        },  // (cust opnds env)
+    { .t=VM_msg,        .x=2,           .y=OP_G_CALL+2, .z=UNDEF        },  // opnds
+    { .t=VM_nth,        .x=1,           .y=OP_G_CALL+3, .z=UNDEF        },  // name = car(opnds)
+    { .t=VM_push,       .x=G_CALL_B,    .y=OP_G_CALL+4, .z=UNDEF        },  // G_CALL_B
     { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // (G_CALL_B name)
 
-#define F_G_PRED (F_G_CALL+4)
+#define F_G_PRED (OP_G_CALL+5)
     { .t=Actor_T,       .x=F_G_PRED+1,  .y=NIL,         .z=UNDEF        },  // (peg-pred <pred> <peg>)
     { .t=VM_msg,        .x=2,           .y=F_G_PRED+2,  .z=UNDEF        },  // pred = arg1
     { .t=VM_msg,        .x=3,           .y=F_G_PRED+3,  .z=UNDEF        },  // peg = arg2
     { .t=VM_push,       .x=G_PRED_B,    .y=F_G_PRED+4,  .z=UNDEF        },  // G_PRED_B
     { .t=VM_new,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (G_PRED_B pred peg)
 
-// FIXME: replace XFORM with XLAT
 #define F_G_XFORM (F_G_PRED+5)
-    { .t=Actor_T,       .x=F_G_XFORM+1, .y=NIL,         .z=UNDEF        },  // (G_XFORM_B appl peg)
-    { .t=VM_msg,        .x=2,           .y=F_G_XFORM+2, .z=UNDEF        },  // appl = arg1
+    { .t=Actor_T,       .x=F_G_XFORM+1, .y=NIL,         .z=UNDEF        },  // (peg-xform func peg)
+    { .t=VM_msg,        .x=2,           .y=F_G_XFORM+2, .z=UNDEF        },  // func = arg1
     { .t=VM_msg,        .x=3,           .y=F_G_XFORM+3, .z=UNDEF        },  // peg = arg2
-    { .t=VM_push,       .x=G_XFORM_B,   .y=F_G_XFORM+4, .z=UNDEF        },  // G_XFORM_B
-    { .t=VM_new,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (G_XFORM_B appl peg)
+    { .t=VM_push,       .x=G_XLAT_B,    .y=F_G_XFORM+4, .z=UNDEF        },  // G_XLAT_B
+    { .t=VM_new,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (G_XLAT_B func peg)
 
 #define F_S_LIST (F_G_XFORM+5)
     { .t=Actor_T,       .x=F_S_LIST+1,  .y=NIL,         .z=UNDEF        },  // (peg-source <list>)
@@ -2732,9 +2687,11 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_ALT_B, "G_ALT_B" },
     { G_SEQ_B, "G_SEQ_B" },
     { G_CLS_B, "G_CLS_B" },
+#if 0
     { G_XFM_K, "G_XFM_K" },
     { G_XFM_OK, "G_XFM_OK" },
     { G_XFORM_B, "G_XFORM_B" },
+#endif
     { G_PRED_K, "G_PRED_K" },
     { G_PRED_OK, "G_PRED_OK" },
     { G_PRED_B, "G_PRED_B" },
@@ -2782,7 +2739,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { F_G_STAR, "F_G_STAR" },
     { F_G_ALT, "F_G_ALT" },
     { F_G_SEQ, "F_G_SEQ" },
-    { F_G_CALL, "F_G_CALL" },
+    { FX_G_CALL, "FX_G_CALL" },
+    { OP_G_CALL, "OP_G_CALL" },
     { F_G_PRED, "F_G_PRED" },
     { F_G_XFORM, "F_G_XFORM" },
     { F_S_LIST, "F_S_LIST" },
@@ -3392,22 +3350,22 @@ int_t init_global_env() {
     bind_global("peg-empty", G_EMPTY);
     bind_global("peg-fail", G_FAIL);
     bind_global("peg-any", G_ANY);
-    bind_global("peg-eq", AP_G_EQ);
-    bind_global("peg-or", AP_G_OR);
-    bind_global("peg-and", AP_G_AND);
-    bind_global("peg-not", AP_G_NOT);
-    bind_global("peg-class", AP_G_CLS);
-    bind_global("peg-opt", AP_G_OPT);
-    bind_global("peg-plus", AP_G_PLUS);
-    bind_global("peg-star", AP_G_STAR);
-    bind_global("peg-alt", AP_G_ALT);
-    bind_global("peg-seq", AP_G_SEQ);
-    bind_global("peg-call", OP_G_CALL);
-    bind_global("peg-pred", AP_G_PRED);
-    bind_global("peg-xform", AP_G_XFORM);
-    bind_global("peg-source", AP_S_LIST);
-    bind_global("peg-start", AP_G_START);
-    bind_global("peg-chain", AP_S_CHAIN);
+    bind_global("peg-eq", F_G_EQ);
+    bind_global("peg-or", F_G_OR);
+    bind_global("peg-and", F_G_AND);
+    bind_global("peg-not", F_G_NOT);
+    bind_global("peg-class", F_G_CLS);
+    bind_global("peg-opt", F_G_OPT);
+    bind_global("peg-plus", F_G_PLUS);
+    bind_global("peg-star", F_G_STAR);
+    bind_global("peg-alt", F_G_ALT);
+    bind_global("peg-seq", F_G_SEQ);
+    bind_global("peg-call", FX_G_CALL);
+    bind_global("peg-pred", F_G_PRED);
+    bind_global("peg-xform", F_G_XFORM);
+    bind_global("peg-source", F_S_LIST);
+    bind_global("peg-start", F_G_START);
+    bind_global("peg-chain", F_S_CHAIN);
 
     bind_global("peg-end", G_END);
     bind_global("lex-eol", G_EOL);
