@@ -1156,6 +1156,36 @@ The refactored reference-implementation looks like this:
           (SEND cust (eval (cadr (car opnds)) env))
           (SEND SELF (list cust (cdr opnds) env)))
         (SEND cust #?)) )))
+
+(define evbody                          ; evaluate a list of expressions,
+  (lambda (value body env)              ; returning the value of the last.
+    (if (pair? body)
+      (evbody (eval (car body) env) (cdr body) env)
+      value)))
+(define op-seq                          ; (seq . <body>)
+  (CREATE
+    (BEH (cust opnds env)
+      ;(SEND cust (evbody #unit opnds env))
+      (SEND (CREATE (k-seq-beh cust opnds env)) #unit)
+    )))
+(define k-seq-beh
+  (lambda (cust body env)
+    (BEH value
+      (if (pair? body)
+        (SEND
+          (CREATE (k-seq-beh cust (cdr body) env))
+          (eval (car body) env))
+        (SEND cust value)) )))
+
+(define op-par                          ; (par . <exprs>)
+  (CREATE
+    (BEH (cust opnds env)
+      (if (pair? opnds)
+        (SEND
+          (CREATE (fork-beh cust eval op-par))
+          (list ((car opnds) env) ((cdr opnds) env)))
+        (SEND cust ()))
+      )))
 ```
 
 #### Test-Cases

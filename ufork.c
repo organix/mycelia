@@ -568,7 +568,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=NIL,         .y=REPL_E+4,    .z=UNDEF        },  // env = ()
     { .t=VM_msg,        .x=1,           .y=REPL_E+5,    .z=UNDEF        },  // form = sexpr
     { .t=VM_push,       .x=REPL_P,      .y=REPL_E+6,    .z=UNDEF        },  // cust = REPL_P
-    { .t=VM_push,       .x=204,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
+    { .t=VM_push,       .x=188,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL cust form env)
 
     { .t=Actor_T,       .x=REPL_P+1,    .y=NIL,         .z=UNDEF        },
@@ -737,27 +737,12 @@ cell_t cell_table[CELL_MAX] = {
 //
 
 /*
-(define k-define-beh
-  (lambda (cust symbol)
-    (BEH value
-      (SEND cust
-        (set_z symbol value)))))
-*/
-#define K_DEF_B (FORK_BEH+18)
-//  { .t=VM_push,       .x=_cust_,      .y=K_DEF_B-1,   .z=UNDEF        },
-//  { .t=VM_push,       .x=_symbol_,    .y=K_DEF_B+0,   .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=K_DEF_B+1,   .z=UNDEF        },  // value
-    { .t=VM_set,        .x=FLD_Z,       .y=K_DEF_B+2,   .z=UNDEF        },  // bind(symbol, value)
-    { .t=VM_push,       .x=UNIT,        .y=K_DEF_B+3,   .z=UNDEF        },  // #unit
-    { .t=VM_roll,       .x=3,           .y=RELEASE_0,   .z=UNDEF        },  // cust
-
-/*
 (define const-beh                       ; constant/literal value
   (lambda (value)
     (BEH (cust . _)
       (SEND value SELF))))
 */
-#define CONST_BEH (K_DEF_B+4)
+#define CONST_BEH (FORK_BEH+18)
 //  { .t=VM_push,       .x=_value_,     .y=CONST_BEH+0, .z=UNDEF        },
     { .t=VM_msg,        .x=1,           .y=CONST_BEH+1, .z=UNDEF        },  // cust
     { .t=VM_typeq,      .x=Actor_T,     .y=CONST_BEH+2, .z=UNDEF        },  // cust has type Actor_T
@@ -828,57 +813,11 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=3,           .y=EVLIS_BEH+18,.z=UNDEF        },  // ev_fork
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_fork h_req t_req)
 
-/*
-(define k-seq-beh
-  (lambda (cust env body)
-    (BEH value
-      (if (pair? body)
-        (SEND (car body)
-          (list (CREATE (k-seq-beh cust env (cdr body))) env))
-        (SEND cust value)
-      ))))
-*/
-#define K_SEQ_B (EVLIS_BEH+19)
-//  { .t=VM_push,       .x=_cust_,      .y=K_SEQ_B-2,   .z=UNDEF        },
-//  { .t=VM_push,       .x=_env_,       .y=K_SEQ_B-1,   .z=UNDEF        },
-//  { .t=VM_push,       .x=_body_,      .y=K_SEQ_B+0,   .z=UNDEF        },
-    { .t=VM_pick,       .x=1,           .y=K_SEQ_B+1,   .z=UNDEF        },  // body
-    { .t=VM_typeq,      .x=Pair_T,      .y=K_SEQ_B+2,   .z=UNDEF        },  // body has type Pair_T
-    { .t=VM_if,         .x=K_SEQ_B+5,   .y=K_SEQ_B+3,   .z=UNDEF        },
-
-    { .t=VM_msg,        .x=0,           .y=K_SEQ_B+4,   .z=UNDEF        },  // value
-    { .t=VM_pick,       .x=4,           .y=SEND_0,      .z=UNDEF        },  // (cust . value)
-
-    { .t=VM_part,       .x=1,           .y=K_SEQ_B+6,   .z=UNDEF        },  // rest first
-    { .t=VM_pick,       .x=3,           .y=K_SEQ_B+7,   .z=UNDEF        },  // env
-    { .t=VM_self,       .x=UNDEF,       .y=K_SEQ_B+8,   .z=UNDEF        },  // SELF
-    { .t=VM_roll,       .x=3,           .y=K_SEQ_B+9,   .z=UNDEF        },  // first
-    { .t=VM_send,       .x=2,           .y=K_SEQ_B+10,  .z=UNDEF        },  // (first SELF env)
-
-    { .t=VM_push,       .x=K_SEQ_B,     .y=K_SEQ_B+11,  .z=UNDEF        },  // cust env rest K_SEQ_B
-    { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (k-seq-beh cust env rest)
-
-/*
-#define OP_SEQ (OP_SEQ+10)
-    { .t=Actor_T,       .x=OP_SEQ+1,    .y=NIL,         .z=UNDEF        },  // (seq . <body>)
-    { .t=VM_msg,        .x=-2,          .y=OP_SEQ+2,    .z=UNDEF        },  // opt-env
-    { .t=VM_typeq,      .x=Pair_T,      .y=OP_SEQ+3,    .z=UNDEF        },  // opt-env has type Pair_T
-    { .t=VM_if,         .x=OP_SEQ+4,    .y=SELF_EVAL,   .z=UNDEF        },
-
-    { .t=VM_push,       .x=UNIT,        .y=OP_SEQ+5,    .z=UNDEF        },  // UNIT
-
-    { .t=VM_msg,        .x=1,           .y=OP_SEQ+6,    .z=UNDEF        },  // cust
-    { .t=VM_msg,        .x=3,           .y=OP_SEQ+7,    .z=UNDEF        },  // env
-    { .t=VM_msg,        .x=2,           .y=OP_SEQ+8,    .z=UNDEF        },  // body = args
-    { .t=VM_push,       .x=K_SEQ_B,     .y=OP_SEQ+9,    .z=UNDEF        },  // cust env body K_SEQ_B
-    { .t=VM_new,        .x=3,           .y=SEND_0,      .z=UNDEF        },  // k-seq
-*/
-
 //
 // Meta-circular LISP Interpreter
 //
 
-#define M_EVAL (K_SEQ_B+12)
+#define M_EVAL (EVLIS_BEH+19)
 #define M_INVOKE_K (M_EVAL+20)
 #define M_INVOKE (M_INVOKE_K+4)
 #define M_APPLY_K (M_INVOKE+13)
@@ -1211,6 +1150,21 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_new,        .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // closure = (CLOSURE_B frml body env)
 
 /*
+(define k-define-beh
+  (lambda (cust symbol)
+    (BEH value
+      (SEND cust
+        (set_z symbol value)))))
+*/
+#define K_DEF_B (OP_LAMBDA+8)
+//  { .t=VM_push,       .x=_cust_,      .y=K_DEF_B-1,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_symbol_,    .y=K_DEF_B+0,   .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_DEF_B+1,   .z=UNDEF        },  // value
+    { .t=VM_set,        .x=FLD_Z,       .y=K_DEF_B+2,   .z=UNDEF        },  // bind(symbol, value)
+    { .t=VM_push,       .x=UNIT,        .y=K_DEF_B+3,   .z=UNDEF        },  // #unit
+    { .t=VM_roll,       .x=3,           .y=RELEASE_0,   .z=UNDEF        },  // cust
+
+/*
 (define op-define                       ; (define <symbol> <expr>)
   (CREATE
     (BEH (cust opnds env)
@@ -1218,7 +1172,7 @@ cell_t cell_table[CELL_MAX] = {
         (set-z (car opnds) (eval (cadr opnds) env))
       ))))
 */
-#define FX_DEFINE (OP_LAMBDA+8)
+#define FX_DEFINE (K_DEF_B+4)
 #define OP_DEFINE (FX_DEFINE+1)
     { .t=Fexpr_T,       .x=OP_DEFINE,   .y=UNDEF,       .z=UNDEF        },  // (define <symbol> <expr>)
 
@@ -1316,10 +1270,65 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=OP_COND,     .y=K_COND+9,    .z=UNDEF        },  // OP_COND
     { .t=VM_send,       .x=3,           .y=RELEASE,     .z=UNDEF        },  // (OP_COND cust opnds env)
 
+/*
+(define k-seq-beh
+  (lambda (cust body env)
+    (BEH value
+      (if (pair? body)
+        (SEND
+          (CREATE (k-seq-beh cust (cdr body) env))  ; BECOME this...
+          (eval (car body) env))
+        (SEND cust value)) )))
+*/
+#define K_SEQ_B (K_COND+10)
+//  { .t=VM_push,       .x=_cust_,      .y=K_SEQ_B-2,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_body_,      .y=K_SEQ_B-1,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=K_SEQ_B+0,   .z=UNDEF        },
+    { .t=VM_pick,       .x=2,           .y=K_SEQ_B+1,   .z=UNDEF        },  // body
+    { .t=VM_typeq,      .x=Pair_T,      .y=K_SEQ_B+2,   .z=UNDEF        },  // body has type Pair_T
+    { .t=VM_if,         .x=K_SEQ_B+5,   .y=K_SEQ_B+3,   .z=UNDEF        },
+
+    { .t=VM_msg,        .x=0,           .y=K_SEQ_B+4,   .z=UNDEF        },  // value
+    { .t=VM_roll,       .x=4,           .y=RELEASE_0,   .z=UNDEF        },  // (cust . value)
+
+    { .t=VM_roll,       .x=2,           .y=K_SEQ_B+6,   .z=UNDEF        },  // cust env body
+    { .t=VM_part,       .x=1,           .y=K_SEQ_B+7,   .z=UNDEF        },  // rest first
+
+    { .t=VM_pick,       .x=3,           .y=K_SEQ_B+8,   .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=2,           .y=K_SEQ_B+9,   .z=UNDEF        },  // expr = first
+    { .t=VM_self,       .x=UNDEF,       .y=K_SEQ_B+10,  .z=UNDEF        },  // cust = SELF
+    { .t=VM_push,       .x=M_EVAL,      .y=K_SEQ_B+11,  .z=UNDEF        },  // M_EVAL
+    { .t=VM_send,       .x=3,           .y=K_SEQ_B+12,  .z=UNDEF        },  // (M_EVAL SELF first env)
+
+    { .t=VM_roll,       .x=-2,          .y=K_SEQ_B+13,  .z=UNDEF        },  // cust rest env
+    { .t=VM_push,       .x=K_SEQ_B,     .y=K_SEQ_B+14,  .z=UNDEF        },  // K_SEQ_B
+    { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (K_SEQ_B cust rest env)
+
+/*
+(define op-seq                          ; (seq . <body>)
+  (CREATE
+    (BEH (cust opnds env)
+      ;(SEND cust (evbody #unit opnds env))
+      (SEND (CREATE (k-seq-beh cust opnds env)) #unit)
+    )))
+*/
+#define FX_SEQ (K_SEQ_B+15)
+#define OP_SEQ (FX_SEQ+1)
+    { .t=Fexpr_T,       .x=OP_SEQ,      .y=UNDEF,       .z=UNDEF        },  // (seq . <body>)
+
+    { .t=Actor_T,       .x=OP_SEQ+1,    .y=NIL,         .z=UNDEF        },  // (cust opnds env)
+    { .t=VM_push,       .x=UNIT,        .y=OP_SEQ+2,    .z=UNDEF        },  // UNIT
+
+    { .t=VM_msg,        .x=1,           .y=OP_SEQ+3,    .z=UNDEF        },  // cust
+    { .t=VM_msg,        .x=2,           .y=OP_SEQ+4,    .z=UNDEF        },  // body = opnds
+    { .t=VM_msg,        .x=3,           .y=OP_SEQ+5,    .z=UNDEF        },  // env
+    { .t=VM_push,       .x=K_SEQ_B,     .y=OP_SEQ+6,    .z=UNDEF        },  // K_SEQ_B
+    { .t=VM_new,        .x=3,           .y=SEND_0,      .z=UNDEF        },  // k-seq = (K_SEQ_B cust opnds env)
+
 //
 // Parsing Expression Grammar (PEG) behaviors
 //
-#define G_EMPTY (K_COND+10)
+#define G_EMPTY (OP_SEQ+7)
     { .t=Actor_T,       .x=G_EMPTY+1,   .y=NIL,         .z=UNDEF        },
 #define G_EMPTY_B (G_EMPTY+1)
     { .t=VM_msg,        .x=-2,          .y=G_EMPTY+2,   .z=UNDEF        },  // in
@@ -2675,11 +2684,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { JOIN_BEH, "JOIN_BEH" },
     { FORK_BEH, "FORK_BEH" },
 
-    { K_DEF_B, "K_DEF_B" },
     { CONST_BEH, "CONST_BEH" },
     { BOUND_BEH, "BOUND_BEH" },
     { EVLIS_BEH, "EVLIS_BEH" },
-    { K_SEQ_B, "K_SEQ_B" },
 
     { M_EVAL, "M_EVAL" },
     { M_INVOKE_K, "M_INVOKE_K" },
@@ -2699,6 +2706,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { OP_QUOTE, "OP_QUOTE" },
     { FX_LAMBDA, "FX_LAMBDA" },
     { OP_LAMBDA, "OP_LAMBDA" },
+    { K_DEF_B, "K_DEF_B" },
     { FX_DEFINE, "FX_DEFINE" },
     { OP_DEFINE, "OP_DEFINE" },
     { FX_IF, "FX_IF" },
@@ -2706,6 +2714,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { FX_COND, "FX_COND" },
     { OP_COND, "OP_COND" },
     { K_COND, "K_COND" },
+    { K_SEQ_B, "K_SEQ_B" },
+    { FX_SEQ, "FX_SEQ" },
+    { OP_SEQ, "OP_SEQ" },
 
     { G_EMPTY, "G_EMPTY" },
     { G_FAIL, "G_FAIL" },
@@ -3345,6 +3356,7 @@ int_t init_global_env() {
     bind_global("define", FX_DEFINE);
     bind_global("if", FX_IF);
     bind_global("cond", FX_COND);
+    bind_global("seq", FX_SEQ);
     bind_global("list", F_LIST);
     bind_global("cons", F_CONS);
     bind_global("car", F_CAR);
