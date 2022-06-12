@@ -341,7 +341,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 (define s2 (lambda (x y) x y))
 ```
 
-#### Execution Statistics Test-Case
+### Execution Statistics Test-Case
 
 ```
 ((lambda (x) x) (list 1 2 3))                   ; => (1 2 3)
@@ -364,7 +364,7 @@ Date       | Events | Instructions | Description
 2022-06-04 |   1226 |        14170 | set SP in CREATE
 2022-06-05 |   1226 |        13867 | use RELEASE and RELEASE_0
 
-Bootstrap Library
+#### Bootstrap Library
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
@@ -373,6 +373,7 @@ Date       | Events | Instructions | Description
 2022-06-10 |   9360 |       108706 | M_EVAL pruned `eval`
 2022-06-11 |   9697 |       113301 | parse "\_" as Symbol_T
 2022-06-12 |   9697 |       113301 | `lambda` body is `seq`
+2022-06-12 |  10351 |       120910 | `evlis` is `par`
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
@@ -381,6 +382,7 @@ Date       | Events | Instructions | Description
 2022-06-10 |   1133 |        13055 | M_EVAL pruned `eval`
 2022-06-11 |   1175 |        13629 | parse "\_" as Symbol_T
 2022-06-12 |   1177 |        13652 | `lambda` body is `seq`
+2022-06-12 |   1201 |        13842 | `evlis` is `par`
 
 ## PEG Tools
 
@@ -1061,6 +1063,8 @@ Additional features implemented here are:
   * Introduce `Fexpr_T` for operative interpreters
   * `eval`/`invoke`/`apply` distinguish applicatives/operatives
   * Replace special-cases in `eval` with environment bindings
+  * `lambda` body is `seq`
+  * `evlis` is `par`
 
 The refactored reference-implementation looks like this:
 
@@ -1076,7 +1080,8 @@ The refactored reference-implementation looks like this:
 (define invoke
   (lambda (fn opnds env)
     (if (actor? fn)                     ; _applicative_
-      (apply fn (evlis opnds env) env)
+      ;(apply fn (evlis opnds env) env)
+      (apply fn (CALL op-par (list opnds env)) env)
       (apply fn opnds env))))
 
 (define apply
@@ -1099,17 +1104,21 @@ The refactored reference-implementation looks like this:
           (get-z key)                   ; get top-level binding
           #?))))                        ; value is undefined
 
-(define evalif                          ; if `test` is #f, evaluate `altn`,
-  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
-    (if test
-      (eval cnsq env)
-      (eval altn env))))
-
 (define evlis                           ; map `eval` over a list of operands
   (lambda (opnds env)
     (if (pair? opnds)
       (cons (eval (car opnds) env) (evlis (cdr opnds) env))
       ())))                             ; value is NIL
+
+(define op-par                          ; (par . <exprs>)
+  (CREATE
+    (BEH (cust opnds env)
+      (if (pair? opnds)
+        (SEND
+          (CREATE (fork-beh cust eval op-par))
+          (list ((car opnds) env) ((cdr opnds) env)))
+        (SEND cust ()))
+      )))
 
 (define zip                             ; extend `env` by binding names `xs` to values `ys`
   (lambda (xs ys env)
@@ -1144,6 +1153,12 @@ The refactored reference-implementation looks like this:
       (SEND cust
         (set-z (car opnds) (eval (cadr opnds) env))
       ))))
+
+(define evalif                          ; if `test` is #f, evaluate `altn`,
+  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
+    (if test
+      (eval cnsq env)
+      (eval altn env))))
 
 (define op-if                           ; (if <pred> <cnsq> <altn>)
   (CREATE
@@ -1180,16 +1195,6 @@ The refactored reference-implementation looks like this:
           (CREATE (k-seq-beh cust (cdr body) env))
           (eval (car body) env))
         (SEND cust value)) )))
-
-(define op-par                          ; (par . <exprs>)
-  (CREATE
-    (BEH (cust opnds env)
-      (if (pair? opnds)
-        (SEND
-          (CREATE (fork-beh cust eval op-par))
-          (list ((car opnds) env) ((cdr opnds) env)))
-        (SEND cust ()))
-      )))
 ```
 
 #### Test-Cases

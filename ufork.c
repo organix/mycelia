@@ -23,7 +23,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define COMPILE_QUOTE 0 // compile ' immediately in parser
 #define SCM_PEG_TOOLS 0 // include PEG tools for LISP/Scheme
 #define BOOTSTRAP_LIB 1 // include bootstrap library definitions
-#define EVLIS_IS_PAR  0 // concurrent argument-list evaluation
+#define EVLIS_IS_PAR  1 // concurrent argument-list evaluation
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -774,8 +774,7 @@ cell_t cell_table[CELL_MAX] = {
 #define M_APPLY_K (M_INVOKE+13)
 #define M_APPLY (M_APPLY_K+4)
 #define M_LOOKUP (M_APPLY+17)
-#define M_IF_K (M_LOOKUP+23)
-#define M_EVLIS_P (M_IF_K+7)
+#define M_EVLIS_P (M_LOOKUP+23)
 #define M_EVLIS_K (M_EVLIS_P+4)
 #define M_EVLIS (M_EVLIS_K+6)
 #define FX_PAR (M_EVLIS+14)
@@ -784,6 +783,7 @@ cell_t cell_table[CELL_MAX] = {
 #define CLOSURE_B (M_ZIP+26)
 #define M_EVAL_B (CLOSURE_B+9)
 #define K_SEQ_B (M_EVAL_B+5)
+#define M_IF_K (K_SEQ_B+15)
 
 /*
 (define eval
@@ -850,8 +850,13 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=M_APPLY_K,   .y=M_INVOKE+10, .z=UNDEF        },  // M_APPLY_K
     { .t=VM_new,        .x=3,           .y=M_INVOKE+11, .z=UNDEF        },  // k_apply = (M_APPLY_K env fn cust)
 
+#if EVLIS_IS_PAR
+    { .t=VM_push,       .x=OP_PAR,      .y=M_INVOKE+12, .z=UNDEF        },  // OP_PAR
+    { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (OP_PAR k_apply opnds env)
+#else
     { .t=VM_push,       .x=M_EVLIS,     .y=M_INVOKE+12, .z=UNDEF        },  // M_EVLIS
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVLIS k_apply opnds env)
+#endif
 
 //  { .t=VM_push,       .x=_env_,       .y=M_APPLY_K-2, .z=UNDEF        },
 //  { .t=VM_push,       .x=_fn_,        .y=M_APPLY_K-1, .z=UNDEF        },
@@ -932,27 +937,6 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_typeq,      .x=Symbol_T,    .y=M_LOOKUP+21, .z=UNDEF        },  // key has type Symbol_T
     { .t=VM_if,         .x=M_LOOKUP+22, .y=RV_UNDEF,    .z=UNDEF        },
     { .t=VM_get,        .x=FLD_Z,       .y=CUST_SEND,   .z=UNDEF        },  // global binding from Symbol_T
-
-/*
-(define evalif                          ; if `test` is #f, evaluate `altn`,
-  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
-    (if test
-      (eval cnsq env)
-      (eval altn env))))
-*/
-//  { .t=VM_push,       .x=_cust_,      .y=M_IF_K-2,    .z=UNDEF        },
-//  { .t=VM_push,       .x=_env_,       .y=M_IF_K-1,    .z=UNDEF        },
-//  { .t=VM_push,       .x=_cont_,      .y=M_IF_K+0,    .z=UNDEF        },  // (cnsq altn)
-    { .t=VM_msg,        .x=0,           .y=M_IF_K+1,    .z=UNDEF        },  // bool
-    { .t=VM_if,         .x=M_IF_K+2,    .y=M_IF_K+3,    .z=UNDEF        },
-
-    { .t=VM_nth,        .x=1,           .y=M_IF_K+4,    .z=UNDEF        },  // cnsq
-
-    { .t=VM_nth,        .x=2,           .y=M_IF_K+4,    .z=UNDEF        },  // altn
-
-    { .t=VM_pick,       .x=3,           .y=M_IF_K+5,    .z=UNDEF        },  // cust
-    { .t=VM_push,       .x=M_EVAL,      .y=M_IF_K+6,    .z=UNDEF        },  // M_EVAL
-    { .t=VM_send,       .x=3,           .y=RELEASE,     .z=UNDEF        },  // (M_EVAL cust cnsq/altn env)
 
 /*
 (define evlis                           ; map `eval` over a list of operands
@@ -1140,6 +1124,27 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (K_SEQ_B cust rest env)
 
 /*
+(define evalif                          ; if `test` is #f, evaluate `altn`,
+  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
+    (if test
+      (eval cnsq env)
+      (eval altn env))))
+*/
+//  { .t=VM_push,       .x=_cust_,      .y=M_IF_K-2,    .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=M_IF_K-1,    .z=UNDEF        },
+//  { .t=VM_push,       .x=_cont_,      .y=M_IF_K+0,    .z=UNDEF        },  // (cnsq altn)
+    { .t=VM_msg,        .x=0,           .y=M_IF_K+1,    .z=UNDEF        },  // bool
+    { .t=VM_if,         .x=M_IF_K+2,    .y=M_IF_K+3,    .z=UNDEF        },
+
+    { .t=VM_nth,        .x=1,           .y=M_IF_K+4,    .z=UNDEF        },  // cnsq
+
+    { .t=VM_nth,        .x=2,           .y=M_IF_K+4,    .z=UNDEF        },  // altn
+
+    { .t=VM_pick,       .x=3,           .y=M_IF_K+5,    .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=M_EVAL,      .y=M_IF_K+6,    .z=UNDEF        },  // M_EVAL
+    { .t=VM_send,       .x=3,           .y=RELEASE,     .z=UNDEF        },  // (M_EVAL cust cnsq/altn env)
+
+/*
 (define op-quote                        ; (quote <form>)
   (CREATE
     (BEH (cust opnds env)
@@ -1147,7 +1152,7 @@ cell_t cell_table[CELL_MAX] = {
         (car opnds)
       ))))
 */
-#define FX_QUOTE (K_SEQ_B+15)
+#define FX_QUOTE (M_IF_K+7)
 #define OP_QUOTE (FX_QUOTE+1)
     { .t=Fexpr_T,       .x=OP_QUOTE,    .y=UNDEF,       .z=UNDEF        },  // (quote <form>)
 
@@ -3348,7 +3353,9 @@ int_t init_global_env() {
     bind_global("define", FX_DEFINE);
     bind_global("if", FX_IF);
     bind_global("cond", FX_COND);
+#if !EVLIS_IS_PAR
     bind_global("par", FX_PAR);
+#endif
     bind_global("seq", FX_SEQ);
     bind_global("list", F_LIST);
     bind_global("cons", F_CONS);
@@ -4738,7 +4745,9 @@ int_t debugger() {
  */
 
 static char repl_lib[] =
-//" (define par (lambda _))"
+#if EVLIS_IS_PAR
+" (define par (lambda _))"
+#endif
 " (define caar (lambda (x) (car (car x))))"
 " (define cdar (lambda (x) (cdr (car x))))"
 " (define cddr (lambda (x) (nth -2 x))))"
