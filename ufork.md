@@ -337,6 +337,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 (define n3 (lambda (x) (car (cdr (cdr x)))))    ; equivalent to _caddr_
 (define c (lambda (y) (lambda (x) (list y x))))
 (define length (lambda (p) (if (pair? p) (+ (length (cdr p)) 1) 0)))
+(define s2 (lambda (x y) x y))
 ```
 
 #### Execution Statistics Test-Case
@@ -370,6 +371,7 @@ Date       | Events | Instructions | Description
 2022-06-09 |   7083 |        82342 | M_EVAL pruned `apply`
 2022-06-10 |   9360 |       108706 | M_EVAL pruned `eval`
 2022-06-11 |   9697 |       113301 | parse "\_" as Symbol_T
+2022-06-12 |   9697 |       113301 | `lambda` body is `seq`
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
@@ -377,6 +379,7 @@ Date       | Events | Instructions | Description
 2022-06-09 |   1127 |        13057 | M_EVAL pruned `apply`
 2022-06-10 |   1133 |        13055 | M_EVAL pruned `eval`
 2022-06-11 |   1175 |        13629 | parse "\_" as Symbol_T
+2022-06-12 |   1177 |        13652 | `lambda` body is `seq`
 
 ## PEG Tools
 
@@ -1118,7 +1121,7 @@ The refactored reference-implementation looks like this:
 (define closure-beh                     ; lexically-bound applicative function
   (lambda (frml body env)
     (BEH (cust . args)
-      (eval body (zip frml args env)))))
+      (evbody #unit body (zip frml args env)))))
 
 (define op-quote                        ; (quote <form>)
   (CREATE
@@ -1127,11 +1130,11 @@ The refactored reference-implementation looks like this:
         (car opnds)
       ))))
 
-(define op-lambda                       ; (lambda <frml> <body>)
+(define op-lambda                       ; (lambda <frml> . <body>)
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
-        (CREATE (closure-beh (car opnds) (cadr opnds) env))
+        (CREATE (closure-beh (car opnds) (cdr opnds) env))
       ))))
 
 (define op-define                       ; (define <symbol> <expr>)
