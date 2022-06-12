@@ -23,6 +23,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define COMPILE_QUOTE 0 // compile ' immediately in parser
 #define SCM_PEG_TOOLS 0 // include PEG tools for LISP/Scheme
 #define BOOTSTRAP_LIB 1 // include bootstrap library definitions
+#define EVLIS_IS_PAR  0 // concurrent argument-list evaluation
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -435,7 +436,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // NIL = ()
     { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNDEF = #?
     { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
-    { .t=Event_T,       .x=84,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
+    { .t=Event_T,       .x=91,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
 
 #define SELF_EVAL (START+1)
     { .t=VM_self,       .x=UNDEF,       .y=SELF_EVAL+1, .z=UNDEF        },  // value = SELF
@@ -545,8 +546,39 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=GLOBAL_ENV+1,.y=NIL,         .z=UNDEF        },
     { .t=VM_msg,        .x=-1,          .y=GLOBAL_ENV+2,.z=UNDEF        },  // symbol = key
     { .t=VM_get,        .x=FLD_Z,       .y=CUST_SEND,   .z=UNDEF        },  // get_z(symbol)
+/*
+(define const-beh                       ; constant/literal value
+  (lambda (value)
+    (BEH (cust . _)
+      (SEND value SELF))))
+*/
+#define CONST_BEH (CUST_SEND+0)
+//  { .t=VM_push,       .x=_value_,     .y=CUST_SEND,   .z=UNDEF        },
 
-#define REPL_R (GLOBAL_ENV+3)
+/*
+(define bound-beh
+  (lambda (var val env)
+    (BEH (cust . key)  ; FIXME: implement (cust key value) to "bind"?
+      (if (eq? key var)
+        (SEND cust val)
+        (SEND env (cons cust key))
+      ))))
+*/
+#define BOUND_BEH (GLOBAL_ENV+3)
+//  { .t=VM_push,       .x=_var_,       .y=BOUND_BEH-2, .z=UNDEF        },
+//  { .t=VM_push,       .x=_val_,       .y=BOUND_BEH-1, .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=BOUND_BEH+0, .z=UNDEF        },
+    { .t=VM_msg,        .x=-1,          .y=BOUND_BEH+1, .z=UNDEF        },  // key
+    { .t=VM_pick,       .x=4,           .y=BOUND_BEH+2, .z=UNDEF        },  // var
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=BOUND_BEH+3, .z=UNDEF        },  // key == var
+    { .t=VM_if,         .x=BOUND_BEH+4, .y=BOUND_BEH+5, .z=UNDEF        },
+
+    { .t=VM_pick,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // val
+
+    { .t=VM_msg,        .x=0,           .y=BOUND_BEH+6, .z=UNDEF        },  // msg
+    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // env
+
+#define REPL_R (BOUND_BEH+7)
 #define REPL_E (REPL_R+8)
 #define REPL_P (REPL_E+8)
 #define REPL_L (REPL_P+3)
@@ -568,7 +600,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=NIL,         .y=REPL_E+4,    .z=UNDEF        },  // env = ()
     { .t=VM_msg,        .x=1,           .y=REPL_E+5,    .z=UNDEF        },  // form = sexpr
     { .t=VM_push,       .x=REPL_P,      .y=REPL_E+6,    .z=UNDEF        },  // cust = REPL_P
-    { .t=VM_push,       .x=188,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
+    { .t=VM_push,       .x=166,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL cust form env)
 
     { .t=Actor_T,       .x=REPL_P+1,    .y=NIL,         .z=UNDEF        },
@@ -733,91 +765,10 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (JOIN_BEH cust k_head k_tail)
 
 //
-// Actor-based LISP/Scheme interpreter
+// Meta-circular LISP/Scheme Interpreter
 //
 
-/*
-(define const-beh                       ; constant/literal value
-  (lambda (value)
-    (BEH (cust . _)
-      (SEND value SELF))))
-*/
-#define CONST_BEH (FORK_BEH+18)
-//  { .t=VM_push,       .x=_value_,     .y=CONST_BEH+0, .z=UNDEF        },
-    { .t=VM_msg,        .x=1,           .y=CONST_BEH+1, .z=UNDEF        },  // cust
-    { .t=VM_typeq,      .x=Actor_T,     .y=CONST_BEH+2, .z=UNDEF        },  // cust has type Actor_T
-    { .t=VM_if,         .x=CUST_SEND,   .y=COMMIT,      .z=UNDEF        },
-
-/*
-(define bound-beh
-  (lambda (var val env)
-    (BEH (cust . key)  ; FIXME: implement (cust key value) to "bind"?
-      (if (eq? key var)
-        (SEND cust val)
-        (SEND env (cons cust key))
-      ))))
-*/
-#define BOUND_BEH (CONST_BEH+3)
-//  { .t=VM_push,       .x=_var_,       .y=BOUND_BEH-2, .z=UNDEF        },
-//  { .t=VM_push,       .x=_val_,       .y=BOUND_BEH-1, .z=UNDEF        },
-//  { .t=VM_push,       .x=_env_,       .y=BOUND_BEH+0, .z=UNDEF        },
-    { .t=VM_msg,        .x=-1,          .y=BOUND_BEH+1, .z=UNDEF        },  // key
-    { .t=VM_pick,       .x=4,           .y=BOUND_BEH+2, .z=UNDEF        },  // var
-    { .t=VM_cmp,        .x=CMP_EQ,      .y=BOUND_BEH+3, .z=UNDEF        },  // key == var
-    { .t=VM_if,         .x=BOUND_BEH+4, .y=BOUND_BEH+5, .z=UNDEF        },
-
-    { .t=VM_pick,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // val
-
-    { .t=VM_msg,        .x=0,           .y=BOUND_BEH+6, .z=UNDEF        },  // msg
-    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // env
-
-/*
-(define evlis-beh
-  (lambda (param)
-    (BEH (cust env)                     ; eval
-      (if (pair? param)
-        (SEND
-          (CREATE (fork-beh
-            cust
-            (car param)
-            (CREATE (evlis-beh (cdr param))))) ; BECOME this...
-          (list
-            (list env)
-            (list env)))
-        (SEND param (list cust env))))))
-*/
-#define EVLIS_BEH (BOUND_BEH+7)
-//  { .t=VM_push,       .x=_param_,     .y=EVLIS_BEH+0, .z=UNDEF        },
-    { .t=VM_pick,       .x=1,           .y=EVLIS_BEH+1, .z=UNDEF        },  // param
-    { .t=VM_typeq,      .x=Pair_T,      .y=EVLIS_BEH+2, .z=UNDEF        },  // param has type Pair_T
-    { .t=VM_if,         .x=EVLIS_BEH+5, .y=EVLIS_BEH+3, .z=UNDEF        },
-
-    { .t=VM_msg,        .x=0,           .y=EVLIS_BEH+4, .z=UNDEF        },  // (cust env)  ; eval
-    { .t=VM_pick,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // param
-
-    { .t=VM_pick,       .x=1,           .y=EVLIS_BEH+6, .z=UNDEF        },  // param
-    { .t=VM_part,       .x=1,           .y=EVLIS_BEH+7, .z=UNDEF        },  // rest first
-
-    { .t=VM_pick,       .x=2,           .y=EVLIS_BEH+8, .z=UNDEF        },  // rest
-    { .t=VM_push,       .x=EVLIS_BEH,   .y=EVLIS_BEH+9, .z=UNDEF        },  // EVLIS_BEH
-    { .t=VM_beh,        .x=1,           .y=EVLIS_BEH+10,.z=UNDEF        },  // BECOME (evlis-beh rest)
-
-    { .t=VM_self,       .x=UNDEF,       .y=EVLIS_BEH+11,.z=UNDEF        },  // tail = SELF
-    { .t=VM_pick,       .x=2,           .y=EVLIS_BEH+12,.z=UNDEF        },  // head = first
-    { .t=VM_msg,        .x=1,           .y=EVLIS_BEH+13,.z=UNDEF        },  // cust
-    { .t=VM_push,       .x=FORK_BEH,    .y=EVLIS_BEH+14,.z=UNDEF        },  // FORK_BEH
-    { .t=VM_new,        .x=3,           .y=EVLIS_BEH+15,.z=UNDEF        },  // ev_fork = (FORK_BEH SELF first cust)
-
-    { .t=VM_msg,        .x=-1,          .y=EVLIS_BEH+16,.z=UNDEF        },  // (env)
-    { .t=VM_pick,       .x=1,           .y=EVLIS_BEH+17,.z=UNDEF        },  // t_req h_req
-    { .t=VM_pick,       .x=3,           .y=EVLIS_BEH+18,.z=UNDEF        },  // ev_fork
-    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_fork h_req t_req)
-
-//
-// Meta-circular LISP Interpreter
-//
-
-#define M_EVAL (EVLIS_BEH+19)
+#define M_EVAL (FORK_BEH+18)
 #define M_INVOKE_K (M_EVAL+20)
 #define M_INVOKE (M_INVOKE_K+4)
 #define M_APPLY_K (M_INVOKE+13)
@@ -827,7 +778,9 @@ cell_t cell_table[CELL_MAX] = {
 #define M_EVLIS_P (M_IF_K+7)
 #define M_EVLIS_K (M_EVLIS_P+4)
 #define M_EVLIS (M_EVLIS_K+6)
-#define M_ZIP (M_EVLIS+14)
+#define FX_PAR (M_EVLIS+14)
+#define OP_PAR (FX_PAR+1)
+#define M_ZIP (OP_PAR+20)
 #define CLOSURE_B (M_ZIP+26)
 #define M_EVAL_B (CLOSURE_B+9)
 #define K_SEQ_B (M_EVAL_B+5)
@@ -1042,6 +995,44 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_push,       .x=M_EVAL,      .y=M_EVLIS+13,  .z=UNDEF        },  // M_EVAL
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_eval first env)
+
+/*
+(define op-par                          ; (par . <exprs>)
+  (CREATE
+    (BEH (cust opnds env)
+      (if (pair? opnds)
+        (SEND
+          (CREATE (fork-beh cust eval op-par))
+          (list ((car opnds) env) ((cdr opnds) env)))
+        (SEND cust ()))
+      )))
+*/
+    { .t=Fexpr_T,       .x=OP_PAR,      .y=UNDEF,       .z=UNDEF        },  // (par . <exprs>)
+
+    { .t=Actor_T,       .x=OP_PAR+1,    .y=NIL,         .z=UNDEF        },  // (cust opnds env)
+    { .t=VM_msg,        .x=2,           .y=OP_PAR+2,    .z=UNDEF        },  // exprs = opnds
+    { .t=VM_typeq,      .x=Pair_T,      .y=OP_PAR+3,    .z=UNDEF        },  // exprs has type Pair_T
+    { .t=VM_if,         .x=OP_PAR+4,    .y=RV_NIL,      .z=UNDEF        },
+
+    { .t=VM_push,       .x=NIL,         .y=OP_PAR+5,    .z=UNDEF        },  // ()
+    { .t=VM_msg,        .x=3,           .y=OP_PAR+6,    .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=2,           .y=OP_PAR+7,    .z=UNDEF        },  // exprs = opnds
+    { .t=VM_nth,        .x=-1,          .y=OP_PAR+8,    .z=UNDEF        },  // cdr(exprs)
+    { .t=VM_pair,       .x=2,           .y=OP_PAR+9,    .z=UNDEF        },  // t_req = (cdr(exprs) env)
+
+    { .t=VM_push,       .x=NIL,         .y=OP_PAR+10,   .z=UNDEF        },  // ()
+    { .t=VM_msg,        .x=3,           .y=OP_PAR+11,   .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=2,           .y=OP_PAR+12,   .z=UNDEF        },  // exprs = opnds
+    { .t=VM_nth,        .x=1,           .y=OP_PAR+13,   .z=UNDEF        },  // car(exprs)
+    { .t=VM_pair,       .x=2,           .y=OP_PAR+14,   .z=UNDEF        },  // h_req = (car(exprs) env)
+
+    { .t=VM_push,       .x=OP_PAR,      .y=OP_PAR+15,   .z=UNDEF        },  // tail = OP_PAR
+    { .t=VM_push,       .x=M_EVAL,      .y=OP_PAR+16,   .z=UNDEF        },  // head = M_EVAL
+    { .t=VM_msg,        .x=1,           .y=OP_PAR+17,   .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=FORK_BEH,    .y=OP_PAR+18,   .z=UNDEF        },  // FORK_BEH
+    { .t=VM_new,        .x=3,           .y=OP_PAR+19,   .z=UNDEF        },  // ev_fork = (FORK_BEH OP_PAR M_EVAL cust)
+
+    { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_fork h_req t_req)
 
 /*
 (define zip                             ; extend `env` by binding names `xs` to values `ys`
@@ -2669,6 +2660,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_LANG, "G_LANG" },
     { EMPTY_ENV, "EMPTY_ENV" },
     { GLOBAL_ENV, "GLOBAL_ENV" },
+    { BOUND_BEH, "BOUND_BEH" },
 
     { REPL_R, "REPL_R" },
     { REPL_E, "REPL_E" },
@@ -2686,10 +2678,6 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { JOIN_BEH, "JOIN_BEH" },
     { FORK_BEH, "FORK_BEH" },
 
-    { CONST_BEH, "CONST_BEH" },
-    { BOUND_BEH, "BOUND_BEH" },
-    { EVLIS_BEH, "EVLIS_BEH" },
-
     { M_EVAL, "M_EVAL" },
     { M_INVOKE_K, "M_INVOKE_K" },
     { M_INVOKE, "M_INVOKE" },
@@ -2700,6 +2688,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { M_EVLIS_P, "M_EVLIS_P" },
     { M_EVLIS_K, "M_EVLIS_K" },
     { M_EVLIS, "M_EVLIS" },
+    { FX_PAR, "FX_PAR" },
+    { OP_PAR, "OP_PAR" },
     { M_ZIP, "M_ZIP" },
     { CLOSURE_B, "CLOSURE_B" },
     { M_EVAL_B, "M_EVAL_B" },
@@ -3358,6 +3348,7 @@ int_t init_global_env() {
     bind_global("define", FX_DEFINE);
     bind_global("if", FX_IF);
     bind_global("cond", FX_COND);
+    bind_global("par", FX_PAR);
     bind_global("seq", FX_SEQ);
     bind_global("list", F_LIST);
     bind_global("cons", F_CONS);

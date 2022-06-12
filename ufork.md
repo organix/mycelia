@@ -282,6 +282,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(quote `_expr_`)`
   * `(list . `_values_`)`
   * `(lambda `_formals_` . `_body_`)`
+  * `(par .  `_exprs_`)`
   * `(seq . `_body_`)`
   * `(define `_symbol_` `_value_`)`
   * `(cons `_head_` `_tail_`)`
