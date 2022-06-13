@@ -40,6 +40,9 @@
       (or (eq? x (car xs)) (member? x (cdr xs)))
       #f)))
 
+(define macro (vau (frml . body) _
+  (eval (list vau frml '_env_ (list eval (cons seq body) '_env_))) ))
+
 ;
 ; pure-functional dequeue
 ;

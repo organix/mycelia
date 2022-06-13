@@ -378,6 +378,7 @@ Date       | Events | Instructions | Description
 2022-06-11 |   9697 |       113301 | parse "\_" as Symbol_T
 2022-06-12 |   9697 |       113301 | `lambda` body is `seq`
 2022-06-12 |  10351 |       120910 | `evlis` is `par`
+2022-06-13 |  14918 |       174403 | implement `vau` and `macro`
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
@@ -387,6 +388,7 @@ Date       | Events | Instructions | Description
 2022-06-11 |   1175 |        13629 | parse "\_" as Symbol_T
 2022-06-12 |   1177 |        13652 | `lambda` body is `seq`
 2022-06-12 |   1201 |        13842 | `evlis` is `par`
+2022-06-13 |   1177 |        13652 | implement `vau` and `macro`
 
 ## PEG Tools
 

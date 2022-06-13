@@ -11,7 +11,7 @@
 (define integer? number?)  ; integers are currently the only number type implemented
 
 (define when
-  (macro (cond . body) _
+  (macro (cond . body)
     (list if cond (cons seq body) #unit)))
 
 (define cond
