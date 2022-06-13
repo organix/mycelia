@@ -282,6 +282,8 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(quote `_expr_`)`
   * `(list . `_values_`)`
   * `(lambda `_formals_` . `_body_`)`
+  * `(vau `_formals_` `_evar_` . `_body_`)`
+  * `(macro `_formals_` . `_body_`)`
   * `(par .  `_exprs_`)`
   * `(seq . `_body_`)`
   * `(define `_symbol_` `_value_`)`
@@ -317,8 +319,10 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(cdar `_list_`)`
   * `(cddr `_list_`)`
   * `(cadddr `_list_`)`
+  * `(not `_bool_`)`
   * `(length `_list_`)`
   * `(list* `_value_` . `_values_`)`
+  * `(current-env)`
 
 ### Lambda Compilation Test-Cases
 
@@ -1145,6 +1149,163 @@ The refactored reference-implementation looks like this:
     (BEH (cust opnds env)
       (SEND cust
         (CREATE (closure-beh (car opnds) (cdr opnds) env))
+      ))))
+
+(define op-define                       ; (define <symbol> <expr>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust
+        (set-z (car opnds) (eval (cadr opnds) env))
+      ))))
+
+(define evalif                          ; if `test` is #f, evaluate `altn`,
+  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
+    (if test
+      (eval cnsq env)
+      (eval altn env))))
+
+(define op-if                           ; (if <pred> <cnsq> <altn>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust
+        (evalif (eval (car opnds) env) (cadr opnds) (caddr opnds) env)
+      ))))
+
+(define op-cond                         ; (cond (<test> <expr>) . <clauses>)
+  (CREATE
+    (BEH (cust opnds env)
+      (if (pair? (car opnds))
+        (if (eval (caar opnds) env)
+          (SEND cust (eval (cadr (car opnds)) env))
+          (SEND SELF (list cust (cdr opnds) env)))
+        (SEND cust #?)) )))
+
+(define evbody                          ; evaluate a list of expressions,
+  (lambda (value body env)              ; returning the value of the last.
+    (if (pair? body)
+      (evbody (eval (car body) env) (cdr body) env)
+      value)))
+(define op-seq                          ; (seq . <body>)
+  (CREATE
+    (BEH (cust opnds env)
+      ;(SEND cust (evbody #unit opnds env))
+      (SEND (CREATE (k-seq-beh cust opnds env)) #unit)
+    )))
+(define k-seq-beh
+  (lambda (cust body env)
+    (BEH value
+      (if (pair? body)
+        (SEND
+          (CREATE (k-seq-beh cust (cdr body) env))
+          (eval (car body) env))
+        (SEND cust value)) )))
+```
+
+We now have a fully-functional interpreter implementation.
+Its structure is significantly different that McCarthy's original,
+but it establishes a solid foundation.
+Building on this foundation,
+we add extensions to enhance modularity and flexibility.
+
+Additional features implemented here are:
+
+  * General operative constructor `vau`
+  * More useful `macro` operative constructor
+  * `quasiquote`, et. al. for ease of use
+  * `define` mutates local bindings (not just globals)
+
+The extended reference-implementation looks like this:
+
+```
+(define eval
+  (lambda (form env)
+    (if (symbol? form)                  ; bound variable
+      (lookup form env)
+      (if (pair? form)                  ; procedure call
+        (invoke (eval (car form) env) (cdr form) env)
+        form))))                        ; self-evaluating form
+
+(define invoke
+  (lambda (fn opnds env)
+    (if (actor? fn)                     ; _applicative_
+      ;(apply fn (evlis opnds env) env)
+      (apply fn (CALL op-par (list opnds env)) env)
+      (apply fn opnds env))))
+
+(define apply
+  (lambda (fn args env)
+    (if (actor? fn)
+      (CALL fn args)
+      (if (fexpr? fn)
+        (CALL (get-x fn) (list args env))
+        #?))))
+
+(define lookup                          ; look up variable binding in environment
+  (lambda (key env)
+    (if (pair? env)                     ; association list
+      (if (eq? (caar env) key)
+        (cdar env)
+        (lookup key (cdr env)))
+      (if (actor? env)
+        (CALL env key)                  ; delegate to actor environment
+        (if (symbol? key)
+          (get-z key)                   ; get top-level binding
+          #?))))                        ; value is undefined
+
+(define evlis                           ; map `eval` over a list of operands
+  (lambda (opnds env)
+    (if (pair? opnds)
+      (cons (eval (car opnds) env) (evlis (cdr opnds) env))
+      ())))                             ; value is NIL
+
+(define op-par                          ; (par . <exprs>)
+  (CREATE
+    (BEH (cust opnds env)
+      (if (pair? opnds)
+        (SEND
+          (CREATE (fork-beh cust eval op-par))
+          (list ((car opnds) env) ((cdr opnds) env)))
+        (SEND cust ()))
+      )))
+
+(define zip                             ; extend `env` by binding names `xs` to values `ys`
+  (lambda (xs ys env)
+    (if (pair? xs)
+      (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
+      (if (symbol? xs)
+        (cons (cons xs ys) env)         ; dotted-tail binds to &rest
+        env))))
+
+(define closure-beh                     ; lexically-bound applicative procedure
+  (lambda (frml body env)
+    (BEH (cust . args)
+      (evbody #unit body (zip frml args env)))))
+
+(define fexpr-beh                       ; lexically-bound operative procedure
+  (lambda (frml body denv)
+    (BEH (cust opnds senv)
+      (evbody #unit body (zip frml (cons denv args) senv)))))
+
+(define op-quote                        ; (quote <form>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust
+        (car opnds)
+      ))))
+
+(define op-lambda                       ; (lambda <frml> . <body>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust
+        (CREATE (closure-beh (car opnds) (cdr opnds) env))
+      ))))
+
+(define op-vau                          ; (vau <frml> <evar> . <body>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust
+        (cell Fexpr_T
+          (CREATE (fexpr-beh (cons (cadr opnds) (car opnds)) (cddr opnds) env)))
       ))))
 
 (define op-define                       ; (define <symbol> <expr>)

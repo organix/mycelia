@@ -774,7 +774,8 @@ cell_t cell_table[CELL_MAX] = {
 #define M_ZIP (OP_PAR+20)
 #define CLOSURE_B (M_ZIP+26)
 #define M_EVAL_B (CLOSURE_B+9)
-#define K_SEQ_B (M_EVAL_B+5)
+#define FEXPR_B (M_EVAL_B+5)
+#define K_SEQ_B (FEXPR_B+11)
 #define M_IF_K (K_SEQ_B+15)
 
 /*
@@ -1053,7 +1054,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pair,       .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // tail' = ((x . y) . tail)
 
 /*
-(define closure-beh                     ; lexically-bound applicative function
+(define closure-beh                     ; lexically-bound applicative procedure
   (lambda (frml body env)
     (BEH (cust . args)
       (evbody #unit body (zip frml args env)))))
@@ -1081,6 +1082,31 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=0,           .y=M_EVAL_B+3,  .z=UNDEF        },  // env
     { .t=VM_push,       .x=K_SEQ_B,     .y=M_EVAL_B+4,  .z=UNDEF        },  // K_SEQ_B
     { .t=VM_new,        .x=3,           .y=SEND_0,      .z=UNDEF        },  // k-seq = (K_SEQ_B cust body env)
+
+/*
+(define fexpr-beh                       ; lexically-bound operative procedure
+  (lambda (frml body senv)
+    (BEH (cust opnds denv)
+      (evbody #unit body (zip frml (cons denv args) senv)))))
+*/
+//  { .t=VM_push,       .x=_frml_,      .y=FEXPR_B-2,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_body_,      .y=FEXPR_B-1,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_senv_,      .y=FEXPR_B+0,   .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=FEXPR_B+1,   .z=UNDEF        },  // senv
+
+    { .t=VM_msg,        .x=2,           .y=FEXPR_B+2,   .z=UNDEF        },  // opnds
+    { .t=VM_msg,        .x=3,           .y=FEXPR_B+3,   .z=UNDEF        },  // denv
+    { .t=VM_pair,       .x=1,           .y=FEXPR_B+4,   .z=UNDEF        },  // opnds' = (denv . opnds)
+
+    { .t=VM_pick,       .x=5,           .y=FEXPR_B+5,   .z=UNDEF        },  // frml'
+
+    { .t=VM_msg,        .x=1,           .y=FEXPR_B+6,   .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=6,           .y=FEXPR_B+7,   .z=UNDEF        },  // body
+    { .t=VM_push,       .x=M_EVAL_B,    .y=FEXPR_B+8,   .z=UNDEF        },  // M_EVAL_B
+    { .t=VM_new,        .x=2,           .y=FEXPR_B+9,   .z=UNDEF        },  // k_eval = (M_EVAL_B cust body)
+
+    { .t=VM_push,       .x=M_ZIP,       .y=FEXPR_B+10,  .z=UNDEF        },  // M_ZIP
+    { .t=VM_send,       .x=4,           .y=COMMIT,      .z=UNDEF        },  // (M_ZIP k_eval frml' opnds' senv)
 
 /*
 (define k-seq-beh
@@ -1162,7 +1188,7 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define FX_LAMBDA (OP_QUOTE+3)
 #define OP_LAMBDA (FX_LAMBDA+1)
-    { .t=Fexpr_T,       .x=OP_LAMBDA,   .y=UNDEF,       .z=UNDEF        },  // (lambda <frml> <body>)
+    { .t=Fexpr_T,       .x=OP_LAMBDA,   .y=UNDEF,       .z=UNDEF        },  // (lambda <frml> . <body>)
 
     { .t=Actor_T,       .x=OP_LAMBDA+1, .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=VM_msg,        .x=2,           .y=OP_LAMBDA+2, .z=UNDEF        },  // opnds
@@ -1174,13 +1200,43 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_new,        .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // closure = (CLOSURE_B frml body env)
 
 /*
+(define op-vau                          ; (vau <frml> <evar> . <body>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust
+        (cell Fexpr_T
+          (CREATE (fexpr-beh (cons (cadr opnds) (car opnds)) (cddr opnds) env)))
+      ))))
+*/
+#define FX_VAU (OP_LAMBDA+8)
+#define OP_VAU (FX_VAU+1)
+    { .t=Fexpr_T,       .x=OP_VAU,      .y=UNDEF,       .z=UNDEF        },  // (vau <frml> <evar> . <body>)
+
+    { .t=Actor_T,       .x=OP_VAU+1,    .y=NIL,         .z=UNDEF        },  // (cust opnds env)
+    { .t=VM_push,       .x=Fexpr_T,     .y=OP_VAU+2,    .z=UNDEF        },  // Fexpr_T
+
+    { .t=VM_msg,        .x=2,           .y=OP_VAU+3,    .z=UNDEF        },  // opnds
+    { .t=VM_nth,        .x=1,           .y=OP_VAU+4,    .z=UNDEF        },  // frml = car(opnds)
+    { .t=VM_msg,        .x=2,           .y=OP_VAU+5,    .z=UNDEF        },  // opnds
+    { .t=VM_nth,        .x=2,           .y=OP_VAU+6,    .z=UNDEF        },  // evar = cadr(opnds)
+    { .t=VM_pair,       .x=1,           .y=OP_VAU+7,    .z=UNDEF        },  // frml' = (evar . frml)
+
+    { .t=VM_msg,        .x=2,           .y=OP_VAU+8,    .z=UNDEF        },  // opnds
+    { .t=VM_nth,        .x=-2,          .y=OP_VAU+9,    .z=UNDEF        },  // body = cddr(opnds)
+    { .t=VM_msg,        .x=3,           .y=OP_VAU+10,   .z=UNDEF        },  // senv = env
+    { .t=VM_push,       .x=FEXPR_B,     .y=OP_VAU+11,   .z=UNDEF        },  // FEXPR_B
+    { .t=VM_new,        .x=3,           .y=OP_VAU+12,   .z=UNDEF        },  // oper = (FEXPR_B frml' body senv)
+
+    { .t=VM_cell,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // fexpr = {t:Fexpr_T, x:oper}
+
+/*
 (define k-define-beh
   (lambda (cust symbol)
     (BEH value
       (SEND cust
         (set_z symbol value)))))
 */
-#define K_DEF_B (OP_LAMBDA+8)
+#define K_DEF_B (OP_VAU+13)
 //  { .t=VM_push,       .x=_cust_,      .y=K_DEF_B-1,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_symbol_,    .y=K_DEF_B+0,   .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_DEF_B+1,   .z=UNDEF        },  // value
@@ -2650,12 +2706,15 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { M_ZIP, "M_ZIP" },
     { CLOSURE_B, "CLOSURE_B" },
     { M_EVAL_B, "M_EVAL_B" },
+    { FEXPR_B, "FEXPR_B" },
     { K_SEQ_B, "K_SEQ_B" },
 
     { FX_QUOTE, "FX_QUOTE" },
     { OP_QUOTE, "OP_QUOTE" },
     { FX_LAMBDA, "FX_LAMBDA" },
     { OP_LAMBDA, "OP_LAMBDA" },
+    { FX_VAU, "FX_VAU" },
+    { OP_VAU, "OP_VAU" },
     { K_DEF_B, "K_DEF_B" },
     { FX_DEFINE, "FX_DEFINE" },
     { OP_DEFINE, "OP_DEFINE" },
@@ -3302,6 +3361,7 @@ int_t init_global_env() {
     bind_global("apply", M_APPLY);
     //bind_global("quote", FX_QUOTE);  // statically bound
     bind_global("lambda", FX_LAMBDA);
+    bind_global("vau", FX_VAU);
     bind_global("define", FX_DEFINE);
     bind_global("if", FX_IF);
     bind_global("cond", FX_COND);
@@ -4013,7 +4073,7 @@ PROC_DECL(vm_cmp) {
 
 PROC_DECL(vm_if) {
     int_t b = stack_pop();
-    if (b == UNDEF) return error("undefined condition");
+    //if (b == UNDEF) return error("undefined condition");
     return ((b == FALSE) ? get_y(self) : get_x(self));
 }
 
@@ -4704,8 +4764,10 @@ static char repl_lib[] =
 " (define cdar (lambda (x) (cdr (car x))))"
 " (define cddr (lambda (x) (nth -2 x))))"
 " (define cadddr (lambda (x) (nth 4 x))))"
+" (define not (lambda (x) (if x #f #t))))"
 " (define length (lambda (x) (if (pair? x) (+ (length (cdr x)) 1) 0)))"
 " (define list* (lambda (h . t) (if (pair? t) (cons h (apply list* t)) h)))"
+" (define current-env (vau _ e e))"
 " \0";
 static char *repl_inp = repl_lib;
 
