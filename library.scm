@@ -2,7 +2,17 @@
 ;; library.scm (extended library definitions)
 ;;
 
+(define current-env (vau _ e e))
+;(define qlist (macro x (list quote x)))
+(define qlist (vau x _ x))
+(define quote (vau (x) _ x))
+(define seq (macro body _ (list (list* 'lambda '_ body))))
+
 (define integer? number?)  ; integers are currently the only number type implemented
+
+(define when
+  (macro (cond . body) _
+    (list if cond (cons seq body) #unit)))
 
 (define cond
   (macro clauses
@@ -96,9 +106,3 @@
 (define atom? (lambda (x) (and (not (pair? x)) (not (null? x)))))
 (define add1 (lambda (x) (+ x 1)))
 (define sub1 (lambda (x) (- x 1)))
-
-; Handy Special Forms
-(define current-env (vau _ e e))
-;(define qlist (macro x (list quote x)))
-(define qlist (vau x _ x))
-(define quote (vau (x) _ x))

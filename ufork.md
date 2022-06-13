@@ -1356,6 +1356,12 @@ The extended reference-implementation looks like this:
           (CREATE (k-seq-beh cust (cdr body) env))
           (eval (car body) env))
         (SEND cust value)) )))
+
+(define macro                           ; (macro <frml> . <body>)
+  (vau (frml . body) _
+    (eval
+      (list vau frml '_env_
+        (list eval (cons seq body) '_env_))) ))
 ```
 
 #### Test-Cases

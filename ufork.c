@@ -4768,6 +4768,7 @@ static char repl_lib[] =
 " (define length (lambda (x) (if (pair? x) (+ (length (cdr x)) 1) 0)))"
 " (define list* (lambda (h . t) (if (pair? t) (cons h (apply list* t)) h)))"
 " (define current-env (vau _ e e))"
+" (define macro (vau (frml . body) _ (eval (list vau frml '_env_ (list eval (cons seq body) '_env_))) ))"
 " \0";
 static char *repl_inp = repl_lib;
 
