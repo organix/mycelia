@@ -275,12 +275,14 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 
 ## LISP/Scheme Ground Environment
 
-### Primitive Procedures (and values)
-
+  * `peg-lang  ; REPL grammar`
   * `empty-env`
   * `global-env`
   * `(quote `_expr_`)`
+  * `(eval `_expr_` . `_optenv_`)`
+  * `(apply `_proc_` `_args_` . `_optenv_`)`
   * `(list . `_values_`)`
+  * `(list* `_value_` . `_values_`)`
   * `(lambda `_formals_` . `_body_`)`
   * `(vau `_formals_` `_evar_` . `_body_`)`
   * `(macro `_formals_` . `_body_`)`
@@ -291,7 +293,12 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(car `_list_`)`
   * `(cdr `_list_`)`
   * `(cadr `_list_`)`
+  * `(caar `_list_`)`
+  * `(cdar `_list_`)`
+  * `(cddr `_list_`)`
   * `(caddr `_list_`)`
+  * `(cadar `_list_`)`
+  * `(cadddr `_list_`)`
   * `(nth `_index_` `_list_`)`
   * `(null? . `_values_`)`
   * `(pair? . `_values_`)`
@@ -299,6 +306,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(number? . `_values_`)`
   * `(symbol? . `_values_`)`
   * `(actor? . `_values_`)`
+  * `(not `_bool_`)`
   * `(if `_test_` `_consequence_` `_alternative_`)`
   * `(cond (`_test_` `_expr_`) . `_clauses_`)`
   * `(eq? . `_values_`)`
@@ -308,21 +316,10 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(+ . `_numbers_`)`
   * `(- . `_numbers_`)`
   * `(* . `_numbers_`)`
-  * `peg-lang  ; REPL grammar`
-  * `(eval `_expr_` . `_optenv_`)`
-  * `(apply `_proc_` `_args_` . `_optenv_`)`
-  * `(quit)`
-
-### Derived Procedures
-
-  * `(caar `_list_`)`
-  * `(cdar `_list_`)`
-  * `(cddr `_list_`)`
-  * `(cadddr `_list_`)`
-  * `(not `_bool_`)`
   * `(length `_list_`)`
-  * `(list* `_value_` . `_values_`)`
+  * `(append . `_lists_`)`
   * `(current-env)`
+  * `(quit)`
 
 ### Lambda Compilation Test-Cases
 
@@ -379,6 +376,7 @@ Date       | Events | Instructions | Description
 2022-06-12 |   9697 |       113301 | `lambda` body is `seq`
 2022-06-12 |  10351 |       120910 | `evlis` is `par`
 2022-06-13 |  14918 |       174403 | implement `vau` and `macro`
+2022-06-14 |  34819 |       407735 | Quasi-Quotation with `vau`
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
@@ -389,6 +387,7 @@ Date       | Events | Instructions | Description
 2022-06-12 |   1177 |        13652 | `lambda` body is `seq`
 2022-06-12 |   1201 |        13842 | `evlis` is `par`
 2022-06-13 |   1177 |        13652 | implement `vau` and `macro`
+2022-06-14 |   1177 |        13652 | Quasi-Quotation with `vau`
 
 ## PEG Tools
 
@@ -481,9 +480,19 @@ NIL or --->[token,next]--->
 
 ```
 (define scm-symbol (peg-xform list->symbol (peg-plus (peg-class DGT UPR LWR SYM))))
-(define scm-quoted (peg-xform (lambda (x) (list quote (cdr x)))
-  (peg-and (peg-eq 39) (peg-call scm-expr))))
+(define scm-quoted (peg-alt
+  (peg-xform (lambda (x) (list 'quote (cdr x)))
+    (peg-and (peg-eq 39) (peg-call scm-expr)))
+  (peg-xform (lambda (x) (list 'quasiquote (cdr x)))
+    (peg-and (peg-eq 96) (peg-call scm-expr)))
+  (peg-xform (lambda (x) (list 'unquote-splicing (cddr x)))
+    (peg-and (peg-eq 44) (peg-and (peg-eq 64) (peg-call scm-expr))))
+  (peg-xform (lambda (x) (list 'unquote (cdr x)))
+    (peg-and (peg-eq 44) (peg-call scm-expr)))
+  ))
+```
 
+```
 (define scm-dotted (peg-xform caddr
   (peg-seq scm-optwsp (peg-eq 46) (peg-call scm-sexpr) scm-optwsp (peg-eq 41))))
 (define scm-tail (peg-xform cdr (peg-and
@@ -1178,7 +1187,7 @@ The refactored reference-implementation looks like this:
     (BEH (cust opnds env)
       (if (pair? (car opnds))
         (if (eval (caar opnds) env)
-          (SEND cust (eval (cadr (car opnds)) env))
+          (SEND cust (eval (cadar opnds) env))
           (SEND SELF (list cust (cdr opnds) env)))
         (SEND cust #?)) )))
 
@@ -1335,7 +1344,7 @@ The extended reference-implementation looks like this:
     (BEH (cust opnds env)
       (if (pair? (car opnds))
         (if (eval (caar opnds) env)
-          (SEND cust (eval (cadr (car opnds)) env))
+          (SEND cust (eval (cadar opnds) env))
           (SEND SELF (list cust (cdr opnds) env)))
         (SEND cust #?)) )))
 
@@ -1364,6 +1373,25 @@ The extended reference-implementation looks like this:
     (eval
       (list vau frml '_env_
         (list eval (cons seq body) '_env_))) ))
+
+(define quasiquote
+  (vau (x) e
+    (if (pair? x)
+      (if (eq? (car x) 'unquote)
+        (eval (cadr x) e)
+        (if (eq? (car x) 'quasiquote)
+          (eval x e)
+          (quasi-list x)))
+      x)))
+(define quasi-list
+  (lambda (x)
+    (if (pair? x)
+      (if (pair? (car x))
+        (if (eq? (caar x) 'unquote-splicing)
+          (append (eval (cadar x) e) (quasi-list (cdr x)))
+          (cons (apply quasiquote (car x) e) (quasi-list (cdr x))))
+        (cons (car x) (quasi-list (cdr x))))
+      x)))
 ```
 
 #### Test-Cases

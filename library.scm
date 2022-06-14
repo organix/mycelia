@@ -2,6 +2,8 @@
 ;; library.scm (extended library definitions)
 ;;
 
+(define cadar (lambda (x) (car (cdr (car x)))))
+
 (define current-env (vau _ e e))
 ;(define qlist (macro x (list quote x)))
 (define qlist (vau x _ x))
@@ -33,16 +35,17 @@
 (define append
   (lambda x
     (if (pair? x)
-      (apply (lambda (h . t)
-        (if (pair? t)
-          (if (null? h)
-            (apply append t)
-            (cons
-              (car h)
-              (apply append (cons (cdr h) t)) ))
-        h)
-      ) x)
-      x) ))
+      (apply
+        (lambda (h . t)
+          (if (pair? t)
+            (if (pair? h)
+              (cons
+                (car h)
+                (apply append (cons (cdr h) t)))
+              (apply append t))
+            h))
+        x)
+      x)))
 
 (define filter
   (lambda (pred? list)
@@ -101,6 +104,26 @@
 (define newline
   (lambda ()
     (emit 10)))
+
+; Quasi-Quotation based on `vau`
+(define quasiquote
+  (vau (x) e
+    (if (pair? x)
+      (if (eq? (car x) 'unquote)
+        (eval (cadr x) e)
+        (if (eq? (car x) 'quasiquote)
+          (eval x e)
+          (quasi-list x)))
+      x)))
+(define quasi-list
+  (lambda (x)
+    (if (pair? x)
+      (if (pair? (car x))
+        (if (eq? (caar x) 'unquote-splicing)
+          (append (eval (cadar x) e) (quasi-list (cdr x)))
+          (cons (apply quasiquote (list (car x)) e) (quasi-list (cdr x))))
+        (cons (car x) (quasi-list (cdr x))))
+      x)))
 
 ; Little Schemer (4th edition)
 (define atom? (lambda (x) (and (not (pair? x)) (not (null? x)))))

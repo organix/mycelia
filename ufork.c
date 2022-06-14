@@ -20,7 +20,6 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define EXPLICIT_FREE 1 // explicitly free known-dead memory
 #define MARK_SWEEP_GC 1 // stop-the-world garbage collection
 #define RUNTIME_STATS 1 // collect statistics on the runtime
-#define COMPILE_QUOTE 0 // compile ' immediately in parser -- DOES NOT WORK!
 #define SCM_PEG_TOOLS 0 // include PEG tools for LISP/Scheme
 #define BOOTSTRAP_LIB 1 // include bootstrap library definitions
 #define EVLIS_IS_PAR  0 // concurrent argument-list evaluation
@@ -1302,7 +1301,7 @@ cell_t cell_table[CELL_MAX] = {
     (BEH (cust opnds env)
       (if (pair? (car opnds))
         (if (eval (caar opnds) env)
-          (SEND cust (eval (cadr (car opnds)) env))
+          (SEND cust (eval (cadar opnds) env))
           (SEND SELF (list cust (cdr opnds) env)))
         (SEND cust #?)) )))
 */
@@ -1679,11 +1678,53 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Pair_T,        .x=TO_FIX('t'), .y=S_QUOTE+5,   .z=UNDEF        },
     { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
 
+#define S_QQUOTE (S_QUOTE+6)
+    { .t=Symbol_T,      .x=0,           .y=S_QQUOTE+1,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QQUOTE+2,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QQUOTE+3,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('a'), .y=S_QQUOTE+4,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('s'), .y=S_QQUOTE+5,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_QQUOTE+6,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QQUOTE+7,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QQUOTE+8,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_QQUOTE+9,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_QQUOTE+10, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
+
+#define S_UNQUOTE (S_QQUOTE+11)
+    { .t=Symbol_T,      .x=0,           .y=S_UNQUOTE+1, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_UNQUOTE+2, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_UNQUOTE+3, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_UNQUOTE+4, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_UNQUOTE+5, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_UNQUOTE+6, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_UNQUOTE+7, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
+
+#define S_QSPLICE (S_UNQUOTE+8)
+    { .t=Symbol_T,      .x=0,           .y=S_QSPLICE+1, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QSPLICE+2, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_QSPLICE+3, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QSPLICE+4, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QSPLICE+5, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_QSPLICE+6, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_QSPLICE+7, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=S_QSPLICE+8, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('-'), .y=S_QSPLICE+9, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('s'), .y=S_QSPLICE+10,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('p'), .y=S_QSPLICE+11,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('l'), .y=S_QSPLICE+12,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_QSPLICE+13,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('c'), .y=S_QSPLICE+14,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_QSPLICE+15,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_QSPLICE+16,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('g'), .y=NIL,         .z=UNDEF        },
+
 //
 // Parsing Expression Grammar (PEG) behaviors
 //
 
-#define G_EMPTY (S_QUOTE+6)
+#define G_EMPTY (S_QSPLICE+17)
     { .t=Actor_T,       .x=G_EMPTY+1,   .y=NIL,         .z=UNDEF        },
 #define G_EMPTY_B (G_EMPTY+1)
     { .t=VM_msg,        .x=-2,          .y=G_EMPTY+2,   .z=UNDEF        },  // in
@@ -2213,8 +2254,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
 //
 
 /*
- * (define peg-end (peg-not peg-any))  ; end of input
- */
+(define peg-end (peg-not peg-any))  ; end of input
+*/
 #define G_END (F_S_CHAIN+5)
 #else // !SCM_PEG_TOOLS
 #define G_END (S_NEXT_C+10)
@@ -2223,15 +2264,15 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_ANY,       .y=G_NOT_B,     .z=UNDEF        },
 
 /*
- * (define lex-eol (peg-eq 10))  ; end of line
- */
+(define lex-eol (peg-eq 10))  ; end of line
+*/
 #define G_EOL (G_END+2)
     { .t=Actor_T,       .x=G_EOL+1,     .y=NIL,         .z=UNDEF        },  // (peg-eq 10)
     { .t=VM_push,       .x=TO_FIX('\n'),.y=G_EQ_B,      .z=UNDEF        },  // value = '\n' = 10
 
 /*
- * (define lex-optwsp (peg-star (peg-class WSP)))
- */
+(define lex-optwsp (peg-star (peg-class WSP)))
+*/
 #define G_WSP (G_EOL+2)
     { .t=Actor_T,       .x=G_WSP+1,     .y=NIL,         .z=UNDEF        },  // (peg-class WSP)
     { .t=VM_push,       .x=WSP,         .y=G_CLS_B,     .z=UNDEF        },
@@ -2240,8 +2281,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_WSP,       .y=G_STAR_B,    .z=UNDEF        },
 
 /*
- * (define scm-to-eol (peg-or lex-eol (peg-and peg-any (peg-call scm-to-eol))))
- */
+(define scm-to-eol (peg-or lex-eol (peg-and peg-any (peg-call scm-to-eol))))
+*/
 #define G_TO_EOL (G_WSP_S+2)
     { .t=Actor_T,       .x=G_TO_EOL+1,  .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
     { .t=VM_push,       .x=G_EOL,       .y=G_TO_EOL+2,  .z=UNDEF        },  // first = lex-eol
@@ -2252,8 +2293,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_TO_EOL,    .y=G_AND_B,     .z=UNDEF        },  // rest = scm-to-eol
 
 /*
- * (define scm-comment (peg-and (peg-eq 59) scm-to-eol))
- */
+(define scm-comment (peg-and (peg-eq 59) scm-to-eol))
+*/
 #define G_SEMIC (G_TO_EOL+6)
     { .t=Actor_T,       .x=G_SEMIC+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 59)
     { .t=VM_push,       .x=TO_FIX(';'), .y=G_EQ_B,      .z=UNDEF        },  // value = ';' = 59
@@ -2263,8 +2304,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_TO_EOL,    .y=G_AND_B,     .z=UNDEF        },  // rest = scm-to-eol
 
 /*
- * (define scm-optwsp (peg-star (peg-or scm-comment (peg-class WSP))))
- */
+(define scm-optwsp (peg-star (peg-or scm-comment (peg-class WSP))))
+*/
 #define G_OPTWSP (G_COMMENT+3)
     { .t=Actor_T,       .x=G_OPTWSP+1,  .y=NIL,         .z=UNDEF        },  // (peg-star <ptrn>)
     { .t=VM_push,       .x=G_OPTWSP+2,  .y=G_STAR_B,    .z=UNDEF        },  // ptrn
@@ -2274,8 +2315,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_WSP,       .y=G_OR_B,      .z=UNDEF        },  // rest = (peg-class WSP)
 
 /*
- * (define lex-eot (peg-not (peg-class DGT UPR LWR SYM)))  ; end of token
- */
+(define lex-eot (peg-not (peg-class DGT UPR LWR SYM)))  ; end of token
+*/
 #define G_PRT (G_OPTWSP+5)
     { .t=Actor_T,       .x=G_PRT+1,     .y=NIL,         .z=UNDEF        },  // (peg-class DGT UPR LWR SYM)
     { .t=VM_push,   .x=DGT|UPR|LWR|SYM, .y=G_CLS_B,     .z=UNDEF        },
@@ -2284,8 +2325,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_PRT,       .y=G_NOT_B,     .z=UNDEF        },
 
 /*
- * (define scm-ignore (peg-xform (lambda _ '_) (peg-and (peg-plus (peg-eq 95)) lex-eot)))
- */
+(define scm-ignore (peg-xform (lambda _ '_) (peg-and (peg-plus (peg-eq 95)) lex-eot)))
+*/
 #define G_UNDER (G_EOT+2)
     { .t=Actor_T,       .x=G_UNDER+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 95)
     { .t=VM_push,       .x=TO_FIX('_'), .y=G_EQ_B,      .z=UNDEF        },  // value = '_' = 95
@@ -2305,15 +2346,15 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_UNDER,     .y=G_PLUS_B,    .z=UNDEF        },  // ptrn = (peg-eq 95)
 
 /*
- * (define scm-const (peg-xform cadr (peg-seq
- *   (peg-eq 35)
- *   (peg-alt
- *     (peg-xform (lambda _ #f) (peg-eq 102))
- *     (peg-xform (lambda _ #t) (peg-eq 116))
- *     (peg-xform (lambda _ #?) (peg-eq 63))
- *     (peg-xform (lambda _ #unit) (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116))))
- *   lex-eot)))
- */
+(define scm-const (peg-xform cadr (peg-seq
+  (peg-eq 35)
+  (peg-alt
+    (peg-xform (lambda _ #f) (peg-eq 102))
+    (peg-xform (lambda _ #t) (peg-eq 116))
+    (peg-xform (lambda _ #?) (peg-eq 63))
+    (peg-xform (lambda _ #unit) (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116))))
+  lex-eot)))
+*/
 #define G_HASH (G_IGN+8)
     { .t=Actor_T,       .x=G_HASH+1,    .y=NIL,         .z=UNDEF        },  // (peg-eq 35)
     { .t=VM_push,       .x=TO_FIX('#'), .y=G_EQ_B,      .z=UNDEF        },  // value = '#' = 35
@@ -2376,10 +2417,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_LWR_I,     .y=G_UNIT+11,   .z=UNDEF        },  // first = (peg-eq 105)
     { .t=VM_push,       .x=G_LWR_T,     .y=G_AND_B,     .z=UNDEF        },  // rest = (peg-eq 116)
 
-#define F_NIL (G_UNIT+12)
-    { .t=Actor_T,       .x=RV_NIL,      .y=NIL,         .z=UNDEF        },  // (lambda _ ())
-
-#define G_CONST (F_NIL+1)
+#define G_CONST (G_UNIT+12)
     { .t=Actor_T,       .x=G_CONST+1,   .y=NIL,         .z=UNDEF        },  // (peg-xform cadr <ptrn>)
     { .t=VM_push,       .x=F_CADR,      .y=G_CONST+2,   .z=UNDEF        },  // func = F_CADR
     { .t=VM_push,       .x=G_CONST+3,   .y=G_XLAT_B,    .z=UNDEF        },  // ptrn = (peg-seq (peg-eq 35) (peg-alt ...) lex-eot)
@@ -2405,8 +2443,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_UNIT,      .y=G_OR_B,      .z=UNDEF        },  // rest = G_UNIT
 
 /*
- * (define lex-sign (peg-or (peg-eq 45) (peg-eq 43)))  ; [-+]
- */
+(define lex-sign (peg-or (peg-eq 45) (peg-eq 43)))  ; [-+]
+*/
 #define G_M_SGN (G_CONST+18)
     { .t=Actor_T,       .x=G_M_SGN+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 45)
     { .t=VM_push,       .x=TO_FIX('-'), .y=G_EQ_B,      .z=UNDEF        },  // value = '-' = 45
@@ -2419,8 +2457,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_P_SGN,     .y=G_OR_B,      .z=UNDEF        },  // rest = (peg-eq 43)
 
 /*
- * (define lex-digit (peg-or (peg-class DGT) (peg-eq 95)))  ; [0-9_]
- */
+(define lex-digit (peg-or (peg-class DGT) (peg-eq 95)))  ; [0-9_]
+*/
 #define G_DGT (G_SIGN+3)
     { .t=Actor_T,       .x=G_DGT+1,     .y=NIL,         .z=UNDEF        },  // (peg-class DGT)
     { .t=VM_push,       .x=DGT,         .y=G_CLS_B,     .z=UNDEF        },  // class = [0-9]
@@ -2430,8 +2468,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_UNDER,     .y=G_OR_B,      .z=UNDEF        },  // rest = (peg-eq 95)
 
 /*
- * (define lex-digits (peg-xform car (peg-and (peg-plus lex-digit) lex-eot)))
- */
+(define lex-digits (peg-xform car (peg-and (peg-plus lex-digit) lex-eot)))
+*/
 #define G_DIGITS (G_DIGIT+3)
     { .t=Actor_T,       .x=G_DIGITS+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform car <ptrn>)
     { .t=VM_push,       .x=F_CAR,       .y=G_DIGITS+2,  .z=UNDEF        },  // func = F_CAR
@@ -2445,8 +2483,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_DIGIT,     .y=G_PLUS_B,    .z=UNDEF        },  // ptrn = lex-digit
 
 /*
- * (define lex-number (peg-xform list->number (peg-or (peg-and lex-sign lex-digits) lex-digits)))
- */
+(define lex-number (peg-xform list->number (peg-or (peg-and lex-sign lex-digits) lex-digits)))
+*/
 #define G_NUMBER (G_DIGITS+8)
     { .t=Actor_T,       .x=G_NUMBER+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform list->number <ptrn>)
     { .t=VM_push,       .x=F_LST_NUM,   .y=G_NUMBER+2,  .z=UNDEF        },  // func = F_LST_NUM
@@ -2461,8 +2499,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_DIGITS,    .y=G_AND_B,     .z=UNDEF        },  // rest = lex-digits
 
 /*
- * (define scm-symbol (peg-xform list->symbol (peg-plus (peg-class DGT UPR LWR SYM))))
- */
+(define scm-symbol (peg-xform list->symbol (peg-plus (peg-class DGT UPR LWR SYM))))
+*/
 #define G_SYMBOL (G_NUMBER+9)
     { .t=Actor_T,       .x=G_SYMBOL+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform list->symbol <ptrn>)
     { .t=VM_push,       .x=F_LST_SYM,   .y=G_SYMBOL+2,  .z=UNDEF        },  // func = F_LST_SYM
@@ -2483,46 +2521,117 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define G_QUOTE (G_CLOSE+2)
     { .t=Actor_T,       .x=G_QUOTE+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 39)
     { .t=VM_push,       .x=TO_FIX('\''),.y=G_EQ_B,      .z=UNDEF        },  // value = '\'' = 39
+#define G_BQUOTE (G_QUOTE+2)
+    { .t=Actor_T,       .x=G_BQUOTE+1,  .y=NIL,         .z=UNDEF        },  // (peg-eq 96)
+    { .t=VM_push,       .x=TO_FIX('`'), .y=G_EQ_B,      .z=UNDEF        },  // value = '`' = 96
+#define G_COMMA (G_BQUOTE+2)
+    { .t=Actor_T,       .x=G_COMMA+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 44)
+    { .t=VM_push,       .x=TO_FIX(','), .y=G_EQ_B,      .z=UNDEF        },  // value = ',' = 44
+#define G_AT (G_COMMA+2)
+    { .t=Actor_T,       .x=G_AT+1,      .y=NIL,         .z=UNDEF        },  // (peg-eq 64)
+    { .t=VM_push,       .x=TO_FIX('@'), .y=G_EQ_B,      .z=UNDEF        },  // value = '@' = 64
 
-#define F_QUOTED (G_QUOTE+2)
-#if COMPILE_QUOTE
-    { .t=Actor_T,       .x=F_QUOTED+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=VM_msg,        .x=2,           .y=F_QUOTED+2,  .z=UNDEF        },  // arg1
-    { .t=VM_nth,        .x=-1,          .y=F_QUOTED+3,  .z=UNDEF        },  // value = cdr(arg1)
-    { .t=VM_push,       .x=CUST_SEND,   .y=F_QUOTED+4,  .z=UNDEF        },  // CUST_SEND
-    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // a_const
-#define G_QUOTED (F_QUOTED+5)
-#else
-    { .t=Actor_T,       .x=F_QUOTED+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
+/*
+(define scm-quoted (peg-alt
+  (peg-xform (lambda (x) (list 'quote (cdr x)))
+    (peg-and (peg-eq 39) (peg-call scm-expr)))
+  (peg-xform (lambda (x) (list 'quasiquote (cdr x)))
+    (peg-and (peg-eq 96) (peg-call scm-expr)))
+  (peg-xform (lambda (x) (list 'unquote-splicing (cddr x)))
+    (peg-and (peg-eq 44) (peg-and (peg-eq 64) (peg-call scm-expr))))
+  (peg-xform (lambda (x) (list 'unquote (cdr x)))
+    (peg-and (peg-eq 44) (peg-call scm-expr)))
+  ))
+*/
+#define F_QUOTED (G_AT+2)
+    { .t=Actor_T,       .x=F_QUOTED+1,  .y=NIL,         .z=UNDEF        },  // (lambda (x) (list 'quote (cdr x)))
     { .t=VM_push,       .x=NIL,         .y=F_QUOTED+2,  .z=UNDEF        },  // ()
     { .t=VM_msg,        .x=2,           .y=F_QUOTED+3,  .z=UNDEF        },  // arg1
     { .t=VM_nth,        .x=-1,          .y=F_QUOTED+4,  .z=UNDEF        },  // value = cdr(arg1)
     { .t=VM_push,       .x=S_QUOTE,     .y=F_QUOTED+5,  .z=UNDEF        },  // S_QUOTE
     { .t=VM_pair,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (S_QUOTE value)
-#define G_QUOTED (F_QUOTED+6)
-#endif
+#define F_QQUOTED (F_QUOTED+6)
+    { .t=Actor_T,       .x=F_QQUOTED+1, .y=NIL,         .z=UNDEF        },  // (lambda (x) (list 'quasiquote (cdr x)))
+    { .t=VM_push,       .x=NIL,         .y=F_QQUOTED+2, .z=UNDEF        },  // ()
+    { .t=VM_msg,        .x=2,           .y=F_QQUOTED+3, .z=UNDEF        },  // arg1
+    { .t=VM_nth,        .x=-1,          .y=F_QQUOTED+4, .z=UNDEF        },  // value = cdr(arg1)
+    { .t=VM_push,       .x=S_QQUOTE,    .y=F_QQUOTED+5, .z=UNDEF        },  // S_QQUOTE
+    { .t=VM_pair,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (S_QQUOTE value)
+#define F_UNQUOTED (F_QQUOTED+6)
+    { .t=Actor_T,       .x=F_UNQUOTED+1,.y=NIL,         .z=UNDEF        },  // (lambda (x) (list 'unquote (cdr x)))
+    { .t=VM_push,       .x=NIL,         .y=F_UNQUOTED+2,.z=UNDEF        },  // ()
+    { .t=VM_msg,        .x=2,           .y=F_UNQUOTED+3,.z=UNDEF        },  // arg1
+    { .t=VM_nth,        .x=-1,          .y=F_UNQUOTED+4,.z=UNDEF        },  // value = cdr(arg1)
+    { .t=VM_push,       .x=S_UNQUOTE,   .y=F_UNQUOTED+5,.z=UNDEF        },  // S_UNQUOTE
+    { .t=VM_pair,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (S_UNQUOTE value)
+#define F_QSPLICED (F_UNQUOTED+6)
+    { .t=Actor_T,       .x=F_QSPLICED+1,.y=NIL,         .z=UNDEF        },  // (lambda (x) (list 'unquote-splicing (cddr x)))
+    { .t=VM_push,       .x=NIL,         .y=F_QSPLICED+2,.z=UNDEF        },  // ()
+    { .t=VM_msg,        .x=2,           .y=F_QSPLICED+3,.z=UNDEF        },  // arg1
+    { .t=VM_nth,        .x=-2,          .y=F_QSPLICED+4,.z=UNDEF        },  // value = cddr(arg1)
+    { .t=VM_push,       .x=S_QSPLICE,   .y=F_QSPLICED+5,.z=UNDEF        },  // S_QSPLICE
+    { .t=VM_pair,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (S_QSPLICE value)
+#define F_NIL (F_QSPLICED+6)
+    { .t=Actor_T,       .x=RV_NIL,      .y=NIL,         .z=UNDEF        },  // (lambda _ ())
 
-/*
- * (define scm-quoted (peg-xform (lambda (x) (list quote (cdr x)))
- *   (peg-and (peg-eq 39) (peg-call scm-sexpr))))
- */
-#define G_DOTTED (G_QUOTED+6)
+#define G_QUOTED (F_NIL+1)
+#define G_DOTTED (G_QUOTED+36)
 #define G_TAIL (G_DOTTED+15)
 #define G_LIST (G_TAIL+18)
 #define G_EXPR (G_LIST+6)
 #define G_SEXPR (G_EXPR+15)
-    { .t=Actor_T,       .x=G_QUOTED+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform <func> <ptrn>)
-    { .t=VM_push,       .x=F_QUOTED,    .y=G_QUOTED+2,  .z=UNDEF        },  // func = (lambda (x) (list quote (cdr x)))
-    { .t=VM_push,       .x=G_QUOTED+3,  .y=G_XLAT_B,    .z=UNDEF        },  // ptrn
+    { .t=Actor_T,       .x=G_QUOTED+1,  .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
+    { .t=VM_push,       .x=G_QUOTED+3,  .y=G_QUOTED+2,  .z=UNDEF        },  // first
+    { .t=VM_push,       .x=G_QUOTED+9,  .y=G_OR_B,      .z=UNDEF        },  // rest
 
-    { .t=Actor_T,       .x=G_QUOTED+4,  .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
-    { .t=VM_push,       .x=G_QUOTE,     .y=G_QUOTED+5,  .z=UNDEF        },  // first = (peg-eq 39)
+    { .t=Actor_T,       .x=G_QUOTED+4,  .y=NIL,         .z=UNDEF        },  // (peg-xform <func> <ptrn>)
+    { .t=VM_push,       .x=F_QUOTED,    .y=G_QUOTED+5,  .z=UNDEF        },  // func
+    { .t=VM_push,       .x=G_QUOTED+6,  .y=G_XLAT_B,    .z=UNDEF        },  // ptrn
+
+    { .t=Actor_T,       .x=G_QUOTED+7,  .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
+    { .t=VM_push,       .x=G_QUOTE,     .y=G_QUOTED+8,  .z=UNDEF        },  // first = (peg-eq 39)
+    { .t=VM_push,       .x=G_SEXPR,     .y=G_AND_B,     .z=UNDEF        },  // rest = scm-expr
+
+    { .t=Actor_T,       .x=G_QUOTED+10, .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
+    { .t=VM_push,       .x=G_QUOTED+12, .y=G_QUOTED+11, .z=UNDEF        },  // first
+    { .t=VM_push,       .x=G_QUOTED+18, .y=G_OR_B,      .z=UNDEF        },  // rest
+
+    { .t=Actor_T,       .x=G_QUOTED+13, .y=NIL,         .z=UNDEF        },  // (peg-xform <func> <ptrn>)
+    { .t=VM_push,       .x=F_QQUOTED,   .y=G_QUOTED+14, .z=UNDEF        },  // func
+    { .t=VM_push,       .x=G_QUOTED+15, .y=G_XLAT_B,    .z=UNDEF        },  // ptrn
+
+    { .t=Actor_T,       .x=G_QUOTED+16, .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
+    { .t=VM_push,       .x=G_BQUOTE,    .y=G_QUOTED+17, .z=UNDEF        },  // first = (peg-eq 96)
+    { .t=VM_push,       .x=G_SEXPR,     .y=G_AND_B,     .z=UNDEF        },  // rest = scm-expr
+
+    { .t=Actor_T,       .x=G_QUOTED+19, .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
+    { .t=VM_push,       .x=G_QUOTED+21, .y=G_QUOTED+20, .z=UNDEF        },  // first
+    { .t=VM_push,       .x=G_QUOTED+30, .y=G_OR_B,      .z=UNDEF        },  // rest
+
+    { .t=Actor_T,       .x=G_QUOTED+22, .y=NIL,         .z=UNDEF        },  // (peg-xform <func> <ptrn>)
+    { .t=VM_push,       .x=F_QSPLICED,  .y=G_QUOTED+23, .z=UNDEF        },  // func
+    { .t=VM_push,       .x=G_QUOTED+24, .y=G_XLAT_B,    .z=UNDEF        },  // ptrn
+
+    { .t=Actor_T,       .x=G_QUOTED+25, .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
+    { .t=VM_push,       .x=G_COMMA,     .y=G_QUOTED+26, .z=UNDEF        },  // first = (peg-eq 44)
+    { .t=VM_push,       .x=G_QUOTED+27, .y=G_AND_B,     .z=UNDEF        },  // rest
+
+    { .t=Actor_T,       .x=G_QUOTED+28, .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
+    { .t=VM_push,       .x=G_AT,        .y=G_QUOTED+29, .z=UNDEF        },  // first = (peg-eq 64)
+    { .t=VM_push,       .x=G_SEXPR,     .y=G_AND_B,     .z=UNDEF        },  // rest = scm-expr
+
+    { .t=Actor_T,       .x=G_QUOTED+31, .y=NIL,         .z=UNDEF        },  // (peg-xform <func> <ptrn>)
+    { .t=VM_push,       .x=F_UNQUOTED,  .y=G_QUOTED+32, .z=UNDEF        },  // func
+    { .t=VM_push,       .x=G_QUOTED+33, .y=G_XLAT_B,    .z=UNDEF        },  // ptrn
+
+    { .t=Actor_T,       .x=G_QUOTED+34, .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
+    { .t=VM_push,       .x=G_COMMA,     .y=G_QUOTED+35, .z=UNDEF        },  // first = (peg-eq 44)
     { .t=VM_push,       .x=G_SEXPR,     .y=G_AND_B,     .z=UNDEF        },  // rest = scm-expr
 
 /*
- * (define scm-dotted (peg-xform caddr
- *   (peg-seq scm-optwsp (peg-eq 46) (peg-call scm-sexpr) scm-optwsp (peg-eq 41))))
- */
+(define scm-dotted (peg-xform caddr
+  (peg-seq scm-optwsp (peg-eq 46) (peg-call scm-sexpr) scm-optwsp (peg-eq 41))))
+*/
     { .t=Actor_T,       .x=G_DOTTED+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform <func> <ptrn>)
     { .t=VM_push,       .x=F_CADDR,     .y=G_DOTTED+2,  .z=UNDEF        },  // func = caddr
     { .t=VM_push,       .x=G_DOTTED+3,  .y=G_XLAT_B,    .z=UNDEF        },  // ptrn
@@ -2544,14 +2653,14 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_CLOSE,     .y=G_AND_B,     .z=UNDEF        },  // rest = (peg-eq 41)
 
 /*
- * (define scm-tail (peg-xform cdr (peg-and
- *   scm-optwsp
- *   (peg-or
- *     (peg-xform (lambda _ ()) (peg-eq 41))
- *     (peg-and
- *       (peg-call scm-expr)
- *       (peg-or scm-dotted (peg-call scm-tail)) )) )))
- */
+(define scm-tail (peg-xform cdr (peg-and
+  scm-optwsp
+  (peg-or
+    (peg-xform (lambda _ ()) (peg-eq 41))
+    (peg-and
+      (peg-call scm-expr)
+      (peg-or scm-dotted (peg-call scm-tail)) )) )))
+*/
     { .t=Actor_T,       .x=G_TAIL+1,    .y=NIL,         .z=UNDEF        },  // (peg-xform <func> <ptrn>)
     { .t=VM_push,       .x=F_CDR,       .y=G_TAIL+2,    .z=UNDEF        },  // func = cdr
     { .t=VM_push,       .x=G_TAIL+3,    .y=G_XLAT_B,    .z=UNDEF        },  // ptrn
@@ -2561,7 +2670,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_TAIL+6,    .y=G_AND_B,     .z=UNDEF        },  // rest
 
     { .t=Actor_T,       .x=G_TAIL+7,    .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
-    { .t=VM_push,       .x=G_TAIL+9,    .y=G_TAIL+8,    .z=UNDEF        },  // first = (peg-xform (lambda _ ()) (peg-eq 41))
+    { .t=VM_push,       .x=G_TAIL+9,    .y=G_TAIL+8,    .z=UNDEF        },  // first = (peg-xform ...)
     { .t=VM_push,       .x=G_TAIL+12,   .y=G_OR_B,      .z=UNDEF        },  // rest
 
     { .t=Actor_T,       .x=G_TAIL+10,   .y=NIL,         .z=UNDEF        },  // (peg-xform <func> <ptrn>)
@@ -2577,8 +2686,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_TAIL,      .y=G_OR_B,      .z=UNDEF        },  // rest = scm-tail
 
 /*
- * (define scm-list (peg-xform cdr (peg-and (peg-eq 40) scm-tail)))
- */
+(define scm-list (peg-xform cdr (peg-and (peg-eq 40) scm-tail)))
+*/
     { .t=Actor_T,       .x=G_LIST+1,    .y=NIL,         .z=UNDEF        },  // (peg-xform <func> <ptrn>)
     { .t=VM_push,       .x=F_CDR,       .y=G_LIST+2,    .z=UNDEF        },  // func = cdr
     { .t=VM_push,       .x=G_LIST+3,    .y=G_XLAT_B,    .z=UNDEF        },  // ptrn
@@ -2588,8 +2697,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_TAIL,      .y=G_AND_B,     .z=UNDEF        },  // rest = scm-tail
 
 /*
- * (define scm-expr (peg-alt scm-list scm-ignore scm-const lex-number scm-symbol scm-quoted))
- */
+(define scm-expr (peg-alt scm-list scm-ignore scm-const lex-number scm-symbol scm-quoted))
+*/
     { .t=Actor_T,       .x=G_EXPR+1,    .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
     { .t=VM_push,       .x=G_LIST,      .y=G_EXPR+2,    .z=UNDEF        },  // first = scm-list
     { .t=VM_push,       .x=G_EXPR+3,    .y=G_OR_B,      .z=UNDEF        },  // rest
@@ -2611,8 +2720,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_QUOTED,    .y=G_OR_B,      .z=UNDEF        },  // rest = scm-quoted
 
 /*
- * (define scm-sexpr (peg-xform cdr (peg-and scm-optwsp scm-expr)))
- */
+(define scm-sexpr (peg-xform cdr (peg-and scm-optwsp scm-expr)))
+*/
     { .t=Actor_T,       .x=G_SEXPR+1,   .y=NIL,         .z=UNDEF        },  // (peg-xform <func> <ptrn>)
     { .t=VM_push,       .x=F_CDR,       .y=G_SEXPR+2,   .z=UNDEF        },  // func = cdr
     { .t=VM_push,       .x=G_SEXPR+3,   .y=G_XLAT_B,    .z=UNDEF        },  // ptrn
@@ -2752,6 +2861,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
 
     { S_IGNORE, "S_IGNORE" },
     { S_QUOTE, "S_QUOTE" },
+    { S_QQUOTE, "S_QQUOTE" },
+    { S_UNQUOTE, "S_UNQUOTE" },
+    { S_QSPLICE, "S_QSPLICE" },
 
     { G_EMPTY, "G_EMPTY" },
     { G_FAIL, "G_FAIL" },
@@ -2828,7 +2940,6 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_UNDEF, "G_UNDEF" },
     { F_UNIT, "F_UNIT" },
     { G_UNIT, "G_UNIT" },
-    { F_NIL, "F_NIL" },
     { G_CONST, "G_CONST" },
     { G_M_SGN, "G_M_SGN" },
     { G_P_SGN, "G_P_SGN" },
@@ -2842,7 +2953,14 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_DOT, "G_DOT" },
     { G_CLOSE, "G_CLOSE" },
     { G_QUOTE, "G_QUOTE" },
+    { G_BQUOTE, "G_BQUOTE" },
+    { G_COMMA, "G_COMMA" },
+    { G_AT, "G_AT" },
     { F_QUOTED, "F_QUOTED" },
+    { F_QQUOTED, "F_QQUOTED" },
+    { F_UNQUOTED, "F_UNQUOTED" },
+    { F_QSPLICED, "F_QSPLICED" },
+    { F_NIL, "F_NIL" },
     { G_QUOTED, "G_QUOTED" },
     { G_DOTTED, "G_DOTTED" },
     { G_TAIL, "G_TAIL" },
@@ -3352,6 +3470,9 @@ static int_t test_symbol_intern() {
 int_t init_global_env() {
     sym_install(S_IGNORE);
     sym_install(S_QUOTE);
+    sym_install(S_QQUOTE);
+    sym_install(S_UNQUOTE);
+    sym_install(S_QSPLICE);
 
     bind_global("peg-lang", G_SEXPR);  // language parser start symbol
     bind_global("empty-env", EMPTY_ENV);
@@ -4763,13 +4884,24 @@ static char repl_lib[] =
 " (define caar (lambda (x) (car (car x))))"
 " (define cdar (lambda (x) (cdr (car x))))"
 " (define cddr (lambda (x) (nth -2 x))))"
+" (define cadar (lambda (x) (car (cdr (car x)))))"
 " (define cadddr (lambda (x) (nth 4 x))))"
 " (define not (lambda (x) (if x #f #t))))"
 " (define length (lambda (x) (if (pair? x) (+ (length (cdr x)) 1) 0)))"
 " (define list* (lambda (h . t) (if (pair? t) (cons h (apply list* t)) h)))"
+" (define append (lambda x (if (pair? x) (apply (lambda (h . t)"
+"   (if (pair? t) (if (pair? h) (cons (car h) (apply append (cons (cdr h) t))) (apply append t)) h)) x) x)))"
 " (define current-env (vau _ e e))"
 " (define macro (vau (frml . body) _"
 "   (eval (list vau frml '_env_ (list eval (cons seq body) '_env_))) ))"
+" (define quasiquote (vau (x) e (if (pair? x)"
+"   (if (eq? (car x) 'unquote) (eval (cadr x) e)"
+"   (if (eq? (car x) 'quasiquote) (eval x e)"
+"   (quasi-list x))) x)))"
+" (define quasi-list (lambda (x) (if (pair? x) (if (pair? (car x))"
+"   (if (eq? (caar x) 'unquote-splicing) (append (eval (cadar x) e) (quasi-list (cdr x)))"
+"   (cons (apply quasiquote (list (car x)) e) (quasi-list (cdr x))))"
+"   (cons (car x) (quasi-list (cdr x)))) x)))"
 " \0";
 static char *repl_inp = repl_lib;
 
