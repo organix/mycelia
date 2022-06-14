@@ -111,9 +111,7 @@
     (if (pair? x)
       (if (eq? (car x) 'unquote)
         (eval (cadr x) e)
-        (if (eq? (car x) 'quasiquote)
-          (eval x e)
-          (quasi-list x)))
+        (quasi-list x))
       x)))
 (define quasi-list
   (lambda (x)

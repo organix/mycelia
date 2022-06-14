@@ -275,7 +275,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 
 ## LISP/Scheme Ground Environment
 
-  * `peg-lang  ; REPL grammar`
+  * `peg-lang`  ; REPL grammar
   * `empty-env`
   * `global-env`
   * `(quote `_expr_`)`
@@ -1379,9 +1379,7 @@ The extended reference-implementation looks like this:
     (if (pair? x)
       (if (eq? (car x) 'unquote)
         (eval (cadr x) e)
-        (if (eq? (car x) 'quasiquote)
-          (eval x e)
-          (quasi-list x)))
+        (quasi-list x))
       x)))
 (define quasi-list
   (lambda (x)
