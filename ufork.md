@@ -318,6 +318,8 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(* . `_numbers_`)`
   * `(length `_list_`)`
   * `(append . `_lists_`)`
+  * `(map `_proc_` `_list_`)`  ; 1-arg `proc` only
+  * `(let ((`_var_` `_val_`) . `_bindings_`) . `_body_`)`
   * `(current-env)`
   * `(quit)`
 

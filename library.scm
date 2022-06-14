@@ -25,6 +25,8 @@
           (list if test (cons seq body) (cons cond rest)) )
         clauses) )))
 
+(define map (lambda (f xs) (if (pair? xs) (cons (f (car xs)) (map f (cdr xs))) ())))  ; f takes only 1 arg
+
 (define let
   (macro (bindings . body)
     (cons
@@ -82,8 +84,7 @@
 ;(define reverse (lambda (xs) (if (pair? xs) (append (reverse (cdr xs)) (list (car xs))) xs)))  ; O(n^2) algorithm
 (define reverse
   (lambda (xs)
-    (define rcons (lambda (x y) (cons y x)))
-    (foldl xs rcons ())))
+    (foldl xs (lambda (x y) (cons y x)) ())))
 ; An alternative using an explicit helper function.
 ;(define push-pop (lambda (to from)
 ;  (if (pair? from) (push-pop (cons (car from) to) (cdr from)) to)))
