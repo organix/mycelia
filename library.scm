@@ -50,41 +50,35 @@
       x)))
 
 (define filter
-  (lambda (pred? list)
-    (if (pair? list)
-      (if (pred? (car list))
-        (cons (car list) (filter pred? (cdr list)))
-        (filter pred? (cdr list)))
+  (lambda (pred? xs)
+    (if (pair? xs)
+      (if (pred? (car xs))
+        (cons (car xs) (filter pred? (cdr xs)))
+        (filter pred? (cdr xs)))
       ())))
 
 (define reduce
-  (lambda (args binop zero)
-    (if (null? args)
-      zero
-      ((lambda ((first . rest))
-        (if (null? rest)
-          first
-          (binop first (reduce rest binop zero)))
-      ) args)) ))
+  (lambda (binop zero xs)
+    (if (pair? xs)
+      (if (pair? (cdr xs))
+        (binop (car xs) (reduce binop zero (cdr xs)))
+        (car xs))
+      zero)))
 (define foldl
-  (lambda (args binop zero)
-    (if (null? args)
-      zero
-      ((lambda ((first . rest))
-        (foldl rest binop (binop zero first))
-      ) args)) ))
+  (lambda (binop zero xs)
+    (if (pair? xs)
+      (foldl binop (binop zero (car xs)) (cdr xs))
+      zero)))
 (define foldr
-  (lambda (args binop zero)
-    (if (null? args)
-      zero
-      ((lambda ((first . rest))
-        (binop first (foldr rest binop zero))
-      ) args)) ))
+  (lambda (binop zero xs)
+    (if (pair? xs)
+      (binop (car xs) (foldr binop zero (cdr xs)))
+      zero)))
 
 ;(define reverse (lambda (xs) (if (pair? xs) (append (reverse (cdr xs)) (list (car xs))) xs)))  ; O(n^2) algorithm
 (define reverse
   (lambda (xs)
-    (foldl xs (lambda (x y) (cons y x)) ())))
+    (foldl (lambda (x y) (cons y x)) () xs)))
 ; An alternative using an explicit helper function.
 ;(define push-pop (lambda (to from)
 ;  (if (pair? from) (push-pop (cons (car from) to) (cdr from)) to)))

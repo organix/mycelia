@@ -318,7 +318,12 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(* . `_numbers_`)`
   * `(length `_list_`)`
   * `(append . `_lists_`)`
+  * `(filter `_pred_` `_list_`)`
   * `(map `_proc_` `_list_`)`  ; 1-arg `proc` only
+  * `(reduce `_binop_` `_zero_` `_list_`)`
+  * `(foldl `_binop_` `_zero_` `_list_`)`
+  * `(foldr `_binop_` `_zero_` `_list_`)`
+  * `(reverse `_list_`)`
   * `(let ((`_var_` `_val_`) . `_bindings_`) . `_body_`)`
   * `(current-env)`
   * `(quit)`
