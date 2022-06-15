@@ -384,6 +384,7 @@ Date       | Events | Instructions | Description
 2022-06-12 |  10351 |       120910 | `evlis` is `par`
 2022-06-13 |  14918 |       174403 | implement `vau` and `macro`
 2022-06-14 |  34819 |       407735 | Quasi-Quotation with `vau`
+2022-06-15 |  55936 |       655106 | `define` mutates local bindings
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
@@ -395,6 +396,7 @@ Date       | Events | Instructions | Description
 2022-06-12 |   1201 |        13842 | `evlis` is `par`
 2022-06-13 |   1177 |        13652 | implement `vau` and `macro`
 2022-06-14 |   1177 |        13652 | Quasi-Quotation with `vau`
+2022-06-15 |   1167 |        13654 | `define` mutates local bindings
 
 ## PEG Tools
 
@@ -1265,10 +1267,24 @@ The extended reference-implementation looks like this:
         (cdar env)
         (lookup key (cdr env)))
       (if (actor? env)
-        (CALL env key)                  ; delegate to actor environment
+        (CALL env key)                  ; delegate to environment actor
         (if (symbol? key)
           (get-z key)                   ; get top-level binding
           #?))))                        ; value is undefined
+
+(define bind-env                        ; update binding in environment
+  (lambda (key val env)
+    (if (pair? env)                     ; association list
+      (if (eq? (caar env) '_)
+        (seq                            ; insert new binding
+          (set-cdr env (cons (car env) (cdr env)))
+          (set-car env (cons key val)))
+        (if (eq? (caar env) key)
+          (set-cdr (car env) val)       ; mutate binding
+          (bind-env key val (cdr env))))
+      (if (symbol? key)
+        (set-z key val)))               ; set top-level binding
+    #unit))                             ; value is UNIT
 
 (define evlis                           ; map `eval` over a list of operands
   (lambda (opnds env)
@@ -1289,20 +1305,28 @@ The extended reference-implementation looks like this:
 (define zip                             ; extend `env` by binding names `xs` to values `ys`
   (lambda (xs ys env)
     (if (pair? xs)
-      (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
+      (if (eq? (car xs) '_)             ; never bind '_
+        (zip (cdr xs) (cdr ys) env)
+        (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env)))
       (if (symbol? xs)
-        (cons (cons xs ys) env)         ; dotted-tail binds to &rest
+        (if (eq? xs '_)                 ; never bind '_
+          env
+          (cons (cons xs ys) env))      ; dotted-tail binds to &rest
         env))))
+
+(define scope                           ; delimit local scope (inline function)
+  (lambda (env)
+    (cons (cons '_ #?) env)))
 
 (define closure-beh                     ; lexically-bound applicative procedure
   (lambda (frml body env)
     (BEH (cust . args)
-      (evbody #unit body (zip frml args env)))))
+      (evbody #unit body (zip frml args (scope env))))))
 
 (define fexpr-beh                       ; lexically-bound operative procedure
   (lambda (frml body denv)
     (BEH (cust opnds senv)
-      (evbody #unit body (zip frml (cons denv args) senv)))))
+      (evbody #unit body (zip frml (cons denv opnds) (scope senv))))))
 
 (define op-quote                        ; (quote <form>)
   (CREATE
@@ -1330,7 +1354,7 @@ The extended reference-implementation looks like this:
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
-        (set-z (car opnds) (eval (cadr opnds) env))
+        (bind-env (car opnds) (eval (cadr opnds) env) env)
       ))))
 
 (define evalif                          ; if `test` is #f, evaluate `altn`,

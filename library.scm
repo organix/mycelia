@@ -16,6 +16,9 @@
   (macro (cond . body)
     (list if cond (cons seq body) #unit)))
 
+(define list* (lambda (h . t) (if (pair? t) (cons h (apply list* t)) h)))
+;(define list* (lambda args (reduce cons #? args)))
+
 (define cond
   (macro clauses
     (if (null? clauses)

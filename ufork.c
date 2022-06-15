@@ -591,7 +591,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=NIL,         .y=REPL_E+4,    .z=UNDEF        },  // env = ()
     { .t=VM_msg,        .x=1,           .y=REPL_E+5,    .z=UNDEF        },  // form = sexpr
     { .t=VM_push,       .x=REPL_P,      .y=REPL_E+6,    .z=UNDEF        },  // cust = REPL_P
-    { .t=VM_push,       .x=166,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
+    { .t=VM_push,       .x=210,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL cust form env)
 
     { .t=Actor_T,       .x=REPL_P+1,    .y=NIL,         .z=UNDEF        },
@@ -756,10 +756,68 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (JOIN_BEH cust k_head k_tail)
 
 //
+// Static Symbols
+//
+
+#define S_IGNORE (FORK_BEH+18)
+    { .t=Symbol_T,      .x=0,           .y=S_IGNORE+1,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('_'), .y=NIL,         .z=UNDEF        },
+
+#define S_QUOTE (S_IGNORE+2)
+    { .t=Symbol_T,      .x=0,           .y=S_QUOTE+1,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QUOTE+2,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QUOTE+3,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_QUOTE+4,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_QUOTE+5,   .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
+
+#define S_QQUOTE (S_QUOTE+6)
+    { .t=Symbol_T,      .x=0,           .y=S_QQUOTE+1,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QQUOTE+2,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QQUOTE+3,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('a'), .y=S_QQUOTE+4,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('s'), .y=S_QQUOTE+5,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_QQUOTE+6,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QQUOTE+7,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QQUOTE+8,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_QQUOTE+9,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_QQUOTE+10, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
+
+#define S_UNQUOTE (S_QQUOTE+11)
+    { .t=Symbol_T,      .x=0,           .y=S_UNQUOTE+1, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_UNQUOTE+2, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_UNQUOTE+3, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_UNQUOTE+4, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_UNQUOTE+5, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_UNQUOTE+6, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_UNQUOTE+7, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
+
+#define S_QSPLICE (S_UNQUOTE+8)
+    { .t=Symbol_T,      .x=0,           .y=S_QSPLICE+1, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QSPLICE+2, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_QSPLICE+3, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QSPLICE+4, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QSPLICE+5, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_QSPLICE+6, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_QSPLICE+7, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=S_QSPLICE+8, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('-'), .y=S_QSPLICE+9, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('s'), .y=S_QSPLICE+10,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('p'), .y=S_QSPLICE+11,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('l'), .y=S_QSPLICE+12,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_QSPLICE+13,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('c'), .y=S_QSPLICE+14,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_QSPLICE+15,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_QSPLICE+16,.z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('g'), .y=NIL,         .z=UNDEF        },
+
+//
 // Meta-circular LISP/Scheme Interpreter
 //
 
-#define M_EVAL (FORK_BEH+18)
+#define M_EVAL (S_QSPLICE+17)
 #define M_INVOKE_K (M_EVAL+20)
 #define M_INVOKE (M_INVOKE_K+4)
 #define M_APPLY_K (M_INVOKE+13)
@@ -771,10 +829,10 @@ cell_t cell_table[CELL_MAX] = {
 #define FX_PAR (M_EVLIS+14)
 #define OP_PAR (FX_PAR+1)
 #define M_ZIP (OP_PAR+20)
-#define CLOSURE_B (M_ZIP+26)
-#define M_EVAL_B (CLOSURE_B+9)
+#define CLOSURE_B (M_ZIP+33)
+#define M_EVAL_B (CLOSURE_B+13)
 #define FEXPR_B (M_EVAL_B+5)
-#define K_SEQ_B (FEXPR_B+11)
+#define K_SEQ_B (FEXPR_B+15)
 #define M_IF_K (K_SEQ_B+15)
 
 /*
@@ -896,7 +954,7 @@ cell_t cell_table[CELL_MAX] = {
         (cdar env)
         (lookup key (cdr env)))
       (if (actor? env)
-        (CALL env key)                  ; delegate to actor environment
+        (CALL env key)                  ; delegate to environment actor
         (if (symbol? key)
           (get-z key)                   ; get top-level binding
           #?))))                        ; value is undefined
@@ -928,6 +986,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_pick,       .x=1,           .y=M_LOOKUP+20, .z=UNDEF        },  // key key
     { .t=VM_typeq,      .x=Symbol_T,    .y=M_LOOKUP+21, .z=UNDEF        },  // key has type Symbol_T
     { .t=VM_if,         .x=M_LOOKUP+22, .y=RV_UNDEF,    .z=UNDEF        },
+
     { .t=VM_get,        .x=FLD_Z,       .y=CUST_SEND,   .z=UNDEF        },  // global binding from Symbol_T
 
 /*
@@ -1014,9 +1073,13 @@ cell_t cell_table[CELL_MAX] = {
 (define zip                             ; extend `env` by binding names `xs` to values `ys`
   (lambda (xs ys env)
     (if (pair? xs)
-      (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
+      (if (eq? (car xs) '_)             ; never bind '_
+        (zip (cdr xs) (cdr ys) env)
+        (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env)))
       (if (symbol? xs)
-        (cons (cons xs ys) env)         ; dotted-tail binds to &rest
+        (if (eq? xs '_)                 ; never bind '_
+          env
+          (cons (cons xs ys) env))      ; dotted-tail binds to &rest
         env))))
 */
     { .t=Actor_T,       .x=M_ZIP+1,     .y=NIL,         .z=UNDEF        },  // (cust xs ys tail)
@@ -1026,52 +1089,68 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_pick,       .x=3,           .y=M_ZIP+5,     .z=UNDEF        },  // xs
     { .t=VM_typeq,      .x=Pair_T,      .y=M_ZIP+6,     .z=UNDEF        },  // xs has type Pair_T
-    { .t=VM_if,         .x=M_ZIP+7,     .y=M_ZIP+19,    .z=UNDEF        },
+    { .t=VM_if,         .x=M_ZIP+7,     .y=M_ZIP+23,    .z=UNDEF        },
 
     { .t=VM_pick,       .x=2,           .y=M_ZIP+8,     .z=UNDEF        },  // ys
     { .t=VM_nth,        .x=1,           .y=M_ZIP+9,     .z=UNDEF        },  // y = car(ys)
     { .t=VM_pick,       .x=4,           .y=M_ZIP+10,    .z=UNDEF        },  // xs
     { .t=VM_nth,        .x=1,           .y=M_ZIP+11,    .z=UNDEF        },  // x = car(xs)
-    { .t=VM_pair,       .x=1,           .y=M_ZIP+12,    .z=UNDEF        },  // (x . y)
-    { .t=VM_pair,       .x=1,           .y=M_ZIP+13,    .z=UNDEF        },  // tail' = ((x . y) . tail)
 
-    { .t=VM_roll,       .x=3,           .y=M_ZIP+14,    .z=UNDEF        },  // ys tail' xs
-    { .t=VM_nth,        .x=-1,          .y=M_ZIP+15,    .z=UNDEF        },  // xs' = cdr(xs)
-    { .t=VM_roll,       .x=-3,          .y=M_ZIP+16,    .z=UNDEF        },  // xs' ys tail'
+    { .t=VM_pick,       .x=1,           .y=M_ZIP+12,    .z=UNDEF        },  // x x
+    { .t=VM_eq,         .x=S_IGNORE,    .y=M_ZIP+13,    .z=UNDEF        },  // (x == '_)
+    { .t=VM_if,         .x=M_ZIP+14,    .y=M_ZIP+15,    .z=UNDEF        },
 
-    { .t=VM_roll,       .x=2,           .y=M_ZIP+17,    .z=UNDEF        },  // xs' tail' ys
-    { .t=VM_nth,        .x=-1,          .y=M_ZIP+18,    .z=UNDEF        },  // ys' = cdr(ys)
+    { .t=VM_drop,       .x=2,           .y=M_ZIP+17,    .z=UNDEF        },  // xs ys tail
+
+    { .t=VM_pair,       .x=1,           .y=M_ZIP+16,    .z=UNDEF        },  // (x . y)
+    { .t=VM_pair,       .x=1,           .y=M_ZIP+17,    .z=UNDEF        },  // tail' = ((x . y) . tail)
+
+    { .t=VM_roll,       .x=3,           .y=M_ZIP+18,    .z=UNDEF        },  // ys tail' xs
+    { .t=VM_nth,        .x=-1,          .y=M_ZIP+19,    .z=UNDEF        },  // xs' = cdr(xs)
+    { .t=VM_roll,       .x=-3,          .y=M_ZIP+20,    .z=UNDEF        },  // xs' ys tail'
+
+    { .t=VM_roll,       .x=2,           .y=M_ZIP+21,    .z=UNDEF        },  // xs' tail' ys
+    { .t=VM_nth,        .x=-1,          .y=M_ZIP+22,    .z=UNDEF        },  // ys' = cdr(ys)
     { .t=VM_roll,       .x=-2,          .y=M_ZIP+4,     .z=UNDEF        },  // xs' ys' tail'
 
-    { .t=VM_pick,       .x=3,           .y=M_ZIP+20,    .z=UNDEF        },  // xs
-    { .t=VM_typeq,      .x=Symbol_T,    .y=M_ZIP+21,    .z=UNDEF        },  // xs has type Symbol_T
-    { .t=VM_if,         .x=M_ZIP+22,    .y=CUST_SEND,   .z=UNDEF        },
+    { .t=VM_pick,       .x=3,           .y=M_ZIP+24,    .z=UNDEF        },  // xs
+    { .t=VM_typeq,      .x=Symbol_T,    .y=M_ZIP+25,    .z=UNDEF        },  // xs has type Symbol_T
+    { .t=VM_if,         .x=M_ZIP+26,    .y=CUST_SEND,   .z=UNDEF        },
 
-    { .t=VM_roll,       .x=2,           .y=M_ZIP+23,    .z=UNDEF        },  // xs tail ys
-    { .t=VM_roll,       .x=3,           .y=M_ZIP+24,    .z=UNDEF        },  // tail ys xs
-    { .t=VM_pair,       .x=1,           .y=M_ZIP+25,    .z=UNDEF        },  // tail (xs . ys)
+    { .t=VM_pick,       .x=3,           .y=M_ZIP+27,    .z=UNDEF        },  // xs
+    { .t=VM_eq,         .x=S_IGNORE,    .y=M_ZIP+28,    .z=UNDEF        },  // (xs == '_)
+    { .t=VM_if,         .x=CUST_SEND,   .y=M_ZIP+29,    .z=UNDEF        },
+
+    { .t=VM_roll,       .x=2,           .y=M_ZIP+30,    .z=UNDEF        },  // xs tail ys
+    { .t=VM_roll,       .x=3,           .y=M_ZIP+31,    .z=UNDEF        },  // tail ys xs
+    { .t=VM_pair,       .x=1,           .y=M_ZIP+32,    .z=UNDEF        },  // tail (xs . ys)
     { .t=VM_pair,       .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // tail' = ((x . y) . tail)
 
 /*
 (define closure-beh                     ; lexically-bound applicative procedure
   (lambda (frml body env)
     (BEH (cust . args)
-      (evbody #unit body (zip frml args env)))))
+      (evbody #unit body (zip frml args (scope env))))))
 */
 //  { .t=VM_push,       .x=_frml_,      .y=CLOSURE_B-2, .z=UNDEF        },
 //  { .t=VM_push,       .x=_body_,      .y=CLOSURE_B-1, .z=UNDEF        },
 //  { .t=VM_push,       .x=_env_,       .y=CLOSURE_B+0, .z=UNDEF        },
     { .t=VM_pick,       .x=1,           .y=CLOSURE_B+1, .z=UNDEF        },  // env
-    { .t=VM_msg,        .x=-1,          .y=CLOSURE_B+2, .z=UNDEF        },  // args
-    { .t=VM_pick,       .x=5,           .y=CLOSURE_B+3, .z=UNDEF        },  // frml
+    { .t=VM_push,       .x=UNDEF,       .y=CLOSURE_B+2, .z=UNDEF        },  // #?
+    { .t=VM_push,       .x=S_IGNORE,    .y=CLOSURE_B+3, .z=UNDEF        },  // '_
+    { .t=VM_pair,       .x=1,           .y=CLOSURE_B+4, .z=UNDEF        },  // ('_ . #?)
+    { .t=VM_pair,       .x=1,           .y=CLOSURE_B+5, .z=UNDEF        },  // env' = (('_ . #?) . env)
 
-    { .t=VM_msg,        .x=1,           .y=CLOSURE_B+4, .z=UNDEF        },  // cust
-    { .t=VM_pick,       .x=6,           .y=CLOSURE_B+5, .z=UNDEF        },  // body
-    { .t=VM_push,       .x=M_EVAL_B,    .y=CLOSURE_B+6, .z=UNDEF        },  // M_EVAL_B
-    { .t=VM_new,        .x=2,           .y=CLOSURE_B+7, .z=UNDEF        },  // k_eval = (M_EVAL_B cust body)
+    { .t=VM_msg,        .x=-1,          .y=CLOSURE_B+6, .z=UNDEF        },  // args
+    { .t=VM_pick,       .x=5,           .y=CLOSURE_B+7, .z=UNDEF        },  // frml
 
-    { .t=VM_push,       .x=M_ZIP,       .y=CLOSURE_B+8, .z=UNDEF        },  // M_ZIP
-    { .t=VM_send,       .x=4,           .y=COMMIT,      .z=UNDEF        },  // (M_ZIP k_eval frml args env)
+    { .t=VM_msg,        .x=1,           .y=CLOSURE_B+8, .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=6,           .y=CLOSURE_B+9, .z=UNDEF        },  // body
+    { .t=VM_push,       .x=M_EVAL_B,    .y=CLOSURE_B+10,.z=UNDEF        },  // M_EVAL_B
+    { .t=VM_new,        .x=2,           .y=CLOSURE_B+11,.z=UNDEF        },  // k_eval = (M_EVAL_B cust body)
+
+    { .t=VM_push,       .x=M_ZIP,       .y=CLOSURE_B+12,.z=UNDEF        },  // M_ZIP
+    { .t=VM_send,       .x=4,           .y=COMMIT,      .z=UNDEF        },  // (M_ZIP k_eval frml args env')
 
 //  { .t=VM_push,       .x=_cust_,      .y=M_EVAL_B-1,  .z=UNDEF        },
 //  { .t=VM_push,       .x=_body_,      .y=M_EVAL_B-0,  .z=UNDEF        },
@@ -1084,28 +1163,32 @@ cell_t cell_table[CELL_MAX] = {
 
 /*
 (define fexpr-beh                       ; lexically-bound operative procedure
-  (lambda (frml body senv)
-    (BEH (cust opnds denv)
-      (evbody #unit body (zip frml (cons denv args) senv)))))
+  (lambda (frml body denv)
+    (BEH (cust opnds senv)
+      (evbody #unit body (zip frml (cons denv opnds) (scope senv))))))
 */
 //  { .t=VM_push,       .x=_frml_,      .y=FEXPR_B-2,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_body_,      .y=FEXPR_B-1,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_senv_,      .y=FEXPR_B+0,   .z=UNDEF        },
     { .t=VM_pick,       .x=1,           .y=FEXPR_B+1,   .z=UNDEF        },  // senv
+    { .t=VM_push,       .x=UNDEF,       .y=FEXPR_B+2,   .z=UNDEF        },  // #?
+    { .t=VM_push,       .x=S_IGNORE,    .y=FEXPR_B+3,   .z=UNDEF        },  // '_
+    { .t=VM_pair,       .x=1,           .y=FEXPR_B+4,   .z=UNDEF        },  // ('_ . #?)
+    { .t=VM_pair,       .x=1,           .y=FEXPR_B+5,   .z=UNDEF        },  // env' = (('_ . #?) . senv)
 
-    { .t=VM_msg,        .x=2,           .y=FEXPR_B+2,   .z=UNDEF        },  // opnds
-    { .t=VM_msg,        .x=3,           .y=FEXPR_B+3,   .z=UNDEF        },  // denv
-    { .t=VM_pair,       .x=1,           .y=FEXPR_B+4,   .z=UNDEF        },  // opnds' = (denv . opnds)
+    { .t=VM_msg,        .x=2,           .y=FEXPR_B+6,   .z=UNDEF        },  // opnds
+    { .t=VM_msg,        .x=3,           .y=FEXPR_B+7,   .z=UNDEF        },  // denv
+    { .t=VM_pair,       .x=1,           .y=FEXPR_B+8,   .z=UNDEF        },  // opnds' = (denv . opnds)
 
-    { .t=VM_pick,       .x=5,           .y=FEXPR_B+5,   .z=UNDEF        },  // frml'
+    { .t=VM_pick,       .x=5,           .y=FEXPR_B+9,   .z=UNDEF        },  // frml'
 
-    { .t=VM_msg,        .x=1,           .y=FEXPR_B+6,   .z=UNDEF        },  // cust
-    { .t=VM_pick,       .x=6,           .y=FEXPR_B+7,   .z=UNDEF        },  // body
-    { .t=VM_push,       .x=M_EVAL_B,    .y=FEXPR_B+8,   .z=UNDEF        },  // M_EVAL_B
-    { .t=VM_new,        .x=2,           .y=FEXPR_B+9,   .z=UNDEF        },  // k_eval = (M_EVAL_B cust body)
+    { .t=VM_msg,        .x=1,           .y=FEXPR_B+10,  .z=UNDEF        },  // cust
+    { .t=VM_pick,       .x=6,           .y=FEXPR_B+11,  .z=UNDEF        },  // body
+    { .t=VM_push,       .x=M_EVAL_B,    .y=FEXPR_B+12,  .z=UNDEF        },  // M_EVAL_B
+    { .t=VM_new,        .x=2,           .y=FEXPR_B+13,  .z=UNDEF        },  // k_eval = (M_EVAL_B cust body)
 
-    { .t=VM_push,       .x=M_ZIP,       .y=FEXPR_B+10,  .z=UNDEF        },  // M_ZIP
-    { .t=VM_send,       .x=4,           .y=COMMIT,      .z=UNDEF        },  // (M_ZIP k_eval frml' opnds' senv)
+    { .t=VM_push,       .x=M_ZIP,       .y=FEXPR_B+14,  .z=UNDEF        },  // M_ZIP
+    { .t=VM_send,       .x=4,           .y=COMMIT,      .z=UNDEF        },  // (M_ZIP k_eval frml' opnds' env')
 
 /*
 (define k-seq-beh
@@ -1162,6 +1245,63 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_send,       .x=3,           .y=RELEASE,     .z=UNDEF        },  // (M_EVAL cust cnsq/altn env)
 
 /*
+(define bind-env                        ; update binding in environment
+  (lambda (key val env)
+    (if (pair? env)                     ; association list
+      (if (eq? (caar env) '_)
+        (seq                            ; insert new binding
+          (set-cdr env (cons (car env) (cdr env)))
+          (set-car env (cons key val)))
+        (if (eq? (caar env) key)
+          (set-cdr (car env) val)       ; mutate binding
+          (bind-env key val (cdr env))))
+      (if (symbol? key)
+        (set-z key val)))               ; set top-level binding
+    #unit))                             ; value is UNIT
+*/
+#define M_BIND_E (M_IF_K+7)
+    { .t=Actor_T,       .x=M_BIND_E+1,  .y=NIL,         .z=UNDEF        },  // (cust key val env)
+    { .t=VM_msg,        .x=4,           .y=M_BIND_E+2,  .z=UNDEF        },  // env = arg3
+
+    { .t=VM_pick,       .x=1,           .y=M_BIND_E+3,  .z=UNDEF        },  // env env
+    { .t=VM_typeq,      .x=Pair_T,      .y=M_BIND_E+4,  .z=UNDEF        },  // env has type Pair_T
+    { .t=VM_if,         .x=M_BIND_E+5,  .y=M_BIND_E+25, .z=UNDEF        },
+
+    { .t=VM_pick,       .x=1,           .y=M_BIND_E+6,  .z=UNDEF        },  // env env
+    { .t=VM_part,       .x=1,           .y=M_BIND_E+7,  .z=UNDEF        },  // cdr(env) car(env)
+    { .t=VM_pick,       .x=1,           .y=M_BIND_E+8,  .z=UNDEF        },  // car(env) car(env)
+    { .t=VM_nth,        .x=1,           .y=M_BIND_E+9,  .z=UNDEF        },  // caar(env)
+    { .t=VM_eq,         .x=S_IGNORE,    .y=M_BIND_E+10, .z=UNDEF        },  // (caar(env) == '_)
+    { .t=VM_if,         .x=M_BIND_E+11, .y=M_BIND_E+17, .z=UNDEF        },
+
+    { .t=VM_pair,       .x=1,           .y=M_BIND_E+12, .z=UNDEF        },  // (car(env) . cdr(env))
+    { .t=VM_set,        .x=FLD_Y,       .y=M_BIND_E+13, .z=UNDEF        },  // set-cdr
+
+    { .t=VM_msg,        .x=3,           .y=M_BIND_E+14, .z=UNDEF        },  // val = arg2
+    { .t=VM_msg,        .x=2,           .y=M_BIND_E+15, .z=UNDEF        },  // key = arg1
+    { .t=VM_pair,       .x=1,           .y=M_BIND_E+16, .z=UNDEF        },  // (key . val)
+    { .t=VM_set,        .x=FLD_X,       .y=RV_UNIT,     .z=UNDEF        },  // set-car
+
+    { .t=VM_pick,       .x=1,           .y=M_BIND_E+18, .z=UNDEF        },  // car(env) car(env)
+    { .t=VM_nth,        .x=1,           .y=M_BIND_E+19, .z=UNDEF        },  // caar(env)
+    { .t=VM_msg,        .x=2,           .y=M_BIND_E+20, .z=UNDEF        },  // key = arg1
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=M_BIND_E+21, .z=UNDEF        },  // (caar(env) == key)
+    { .t=VM_if,         .x=M_BIND_E+22, .y=M_BIND_E+24, .z=UNDEF        },
+
+    { .t=VM_msg,        .x=3,           .y=M_BIND_E+23, .z=UNDEF        },  // val = arg2
+    { .t=VM_set,        .x=FLD_Y,       .y=RV_UNIT,     .z=UNDEF        },  // set-cdr
+
+    { .t=VM_drop,       .x=1,           .y=M_BIND_E+2,  .z=UNDEF        },  // (bind-env key val (cdr env))
+
+    { .t=VM_msg,        .x=2,           .y=M_BIND_E+26, .z=UNDEF        },  // key = arg1
+    { .t=VM_typeq,      .x=Symbol_T,    .y=M_BIND_E+27, .z=UNDEF        },  // key has type Symbol_T
+    { .t=VM_if,         .x=M_BIND_E+28, .y=RV_UNIT,     .z=UNDEF        },
+
+    { .t=VM_msg,        .x=2,           .y=M_BIND_E+29, .z=UNDEF        },  // key = arg1
+    { .t=VM_msg,        .x=3,           .y=M_BIND_E+30, .z=UNDEF        },  // val = arg2
+    { .t=VM_set,        .x=FLD_Z,       .y=RV_UNIT,     .z=UNDEF        },  // bind(key, val)
+
+/*
 (define op-quote                        ; (quote <form>)
   (CREATE
     (BEH (cust opnds env)
@@ -1169,7 +1309,7 @@ cell_t cell_table[CELL_MAX] = {
         (car opnds)
       ))))
 */
-#define FX_QUOTE (M_IF_K+7)
+#define FX_QUOTE (M_BIND_E+31)
 #define OP_QUOTE (FX_QUOTE+1)
     { .t=Fexpr_T,       .x=OP_QUOTE,    .y=UNDEF,       .z=UNDEF        },  // (quote <form>)
 
@@ -1230,25 +1370,26 @@ cell_t cell_table[CELL_MAX] = {
 
 /*
 (define k-define-beh
-  (lambda (cust symbol)
+  (lambda (cust symbol env)
     (BEH value
       (SEND cust
-        (set_z symbol value)))))
+        (bind-env symbol value env) ))))
 */
 #define K_DEF_B (OP_VAU+13)
-//  { .t=VM_push,       .x=_cust_,      .y=K_DEF_B-1,   .z=UNDEF        },
-//  { .t=VM_push,       .x=_symbol_,    .y=K_DEF_B+0,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=K_DEF_B-2,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_symbol_,    .y=K_DEF_B-1,   .z=UNDEF        },
+//  { .t=VM_push,       .x=_cust_,      .y=K_DEF_B+0,   .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_DEF_B+1,   .z=UNDEF        },  // value
-    { .t=VM_set,        .x=FLD_Z,       .y=K_DEF_B+2,   .z=UNDEF        },  // bind(symbol, value)
-    { .t=VM_push,       .x=UNIT,        .y=K_DEF_B+3,   .z=UNDEF        },  // #unit
-    { .t=VM_roll,       .x=3,           .y=RELEASE_0,   .z=UNDEF        },  // cust
+    { .t=VM_roll,       .x=-3,          .y=K_DEF_B+2,   .z=UNDEF        },  // env value symbol cust
+    { .t=VM_push,       .x=M_BIND_E,    .y=K_DEF_B+3,   .z=UNDEF        },  // M_BIND_E
+    { .t=VM_send,       .x=4,           .y=RELEASE,     .z=UNDEF        },  // (M_BIND_E cust symbol value env)
 
 /*
 (define op-define                       ; (define <symbol> <expr>)
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
-        (set-z (car opnds) (eval (cadr opnds) env))
+        (bind-env (car opnds) (eval (cadr opnds) env) env)
       ))))
 */
 #define FX_DEFINE (K_DEF_B+4)
@@ -1260,13 +1401,14 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=2,           .y=OP_DEFINE+3, .z=UNDEF        },  // opnds
     { .t=VM_nth,        .x=2,           .y=OP_DEFINE+4, .z=UNDEF        },  // expr = cadr(opnds)
 
-    { .t=VM_msg,        .x=1,           .y=OP_DEFINE+5, .z=UNDEF        },  // cust
+    { .t=VM_msg,        .x=3,           .y=OP_DEFINE+5, .z=UNDEF        },  // env
     { .t=VM_msg,        .x=2,           .y=OP_DEFINE+6, .z=UNDEF        },  // opnds
     { .t=VM_nth,        .x=1,           .y=OP_DEFINE+7, .z=UNDEF        },  // symbol = car(opnds)
-    { .t=VM_push,       .x=K_DEF_B,     .y=OP_DEFINE+8, .z=UNDEF        },  // K_DEF_B
-    { .t=VM_new,        .x=2,           .y=OP_DEFINE+9, .z=UNDEF        },  // k_define = (K_DEF_B cust symbol)
+    { .t=VM_msg,        .x=1,           .y=OP_DEFINE+8, .z=UNDEF        },  // cust
+    { .t=VM_push,       .x=K_DEF_B,     .y=OP_DEFINE+9, .z=UNDEF        },  // K_DEF_B
+    { .t=VM_new,        .x=3,           .y=OP_DEFINE+10,.z=UNDEF        },  // k_define = (K_DEF_B env symbol cust)
 
-    { .t=VM_push,       .x=M_EVAL,      .y=OP_DEFINE+10,.z=UNDEF        },  // M_EVAL
+    { .t=VM_push,       .x=M_EVAL,      .y=OP_DEFINE+11,.z=UNDEF        },  // M_EVAL
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_define expr env)
 
 /*
@@ -1277,7 +1419,7 @@ cell_t cell_table[CELL_MAX] = {
         (evalif (eval (car opnds) env) (cadr opnds) (caddr opnds) env)
       ))))
 */
-#define FX_IF (OP_DEFINE+11)
+#define FX_IF (OP_DEFINE+12)
 #define OP_IF (FX_IF+1)
     { .t=Fexpr_T,       .x=OP_IF,       .y=UNDEF,       .z=UNDEF        },  // (if <pred> <cnsq> <altn>)
 
@@ -1663,68 +1805,10 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_cvt,        .x=CVT_LST_SYM, .y=CUST_SEND,   .z=UNDEF        },  // lst_sym(chars)
 
 //
-// Static Symbols
-//
-
-#define S_IGNORE (F_LST_SYM+3)
-    { .t=Symbol_T,      .x=0,           .y=S_IGNORE+1,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('_'), .y=NIL,         .z=UNDEF        },
-
-#define S_QUOTE (S_IGNORE+2)
-    { .t=Symbol_T,      .x=0,           .y=S_QUOTE+1,   .z=FX_QUOTE     },
-    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QUOTE+2,   .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QUOTE+3,   .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_QUOTE+4,   .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_QUOTE+5,   .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
-
-#define S_QQUOTE (S_QUOTE+6)
-    { .t=Symbol_T,      .x=0,           .y=S_QQUOTE+1,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QQUOTE+2,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QQUOTE+3,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('a'), .y=S_QQUOTE+4,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('s'), .y=S_QQUOTE+5,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_QQUOTE+6,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QQUOTE+7,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QQUOTE+8,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_QQUOTE+9,  .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_QQUOTE+10, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
-
-#define S_UNQUOTE (S_QQUOTE+11)
-    { .t=Symbol_T,      .x=0,           .y=S_UNQUOTE+1, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_UNQUOTE+2, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_UNQUOTE+3, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_UNQUOTE+4, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_UNQUOTE+5, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_UNQUOTE+6, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_UNQUOTE+7, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('e'), .y=NIL,         .z=UNDEF        },
-
-#define S_QSPLICE (S_UNQUOTE+8)
-    { .t=Symbol_T,      .x=0,           .y=S_QSPLICE+1, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QSPLICE+2, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_QSPLICE+3, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('q'), .y=S_QSPLICE+4, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('u'), .y=S_QSPLICE+5, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_QSPLICE+6, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('t'), .y=S_QSPLICE+7, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('e'), .y=S_QSPLICE+8, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('-'), .y=S_QSPLICE+9, .z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('s'), .y=S_QSPLICE+10,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('p'), .y=S_QSPLICE+11,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('l'), .y=S_QSPLICE+12,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_QSPLICE+13,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('c'), .y=S_QSPLICE+14,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('i'), .y=S_QSPLICE+15,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('n'), .y=S_QSPLICE+16,.z=UNDEF        },
-    { .t=Pair_T,        .x=TO_FIX('g'), .y=NIL,         .z=UNDEF        },
-
-//
 // Parsing Expression Grammar (PEG) behaviors
 //
 
-#define G_EMPTY (S_QSPLICE+17)
+#define G_EMPTY (F_LST_SYM+3)
     { .t=Actor_T,       .x=G_EMPTY+1,   .y=NIL,         .z=UNDEF        },
 #define G_EMPTY_B (G_EMPTY+1)
     { .t=VM_msg,        .x=-2,          .y=G_EMPTY+2,   .z=UNDEF        },  // in
@@ -2800,6 +2884,12 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { JOIN_BEH, "JOIN_BEH" },
     { FORK_BEH, "FORK_BEH" },
 
+    { S_IGNORE, "S_IGNORE" },
+    { S_QUOTE, "S_QUOTE" },
+    { S_QQUOTE, "S_QQUOTE" },
+    { S_UNQUOTE, "S_UNQUOTE" },
+    { S_QSPLICE, "S_QSPLICE" },
+
     { M_EVAL, "M_EVAL" },
     { M_INVOKE_K, "M_INVOKE_K" },
     { M_INVOKE, "M_INVOKE" },
@@ -2817,6 +2907,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { M_EVAL_B, "M_EVAL_B" },
     { FEXPR_B, "FEXPR_B" },
     { K_SEQ_B, "K_SEQ_B" },
+    { M_BIND_E, "M_BIND_E" },
 
     { FX_QUOTE, "FX_QUOTE" },
     { OP_QUOTE, "OP_QUOTE" },
@@ -2858,12 +2949,6 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { F_NUM_MUL, "F_NUM_MUL" },
     { F_LST_NUM, "F_LST_NUM" },
     { F_LST_SYM, "F_LST_SYM" },
-
-    { S_IGNORE, "S_IGNORE" },
-    { S_QUOTE, "S_QUOTE" },
-    { S_QQUOTE, "S_QQUOTE" },
-    { S_UNQUOTE, "S_UNQUOTE" },
-    { S_QSPLICE, "S_QSPLICE" },
 
     { G_EMPTY, "G_EMPTY" },
     { G_FAIL, "G_FAIL" },
@@ -3480,7 +3565,7 @@ int_t init_global_env() {
 
     bind_global("eval", M_EVAL);
     bind_global("apply", M_APPLY);
-    //bind_global("quote", FX_QUOTE);  // statically bound
+    bind_global("quote", FX_QUOTE);
     bind_global("lambda", FX_LAMBDA);
     bind_global("vau", FX_VAU);
     bind_global("define", FX_DEFINE);
