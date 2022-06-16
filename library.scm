@@ -168,6 +168,81 @@
           (cons (apply quasiquote (list (car x)) e) (quasi-list (cdr x))))
         (cons (car x) (quasi-list (cdr x))))
       x)))
+;((lambda (args) `(args ,args ,(car args) ,(cdr args) ,@args)) '(1 2 3))
+
+; short-circuit logical connectives
+($define! $and?
+  ($vau x e
+    ($cond
+      ((null? x) #t)
+      ((null? (cdr x)) (eval (car x) e))  ; tail context
+      ((eval (car x) e) (apply (wrap $and?) (cdr x) e))
+      (#t #f)
+    )))
+($define! $or?
+  ($vau x e
+    ($cond
+      ((null? x) #f)
+      ((null? (cdr x)) (eval (car x) e))  ; tail context
+      ((eval (car x) e) #t)
+      (#t (apply (wrap $or?) (cdr x) e))
+    )))
+; macro definitions using quasiquote templates
+(define or
+  (macro args
+    (if (pair? args)
+      (if (pair? (cdr args))
+        `(let ((_test_ ,(car args)))  ; FIXME: need (gensym) here?
+          (if _test_
+            _test_
+            (or ,@(cdr args))))
+        (car args))  ; tail-call
+      #f)))
+(define expand-or
+  (lambda (args)
+    (if (pair? args)
+      (if (pair? (cdr args))
+        `(let ((_test_ ,(car args)))  ; FIXME: need (gensym) here?
+          (if _test_
+            _test_
+            (or ,@(cdr args))))
+        (car args))  ; tail-call
+      #f)))
+; macro definitions using explicit construction
+(define expand-or
+  (lambda (args)
+    (if (pair? args)
+      (if (pair? (cdr args))
+        (list let (list (list '_test_ (car args)))  ; FIXME: need (gensym) here?
+          (list if '_test_
+            '_test_
+            (cons 'or (cdr args))))
+        (car args))  ; tail-call
+      #f)))
+(define or
+  (macro args
+    (expand-or args)))
+;(or #f (eq? 0 1) (not 1) -1 (eq? 1 1) -no-eval-) ==> -1
+(define and
+  (macro args
+    (if (pair? args)
+      (if (pair? (cdr args))
+        (list let (list (list '_test_ (car args)))  ; FIXME: need (gensym) here?
+          (list if '_test_
+            (cons 'and (cdr args))
+            '_test_))
+        (car args))  ; tail-call
+      #t)))
+(define or
+  (macro args
+    (if (pair? args)
+      (if (pair? (cdr args))
+        (list let (list (list '_test_ (car args)))  ; FIXME: need (gensym) here?
+          (list if '_test_
+            '_test_
+            (cons 'or (cdr args))))
+        (car args))  ; tail-call
+      #f)))
 
 ; Little Schemer (4th edition)
 (define atom? (lambda (x) (and (not (pair? x)) (not (null? x)))))

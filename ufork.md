@@ -306,13 +306,15 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(number? . `_values_`)`
   * `(symbol? . `_values_`)`
   * `(actor? . `_values_`)`
-  * `(not `_bool_`)`
   * `(if `_test_` `_consequence_` `_alternative_`)`
   * `(cond (`_test_` `_expr_`) . `_clauses_`)`
   * `(eq? . `_values_`)`
   * `(= . `_numbers_`)`
   * `(< . `_numbers_`)`
   * `(<= . `_numbers_`)`
+  * `(not `_bool_`)`
+  * `(and . `_bool_`)`
+  * `(or . `_bool_`)`
   * `(+ . `_numbers_`)`
   * `(- . `_numbers_`)`
   * `(* . `_numbers_`)`
