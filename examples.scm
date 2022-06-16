@@ -91,10 +91,8 @@
 (define f
   (lambda ()
     (define x 1)
-    (print 'x) (debug-print x) ; not in scheme
-    (define g
-      (lambda ()
-        x))
+    ;(print 'x) (debug-print x) ; not in scheme
+    (define g (lambda () x))
     (define x 2) ; (set! x 2) in scheme
     g))
 (define h

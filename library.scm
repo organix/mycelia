@@ -103,6 +103,54 @@
   (lambda ()
     (emit 10)))
 
+; interative (tail-recursive) tree -> sequence
+(define fringe
+  (lambda (t s r)
+    (cond
+      ((pair? t)
+        (if (null? (cdr t))
+          (fringe (car t) s r)
+          (fringe (car t) s (cons (cdr t) r))))
+      ((symbol? t)
+        (fringe r (cons t s) ()))
+      ((null? r)
+        s)
+      (#t
+        (fringe r s ()))
+    )))
+;(fringe '((a b) c . d) () ())
+;==> (d c b a)
+
+; helper function to recognize valid variable names
+(define var-name? (lambda (x) (if (symbol? x) (if (eq? x '_) #f #t) #f)))
+; simple tree-recursive implementation
+(define zip                             ; extend `env` by binding names `x` to values `y`
+  (lambda (x y env)
+    (if (pair? x)
+      (zip (car x) (car y) (zip (cdr x) (cdr y) env))
+      (if (var-name? x)
+        (cons (cons x y) env)
+        env))))
+;(zip '((a b) c . d) '((1 2 3) (4 5 6) (7 8 9)) global-env)
+;==> ((a . +1) (b . +2) (c +4 +5 +6) (d (+7 +8 +9)) . #actor@55)
+; interative (tail-recursive) implementation
+(define zip-it                          ; extend `env` by binding names `x` to values `y`
+  (lambda (x y xs ys env)
+    (cond
+      ((pair? x)
+        (if (null? (cdr x))
+          (zip-it (car x) (car y) xs ys env)
+          (zip-it (car x) (car y) (cons (cdr x) xs) (cons (cdr y) ys) env)))
+      ((var-name? x)
+        (zip-it xs ys () () (cons (cons x y) env)))
+      ((null? xs)
+        env)
+      (#t
+        (zip-it xs ys () () env))
+    )))
+;(zip-it '((a b) c . d) '((1 2 3) (4 5 6) (7 8 9)) () () global-env)
+;==> ((d (+7 +8 +9)) (c +4 +5 +6) (b . +2) (a . +1) . #actor@55)
+
 ; Quasi-Quotation based on `vau`
 (define quasiquote
   (vau (x) e

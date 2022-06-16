@@ -385,6 +385,7 @@ Date       | Events | Instructions | Description
 2022-06-13 |  14918 |       174403 | implement `vau` and `macro`
 2022-06-14 |  34819 |       407735 | Quasi-Quotation with `vau`
 2022-06-15 |  55936 |       655106 | `define` mutates local bindings
+2022-06-16 |  55926 |       655174 | `zip` matches parameter-trees
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
@@ -397,6 +398,7 @@ Date       | Events | Instructions | Description
 2022-06-13 |   1177 |        13652 | implement `vau` and `macro`
 2022-06-14 |   1177 |        13652 | Quasi-Quotation with `vau`
 2022-06-15 |   1167 |        13654 | `define` mutates local bindings
+2022-06-16 |   1177 |        13674 | `zip` matches parameter-trees
 
 ## PEG Tools
 
@@ -1302,17 +1304,28 @@ The extended reference-implementation looks like this:
         (SEND cust ()))
       )))
 
-(define zip                             ; extend `env` by binding names `xs` to values `ys`
-  (lambda (xs ys env)
-    (if (pair? xs)
-      (if (eq? (car xs) '_)             ; never bind '_
-        (zip (cdr xs) (cdr ys) env)
-        (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env)))
-      (if (symbol? xs)
-        (if (eq? xs '_)                 ; never bind '_
-          env
-          (cons (cons xs ys) env))      ; dotted-tail binds to &rest
-        env))))
+(define var-name? (lambda (x) (if (symbol? x) (if (eq? x '_) #f #t) #f)))
+(define zip-it                          ; extend `env` by binding names `x` to values `y`
+  (lambda (x y xs ys env)
+    (cond
+      ((pair? x)
+        (if (null? (cdr x))
+          (zip-it (car x) (car y) xs ys env)
+          (zip-it (car x) (car y) (cons (cdr x) xs) (cons (cdr y) ys) env)))
+      ((var-name? x)
+        (zip-it xs ys () () (cons (cons x y) env)))
+      ((null? xs)
+        env)
+      (#t
+        (zip-it xs ys () () env))
+    )))
+(define zip                             ; extend `env` by binding names `x` to values `y`
+  (lambda (x y env)
+    (zip-it x y () () env)))
+;(zip '((a b) c . d) '((1 2 3) (4 5 6) (7 8 9)) global-env)
+;==> ((d (+7 +8 +9)) (c +4 +5 +6) (b . +2) (a . +1) . #actor@55)
+;((lambda ((a b) c . d) (list a b c d)) '(1 2 3) '(4 5 6) '(7 8 9))
+;==> (+1 +2 (+4 +5 +6) ((+7 +8 +9)))
 
 (define scope                           ; delimit local scope (inline function)
   (lambda (env)

@@ -828,8 +828,13 @@ cell_t cell_table[CELL_MAX] = {
 #define M_EVLIS (M_EVLIS_K+6)
 #define FX_PAR (M_EVLIS+14)
 #define OP_PAR (FX_PAR+1)
-#define M_ZIP (OP_PAR+20)
-#define CLOSURE_B (M_ZIP+33)
+#define M_ZIP_IT (OP_PAR+20)
+#define M_ZIP_K (M_ZIP_IT+12)
+#define M_ZIP_P (M_ZIP_K+6)
+#define M_ZIP_R (M_ZIP_P+9)
+#define M_ZIP_S (M_ZIP_R+11)
+#define M_ZIP (M_ZIP_S+7)
+#define CLOSURE_B (M_ZIP+6)
 #define M_EVAL_B (CLOSURE_B+13)
 #define FEXPR_B (M_EVAL_B+5)
 #define K_SEQ_B (FEXPR_B+15)
@@ -1070,61 +1075,109 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_send,       .x=2,           .y=COMMIT,      .z=UNDEF        },  // (ev_fork h_req t_req)
 
 /*
-(define zip                             ; extend `env` by binding names `xs` to values `ys`
-  (lambda (xs ys env)
-    (if (pair? xs)
-      (if (eq? (car xs) '_)             ; never bind '_
-        (zip (cdr xs) (cdr ys) env)
-        (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env)))
-      (if (symbol? xs)
-        (if (eq? xs '_)                 ; never bind '_
-          env
-          (cons (cons xs ys) env))      ; dotted-tail binds to &rest
-        env))))
+(define var-name? (lambda (x) (if (symbol? x) (if (eq? x '_) #f #t) #f)))
+(define zip-it                          ; extend `env` by binding names `x` to values `y`
+  (lambda (x y xs ys env)
+    (cond
+      ((pair? x)
+        (if (null? (cdr x))
+          (zip-it (car x) (car y) xs ys env)
+          (zip-it (car x) (car y) (cons (cdr x) xs) (cons (cdr y) ys) env)))
+      ((var-name? x)
+        (zip-it xs ys () () (cons (cons x y) env)))
+      ((null? xs)
+        env)
+      (#t
+        (zip-it xs ys () () env))
+    )))
 */
-    { .t=Actor_T,       .x=M_ZIP+1,     .y=NIL,         .z=UNDEF        },  // (cust xs ys tail)
-    { .t=VM_msg,        .x=2,           .y=M_ZIP+2,     .z=UNDEF        },  // xs = arg1
-    { .t=VM_msg,        .x=3,           .y=M_ZIP+3,     .z=UNDEF        },  // ys = arg2
-    { .t=VM_msg,        .x=4,           .y=M_ZIP+4,     .z=UNDEF        },  // tail = arg3
+//  { .t=VM_push,       .x=_ys_,        .y=M_ZIP_IT-4,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_xs_,        .y=M_ZIP_IT-3,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_y_,         .y=M_ZIP_IT-2,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_x_,         .y=M_ZIP_IT-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=M_ZIP_IT+0,  .z=UNDEF        },
 
-    { .t=VM_pick,       .x=3,           .y=M_ZIP+5,     .z=UNDEF        },  // xs
-    { .t=VM_typeq,      .x=Pair_T,      .y=M_ZIP+6,     .z=UNDEF        },  // xs has type Pair_T
-    { .t=VM_if,         .x=M_ZIP+7,     .y=M_ZIP+23,    .z=UNDEF        },
+// ys xs y x env
+    { .t=VM_pick,       .x=2,           .y=M_ZIP_IT+1,  .z=UNDEF        },  // x
+    { .t=VM_typeq,      .x=Pair_T,      .y=M_ZIP_IT+2,  .z=UNDEF        },  // x has type Pair_T
+    { .t=VM_if,         .x=M_ZIP_P,     .y=M_ZIP_IT+3,  .z=UNDEF        },
 
-    { .t=VM_pick,       .x=2,           .y=M_ZIP+8,     .z=UNDEF        },  // ys
-    { .t=VM_nth,        .x=1,           .y=M_ZIP+9,     .z=UNDEF        },  // y = car(ys)
-    { .t=VM_pick,       .x=4,           .y=M_ZIP+10,    .z=UNDEF        },  // xs
-    { .t=VM_nth,        .x=1,           .y=M_ZIP+11,    .z=UNDEF        },  // x = car(xs)
+    { .t=VM_pick,       .x=2,           .y=M_ZIP_IT+4,  .z=UNDEF        },  // x
+    { .t=VM_typeq,      .x=Symbol_T,    .y=M_ZIP_IT+5,  .z=UNDEF        },  // x has type Symbol_T
+    { .t=VM_if,         .x=M_ZIP_IT+6,  .y=M_ZIP_IT+9,  .z=UNDEF        },
 
-    { .t=VM_pick,       .x=1,           .y=M_ZIP+12,    .z=UNDEF        },  // x x
-    { .t=VM_eq,         .x=S_IGNORE,    .y=M_ZIP+13,    .z=UNDEF        },  // (x == '_)
-    { .t=VM_if,         .x=M_ZIP+14,    .y=M_ZIP+15,    .z=UNDEF        },
+    { .t=VM_pick,       .x=2,           .y=M_ZIP_IT+7,  .z=UNDEF        },  // x
+    { .t=VM_eq,         .x=S_IGNORE,    .y=M_ZIP_IT+8,  .z=UNDEF        },  // (x == '_)
+    { .t=VM_if,         .x=M_ZIP_IT+9,  .y=M_ZIP_S,     .z=UNDEF        },
 
-    { .t=VM_drop,       .x=2,           .y=M_ZIP+17,    .z=UNDEF        },  // xs ys tail
+    { .t=VM_pick,       .x=4,           .y=M_ZIP_IT+10, .z=UNDEF        },  // xs
+    { .t=VM_eq,         .x=NIL,         .y=M_ZIP_IT+11, .z=UNDEF        },  // (xs == NIL)
+    { .t=VM_if,         .x=CUST_SEND,   .y=M_ZIP_K,     .z=UNDEF        },  // return(env)
 
-    { .t=VM_pair,       .x=1,           .y=M_ZIP+16,    .z=UNDEF        },  // (x . y)
-    { .t=VM_pair,       .x=1,           .y=M_ZIP+17,    .z=UNDEF        },  // tail' = ((x . y) . tail)
+// ys xs y x env
+    { .t=VM_roll,       .x=-3,          .y=M_ZIP_K+1,   .z=UNDEF        },  // ys xs env y x
+    { .t=VM_drop,       .x=2,           .y=M_ZIP_K+2,   .z=UNDEF        },  // ys xs env
+    { .t=VM_push,       .x=NIL,         .y=M_ZIP_K+3,   .z=UNDEF        },  // ys xs env ()
+    { .t=VM_roll,       .x=-4,          .y=M_ZIP_K+4,   .z=UNDEF        },  // () ys xs env
+    { .t=VM_push,       .x=NIL,         .y=M_ZIP_K+5,   .z=UNDEF        },  // () ys xs env ()
+    { .t=VM_roll,       .x=-4,          .y=M_ZIP_IT,    .z=UNDEF        },  // () () ys xs env
 
-    { .t=VM_roll,       .x=3,           .y=M_ZIP+18,    .z=UNDEF        },  // ys tail' xs
-    { .t=VM_nth,        .x=-1,          .y=M_ZIP+19,    .z=UNDEF        },  // xs' = cdr(xs)
-    { .t=VM_roll,       .x=-3,          .y=M_ZIP+20,    .z=UNDEF        },  // xs' ys tail'
+/*
+        (if (null? (cdr x))
+          (zip-it (car x) (car y) xs ys env)
+*/
+// ys xs y x env
+    { .t=VM_pick,       .x=2,           .y=M_ZIP_P+1,   .z=UNDEF        },  // x
+    { .t=VM_nth,        .x=-1,          .y=M_ZIP_P+2,   .z=UNDEF        },  // cdr(x)
+    { .t=VM_eq,         .x=NIL,         .y=M_ZIP_P+3,   .z=UNDEF        },  // (cdr(x) == NIL)
+    { .t=VM_if,         .x=M_ZIP_P+4,   .y=M_ZIP_R,     .z=UNDEF        },
 
-    { .t=VM_roll,       .x=2,           .y=M_ZIP+21,    .z=UNDEF        },  // xs' tail' ys
-    { .t=VM_nth,        .x=-1,          .y=M_ZIP+22,    .z=UNDEF        },  // ys' = cdr(ys)
-    { .t=VM_roll,       .x=-2,          .y=M_ZIP+4,     .z=UNDEF        },  // xs' ys' tail'
+    { .t=VM_roll,       .x=3,           .y=M_ZIP_P+5,   .z=UNDEF        },  // ys xs x env y
+    { .t=VM_nth,        .x=1,           .y=M_ZIP_P+6,   .z=UNDEF        },  // ys xs x env car(y)
+    { .t=VM_roll,       .x=3,           .y=M_ZIP_P+7,   .z=UNDEF        },  // ys xs env car(y) x
+    { .t=VM_nth,        .x=1,           .y=M_ZIP_P+8,   .z=UNDEF        },  // ys xs env car(y) car(x)
+    { .t=VM_roll,       .x=3,           .y=M_ZIP_IT,    .z=UNDEF        },  // ys xs car(y) car(x) env
 
-    { .t=VM_pick,       .x=3,           .y=M_ZIP+24,    .z=UNDEF        },  // xs
-    { .t=VM_typeq,      .x=Symbol_T,    .y=M_ZIP+25,    .z=UNDEF        },  // xs has type Symbol_T
-    { .t=VM_if,         .x=M_ZIP+26,    .y=CUST_SEND,   .z=UNDEF        },
+/*
+          (zip-it (car x) (car y) (cons (cdr x) xs) (cons (cdr y) ys) env)))
+*/
+// ys xs y x env
+    { .t=VM_roll,       .x=5,           .y=M_ZIP_R+1,   .z=UNDEF        },  // xs y x env ys
+    { .t=VM_roll,       .x=4,           .y=M_ZIP_R+2,   .z=UNDEF        },  // xs x env ys y
+    { .t=VM_part,       .x=1,           .y=M_ZIP_R+3,   .z=UNDEF        },  // xs x env ys cdr(y) car(y)
+    { .t=VM_roll,       .x=-6,          .y=M_ZIP_R+4,   .z=UNDEF        },  // car(y) xs x env ys cdr(y)
+    { .t=VM_pair,       .x=1,           .y=M_ZIP_R+5,   .z=UNDEF        },  // car(y) xs x env (cdr(y) . ys)
+    { .t=VM_roll,       .x=-5,          .y=M_ZIP_R+6,   .z=UNDEF        },  // (cdr(y) . ys) car(y) xs x env
+// ys' y' xs x env
+    { .t=VM_roll,       .x=-3,          .y=M_ZIP_R+7,   .z=UNDEF        },  // ys' y' env xs x
+    { .t=VM_part,       .x=1,           .y=M_ZIP_R+8,   .z=UNDEF        },  // ys' y' env xs cdr(x) car(x)
+    { .t=VM_roll,       .x=-4,          .y=M_ZIP_R+9,   .z=UNDEF        },  // ys' y' car(x) env xs cdr(x)
+    { .t=VM_pair,       .x=1,           .y=M_ZIP_R+10,  .z=UNDEF        },  // ys' y' car(x) env (cdr(x) . xs)
+    { .t=VM_roll,       .x=-4,          .y=M_ZIP_IT,    .z=UNDEF        },  // ys' (cdr(x) . xs) y' car(x) env
 
-    { .t=VM_pick,       .x=3,           .y=M_ZIP+27,    .z=UNDEF        },  // xs
-    { .t=VM_eq,         .x=S_IGNORE,    .y=M_ZIP+28,    .z=UNDEF        },  // (xs == '_)
-    { .t=VM_if,         .x=CUST_SEND,   .y=M_ZIP+29,    .z=UNDEF        },
+/*
+        (zip-it xs ys () () (cons (cons x y) env)))
+*/
+// ys xs y x env
+    { .t=VM_roll,       .x=-3,          .y=M_ZIP_S+1,   .z=UNDEF        },  // ys xs env y x
+    { .t=VM_pair,       .x=1,           .y=M_ZIP_S+2,   .z=UNDEF        },  // ys xs env (x . y)
+    { .t=VM_pair,       .x=1,           .y=M_ZIP_S+3,   .z=UNDEF        },  // ys xs ((x . y) . env)
+    { .t=VM_push,       .x=NIL,         .y=M_ZIP_S+4,   .z=UNDEF        },  // ys xs env' ()
+    { .t=VM_roll,       .x=-4,          .y=M_ZIP_S+5,   .z=UNDEF        },  // () ys xs env'
+    { .t=VM_push,       .x=NIL,         .y=M_ZIP_S+6,   .z=UNDEF        },  // () ys xs env' ()
+    { .t=VM_roll,       .x=-4,          .y=M_ZIP_IT,    .z=UNDEF        },  // () () ys xs env'
 
-    { .t=VM_roll,       .x=2,           .y=M_ZIP+30,    .z=UNDEF        },  // xs tail ys
-    { .t=VM_roll,       .x=3,           .y=M_ZIP+31,    .z=UNDEF        },  // tail ys xs
-    { .t=VM_pair,       .x=1,           .y=M_ZIP+32,    .z=UNDEF        },  // tail (xs . ys)
-    { .t=VM_pair,       .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // tail' = ((x . y) . tail)
+/*
+(define zip                             ; extend `env` by binding names `x` to values `y`
+  (lambda (x y env)
+    (zip-it x y () () env)))
+*/
+    { .t=Actor_T,       .x=M_ZIP+1,     .y=NIL,         .z=UNDEF        },  // (cust x y env)
+    { .t=VM_push,       .x=NIL,         .y=M_ZIP+2,     .z=UNDEF        },  // ys = ()
+    { .t=VM_push,       .x=NIL,         .y=M_ZIP+3,     .z=UNDEF        },  // xs = ()
+    { .t=VM_msg,        .x=3,           .y=M_ZIP+4,     .z=UNDEF        },  // y = arg2
+    { .t=VM_msg,        .x=2,           .y=M_ZIP+5,     .z=UNDEF        },  // x = arg1
+    { .t=VM_msg,        .x=4,           .y=M_ZIP_IT,    .z=UNDEF        },  // env = arg3
 
 /*
 (define closure-beh                     ; lexically-bound applicative procedure
@@ -2902,6 +2955,11 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { M_EVLIS, "M_EVLIS" },
     { FX_PAR, "FX_PAR" },
     { OP_PAR, "OP_PAR" },
+    { M_ZIP_IT, "M_ZIP_IT" },
+    { M_ZIP_K, "M_ZIP_K" },
+    { M_ZIP_P, "M_ZIP_P" },
+    { M_ZIP_R, "M_ZIP_R" },
+    { M_ZIP_S, "M_ZIP_S" },
     { M_ZIP, "M_ZIP" },
     { CLOSURE_B, "CLOSURE_B" },
     { M_EVAL_B, "M_EVAL_B" },
