@@ -321,10 +321,10 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(length `_list_`)`
   * `(append . `_lists_`)`
   * `(filter `_pred_` `_list_`)`
-  * `(map `_proc_` `_list_`)`  ; 1-arg `proc` only
   * `(reduce `_binop_` `_zero_` `_list_`)`
   * `(foldl `_binop_` `_zero_` `_list_`)`
   * `(foldr `_binop_` `_zero_` `_list_`)`
+  * `(map `_proc_` . `_lists_`)`
   * `(reverse `_list_`)`
   * `(let ((`_var_` `_val_`) . `_bindings_`) . `_body_`)`
   * `(current-env)`
@@ -1237,6 +1237,7 @@ Additional features implemented here are:
   * More useful `macro` operative constructor
   * `quasiquote`, et. al. for ease of use
   * `define` mutates local bindings (not just globals)
+  * `zip` matches parameter-trees
 
 The extended reference-implementation looks like this:
 

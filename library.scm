@@ -2,10 +2,23 @@
 ;; library.scm (extended library definitions)
 ;;
 
+(define current-env (vau _ e e))
 (define macro (vau (frml . body) env
   (eval (list vau frml '_env_ (list eval (cons seq body) '_env_)) env) ))
+;current-env
+;==> #fexpr@2127
+;(current-env)
+;==> ()
+;(define f (lambda x (seq (list list x (current-env) current-env))))
+;(f 1 2 3)
+;==> (#actor@565 (+1 +2 +3) ((x +1 +2 +3) (_ . #?)) #fexpr@2127)
+;(define m (macro x (list list x (current-env) current-env)))
+;(m 1 2 3)
+;==> (#? #? #fexpr@2127)
+;(define v (vau x e (eval (seq (list list x (current-env) current-env)) e) ))
+;(v 1 2 3)
+;==> (#? #? #fexpr@2127)
 
-(define current-env (vau _ e e))
 ;(define qlist (macro x (list quote x)))
 (define qlist (vau x _ x))
 (define quote (vau (x) _ x))
@@ -28,14 +41,6 @@
         (lambda ((test . body) . rest)
           (list if test (cons seq body) (cons cond rest)) )
         clauses) )))
-
-(define map (lambda (f xs) (if (pair? xs) (cons (f (car xs)) (map f (cdr xs))) ())))  ; f takes only 1 arg
-
-(define let
-  (macro (bindings . body)
-    (cons
-      (list* lambda (map car bindings) body)
-      (map cadr bindings))))
 
 ;(define append (lambda (x y) (if (null? x) y (cons (car x) (append (cdr x) y)))))  ; two lists only
 (define append
@@ -91,6 +96,21 @@
     (define push-pop (lambda (to from)
       (if (pair? from) (push-pop (cons (car from) to) (cdr from)) to)))
     (push-pop () xs)))
+
+;(define map (lambda (f xs) (if (pair? xs) (cons (f (car xs)) (map f (cdr xs))) ())))  ; f takes only 1 arg
+(define map
+  (lambda (f . xs)
+    (if (pair? (car xs))
+      (cons
+        (apply f (foldr (lambda (x y) (cons (car x) y)) () xs))
+        (apply map (cons f (foldr (lambda (x y) (cons (cdr x) y)) () xs))))
+      ())))
+
+(define let
+  (macro (bindings . body)
+    (cons
+      (list* lambda (map car bindings) body)
+      (map cadr bindings))))
 
 (define provide
   (macro (symbols . body)

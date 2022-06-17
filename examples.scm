@@ -41,6 +41,19 @@
       #f)))
 
 ;
+; variadic mapping function
+;
+;(define map (lambda (f xs) (if (pair? xs) (cons (f (car xs)) (map f (cdr xs))) ())))  ; single-arg version
+;(define foldr (lambda (op z xs) (if (pair? xs) (op (car xs) (foldr op z (cdr xs))) z)))
+(define map
+  (lambda (f . xs)
+    (if (pair? (car xs))
+      (cons
+        (apply f (foldr (lambda (x y) (cons (car x) y)) () xs))
+        (apply map (cons f (foldr (lambda (x y) (cons (cdr x) y)) () xs))))
+      ())))
+
+;
 ; pure-functional dequeue
 ;
 
