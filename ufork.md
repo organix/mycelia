@@ -1415,10 +1415,10 @@ The extended reference-implementation looks like this:
         (SEND cust value)) )))
 
 (define macro                           ; (macro <frml> . <body>)
-  (vau (frml . body) _
+  (vau (frml . body) env
     (eval
       (list vau frml '_env_
-        (list eval (cons seq body) '_env_))) ))
+        (list eval (cons seq body) '_env_)) env) ))
 
 (define quasiquote
   (vau (x) e
