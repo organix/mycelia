@@ -261,7 +261,7 @@ RESEND:     [MSG,+0,k]   |
             [SELF,?,k]---+
                          |
                          |
-SELF_EVAL:  [SELF,?,k]   |
+RV_SELF:    [SELF,?,k]   |
                     |    |
                     v    |
 CUST_SEND:  [MSG,+1,k]   |

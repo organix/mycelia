@@ -20,9 +20,10 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define EXPLICIT_FREE 1 // explicitly free known-dead memory
 #define MARK_SWEEP_GC 1 // stop-the-world garbage collection
 #define RUNTIME_STATS 1 // collect statistics on the runtime
-#define SCM_PEG_TOOLS 0 // include PEG tools for LISP/Scheme
+#define SCM_PEG_TOOLS 0 // include PEG tools for LISP/Scheme (+232 cells)
 #define BOOTSTRAP_LIB 1 // include bootstrap library definitions
 #define EVLIS_IS_PAR  0 // concurrent argument-list evaluation
+#define SCM_ASM_TOOLS 1 // include assembly tools for LISP/Scheme
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -437,9 +438,9 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF        },  // UNIT = #unit
     { .t=Event_T,       .x=91,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
 
-#define SELF_EVAL (START+1)
-    { .t=VM_self,       .x=UNDEF,       .y=SELF_EVAL+1, .z=UNDEF        },  // value = SELF
-#define CUST_SEND (SELF_EVAL+1)
+#define RV_SELF (START+1)
+    { .t=VM_self,       .x=UNDEF,       .y=RV_SELF+1,   .z=UNDEF        },  // value = SELF
+#define CUST_SEND (RV_SELF+1)
     { .t=VM_msg,        .x=1,           .y=CUST_SEND+1, .z=UNDEF        },  // cust
 #define SEND_0 (CUST_SEND+1)
     { .t=VM_send,       .x=0,           .y=SEND_0+1,    .z=UNDEF        },  // (cust . msg)
@@ -1857,11 +1858,39 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=2,           .y=F_LST_SYM+2, .z=UNDEF        },  // chars = arg1
     { .t=VM_cvt,        .x=CVT_LST_SYM, .y=CUST_SEND,   .z=UNDEF        },  // lst_sym(chars)
 
+#if SCM_ASM_TOOLS
+//
+// Assembly-language Tools
+//
+
+#define F_INT_FIX (F_LST_SYM+3)
+    { .t=Actor_T,       .x=F_INT_FIX+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_INT_FIX+2, .z=UNDEF        },  // rawint = arg1
+    { .t=VM_cvt,        .x=CVT_INT_FIX, .y=CUST_SEND,   .z=UNDEF        },  // TO_FIX(rawint)
+
+#define F_FIX_INT (F_INT_FIX+3)
+    { .t=Actor_T,       .x=F_FIX_INT+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_FIX_INT+2, .z=UNDEF        },  // fixnum = arg1
+    { .t=VM_cvt,        .x=CVT_FIX_INT, .y=CUST_SEND,   .z=UNDEF        },  // TO_INT(fixnum)
+
+#define F_CELL (F_FIX_INT+3)
+    { .t=Actor_T,       .x=F_CELL+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_CELL+2,    .z=UNDEF        },  // T = arg1
+    { .t=VM_msg,        .x=3,           .y=F_CELL+3,    .z=UNDEF        },  // X = arg2
+    { .t=VM_msg,        .x=4,           .y=F_CELL+4,    .z=UNDEF        },  // Y = arg3
+    { .t=VM_msg,        .x=5,           .y=F_CELL+5,    .z=UNDEF        },  // Z = arg4
+    { .t=VM_cell,       .x=4,           .y=CUST_SEND,   .z=UNDEF        },  // cell(T, X, Y, Z)
+
+#define ASM_END (F_CELL+6)
+#else // !SCM_ASM_TOOLS
+#define ASM_END (F_LST_SYM+3)
+#endif // SCM_ASM_TOOLS
+
 //
 // Parsing Expression Grammar (PEG) behaviors
 //
 
-#define G_EMPTY (F_LST_SYM+3)
+#define G_EMPTY (ASM_END+0)
     { .t=Actor_T,       .x=G_EMPTY+1,   .y=NIL,         .z=UNDEF        },
 #define G_EMPTY_B (G_EMPTY+1)
     { .t=VM_msg,        .x=-2,          .y=G_EMPTY+2,   .z=UNDEF        },  // in
@@ -2894,7 +2923,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { UNIT, "UNIT" },
     { START, "START" },
 
-    { SELF_EVAL, "SELF_EVAL" },
+    { RV_SELF, "RV_SELF" },
     { CUST_SEND, "CUST_SEND" },
     { SEND_0, "SEND_0" },
     { COMMIT, "COMMIT" },
@@ -3007,6 +3036,12 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { F_NUM_MUL, "F_NUM_MUL" },
     { F_LST_NUM, "F_LST_NUM" },
     { F_LST_SYM, "F_LST_SYM" },
+
+#if SCM_ASM_TOOLS
+    { F_INT_FIX, "F_INT_FIX" },
+    { F_FIX_INT, "F_FIX_INT" },
+    { F_CELL, "F_CELL" },
+#endif // SCM_ASM_TOOLS
 
     { G_EMPTY, "G_EMPTY" },
     { G_FAIL, "G_FAIL" },
@@ -3656,7 +3691,7 @@ int_t init_global_env() {
     bind_global("list->number", F_LST_NUM);
     bind_global("list->symbol", F_LST_SYM);
 
-#if SCM_PEG_TOOLS
+#if (SCM_PEG_TOOLS || SCM_ASM_TOOLS)
     bind_global("CTL", TO_FIX(CTL));
     bind_global("DGT", TO_FIX(DGT));
     bind_global("UPR", TO_FIX(UPR));
@@ -3665,6 +3700,9 @@ int_t init_global_env() {
     bind_global("SYM", TO_FIX(SYM));
     bind_global("HEX", TO_FIX(HEX));
     bind_global("WSP", TO_FIX(WSP));
+#endif
+
+#if SCM_PEG_TOOLS
     bind_global("peg-empty", G_EMPTY);
     bind_global("peg-fail", G_FAIL);
     bind_global("peg-any", G_ANY);
@@ -3705,6 +3743,104 @@ int_t init_global_env() {
     bind_global("scm-expr", G_EXPR);
     bind_global("scm-sexpr", G_SEXPR);
 #endif // SCM_PEG_TOOLS
+
+#if SCM_ASM_TOOLS
+    bind_global("FALSE", FALSE);
+    bind_global("TRUE", TRUE);
+    bind_global("NIL", NIL);
+    bind_global("UNDEF", UNDEF);
+    bind_global("UNIT", UNIT);
+
+    bind_global("Undef_T", Undef_T);
+    bind_global("Boolean_T", Boolean_T);
+    bind_global("Null_T", Null_T);
+    bind_global("Pair_T", Pair_T);
+    bind_global("Symbol_T", Symbol_T);
+    bind_global("Fexpr_T", Fexpr_T);
+    bind_global("Actor_T", Actor_T);
+    bind_global("Event_T", Event_T);
+    bind_global("Free_T", Free_T);
+
+    bind_global("VM_typeq", VM_typeq);
+    bind_global("VM_cell", VM_cell);
+    bind_global("VM_get", VM_get);
+    bind_global("VM_set", VM_set);
+    bind_global("VM_pair", VM_pair);
+    bind_global("VM_part", VM_part);
+    bind_global("VM_nth", VM_nth);
+    bind_global("VM_push", VM_push);
+    bind_global("VM_depth", VM_depth);
+    bind_global("VM_drop", VM_drop);
+    bind_global("VM_pick", VM_pick);
+    bind_global("VM_dup", VM_dup);
+    bind_global("VM_roll", VM_roll);
+    bind_global("VM_alu", VM_alu);
+    bind_global("VM_eq", VM_eq);
+    bind_global("VM_cmp", VM_cmp);
+    bind_global("VM_if", VM_if);
+    bind_global("VM_msg", VM_msg);
+    bind_global("VM_self", VM_self);
+    bind_global("VM_send", VM_send);
+    bind_global("VM_new", VM_new);
+    bind_global("VM_beh", VM_beh);
+    bind_global("VM_end", VM_end);
+    bind_global("VM_cvt", VM_cvt);
+    bind_global("VM_putc", VM_putc);
+    bind_global("VM_getc", VM_getc);
+    bind_global("VM_debug", VM_debug);
+
+    bind_global("FLD_T", FLD_T);
+    bind_global("FLD_X", FLD_X);
+    bind_global("FLD_Y", FLD_Y);
+    bind_global("FLD_Z", FLD_Z);
+
+    bind_global("ALU_NOT", ALU_NOT);
+    bind_global("ALU_AND", ALU_AND);
+    bind_global("ALU_OR", ALU_OR);
+    bind_global("ALU_XOR", ALU_XOR);
+    bind_global("ALU_ADD", ALU_ADD);
+    bind_global("ALU_SUB", ALU_SUB);
+    bind_global("ALU_MUL", ALU_MUL);
+
+    bind_global("CMP_EQ", CMP_EQ);
+    bind_global("CMP_GE", CMP_GE);
+    bind_global("CMP_GT", CMP_GT);
+    bind_global("CMP_LT", CMP_LT);
+    bind_global("CMP_LE", CMP_LE);
+    bind_global("CMP_NE", CMP_NE);
+    bind_global("CMP_CLS", CMP_CLS);
+
+    bind_global("END_ABORT", END_ABORT);
+    bind_global("END_STOP", END_STOP);
+    bind_global("END_COMMIT", END_COMMIT);
+    bind_global("END_RELEASE", END_RELEASE);
+
+    bind_global("CVT_INT_FIX", CVT_INT_FIX);
+    bind_global("CVT_FIX_INT", CVT_FIX_INT);
+    bind_global("CVT_LST_NUM", CVT_LST_NUM);
+    bind_global("CVT_LST_SYM", CVT_LST_SYM);
+
+    //bind_global("START", START);
+    bind_global("RV_SELF", RV_SELF);
+    bind_global("CUST_SEND", CUST_SEND);
+    bind_global("SEND_0", SEND_0);
+    bind_global("COMMIT", COMMIT);
+    bind_global("RESEND", RESEND);
+    bind_global("RELEASE_0", RELEASE_0);
+    bind_global("RELEASE", RELEASE);
+
+    bind_global("RV_FALSE", RV_FALSE);
+    bind_global("RV_TRUE", RV_TRUE);
+    bind_global("RV_NIL", RV_NIL);
+    bind_global("RV_UNDEF", RV_UNDEF);
+    bind_global("RV_UNIT", RV_UNIT);
+    bind_global("RV_ZERO", RV_ZERO);
+    bind_global("RV_ONE", RV_ONE);
+
+    bind_global("int->fix", F_INT_FIX);
+    bind_global("fix->int", F_FIX_INT);
+    bind_global("cell", F_CELL);
+#endif //SCM_ASM_TOOLS
 
     bind_global("a-print", A_PRINT);
     bind_global("quit", A_QUIT);
@@ -4080,7 +4216,7 @@ PROC_DECL(vm_cell) {
     int_t z = UNDEF;
     int_t y = UNDEF;
     int_t x = UNDEF;
-    ASSERT(NAT(n) < 4);
+    ASSERT(NAT(n) <= 4);
     if (n > 3) { z = stack_pop(); }
     if (n > 2) { y = stack_pop(); }
     if (n > 1) { x = stack_pop(); }

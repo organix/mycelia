@@ -106,6 +106,7 @@
         (apply map (cons f (foldr (lambda (x y) (cons (cdr x) y)) () xs))))
       ())))
 
+;(define expand-let (vau (kvs . body) _ (cons (list* 'lambda (map car kvs) body) (map cadr kvs)))
 (define let
   (macro (bindings . body)
     (cons
