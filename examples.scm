@@ -163,3 +163,14 @@
 
 ; test-case "(CAR ( LIST 0 1)\t)"
 (define sexpr-example '(40 67 65 82 32 40 32 76 73 83 84 32 48 32 49 41 9 41))
+
+;
+; ASM Experiments
+;
+(define print
+  (cell Actor_T
+    (cell VM_msg (fix->int -1)  ; #-1
+      (cell VM_push a-print
+        (cell VM_send (fix->int 0)  ; #0
+          RV_UNIT)))
+    ()))

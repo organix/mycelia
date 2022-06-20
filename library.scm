@@ -143,6 +143,14 @@
 ;(fringe '((a b) c . d) () ())
 ;==> (d c b a)
 
+; match flat argument list w/ dotted-tail
+(define zip                             ; extend `env` by binding names `x` to values `y`
+  (lambda (x y env)
+    (if (pair? x)
+      (cons (cons (car x) (car y)) (zip (cdr x) (cdr y) env))
+      (if (symbol? x)
+        (cons (cons x y) env)         ; dotted-tail binds to &rest
+        env))))
 ; helper function to recognize valid variable names
 (define var-name? (lambda (x) (if (symbol? x) (if (eq? x '_) #f #t) #f)))
 ; simple tree-recursive implementation

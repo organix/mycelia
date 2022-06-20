@@ -388,6 +388,7 @@ Date       | Events | Instructions | Description
 2022-06-14 |  34819 |       407735 | Quasi-Quotation with `vau`
 2022-06-15 |  55936 |       655106 | `define` mutates local bindings
 2022-06-16 |  55926 |       655174 | `zip` matches parameter-trees
+2022-06-20 |  69640 |       816774 | inline `apply` combination
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
@@ -401,6 +402,7 @@ Date       | Events | Instructions | Description
 2022-06-14 |   1177 |        13652 | Quasi-Quotation with `vau`
 2022-06-15 |   1167 |        13654 | `define` mutates local bindings
 2022-06-16 |   1177 |        13674 | `zip` matches parameter-trees
+2022-06-20 |   1171 |        13627 | inline `apply` combination
 
 ## PEG Tools
 
@@ -422,7 +424,7 @@ Date       | Events | Instructions | Description
   * `(peg-seq . `_pegs_`)`
   * `(peg-call `_name_`)`
   * `(peg-pred `_pred_` `_peg_`)`
-  * `(peg-xform `_appl_` `_peg_`)`
+  * `(peg-xform `_func_` `_peg_`)`
   * `(list->number `_chars_`)`
   * `(list->symbol `_chars_`)`
   * `a-print`
@@ -1238,6 +1240,7 @@ Additional features implemented here are:
   * `quasiquote`, et. al. for ease of use
   * `define` mutates local bindings (not just globals)
   * `zip` matches parameter-trees
+  * inline `invoke`/`apply` combination
 
 The extended reference-implementation looks like this:
 
@@ -1246,22 +1249,21 @@ The extended reference-implementation looks like this:
   (lambda (form env)
     (if (symbol? form)                  ; bound variable
       (lookup form env)
-      (if (pair? form)                  ; procedure call
-        (invoke (eval (car form) env) (cdr form) env)
+      (if (pair? form)                  ; combination
+        (let ((fn    (eval (car form) env))
+              (opnds (cdr form)))
+          (if (actor? fn)               ; _applicative_
+            (CALL fn (evlis opnds env))
+            (if (fexpr?)                ; _operative_
+              (CALL (get-x fn) (list opnds env))
+              #?)))
         form))))                        ; self-evaluating form
-
-(define invoke
-  (lambda (fn opnds env)
-    (if (actor? fn)                     ; _applicative_
-      ;(apply fn (evlis opnds env) env)
-      (apply fn (CALL op-par (list opnds env)) env)
-      (apply fn opnds env))))
 
 (define apply
   (lambda (fn args env)
-    (if (actor? fn)
+    (if (actor? fn)                     ; _compiled_
       (CALL fn args)
-      (if (fexpr? fn)
+      (if (fexpr? fn)                   ; _interpreted_
         (CALL (get-x fn) (list args env))
         #?))))
 
