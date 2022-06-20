@@ -332,6 +332,8 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 
 ### Assembly-language Tools
 
+#### Values
+
   * literals: `FALSE`, `TRUE`, `NIL`, `UNDEF`, `UNIT`
   * type_ids: `Undef_T`, `Boolean_T`, `Null_T`, `Pair_T`, `Symbol_T`, `Fexpr_T`, `Actor_T`, `Event_T`, `Free_T`
   * op-codes: `VM_typeq`, `VM_cell`, `VM_get`, `VM_set`, `VM_pair`, `VM_part`, `VM_nth`, `VM_push`, `VM_depth`, `VM_drop`, `VM_pick`, `VM_dup`, `VM_roll`, `VM_alu`, `VM_eq`, `VM_cmp`, `VM_if`, `VM_msg`, `VM_self`, `VM_send`, `VM_new`, `VM_beh`, `VM_end`, `VM_cvt`, `VM_putc`, `VM_getc`, `VM_debug`
@@ -341,6 +343,8 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * classes: `CTL`, `DGT`, `UPR`, `LWR`, `DLM`, `SYM`, `HEX`, `WSP`
   * `VM_end`: `END_ABORT`, `END_STOP`, `END_COMMIT`, `END_RELEASE`
   * `VM_cvt`: `CVT_INT_FIX`, `CVT_FIX_INT`, `CVT_LST_NUM`, `CVT_LST_SYM`
+
+#### Procedures
 
   * `(int->fix `_rawint_`)`
   * `(fix->int `_fixnum_`)`
