@@ -330,6 +330,40 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(current-env)`
   * `(quit)`
 
+### Assembly-language Tools
+
+  * literals: `FALSE`, `TRUE`, `NIL`, `UNDEF`, `UNIT`
+  * type_ids: `Undef_T`, `Boolean_T`, `Null_T`, `Pair_T`, `Symbol_T`, `Fexpr_T`, `Actor_T`, `Event_T`, `Free_T`
+  * op-codes: `VM_typeq`, `VM_cell`, `VM_get`, `VM_set`, `VM_pair`, `VM_part`, `VM_nth`, `VM_push`, `VM_depth`, `VM_drop`, `VM_pick`, `VM_dup`, `VM_roll`, `VM_alu`, `VM_eq`, `VM_cmp`, `VM_if`, `VM_msg`, `VM_self`, `VM_send`, `VM_new`, `VM_beh`, `VM_end`, `VM_cvt`, `VM_putc`, `VM_getc`, `VM_debug`
+  * `VM_get`, `VM_set`: `FLD_T`, `FLD_X`, `FLD_Y`, `FLD_Z`
+  * `VM_alu`: `ALU_NOT`, `ALU_AND`, `ALU_OR`, `ALU_XOR`, `ALU_ADD`, `ALU_SUB`, `ALU_MUL`
+  * `VM_cmp`: `CMP_EQ`, `CMP_GE`, `CMP_GT`, `CMP_LT`, `CMP_LE`, `CMP_NE`, `CMP_CLS`
+  * classes: `CTL`, `DGT`, `UPR`, `LWR`, `DLM`, `SYM`, `HEX`, `WSP`
+  * `VM_end`: `END_ABORT`, `END_STOP`, `END_COMMIT`, `END_RELEASE`
+  * `VM_cvt`: `CVT_INT_FIX`, `CVT_FIX_INT`, `CVT_LST_NUM`, `CVT_LST_SYM`
+
+  * `(int->fix `_rawint_`)`
+  * `(fix->int `_fixnum_`)`
+  * `(cell `_T_` `_X_` `_Y_` `_Z_`)`
+  * `(get-t `_cell_`)`
+  * `(get-x `_cell_`)`
+  * `(get-y `_cell_`)`
+  * `(get-z `_cell_`)`
+  * `(set-t `_cell_` `_T_`)`
+  * `(set-x `_cell_` `_X_`)`
+  * `(set-y `_cell_` `_Y_`)`
+  * `(set-z `_cell_` `_Z_`)`
+
+```
+(define print
+  (cell Actor_T
+    (cell VM_msg (fix->int -1)  ; #-1
+      (cell VM_push a-print
+        (cell VM_send (fix->int 0)  ; #0
+          RV_UNIT)))
+    ()))
+```
+
 ### Lambda Compilation Test-Cases
 
 ```
@@ -1240,7 +1274,7 @@ Additional features implemented here are:
   * `quasiquote`, et. al. for ease of use
   * `define` mutates local bindings (not just globals)
   * `zip` matches parameter-trees
-  * inline `invoke`/`apply` combination
+  * Inline `invoke`/`apply` combination
 
 The extended reference-implementation looks like this:
 

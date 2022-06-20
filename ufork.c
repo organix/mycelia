@@ -1891,7 +1891,51 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=5,           .y=F_CELL+5,    .z=UNDEF        },  // Z = arg4
     { .t=VM_cell,       .x=4,           .y=CUST_SEND,   .z=UNDEF        },  // cell(T, X, Y, Z)
 
-#define ASM_END (F_CELL+6)
+#define F_GET_T (F_CELL+6)
+    { .t=Actor_T,       .x=F_GET_T+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_GET_T+2,   .z=UNDEF        },  // cell = arg1
+    { .t=VM_get,        .x=FLD_T,       .y=CUST_SEND,   .z=UNDEF        },  // get-t(cell)
+
+#define F_GET_X (F_GET_T+3)
+    { .t=Actor_T,       .x=F_GET_X+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_GET_X+2,   .z=UNDEF        },  // cell = arg1
+    { .t=VM_get,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // get-x(cell)
+
+#define F_GET_Y (F_GET_X+3)
+    { .t=Actor_T,       .x=F_GET_Y+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_GET_Y+2,   .z=UNDEF        },  // cell = arg1
+    { .t=VM_get,        .x=FLD_Y,       .y=CUST_SEND,   .z=UNDEF        },  // get-y(cell)
+
+#define F_GET_Z (F_GET_Y+3)
+    { .t=Actor_T,       .x=F_GET_Z+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_GET_Z+2,   .z=UNDEF        },  // cell = arg1
+    { .t=VM_get,        .x=FLD_Z,       .y=CUST_SEND,   .z=UNDEF        },  // get-z(cell)
+
+#define F_SET_T (F_GET_Z+3)
+    { .t=Actor_T,       .x=F_SET_T+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_SET_T+2,   .z=UNDEF        },  // cell = arg1
+    { .t=VM_msg,        .x=3,           .y=F_SET_T+3,   .z=UNDEF        },  // T = arg1
+    { .t=VM_set,        .x=FLD_T,       .y=CUST_SEND,   .z=UNDEF        },  // set-t(cell, T)
+
+#define F_SET_X (F_SET_T+4)
+    { .t=Actor_T,       .x=F_SET_X+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_SET_X+2,   .z=UNDEF        },  // cell = arg1
+    { .t=VM_msg,        .x=3,           .y=F_SET_X+3,   .z=UNDEF        },  // X = arg1
+    { .t=VM_set,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // set-x(cell, X)
+
+#define F_SET_Y (F_SET_X+4)
+    { .t=Actor_T,       .x=F_SET_Y+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_SET_Y+2,   .z=UNDEF        },  // cell = arg1
+    { .t=VM_msg,        .x=3,           .y=F_SET_Y+3,   .z=UNDEF        },  // Y = arg1
+    { .t=VM_set,        .x=FLD_Y,       .y=CUST_SEND,   .z=UNDEF        },  // set-y(cell, Y)
+
+#define F_SET_Z (F_SET_Y+4)
+    { .t=Actor_T,       .x=F_SET_Z+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=F_SET_Z+2,   .z=UNDEF        },  // cell = arg1
+    { .t=VM_msg,        .x=3,           .y=F_SET_Z+3,   .z=UNDEF        },  // Z = arg1
+    { .t=VM_set,        .x=FLD_Z,       .y=CUST_SEND,   .z=UNDEF        },  // set-z(cell, Z)
+
+#define ASM_END (F_SET_Z+4)
 #else // !SCM_ASM_TOOLS
 #define ASM_END (F_LST_SYM+3)
 #endif // SCM_ASM_TOOLS
@@ -3050,6 +3094,14 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { F_INT_FIX, "F_INT_FIX" },
     { F_FIX_INT, "F_FIX_INT" },
     { F_CELL, "F_CELL" },
+    { F_GET_T, "F_GET_T" },
+    { F_GET_X, "F_GET_X" },
+    { F_GET_Y, "F_GET_Y" },
+    { F_GET_Z, "F_GET_Z" },
+    { F_SET_T, "F_SET_T" },
+    { F_SET_X, "F_SET_X" },
+    { F_SET_Y, "F_SET_Y" },
+    { F_SET_Z, "F_SET_Z" },
 #endif // SCM_ASM_TOOLS
 
     { G_EMPTY, "G_EMPTY" },
@@ -3849,6 +3901,14 @@ int_t init_global_env() {
     bind_global("int->fix", F_INT_FIX);
     bind_global("fix->int", F_FIX_INT);
     bind_global("cell", F_CELL);
+    bind_global("get-t", F_GET_T);
+    bind_global("get-x", F_GET_X);
+    bind_global("get-y", F_GET_Y);
+    bind_global("get-z", F_GET_Z);
+    bind_global("set-t", F_SET_T);
+    bind_global("set-x", F_SET_X);
+    bind_global("set-y", F_SET_Y);
+    bind_global("set-z", F_SET_Z);
 #endif //SCM_ASM_TOOLS
 
     bind_global("a-print", A_PRINT);
