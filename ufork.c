@@ -26,7 +26,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define SCM_ASM_TOOLS 1 // include assembly tools for LISP/Scheme
 #define QQUOTE_SYNTAX 1 // include support for quasiquote, et. al.
 #define RAWINT_SYNTAX 1 // include support for ASM rawint data (#1)
-#define PLACEH_SYNTAX 1 // include support for placeholder variables
+#define PLACEH_SYNTAX 1 // include support for placeholder variables (?x)
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -1213,7 +1213,8 @@ cell_t cell_table[CELL_MAX] = {
 (define closure-beh                     ; lexically-bound applicative procedure
   (lambda (frml body env)
     (BEH (cust . args)
-      (evbody #unit body (zip frml args (scope env))))))
+      (SEND cust
+        (evbody #unit body (zip frml args (scope env)))))))
 */
 //  { .t=VM_push,       .x=_frml_,      .y=CLOSURE_B-2, .z=UNDEF        },
 //  { .t=VM_push,       .x=_body_,      .y=CLOSURE_B-1, .z=UNDEF        },
@@ -1248,7 +1249,8 @@ cell_t cell_table[CELL_MAX] = {
 (define fexpr-beh                       ; lexically-bound operative procedure
   (lambda (frml body denv)
     (BEH (cust opnds senv)
-      (evbody #unit body (zip frml (cons denv opnds) (scope senv))))))
+      (SEND cust
+        (evbody #unit body (zip frml (cons denv opnds) (scope senv)))))))
 */
 //  { .t=VM_push,       .x=_frml_,      .y=FEXPR_B-2,   .z=UNDEF        },
 //  { .t=VM_push,       .x=_body_,      .y=FEXPR_B-1,   .z=UNDEF        },

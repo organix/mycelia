@@ -389,6 +389,14 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 (define c (lambda (y) (lambda (x) (list y x))))
 (define length (lambda (p) (if (pair? p) (+ (length (cdr p)) 1) 0)))
 (define s2 (lambda (x y) x y))
+(define abc (lambda (c) (let ((a 1) (b 2)) (list a b c))))
+(define xyz (lambda (z) (let ((x 'a) (y 'b)) (current-env))))
+(define 1st (lambda ((x . _)) x))               ; equivalent to _car_
+(define 2nd (lambda ((_ . (x . _))) x))         ; equivalent to _cadr_
+(define 3rd (lambda ((_ . (_ . (x . _)))) x))   ; equivalent to _caddr_
+(define 1st+ (lambda ((_ . x)) x))              ; equivalent to _cdr_
+(define 2nd+ (lambda ((_ . (_ . x))) x))        ; equivalent to _cddr_
+(define 3rd+ (lambda ((_ . (_ . (_ . x)))) x))  ; equivalent to _cdddr_
 ```
 
 ### Execution Statistics Test-Case
@@ -1119,7 +1127,7 @@ The current reference-implementation looks like this:
 (define closure-beh
   (lambda (frml body env)
     (BEH (cust . args)
-      (eval body (zip frml args env)))))
+      (SEND cust (eval body (zip frml args env))))))
 ```
 
 Moving operatives (special forms) into the environment,
@@ -1204,7 +1212,7 @@ The refactored reference-implementation looks like this:
 (define closure-beh                     ; lexically-bound applicative function
   (lambda (frml body env)
     (BEH (cust . args)
-      (evbody #unit body (zip frml args env)))))
+      (SEND cust (evbody #unit body (zip frml args env))))))
 
 (define op-quote                        ; (quote <form>)
   (CREATE
@@ -1278,12 +1286,12 @@ we add extensions to enhance modularity and flexibility.
 
 Additional features implemented here are:
 
+  * Inline `invoke`/`apply` combination
+  * `zip` matches parameter-trees
+  * `define` mutates local bindings (not just globals)
   * General operative constructor `vau`
   * More useful `macro` operative constructor
   * `quasiquote`, et. al. for ease of use
-  * `define` mutates local bindings (not just globals)
-  * `zip` matches parameter-trees
-  * Inline `invoke`/`apply` combination
 
 The extended reference-implementation looks like this:
 
@@ -1382,12 +1390,14 @@ The extended reference-implementation looks like this:
 (define closure-beh                     ; lexically-bound applicative procedure
   (lambda (frml body env)
     (BEH (cust . args)
-      (evbody #unit body (zip frml args (scope env))))))
+      (SEND cust
+        (evbody #unit body (zip frml args (scope env)))))))
 
 (define fexpr-beh                       ; lexically-bound operative procedure
   (lambda (frml body denv)
     (BEH (cust opnds senv)
-      (evbody #unit body (zip frml (cons denv opnds) (scope senv))))))
+      (SEND cust
+        (evbody #unit body (zip frml (cons denv opnds) (scope senv)))))))
 
 (define op-quote                        ; (quote <form>)
   (CREATE
