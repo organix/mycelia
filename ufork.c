@@ -24,6 +24,9 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define BOOTSTRAP_LIB 1 // include bootstrap library definitions
 #define EVLIS_IS_PAR  0 // concurrent argument-list evaluation
 #define SCM_ASM_TOOLS 1 // include assembly tools for LISP/Scheme
+#define QQUOTE_SYNTAX 1 // include support for quasiquote, et. al.
+#define RAWINT_SYNTAX 1 // include support for ASM rawint data (#1)
+#define PLACEH_SYNTAX 1 // include support for placeholder variables
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -592,7 +595,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_push,       .x=NIL,         .y=REPL_E+4,    .z=UNDEF        },  // env = ()
     { .t=VM_msg,        .x=1,           .y=REPL_E+5,    .z=UNDEF        },  // form = sexpr
     { .t=VM_push,       .x=REPL_P,      .y=REPL_E+6,    .z=UNDEF        },  // cust = REPL_P
-    { .t=VM_push,       .x=210,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
+    { .t=VM_push,       .x=222,         .y=REPL_E+7,    .z=UNDEF        },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL cust form env)
 
     { .t=Actor_T,       .x=REPL_P+1,    .y=NIL,         .z=UNDEF        },
@@ -814,13 +817,27 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Pair_T,        .x=TO_FIX('n'), .y=S_QSPLICE+16,.z=UNDEF        },
     { .t=Pair_T,        .x=TO_FIX('g'), .y=NIL,         .z=UNDEF        },
 
+#define S_PLACEH (S_QSPLICE+17)
+    { .t=Symbol_T,      .x=0,           .y=S_PLACEH+1,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('p'), .y=S_PLACEH+2,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('l'), .y=S_PLACEH+3,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('a'), .y=S_PLACEH+4,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('c'), .y=S_PLACEH+5,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=S_PLACEH+6,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('h'), .y=S_PLACEH+7,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('o'), .y=S_PLACEH+8,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('l'), .y=S_PLACEH+9,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('d'), .y=S_PLACEH+10, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('e'), .y=S_PLACEH+11, .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('r'), .y=NIL,         .z=UNDEF        },
+
 //
 // Meta-circular LISP/Scheme Interpreter
 //
 
-#define M_EVAL (S_QSPLICE+17)
+#define M_EVAL (S_PLACEH+12)
 #define K_COMBINE (M_EVAL+20)
-#define K_APPLY_F (K_COMBINE+14)
+#define K_APPLY_F (K_COMBINE+15)
 #define M_APPLY (K_APPLY_F+4)
 #define M_LOOKUP (M_APPLY+17)
 #define M_EVLIS_P (M_LOOKUP+23)
@@ -899,26 +916,28 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=VM_push,       .x=_cust_,      .y=K_COMBINE+0, .z=UNDEF        },
     { .t=VM_msg,        .x=0,           .y=K_COMBINE+1, .z=UNDEF        },  // fn
     { .t=VM_typeq,      .x=Actor_T,     .y=K_COMBINE+2, .z=UNDEF        },  // fn has type Actor_T
-    { .t=VM_if,         .x=K_COMBINE+9, .y=K_COMBINE+3, .z=UNDEF        },
+    { .t=VM_if,         .x=K_COMBINE+10,.y=K_COMBINE+3, .z=UNDEF        },
 
     { .t=VM_msg,        .x=0,           .y=K_COMBINE+4, .z=UNDEF        },  // fn
     { .t=VM_typeq,      .x=Fexpr_T,     .y=K_COMBINE+5, .z=UNDEF        },  // fn has type Fexpr_T
-    { .t=VM_if,         .x=K_COMBINE+6, .y=RV_UNDEF,    .z=UNDEF        },
+    { .t=VM_if,         .x=K_COMBINE+7, .y=K_COMBINE+6, .z=UNDEF        },
 
-    { .t=VM_msg,        .x=0,           .y=K_COMBINE+7, .z=UNDEF        },  // env opnds cust fn
-    { .t=VM_get,        .x=FLD_X,       .y=K_COMBINE+8, .z=UNDEF        },  // oper = get_x(fn)
+    { .t=VM_push,       .x=UNDEF,       .y=RELEASE_0,   .z=UNDEF        },  // UNDEF
+
+    { .t=VM_msg,        .x=0,           .y=K_COMBINE+8, .z=UNDEF        },  // env opnds cust fn
+    { .t=VM_get,        .x=FLD_X,       .y=K_COMBINE+9, .z=UNDEF        },  // oper = get_x(fn)
     { .t=VM_send,       .x=3,           .y=RELEASE,     .z=UNDEF        },  // (oper cust args env)
 
 // env opnds cust
-    { .t=VM_msg,        .x=0,           .y=K_COMBINE+10,.z=UNDEF        },  // fn
-    { .t=VM_push,       .x=K_APPLY_F,   .y=K_COMBINE+11,.z=UNDEF        },  // K_APPLY_F
-    { .t=VM_new,        .x=2,           .y=K_COMBINE+12,.z=UNDEF        },  // k_apply = (K_APPLY_F cust fn)
+    { .t=VM_msg,        .x=0,           .y=K_COMBINE+11,.z=UNDEF        },  // fn
+    { .t=VM_push,       .x=K_APPLY_F,   .y=K_COMBINE+12,.z=UNDEF        },  // K_APPLY_F
+    { .t=VM_new,        .x=2,           .y=K_COMBINE+13,.z=UNDEF        },  // k_apply = (K_APPLY_F cust fn)
 
 #if EVLIS_IS_PAR
-    { .t=VM_push,       .x=OP_PAR,      .y=K_COMBINE+13,.z=UNDEF        },  // OP_PAR
+    { .t=VM_push,       .x=OP_PAR,      .y=K_COMBINE+14,.z=UNDEF        },  // OP_PAR
     { .t=VM_send,       .x=3,           .y=RELEASE,     .z=UNDEF        },  // (OP_PAR k_apply opnds env)
 #else
-    { .t=VM_push,       .x=M_EVLIS,     .y=K_COMBINE+13,.z=UNDEF        },  // M_EVLIS
+    { .t=VM_push,       .x=M_EVLIS,     .y=K_COMBINE+14,.z=UNDEF        },  // M_EVLIS
     { .t=VM_send,       .x=3,           .y=RELEASE,     .z=UNDEF        },  // (M_EVLIS k_apply opnds env)
 #endif
 
@@ -2544,13 +2563,70 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Actor_T,       .x=G_EOT+1,     .y=NIL,         .z=UNDEF        },  // (peg-not (peg-class DGT UPR LWR SYM))
     { .t=VM_push,       .x=G_PRT,       .y=G_NOT_B,     .z=UNDEF        },
 
-/*
-(define scm-ignore (peg-xform (lambda _ '_) (peg-and (peg-plus (peg-eq 95)) lex-eot)))
-*/
 #define G_UNDER (G_EOT+2)
     { .t=Actor_T,       .x=G_UNDER+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 95)
     { .t=VM_push,       .x=TO_FIX('_'), .y=G_EQ_B,      .z=UNDEF        },  // value = '_' = 95
-#define F_IGN (G_UNDER+2)
+
+/*
+(define lex-sign (peg-or (peg-eq 45) (peg-eq 43)))  ; [-+]
+*/
+#define G_M_SGN (G_UNDER+2)
+    { .t=Actor_T,       .x=G_M_SGN+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 45)
+    { .t=VM_push,       .x=TO_FIX('-'), .y=G_EQ_B,      .z=UNDEF        },  // value = '-' = 45
+#define G_P_SGN (G_M_SGN+2)
+    { .t=Actor_T,       .x=G_P_SGN+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 43)
+    { .t=VM_push,       .x=TO_FIX('+'), .y=G_EQ_B,      .z=UNDEF        },  // value = '+' = 43
+#define G_SIGN (G_P_SGN+2)
+    { .t=Actor_T,       .x=G_SIGN+1,    .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
+    { .t=VM_push,       .x=G_M_SGN,     .y=G_SIGN+2,    .z=UNDEF        },  // first = (peg-eq 45)
+    { .t=VM_push,       .x=G_P_SGN,     .y=G_OR_B,      .z=UNDEF        },  // rest = (peg-eq 43)
+
+/*
+(define lex-digit (peg-or (peg-class DGT) (peg-eq 95)))  ; [0-9_]
+*/
+#define G_DGT (G_SIGN+3)
+    { .t=Actor_T,       .x=G_DGT+1,     .y=NIL,         .z=UNDEF        },  // (peg-class DGT)
+    { .t=VM_push,       .x=DGT,         .y=G_CLS_B,     .z=UNDEF        },  // class = [0-9]
+#define G_DIGIT (G_DGT+2)
+    { .t=Actor_T,       .x=G_DIGIT+1,   .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
+    { .t=VM_push,       .x=G_DGT,       .y=G_DIGIT+2,   .z=UNDEF        },  // first = (peg-class DGT)
+    { .t=VM_push,       .x=G_UNDER,     .y=G_OR_B,      .z=UNDEF        },  // rest = (peg-eq 95)
+
+/*
+(define lex-digits (peg-xform car (peg-and (peg-plus lex-digit) lex-eot)))
+*/
+#define G_DIGITS (G_DIGIT+3)
+    { .t=Actor_T,       .x=G_DIGITS+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform car <ptrn>)
+    { .t=VM_push,       .x=F_CAR,       .y=G_DIGITS+2,  .z=UNDEF        },  // func = F_CAR
+    { .t=VM_push,       .x=G_DIGITS+3,  .y=G_XLAT_B,    .z=UNDEF        },  // ptrn = (peg-and (peg-plus lex-digit) lex-eot)
+
+    { .t=Actor_T,       .x=G_DIGITS+4,  .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
+    { .t=VM_push,       .x=G_DIGITS+6,  .y=G_DIGITS+5,  .z=UNDEF        },  // first = (peg-plus lex-digit)
+    { .t=VM_push,       .x=G_EOT,       .y=G_AND_B,     .z=UNDEF        },  // rest = lex-eot
+
+    { .t=Actor_T,       .x=G_DIGITS+7,  .y=NIL,         .z=UNDEF        },  // (peg-plus <ptrn>)
+    { .t=VM_push,       .x=G_DIGIT,     .y=G_PLUS_B,    .z=UNDEF        },  // ptrn = lex-digit
+
+/*
+(define lex-number (peg-xform list->number (peg-or (peg-and lex-sign lex-digits) lex-digits)))
+*/
+#define G_NUMBER (G_DIGITS+8)
+    { .t=Actor_T,       .x=G_NUMBER+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform list->number <ptrn>)
+    { .t=VM_push,       .x=F_LST_NUM,   .y=G_NUMBER+2,  .z=UNDEF        },  // func = F_LST_NUM
+    { .t=VM_push,       .x=G_NUMBER+3,  .y=G_XLAT_B,    .z=UNDEF        },  // ptrn = (peg-or (peg-and lex-sign lex-digits) lex-digits)
+
+    { .t=Actor_T,       .x=G_NUMBER+4,  .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
+    { .t=VM_push,       .x=G_NUMBER+6,  .y=G_NUMBER+5,  .z=UNDEF        },  // first = (peg-and lex-sign lex-digits)
+    { .t=VM_push,       .x=G_DIGITS,    .y=G_OR_B,      .z=UNDEF        },  // rest = lex-digits
+
+    { .t=Actor_T,       .x=G_NUMBER+7,  .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
+    { .t=VM_push,       .x=G_SIGN,      .y=G_NUMBER+8,  .z=UNDEF        },  // first = lex-sign
+    { .t=VM_push,       .x=G_DIGITS,    .y=G_AND_B,     .z=UNDEF        },  // rest = lex-digits
+
+/*
+(define scm-ignore (peg-xform (lambda _ '_) (peg-and (peg-plus (peg-eq 95)) lex-eot)))
+*/
+#define F_IGN (G_NUMBER+9)
     { .t=Actor_T,       .x=F_IGN+1,     .y=NIL,         .z=UNDEF        },  // (lambda _ '_)
     { .t=VM_push,       .x=S_IGNORE,    .y=CUST_SEND,   .z=UNDEF        },
 #define G_IGN (F_IGN+2)
@@ -2572,7 +2648,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     (peg-xform (lambda _ #f) (peg-eq 102))
     (peg-xform (lambda _ #t) (peg-eq 116))
     (peg-xform (lambda _ #?) (peg-eq 63))
-    (peg-xform (lambda _ #unit) (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116))))
+    (peg-xform (lambda _ #unit) (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116)))
+    (peg-xform fix->int lex-number))
   lex-eot)))
 */
 #define G_HASH (G_IGN+8)
@@ -2637,7 +2714,12 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_LWR_I,     .y=G_UNIT+11,   .z=UNDEF        },  // first = (peg-eq 105)
     { .t=VM_push,       .x=G_LWR_T,     .y=G_AND_B,     .z=UNDEF        },  // rest = (peg-eq 116)
 
-#define G_CONST (G_UNIT+12)
+#define G_RAWINT (G_UNIT+12)
+    { .t=Actor_T,       .x=G_RAWINT+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform fix->int (peg-eq 102))
+    { .t=VM_push,       .x=F_FIX_INT,   .y=G_RAWINT+2,  .z=UNDEF        },  // func = F_FIX_INT
+    { .t=VM_push,       .x=G_NUMBER,    .y=G_XLAT_B,    .z=UNDEF        },  // ptrn = lex-number
+
+#define G_CONST (G_RAWINT+3)
     { .t=Actor_T,       .x=G_CONST+1,   .y=NIL,         .z=UNDEF        },  // (peg-xform cadr <ptrn>)
     { .t=VM_push,       .x=F_CADR,      .y=G_CONST+2,   .z=UNDEF        },  // func = F_CADR
     { .t=VM_push,       .x=G_CONST+3,   .y=G_XLAT_B,    .z=UNDEF        },  // ptrn = (peg-seq (peg-eq 35) (peg-alt ...) lex-eot)
@@ -2660,68 +2742,22 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
     { .t=Actor_T,       .x=G_CONST+16,  .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
     { .t=VM_push,       .x=G_UNDEF,     .y=G_CONST+17,  .z=UNDEF        },  // first = G_UNDEF
-    { .t=VM_push,       .x=G_UNIT,      .y=G_OR_B,      .z=UNDEF        },  // rest = G_UNIT
+    { .t=VM_push,       .x=G_CONST+18,  .y=G_OR_B,      .z=UNDEF        },  // rest
 
-/*
-(define lex-sign (peg-or (peg-eq 45) (peg-eq 43)))  ; [-+]
-*/
-#define G_M_SGN (G_CONST+18)
-    { .t=Actor_T,       .x=G_M_SGN+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 45)
-    { .t=VM_push,       .x=TO_FIX('-'), .y=G_EQ_B,      .z=UNDEF        },  // value = '-' = 45
-#define G_P_SGN (G_M_SGN+2)
-    { .t=Actor_T,       .x=G_P_SGN+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 43)
-    { .t=VM_push,       .x=TO_FIX('+'), .y=G_EQ_B,      .z=UNDEF        },  // value = '+' = 43
-#define G_SIGN (G_P_SGN+2)
-    { .t=Actor_T,       .x=G_SIGN+1,    .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
-    { .t=VM_push,       .x=G_M_SGN,     .y=G_SIGN+2,    .z=UNDEF        },  // first = (peg-eq 45)
-    { .t=VM_push,       .x=G_P_SGN,     .y=G_OR_B,      .z=UNDEF        },  // rest = (peg-eq 43)
-
-/*
-(define lex-digit (peg-or (peg-class DGT) (peg-eq 95)))  ; [0-9_]
-*/
-#define G_DGT (G_SIGN+3)
-    { .t=Actor_T,       .x=G_DGT+1,     .y=NIL,         .z=UNDEF        },  // (peg-class DGT)
-    { .t=VM_push,       .x=DGT,         .y=G_CLS_B,     .z=UNDEF        },  // class = [0-9]
-#define G_DIGIT (G_DGT+2)
-    { .t=Actor_T,       .x=G_DIGIT+1,   .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
-    { .t=VM_push,       .x=G_DGT,       .y=G_DIGIT+2,   .z=UNDEF        },  // first = (peg-class DGT)
-    { .t=VM_push,       .x=G_UNDER,     .y=G_OR_B,      .z=UNDEF        },  // rest = (peg-eq 95)
-
-/*
-(define lex-digits (peg-xform car (peg-and (peg-plus lex-digit) lex-eot)))
-*/
-#define G_DIGITS (G_DIGIT+3)
-    { .t=Actor_T,       .x=G_DIGITS+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform car <ptrn>)
-    { .t=VM_push,       .x=F_CAR,       .y=G_DIGITS+2,  .z=UNDEF        },  // func = F_CAR
-    { .t=VM_push,       .x=G_DIGITS+3,  .y=G_XLAT_B,    .z=UNDEF        },  // ptrn = (peg-and (peg-plus lex-digit) lex-eot)
-
-    { .t=Actor_T,       .x=G_DIGITS+4,  .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
-    { .t=VM_push,       .x=G_DIGITS+6,  .y=G_DIGITS+5,  .z=UNDEF        },  // first = (peg-plus lex-digit)
-    { .t=VM_push,       .x=G_EOT,       .y=G_AND_B,     .z=UNDEF        },  // rest = lex-eot
-
-    { .t=Actor_T,       .x=G_DIGITS+7,  .y=NIL,         .z=UNDEF        },  // (peg-plus <ptrn>)
-    { .t=VM_push,       .x=G_DIGIT,     .y=G_PLUS_B,    .z=UNDEF        },  // ptrn = lex-digit
-
-/*
-(define lex-number (peg-xform list->number (peg-or (peg-and lex-sign lex-digits) lex-digits)))
-*/
-#define G_NUMBER (G_DIGITS+8)
-    { .t=Actor_T,       .x=G_NUMBER+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform list->number <ptrn>)
-    { .t=VM_push,       .x=F_LST_NUM,   .y=G_NUMBER+2,  .z=UNDEF        },  // func = F_LST_NUM
-    { .t=VM_push,       .x=G_NUMBER+3,  .y=G_XLAT_B,    .z=UNDEF        },  // ptrn = (peg-or (peg-and lex-sign lex-digits) lex-digits)
-
-    { .t=Actor_T,       .x=G_NUMBER+4,  .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
-    { .t=VM_push,       .x=G_NUMBER+6,  .y=G_NUMBER+5,  .z=UNDEF        },  // first = (peg-and lex-sign lex-digits)
-    { .t=VM_push,       .x=G_DIGITS,    .y=G_OR_B,      .z=UNDEF        },  // rest = lex-digits
-
-    { .t=Actor_T,       .x=G_NUMBER+7,  .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
-    { .t=VM_push,       .x=G_SIGN,      .y=G_NUMBER+8,  .z=UNDEF        },  // first = lex-sign
-    { .t=VM_push,       .x=G_DIGITS,    .y=G_AND_B,     .z=UNDEF        },  // rest = lex-digits
+#if RAWINT_SYNTAX
+    { .t=Actor_T,       .x=G_CONST+19,  .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
+    { .t=VM_push,       .x=G_UNIT,      .y=G_CONST+20,  .z=UNDEF        },  // first = G_UNIT
+    { .t=VM_push,       .x=G_RAWINT,    .y=G_OR_B,      .z=UNDEF        },  // rest = G_RAWINT
+#else
+    { .t=Actor_T,       .x=G_CONST+19,  .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
+    { .t=VM_push,       .x=G_UNIT,      .y=G_CONST+20,  .z=UNDEF        },  // first = G_UNIT
+    { .t=VM_push,       .x=G_FAIL,      .y=G_OR_B,      .z=UNDEF        },  // rest = G_FAIL
+#endif
 
 /*
 (define scm-symbol (peg-xform list->symbol (peg-plus (peg-class DGT UPR LWR SYM))))
 */
-#define G_SYMBOL (G_NUMBER+9)
+#define G_SYMBOL (G_CONST+21)
     { .t=Actor_T,       .x=G_SYMBOL+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform list->symbol <ptrn>)
     { .t=VM_push,       .x=F_LST_SYM,   .y=G_SYMBOL+2,  .z=UNDEF        },  // func = F_LST_SYM
     { .t=VM_push,       .x=G_SYMBOL+3,  .y=G_XLAT_B,    .z=UNDEF        },  // ptrn = (peg-plus (peg-class DGT UPR LWR SYM))
@@ -2761,6 +2797,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     (peg-and (peg-eq 44) (peg-and (peg-eq 64) (peg-call scm-expr))))
   (peg-xform (lambda (x) (list 'unquote (cdr x)))
     (peg-and (peg-eq 44) (peg-call scm-expr)))
+  (peg-xform (lambda (x) (list 'placeholder (cdr x)))
+    (peg-and (peg-eq 63) (peg-call scm-expr)))
   ))
 */
 #define F_QUOTED (G_AT+2)
@@ -2791,18 +2829,33 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_nth,        .x=-2,          .y=F_QSPLICED+4,.z=UNDEF        },  // value = cddr(arg1)
     { .t=VM_push,       .x=S_QSPLICE,   .y=F_QSPLICED+5,.z=UNDEF        },  // S_QSPLICE
     { .t=VM_pair,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (S_QSPLICE value)
-#define F_NIL (F_QSPLICED+6)
+#define F_PLACEHD (F_QSPLICED+6)
+    { .t=Actor_T,       .x=F_PLACEHD+1, .y=NIL,         .z=UNDEF        },  // (lambda (x) (list 'placeholder (cdr x)))
+    { .t=VM_push,       .x=NIL,         .y=F_PLACEHD+2, .z=UNDEF        },  // ()
+    { .t=VM_msg,        .x=2,           .y=F_PLACEHD+3, .z=UNDEF        },  // arg1
+    { .t=VM_nth,        .x=-1,          .y=F_PLACEHD+4, .z=UNDEF        },  // value = cdr(arg1)
+    { .t=VM_push,       .x=S_PLACEH,    .y=F_PLACEHD+5, .z=UNDEF        },  // S_PLACEH
+    { .t=VM_pair,       .x=2,           .y=CUST_SEND,   .z=UNDEF        },  // (S_PLACEH value)
+#define F_NIL (F_PLACEHD+6)
     { .t=Actor_T,       .x=RV_NIL,      .y=NIL,         .z=UNDEF        },  // (lambda _ ())
 
 #define G_QUOTED (F_NIL+1)
-#define G_DOTTED (G_QUOTED+36)
+#define G_DOTTED (G_QUOTED+45)
 #define G_TAIL (G_DOTTED+15)
 #define G_LIST (G_TAIL+18)
 #define G_EXPR (G_LIST+6)
 #define G_SEXPR (G_EXPR+15)
     { .t=Actor_T,       .x=G_QUOTED+1,  .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
     { .t=VM_push,       .x=G_QUOTED+3,  .y=G_QUOTED+2,  .z=UNDEF        },  // first
+#if PLACEH_SYNTAX
+    { .t=VM_push,       .x=G_QUOTED+36, .y=G_OR_B,      .z=UNDEF        },  // rest
+#else
+#if QQUOTE_SYNTAX
     { .t=VM_push,       .x=G_QUOTED+9,  .y=G_OR_B,      .z=UNDEF        },  // rest
+#else
+    { .t=VM_push,       .x=G_FAIL,      .y=G_OR_B,      .z=UNDEF        },  // rest
+#endif
+#endif
 
     { .t=Actor_T,       .x=G_QUOTED+4,  .y=NIL,         .z=UNDEF        },  // (peg-xform <func> <ptrn>)
     { .t=VM_push,       .x=F_QUOTED,    .y=G_QUOTED+5,  .z=UNDEF        },  // func
@@ -2846,6 +2899,22 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
     { .t=Actor_T,       .x=G_QUOTED+34, .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
     { .t=VM_push,       .x=G_COMMA,     .y=G_QUOTED+35, .z=UNDEF        },  // first = (peg-eq 44)
+    { .t=VM_push,       .x=G_SEXPR,     .y=G_AND_B,     .z=UNDEF        },  // rest = scm-expr
+
+    { .t=Actor_T,       .x=G_QUOTED+37, .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
+    { .t=VM_push,       .x=G_QUOTED+39, .y=G_QUOTED+38, .z=UNDEF        },  // first
+#if QQUOTE_SYNTAX
+    { .t=VM_push,       .x=G_QUOTED+9,  .y=G_OR_B,      .z=UNDEF        },  // rest
+#else
+    { .t=VM_push,       .x=G_FAIL,      .y=G_OR_B,      .z=UNDEF        },  // rest
+#endif
+
+    { .t=Actor_T,       .x=G_QUOTED+40, .y=NIL,         .z=UNDEF        },  // (peg-xform <func> <ptrn>)
+    { .t=VM_push,       .x=F_PLACEHD,   .y=G_QUOTED+41, .z=UNDEF        },  // func
+    { .t=VM_push,       .x=G_QUOTED+42, .y=G_XLAT_B,    .z=UNDEF        },  // ptrn
+
+    { .t=Actor_T,       .x=G_QUOTED+43, .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
+    { .t=VM_push,       .x=G_QMARK,     .y=G_QUOTED+44, .z=UNDEF        },  // first = (peg-eq 63)
     { .t=VM_push,       .x=G_SEXPR,     .y=G_AND_B,     .z=UNDEF        },  // rest = scm-expr
 
 /*
@@ -2917,7 +2986,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_TAIL,      .y=G_AND_B,     .z=UNDEF        },  // rest = scm-tail
 
 /*
-(define scm-expr (peg-alt scm-list scm-ignore scm-const lex-number scm-symbol scm-quoted))
+(define scm-expr (peg-alt scm-list scm-ignore scm-const lex-number scm-quoted scm-symbol))
 */
     { .t=Actor_T,       .x=G_EXPR+1,    .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
     { .t=VM_push,       .x=G_LIST,      .y=G_EXPR+2,    .z=UNDEF        },  // first = scm-list
@@ -2936,8 +3005,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=VM_push,       .x=G_EXPR+12,   .y=G_OR_B,      .z=UNDEF        },  // rest
 
     { .t=Actor_T,       .x=G_EXPR+13,   .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
-    { .t=VM_push,       .x=G_SYMBOL,    .y=G_EXPR+14,   .z=UNDEF        },  // first = scm-symbol
-    { .t=VM_push,       .x=G_QUOTED,    .y=G_OR_B,      .z=UNDEF        },  // rest = scm-quoted
+    { .t=VM_push,       .x=G_QUOTED,    .y=G_EXPR+14,   .z=UNDEF        },  // first = scm-quoted
+    { .t=VM_push,       .x=G_SYMBOL,    .y=G_OR_B,      .z=UNDEF        },  // rest = scm-symbol
 
 /*
 (define scm-sexpr (peg-xform cdr (peg-and scm-optwsp scm-expr)))
@@ -3025,6 +3094,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { S_QQUOTE, "S_QQUOTE" },
     { S_UNQUOTE, "S_UNQUOTE" },
     { S_QSPLICE, "S_QSPLICE" },
+    { S_PLACEH, "S_PLACEH" },
 
     { M_EVAL, "M_EVAL" },
     { K_COMBINE, "K_COMBINE" },
@@ -3162,6 +3232,13 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_PRT, "G_PRT" },
     { G_EOT, "G_EOT" },
     { G_UNDER, "G_UNDER" },
+    { G_M_SGN, "G_M_SGN" },
+    { G_P_SGN, "G_P_SGN" },
+    { G_SIGN, "G_SIGN" },
+    { G_DGT, "G_DGT" },
+    { G_DIGIT, "G_DIGIT" },
+    { G_DIGITS, "G_DIGITS" },
+    { G_NUMBER, "G_NUMBER" },
     { F_IGN, "F_IGN" },
     { G_IGN, "G_IGN" },
     { G_HASH, "G_HASH" },
@@ -3179,14 +3256,8 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_UNDEF, "G_UNDEF" },
     { F_UNIT, "F_UNIT" },
     { G_UNIT, "G_UNIT" },
+    { G_RAWINT, "G_RAWINT" },
     { G_CONST, "G_CONST" },
-    { G_M_SGN, "G_M_SGN" },
-    { G_P_SGN, "G_P_SGN" },
-    { G_SIGN, "G_SIGN" },
-    { G_DGT, "G_DGT" },
-    { G_DIGIT, "G_DIGIT" },
-    { G_DIGITS, "G_DIGITS" },
-    { G_NUMBER, "G_NUMBER" },
     { G_SYMBOL, "G_SYMBOL" },
     { G_OPEN, "G_OPEN" },
     { G_DOT, "G_DOT" },
@@ -3199,6 +3270,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { F_QQUOTED, "F_QQUOTED" },
     { F_UNQUOTED, "F_UNQUOTED" },
     { F_QSPLICED, "F_QSPLICED" },
+    { F_PLACEHD, "F_PLACEHD" },
     { F_NIL, "F_NIL" },
     { G_QUOTED, "G_QUOTED" },
     { G_DOTTED, "G_DOTTED" },
@@ -3712,6 +3784,7 @@ int_t init_global_env() {
     sym_install(S_QQUOTE);
     sym_install(S_UNQUOTE);
     sym_install(S_QSPLICE);
+    sym_install(S_PLACEH);
 
     bind_global("peg-lang", G_SEXPR);  // language parser start symbol
     bind_global("empty-env", EMPTY_ENV);
@@ -4742,7 +4815,11 @@ void print_sexpr(int_t x) {
     if (IS_FIX(x)) {
         fprintf(stderr, "%+"PdI"", TO_INT(x));
     } else if (IS_PROC(x)) {
-        fprintf(stderr, "#%s", proc_label(x));
+        if (x < VM_debug) {
+            fprintf(stderr, "^%"PdI"", x);
+        } else {
+            fprintf(stderr, "#%s", proc_label(x));
+        }
     } else if (x == FALSE) {
         fprintf(stderr, "#f");
     } else if (x == TRUE) {
@@ -5257,6 +5334,7 @@ static char repl_lib[] =
 "   (list let (list (list '_test_ (car x))) (list if '_test_ (cons 'and (cdr x)) '_test_)) (car x)) #t)))"
 " (define or (macro x (if (pair? x) (if (pair? (cdr x))"
 "   (list let (list (list '_test_ (car x))) (list if '_test_ '_test_ (cons 'or (cdr x)))) (car x)) #f)))"
+#if QQUOTE_SYNTAX
 " (define quasiquote (vau (x) e (if (pair? x)"
 "   (if (eq? (car x) 'unquote) (eval (cadr x) e)"
 "   (quasi-list x)) x)))"
@@ -5264,6 +5342,7 @@ static char repl_lib[] =
 "   (if (eq? (caar x) 'unquote-splicing) (append (eval (cadar x) e) (quasi-list (cdr x)))"
 "   (cons (apply quasiquote (list (car x)) e) (quasi-list (cdr x))))"
 "   (cons (car x) (quasi-list (cdr x)))) x)))"
+#endif // QQUOTE_SYNTAX
 " \0";
 static char *repl_inp = repl_lib;
 

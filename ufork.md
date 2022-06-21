@@ -335,7 +335,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 #### Values
 
   * literals: `FALSE`, `TRUE`, `NIL`, `UNDEF`, `UNIT`
-  * type_ids: `Undef_T`, `Boolean_T`, `Null_T`, `Pair_T`, `Symbol_T`, `Fexpr_T`, `Actor_T`, `Event_T`, `Free_T`
+  * type-ids: `Undef_T`, `Boolean_T`, `Null_T`, `Pair_T`, `Symbol_T`, `Fexpr_T`, `Actor_T`, `Event_T`, `Free_T`
   * op-codes: `VM_typeq`, `VM_cell`, `VM_get`, `VM_set`, `VM_pair`, `VM_part`, `VM_nth`, `VM_push`, `VM_depth`, `VM_drop`, `VM_pick`, `VM_dup`, `VM_roll`, `VM_alu`, `VM_eq`, `VM_cmp`, `VM_if`, `VM_msg`, `VM_self`, `VM_send`, `VM_new`, `VM_beh`, `VM_end`, `VM_cvt`, `VM_putc`, `VM_getc`, `VM_debug`
   * `VM_get`, `VM_set`: `FLD_T`, `FLD_X`, `FLD_Y`, `FLD_Z`
   * `VM_alu`: `ALU_NOT`, `ALU_AND`, `ALU_OR`, `ALU_XOR`, `ALU_ADD`, `ALU_SUB`, `ALU_MUL`
@@ -358,12 +358,14 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(set-y `_cell_` `_Y_`)`
   * `(set-z `_cell_` `_Z_`)`
 
+#### Examples
+
 ```
 (define print
   (cell Actor_T
-    (cell VM_msg (fix->int -1)  ; #-1
+    (cell VM_msg #-1  ; (fix->int -1)
       (cell VM_push a-print
-        (cell VM_send (fix->int 0)  ; #0
+        (cell VM_send #0  ; (fix->int 0)
           RV_UNIT)))
     ()))
 ```
@@ -509,19 +511,7 @@ NIL or --->[token,next]--->
 (define scm-to-eol (peg-or lex-eol (peg-and peg-any (peg-call scm-to-eol))))
 (define scm-comment (peg-and (peg-eq 59) scm-to-eol))
 (define scm-optwsp (peg-star (peg-or scm-comment (peg-class WSP))))
-```
-
-```
 (define lex-eot (peg-not (peg-class DGT UPR LWR SYM)))  ; end of token
-(define scm-ignore (peg-xform (lambda _ '_) (peg-and (peg-plus (peg-eq 95)) lex-eot)))
-(define scm-const (peg-xform cadr (peg-seq
-  (peg-eq 35)
-  (peg-alt
-    (peg-xform (lambda _ #f) (peg-eq 102))
-    (peg-xform (lambda _ #t) (peg-eq 116))
-    (peg-xform (lambda _ #?) (peg-eq 63))
-    (peg-xform (lambda _ #unit) (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116))))
-  lex-eot)))
 ```
 
 ```
@@ -529,6 +519,19 @@ NIL or --->[token,next]--->
 (define lex-digit (peg-or (peg-class DGT) (peg-eq 95)))  ; [0-9_]
 (define lex-digits (peg-xform car (peg-and (peg-plus lex-digit) lex-eot)))
 (define lex-number (peg-xform list->number (peg-or (peg-and lex-sign lex-digits) lex-digits)))
+```
+
+```
+(define scm-ignore (peg-xform (lambda _ '_) (peg-and (peg-plus (peg-eq 95)) lex-eot)))
+(define scm-const (peg-xform cadr (peg-seq
+  (peg-eq 35)
+  (peg-alt
+    (peg-xform (lambda _ #f) (peg-eq 102))
+    (peg-xform (lambda _ #t) (peg-eq 116))
+    (peg-xform (lambda _ #?) (peg-eq 63))
+    (peg-xform (lambda _ #unit) (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116)))
+    (peg-xform fix->int lex-number))
+  lex-eot)))
 ```
 
 ```
@@ -542,6 +545,8 @@ NIL or --->[token,next]--->
     (peg-and (peg-eq 44) (peg-and (peg-eq 64) (peg-call scm-expr))))
   (peg-xform (lambda (x) (list 'unquote (cdr x)))
     (peg-and (peg-eq 44) (peg-call scm-expr)))
+  (peg-xform (lambda (x) (list 'placeholder (cdr x)))
+    (peg-and (peg-eq 63) (peg-call scm-expr)))
   ))
 ```
 
@@ -556,7 +561,7 @@ NIL or --->[token,next]--->
       (peg-call scm-expr)
       (peg-or scm-dotted (peg-call scm-tail)) )) )))
 (define scm-list (peg-xform cdr (peg-and (peg-eq 40) scm-tail)))
-(define scm-expr (peg-alt scm-list scm-ignore scm-const lex-number scm-symbol scm-quoted))
+(define scm-expr (peg-alt scm-list scm-ignore scm-const lex-number scm-quoted scm-symbol))
 (define scm-sexpr (peg-xform cdr (peg-and scm-optwsp scm-expr)))
 
 ;(define src (peg-source '(9 40 97 32 46 32 98 41 10)))  ; "\t(a . b)\n"
