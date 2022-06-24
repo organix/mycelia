@@ -27,6 +27,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define QQUOTE_SYNTAX 1 // include support for quasiquote, et. al.
 #define RAWINT_SYNTAX 1 // include support for ASM rawint data (#1)
 #define PLACEH_SYNTAX 1 // include support for placeholder variables (?x)
+#define META_ACTORS   1 // include meta-actor definitions
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -1961,11 +1962,284 @@ cell_t cell_table[CELL_MAX] = {
 #define ASM_END (F_LST_SYM+3)
 #endif // SCM_ASM_TOOLS
 
+#if META_ACTORS
+//
+// Meta-Actor Procedures for LISP/Scheme
+//
+
+#define S_SEND (ASM_END+0)
+    { .t=Symbol_T,      .x=0,           .y=S_SEND+1,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('S'), .y=S_SEND+2,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('E'), .y=S_SEND+3,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('N'), .y=S_SEND+4,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('D'), .y=NIL,         .z=UNDEF        },
+
+#define S_BECOME (S_SEND+5)
+    { .t=Symbol_T,      .x=0,           .y=S_BECOME+1,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('B'), .y=S_BECOME+2,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('E'), .y=S_BECOME+3,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('C'), .y=S_BECOME+4,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('O'), .y=S_BECOME+5,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('M'), .y=S_BECOME+6,  .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('E'), .y=NIL,         .z=UNDEF        },
+
+#define S_SELF (S_BECOME+7)
+    { .t=Symbol_T,      .x=0,           .y=S_SELF+1,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('S'), .y=S_SELF+2,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('E'), .y=S_SELF+3,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('L'), .y=S_SELF+4,    .z=UNDEF        },
+    { .t=Pair_T,        .x=TO_FIX('F'), .y=NIL,         .z=UNDEF        },
+
+/*
+(define meta-actor-beh
+  (lambda (beh)
+    (BEH msg
+      (define txn (cell Fexpr_T SELF () beh))
+      (SEND beh (cons txn msg))
+      (BECOME (meta-busy-beh txn ())) )))
+*/
+#define M_ACTOR_B (S_SELF+5)
+#define M_BUSY_B (M_ACTOR_B+13)
+//  { .t=VM_push,       .x=_beh_,       .y=M_ACTOR_B+0, .z=UNDEF        },
+    { .t=VM_push,       .x=Fexpr_T,     .y=M_ACTOR_B+1, .z=UNDEF        },  // T = Fexpr_T
+    { .t=VM_self,       .x=UNDEF,       .y=M_ACTOR_B+2, .z=UNDEF        },  // X = SELF
+    { .t=VM_push,       .x=NIL,         .y=M_ACTOR_B+3, .z=UNDEF        },  // Y = ()
+    { .t=VM_pick,       .x=4,           .y=M_ACTOR_B+4, .z=UNDEF        },  // Z = beh
+    { .t=VM_cell,       .x=4,           .y=M_ACTOR_B+5, .z=UNDEF        },  // txn = cell(T, X, Y, Z)
+
+    { .t=VM_pick,       .x=1,           .y=M_ACTOR_B+6, .z=UNDEF        },  // txn txn
+    { .t=VM_push,       .x=NIL,         .y=M_ACTOR_B+7, .z=UNDEF        },  // pending = ()
+    { .t=VM_push,       .x=M_BUSY_B,    .y=M_ACTOR_B+8, .z=UNDEF        },  // M_BUSY_B
+    { .t=VM_beh,        .x=2,           .y=M_ACTOR_B+9, .z=UNDEF        },  // BECOME (M_BUSY_B txn pending)
+
+    { .t=VM_msg,        .x=0,           .y=M_ACTOR_B+10,.z=UNDEF        },  // msg
+    { .t=VM_roll,       .x=2,           .y=M_ACTOR_B+11,.z=UNDEF        },  // txn
+    { .t=VM_pair,       .x=1,           .y=M_ACTOR_B+12,.z=UNDEF        },  // (txn . msg)
+    { .t=VM_roll,       .x=2,           .y=SEND_0,      .z=UNDEF        },  // beh
+
+/*
+(define meta-busy-beh
+  (lambda (txn pending)
+    (BEH msg
+      (if (eq? msg txn)                 ; end txn
+        (seq
+          (define beh (get-z msg))
+          (define outbox (get-y msg))
+          (map (lambda (x) (SEND (car x) (cdr x))) outbox)  ; (send-msgs outbox)
+          (if (pair? pending)
+            (seq
+              (define txn (cell Fexpr_T SELF () beh))
+              (SEND beh (cons txn (car pending)))
+              (BECOME (meta-busy-beh txn (cdr pending))) )
+            (BECOME (meta-actor-beh beh)) ))
+        (BECOME (meta-busy-beh txn (cons msg pending))) ))))
+*/
+//  { .t=VM_push,       .x=_txn_,       .y=M_BUSY_B-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_pending_,   .y=M_BUSY_B+0,  .z=UNDEF        },
+    { .t=VM_pick,       .x=2,           .y=M_BUSY_B+1,  .z=UNDEF        },  // txn
+    { .t=VM_msg,        .x=0,           .y=M_BUSY_B+2,  .z=UNDEF        },  // msg
+    { .t=VM_cmp,        .x=CMP_EQ,      .y=M_BUSY_B+3,  .z=UNDEF        },  // (msg == txn)
+    { .t=VM_if,         .x=M_BUSY_B+8,  .y=M_BUSY_B+4,  .z=UNDEF        },
+
+    { .t=VM_msg,        .x=0,           .y=M_BUSY_B+5,  .z=UNDEF        },  // msg
+    { .t=VM_pair,       .x=1,           .y=M_BUSY_B+6,  .z=UNDEF        },  // (msg . pending)
+    { .t=VM_push,       .x=M_BUSY_B,    .y=M_BUSY_B+7,  .z=UNDEF        },  // M_BUSY_B
+    { .t=VM_beh,        .x=2,           .y=COMMIT,      .z=UNDEF        },  // BECOME (M_BUSY_B txn (msg . pending))
+
+    { .t=VM_msg,        .x=0,           .y=M_BUSY_B+9,  .z=UNDEF        },  // msg
+    { .t=VM_get,        .x=FLD_Y,       .y=M_BUSY_B+10, .z=UNDEF        },  // outbox
+
+    { .t=VM_pick,       .x=1,           .y=M_BUSY_B+11, .z=UNDEF        },  // outbox outbox
+    { .t=VM_typeq,      .x=Pair_T,      .y=M_BUSY_B+12, .z=UNDEF        },  // outbox has type Pair_T
+    { .t=VM_if,         .x=M_BUSY_B+13, .y=M_BUSY_B+16, .z=UNDEF        },
+
+    { .t=VM_part,       .x=1,           .y=M_BUSY_B+14, .z=UNDEF        },  // rest first
+    { .t=VM_part,       .x=1,           .y=M_BUSY_B+15, .z=UNDEF        },  // rest msg actor
+    { .t=VM_send,       .x=0,           .y=M_BUSY_B+10, .z=UNDEF        },  // (actor . msg)
+
+    { .t=VM_drop,       .x=1,           .y=M_BUSY_B+17, .z=UNDEF        },  // txn pending
+    { .t=VM_msg,        .x=0,           .y=M_BUSY_B+18, .z=UNDEF        },  // msg
+    { .t=VM_get,        .x=FLD_Z,       .y=M_BUSY_B+19, .z=UNDEF        },  // beh'
+    { .t=VM_pick,       .x=2,           .y=M_BUSY_B+20, .z=UNDEF        },  // txn pending beh' pending
+    { .t=VM_typeq,      .x=Pair_T,      .y=M_BUSY_B+21, .z=UNDEF        },  // pending has type Pair_T
+    { .t=VM_if,         .x=M_BUSY_B+24, .y=M_BUSY_B+22, .z=UNDEF        },
+
+    { .t=VM_push,       .x=M_ACTOR_B,   .y=M_BUSY_B+23, .z=UNDEF        },  // M_ACTOR_B
+    { .t=VM_beh,        .x=1,           .y=COMMIT,      .z=UNDEF        },  // BECOME (M_ACTOR_B beh')
+
+    { .t=VM_roll,       .x=2,           .y=M_BUSY_B+25, .z=UNDEF        },  // beh' pending
+    { .t=VM_part,       .x=1,           .y=M_BUSY_B+26, .z=UNDEF        },  // beh' tail head
+
+    { .t=VM_push,       .x=Fexpr_T,     .y=M_BUSY_B+27, .z=UNDEF        },  // T = Fexpr_T
+    { .t=VM_self,       .x=UNDEF,       .y=M_BUSY_B+28, .z=UNDEF        },  // X = SELF
+    { .t=VM_push,       .x=NIL,         .y=M_BUSY_B+29, .z=UNDEF        },  // Y = ()
+    { .t=VM_pick,       .x=6,           .y=M_BUSY_B+30, .z=UNDEF        },  // Z = beh'
+    { .t=VM_cell,       .x=4,           .y=M_BUSY_B+31, .z=UNDEF        },  // txn' = cell(T, X, Y, Z)
+
+    { .t=VM_roll,       .x=2,           .y=M_BUSY_B+32, .z=UNDEF        },  // beh' tail txn' head
+    { .t=VM_pick,       .x=2,           .y=M_BUSY_B+33, .z=UNDEF        },  // beh' tail txn' head txn'
+    { .t=VM_pair,       .x=1,           .y=M_BUSY_B+34, .z=UNDEF        },  // beh' tail txn' (txn' . head)
+    { .t=VM_roll,       .x=4,           .y=M_BUSY_B+35, .z=UNDEF        },  // tail txn' (txn' . head) beh'
+    { .t=VM_send,       .x=0,           .y=M_BUSY_B+36, .z=UNDEF        },  // (beh' . (txn' . head))
+
+    { .t=VM_roll,       .x=2,           .y=M_BUSY_B+37, .z=UNDEF        },  // txn' tail
+    { .t=VM_push,       .x=M_BUSY_B,    .y=M_BUSY_B+38, .z=UNDEF        },  // M_BUSY_B
+    { .t=VM_beh,        .x=2,           .y=COMMIT,      .z=UNDEF        },  // BECOME (M_BUSY_B txn' tail)
+
+/*
+(define meta-SEND                       ; (SEND actor message)
+  (lambda (txn)
+    (lambda (actor msg)
+      (set-y txn (cons (cons actor msg) (get-y txn))) )))
+*/
+#define M_SEND (M_BUSY_B+39)
+//  { .t=VM_push,       .x=_txn_,       .y=M_SEND+0,    .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=M_SEND+1,    .z=UNDEF        },  // txn txn
+    { .t=VM_pick,       .x=1,           .y=M_SEND+2,    .z=UNDEF        },  // txn txn txn
+    { .t=VM_get,        .x=FLD_Y,       .y=M_SEND+3,    .z=UNDEF        },  // outbox = get_y(txn)
+    { .t=VM_msg,        .x=3,           .y=M_SEND+4,    .z=UNDEF        },  // msg = arg2
+    { .t=VM_msg,        .x=2,           .y=M_SEND+5,    .z=UNDEF        },  // actor = arg1
+    { .t=VM_pair,       .x=1,           .y=M_SEND+6,    .z=UNDEF        },  // (actor . msg)
+    { .t=VM_pair,       .x=1,           .y=M_SEND+7,    .z=UNDEF        },  // outbox' = ((actor . msg) . outbox)
+    { .t=VM_set,        .x=FLD_Y,       .y=RV_UNIT,     .z=UNDEF        },  // set_y(txn, outbox')
+
+/*
+(define meta-BECOME                     ; (BECOME behavior)
+  (lambda (txn)
+    (lambda (beh)
+      (set-z txn beh) )))
+*/
+#define M_BECOME (M_SEND+8)
+//  { .t=VM_push,       .x=_txn_,       .y=M_BECOME+0,  .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=M_BECOME+1,  .z=UNDEF        },  // txn txn
+    { .t=VM_msg,        .x=2,           .y=M_BECOME+2,  .z=UNDEF        },  // beh = arg1
+    { .t=VM_set,        .x=FLD_Z,       .y=RV_UNIT,     .z=UNDEF        },  // set_z(txn, beh)
+
+/*
+(define actor-env                       ; extend environment with actor primitives
+  (lambda (txn env)
+    (zip '(SEND BECOME SELF)
+      ((CREATE (meta-SEND txn)) (CREATE (meta-BECOME txn)) (get-x txn))
+      env)))
+(define a-meta-beh                      ; actor meta-behavior
+  (lambda (frml body env)
+    (BEH (txn . msg)
+      (define aenv (scope (actor-env txn env)))
+      (evbody #unit body (zip frml msg aenv))
+      (SEND (get-x txn) txn) )))
+*/
+#define A_META_B (M_BECOME+3)
+#define A_EXEC_B (A_META_B+27)
+#define A_COMMIT_B (A_EXEC_B+9)
+//  { .t=VM_push,       .x=_frml_,      .y=A_META_B-2,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_body_,      .y=A_META_B-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=A_META_B+0,  .z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=A_META_B+1,  .z=UNDEF        },  // env
+
+    { .t=VM_msg,        .x=1,           .y=A_META_B+2,  .z=UNDEF        },  // txn
+    { .t=VM_get,        .x=FLD_X,       .y=A_META_B+3,  .z=UNDEF        },  // get_x(txn)
+    { .t=VM_push,       .x=S_SELF,      .y=A_META_B+4,  .z=UNDEF        },  // 'SELF
+    { .t=VM_pair,       .x=1,           .y=A_META_B+5,  .z=UNDEF        },  // ('SELF . get_x(txn))
+
+    { .t=VM_msg,        .x=1,           .y=A_META_B+6,  .z=UNDEF        },  // txn
+    { .t=VM_push,       .x=M_BECOME,    .y=A_META_B+7,  .z=UNDEF        },  // M_BECOME
+    { .t=VM_new,        .x=1,           .y=A_META_B+8,  .z=UNDEF        },  // m-become
+    { .t=VM_push,       .x=S_BECOME,    .y=A_META_B+9,  .z=UNDEF        },  // 'BECOME
+    { .t=VM_pair,       .x=1,           .y=A_META_B+10, .z=UNDEF        },  // ('BECOME . m-become)
+
+    { .t=VM_msg,        .x=1,           .y=A_META_B+11, .z=UNDEF        },  // txn
+    { .t=VM_push,       .x=M_SEND,      .y=A_META_B+12, .z=UNDEF        },  // M_SEND
+    { .t=VM_new,        .x=1,           .y=A_META_B+13, .z=UNDEF        },  // m-send
+    { .t=VM_push,       .x=S_SEND,      .y=A_META_B+14, .z=UNDEF        },  // 'SEND
+    { .t=VM_pair,       .x=1,           .y=A_META_B+15, .z=UNDEF        },  // ('SEND . m-send)
+
+    { .t=VM_push,       .x=UNDEF,       .y=A_META_B+16, .z=UNDEF        },  // #?
+    { .t=VM_push,       .x=S_IGNORE,    .y=A_META_B+17, .z=UNDEF        },  // '_
+    { .t=VM_pair,       .x=1,           .y=A_META_B+18, .z=UNDEF        },  // ('_ . #?)
+
+    { .t=VM_pair,       .x=4,           .y=A_META_B+19, .z=UNDEF        },  // aenv
+    { .t=VM_msg,        .x=-1,          .y=A_META_B+20, .z=UNDEF        },  // msg
+    { .t=VM_pick,       .x=5,           .y=A_META_B+21, .z=UNDEF        },  // frml
+
+    { .t=VM_msg,        .x=1,           .y=A_META_B+22, .z=UNDEF        },  // txn
+    { .t=VM_pick,       .x=6,           .y=A_META_B+23, .z=UNDEF        },  // body
+    { .t=VM_push,       .x=A_EXEC_B,    .y=A_META_B+24, .z=UNDEF        },  // A_EXEC_B
+    { .t=VM_new,        .x=2,           .y=A_META_B+25, .z=UNDEF        },  // k_exec = (A_EXEC_B txn body)
+
+    { .t=VM_push,       .x=M_ZIP,       .y=A_META_B+26, .z=UNDEF        },  // M_ZIP
+    { .t=VM_send,       .x=4,           .y=COMMIT,      .z=UNDEF        },  // (M_ZIP k_exec frml msg aenv)
+
+//      (evbody #unit body (zip frml msg aenv))
+
+//  { .t=VM_push,       .x=_txn_,       .y=A_EXEC_B-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_body_,      .y=A_EXEC_B+0,  .z=UNDEF        },
+    { .t=VM_roll,       .x=2,           .y=A_EXEC_B+1,  .z=UNDEF        },  // body txn
+    { .t=VM_push,       .x=A_COMMIT_B,  .y=A_EXEC_B+2,  .z=UNDEF        },  // A_COMMIT_B
+    { .t=VM_beh,        .x=1,           .y=A_EXEC_B+3,  .z=UNDEF        },  // BECOME (A_COMMIT_B txn)
+
+    { .t=VM_push,       .x=UNIT,        .y=A_EXEC_B+4,  .z=UNDEF        },  // #unit
+    { .t=VM_self,       .x=UNDEF,       .y=A_EXEC_B+5,  .z=UNDEF        },  // SELF
+    { .t=VM_roll,       .x=3,           .y=A_EXEC_B+6,  .z=UNDEF        },  // #unit SELF body
+
+    { .t=VM_msg,        .x=0,           .y=A_EXEC_B+7,  .z=UNDEF        },  // env
+    { .t=VM_push,       .x=K_SEQ_B,     .y=A_EXEC_B+8,  .z=UNDEF        },  // K_SEQ_B
+    { .t=VM_new,        .x=3,           .y=SEND_0,      .z=UNDEF        },  // k-seq = (K_SEQ_B SELF body env)
+
+//      (SEND (get-x txn) txn) )))
+
+//  { .t=VM_push,       .x=_txn_,       .y=A_COMMIT_B+0,.z=UNDEF        },
+    { .t=VM_pick,       .x=1,           .y=A_COMMIT_B+1,.z=UNDEF        },  // txn txn
+    { .t=VM_get,        .x=FLD_X,       .y=RELEASE_0,   .z=UNDEF        },  // txn get-x(txn)
+
+/*
+(define meta-BEH                        ; (BEH <frml> . <body>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust
+        (CREATE (a-meta-beh (car opnds) (cdr opnds) env))
+      ))))
+*/
+#define FX_M_BEH (A_COMMIT_B+2)
+#define OP_M_BEH (FX_M_BEH+1)
+    { .t=Fexpr_T,       .x=OP_M_BEH,    .y=UNDEF,       .z=UNDEF        },  // (BEH frml . body)
+
+    { .t=Actor_T,       .x=OP_M_BEH+1,  .y=NIL,         .z=UNDEF        },  // (cust opnds env)
+    { .t=VM_msg,        .x=2,           .y=OP_M_BEH+2,  .z=UNDEF        },  // opnds
+    { .t=VM_nth,        .x=1,           .y=OP_M_BEH+3,  .z=UNDEF        },  // frml = car(opnds)
+    { .t=VM_msg,        .x=2,           .y=OP_M_BEH+4,  .z=UNDEF        },  // opnds
+    { .t=VM_nth,        .x=-1,          .y=OP_M_BEH+5,  .z=UNDEF        },  // body = cdr(opnds)
+    { .t=VM_msg,        .x=3,           .y=OP_M_BEH+6,  .z=UNDEF        },  // env
+    { .t=VM_push,       .x=A_META_B,    .y=OP_M_BEH+7,  .z=UNDEF        },  // A_META_B
+    { .t=VM_new,        .x=3,           .y=CUST_SEND,   .z=UNDEF        },  // closure = (A_META_B frml body env)
+
+/*
+(define meta-CREATE                     ; (CREATE behavior)
+  (CREATE
+    (BEH (cust . args)
+      (SEND cust (CREATE (meta-actor-beh (car args)))) )))
+*/
+#define F_CREATE (OP_M_BEH+8)
+    { .t=Actor_T,       .x=F_CREATE+1,  .y=NIL,         .z=UNDEF        },  // (CREATE behavior)
+    { .t=VM_msg,        .x=2,           .y=F_CREATE+2,  .z=UNDEF        },  // beh = arg1
+    { .t=VM_push,       .x=M_ACTOR_B,   .y=F_CREATE+3,  .z=UNDEF        },  // M_ACTOR_B
+    { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // actor = (M_ACTOR_B beh)
+
+#define F_SEND (F_CREATE+4)
+    { .t=Actor_T,       .x=F_SEND+1,    .y=NIL,         .z=UNDEF        },  // (SEND actor message)
+    { .t=VM_msg,        .x=3,           .y=F_SEND+2,    .z=UNDEF        },  // msg = arg2
+    { .t=VM_msg,        .x=2,           .y=F_SEND+3,    .z=UNDEF        },  // actor = arg1
+    { .t=VM_send,       .x=0,           .y=RV_UNIT,     .z=UNDEF        },  // (actor . msg)
+
+#define ACTOR_END (F_SEND+4)
+#else // !META_ACTORS
+#define ACTOR_END (ASM_END+0)
+#endif // META_ACTORS
+
 //
 // Parsing Expression Grammar (PEG) behaviors
 //
 
-#define G_EMPTY (ASM_END+0)
+#define G_EMPTY (ACTOR_END+0)
     { .t=Actor_T,       .x=G_EMPTY+1,   .y=NIL,         .z=UNDEF        },
 #define G_EMPTY_B (G_EMPTY+1)
     { .t=VM_msg,        .x=-2,          .y=G_EMPTY+2,   .z=UNDEF        },  // in
@@ -3176,6 +3450,23 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { F_SET_Z, "F_SET_Z" },
 #endif // SCM_ASM_TOOLS
 
+#if META_ACTORS
+    { S_SEND, "S_SEND" },
+    { S_BECOME, "S_BECOME" },
+    { S_SELF, "S_SELF" },
+    { M_ACTOR_B, "M_ACTOR_B" },
+    { M_BUSY_B, "M_BUSY_B" },
+    { M_SEND, "M_SEND" },
+    { M_BECOME, "M_BECOME" },
+    { A_META_B, "A_META_B" },
+    { A_EXEC_B, "A_EXEC_B" },
+    { A_COMMIT_B, "A_COMMIT_B" },
+    { FX_M_BEH, "FX_M_BEH" },
+    { OP_M_BEH, "OP_M_BEH" },
+    { F_CREATE, "F_CREATE" },
+    { F_SEND, "F_SEND" },
+#endif // META_ACTORS
+
     { G_EMPTY, "G_EMPTY" },
     { G_FAIL, "G_FAIL" },
     { G_NEXT_K, "G_NEXT_K" },
@@ -3787,6 +4078,11 @@ int_t init_global_env() {
     sym_install(S_UNQUOTE);
     sym_install(S_QSPLICE);
     sym_install(S_PLACEH);
+#if META_ACTORS
+    sym_install(S_SEND);
+    sym_install(S_BECOME);
+    sym_install(S_SELF);
+#endif
 
     bind_global("peg-lang", G_SEXPR);  // language parser start symbol
     bind_global("empty-env", EMPTY_ENV);
@@ -3985,6 +4281,12 @@ int_t init_global_env() {
     bind_global("set-y", F_SET_Y);
     bind_global("set-z", F_SET_Z);
 #endif //SCM_ASM_TOOLS
+
+#if META_ACTORS
+    bind_global("BEH", FX_M_BEH);
+    bind_global("CREATE", F_CREATE);
+    bind_global("SEND", F_SEND);
+#endif // META_ACTORS
 
     bind_global("a-print", A_PRINT);
     bind_global("quit", A_QUIT);

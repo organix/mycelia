@@ -23,6 +23,21 @@
     (if (< n 2)
       n
       (+ (fib (- n 1)) (fib (- n 2))))))
+(define fib  ; exercise local `let` bindings
+  (lambda (n)
+    (if (< n 2)
+      n
+      (let ((x (fib (- n 1)))
+            (y (fib (- n 2))))
+        (+ x y)) )))
+(define fib  ; exercise local `define` bindings
+  (lambda (n)
+    (if (< n 2)
+      n
+      (seq
+        (define x (fib (- n 1)))
+        (define y (fib (- n 2)))
+        (+ x y)) )))
 
 ; mutual recursion example (very inefficient)
 (define even?

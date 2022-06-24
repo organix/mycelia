@@ -142,6 +142,7 @@ based on their 2 MSBs.
 {t:Actor_T, x:beh', y:sp', z:events}    | busy actor, intially {z:()}
 {t:Symbol_T, x:hash, y:string, z:value} | immutable symbolic-name
 {t:Fexpr_T, x:actor, y:?, z:?}          | interpreter (cust ast env)
+{t:Fexpr_T, x:self, y:msgs, z:beh}      | meta-actor transaction
 
 #### Instructions
 
@@ -368,6 +369,59 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
         (cell VM_send #0  ; (fix->int 0)
           RV_UNIT)))
     ()))
+```
+
+### Meta-Actor Facilities
+
+  * `(CREATE `_behavior_`)`
+  * `(SEND `_actor_` `_message_`)`
+  * `(BECOME `_behavior_`)`
+  * `SELF`
+  * `(BEH `_formals_` . `_body_`)`
+
+#### Examples
+
+```
+(define fwd-beh
+  (lambda (delegate)
+    (BEH message
+      (SEND delegate message))))
+;(SEND (CREATE (fwd-beh a-print)) '(1 2 3))
+
+(define label-beh
+  (lambda (cust label)
+    (BEH msg
+      (SEND cust (cons label msg)))))
+;(define b (label-beh a-print 'foo))
+;(define a (CREATE b))
+;(SEND a '(bar baz))
+
+(define tag-beh
+  (lambda (cust)
+    (BEH msg
+      (SEND cust (cons SELF msg)))))
+
+(define a-crowd
+  (CREATE
+    (BEH (cust count)
+      (if (<= count 0)
+        (SEND cust SELF)
+        (seq
+          (SEND SELF (list cust (- count 1)))
+          (SEND SELF (list cust (- count 1)))) ))))
+;(SEND a-crowd (list a-print 3))
+
+(define broadcast-beh
+  (lambda (value)
+    (BEH actors
+      (if (pair? actors)
+        (seq
+          (SEND (car actors) value)
+          (SEND SELF (cdr actors))) ))))
+;(define a (CREATE (tag-beh a-print)))
+;(define b (CREATE (tag-beh a-print)))
+;(define c (CREATE (tag-beh a-print)))
+;(SEND (CREATE (broadcast-beh 42)) (list a b c))
 ```
 
 ### Lambda Compilation Test-Cases
@@ -1503,6 +1557,70 @@ The extended reference-implementation looks like this:
 (eval '((lambda (x) x) '(lambda (x) x)))
 (eval '((lambda (f) (f 42)) '(lambda (x) x)))
 (eval '((lambda (f) (f 42)) (lambda (x) x)))
+```
+
+### Meta-Actor Execution
+
+```
+;
+; meta-actor transaction = {t:Fexpr_T, x:self, y:outbox, z:beh}
+;
+
+(define meta-actor-beh
+  (lambda (beh)
+    (BEH msg
+      (define txn (cell Fexpr_T SELF () beh))
+      (SEND beh (cons txn msg))
+      (BECOME (meta-busy-beh txn ())) )))
+
+(define meta-busy-beh
+  (lambda (txn pending)
+    (BEH msg
+      (if (eq? msg txn)                 ; end txn
+        (seq
+          (define beh (get-z msg))
+          (define outbox (get-y msg))
+          (map (lambda (x) (SEND (car x) (cdr x))) outbox)  ; (send-msgs outbox)
+          (if (pair? pending)
+            (seq
+              (define txn (cell Fexpr_T SELF () beh))
+              (SEND beh (cons txn (car pending)))
+              (BECOME (meta-busy-beh txn (cdr pending))) )
+            (BECOME (meta-actor-beh beh)) ))
+        (BECOME (meta-busy-beh txn (cons msg pending))) ))))
+
+(define meta-CREATE                     ; (CREATE behavior)
+  (CREATE
+    (BEH (cust . args)
+      (SEND cust (CREATE (meta-actor-beh (car args)))) )))
+
+(define meta-SEND                       ; (SEND actor message)
+  (lambda (txn)
+    (lambda (actor msg)
+      (set-y txn (cons (cons actor msg) (get-y txn))) )))
+
+(define meta-BECOME                     ; (BECOME behavior)
+  (lambda (txn)
+    (lambda (beh)
+      (set-z txn beh) )))
+
+(define actor-env                       ; extend environment with actor primitives
+  (lambda (txn env)
+    (zip '(SEND BECOME SELF)
+      ((CREATE (meta-SEND txn)) (CREATE (meta-BECOME txn)) (get-x txn))
+      env)))
+(define a-meta-beh                      ; actor meta-behavior
+  (lambda (frml body env)
+    (BEH (txn . msg)
+      (define aenv (scope (actor-env txn env)))
+      (evbody #unit body (zip frml msg aenv))
+      (SEND (get-x txn) txn) )))
+(define meta-BEH                        ; (BEH <frml> . <body>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust
+        (CREATE (a-meta-beh (car opnds) (cdr opnds) env))
+      ))))
 ```
 
 ## Inspiration
