@@ -329,6 +329,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(reverse `_list_`)`
   * `(let ((`_var_` `_val_`) . `_bindings_`) . `_body_`)`
   * `(current-env)`
+  * `a-print`
   * `(quit)`
 
 ### Assembly-language Tools
@@ -378,15 +379,27 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(BECOME `_behavior_`)`
   * `SELF`
   * `(BEH `_formals_` . `_body_`)`
+  * `(CALL `_actor_` `_args_`)`
 
 #### Examples
 
 ```
+(define sink-beh (BEH _))
+(define a-sink (CREATE sink-beh))
+
 (define fwd-beh
   (lambda (delegate)
     (BEH message
       (SEND delegate message))))
 ;(SEND (CREATE (fwd-beh a-print)) '(1 2 3))
+
+(define once-beh
+  (lambda (delegate)
+    (BEH message
+      (SEND delegate message)
+      (BECOME sink-beh))))
+;(define once (CREATE (once-beh a-print)))
+;(par (SEND once 1) (SEND once 2) (SEND once 3))
 
 (define label-beh
   (lambda (cust label)
@@ -491,6 +504,7 @@ Date       | Events | Instructions | Description
 2022-06-15 |  55936 |       655106 | `define` mutates local bindings
 2022-06-16 |  55926 |       655174 | `zip` matches parameter-trees
 2022-06-20 |  69640 |       816774 | inline `apply` combination
+2022-06-24 |  78718 |       934417 | Meta-Actor Facilities
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
@@ -505,6 +519,7 @@ Date       | Events | Instructions | Description
 2022-06-15 |   1167 |        13654 | `define` mutates local bindings
 2022-06-16 |   1177 |        13674 | `zip` matches parameter-trees
 2022-06-20 |   1171 |        13627 | inline `apply` combination
+2022-06-24 |   1268 |        14876 | Meta-Actor Facilities
 
 ## PEG Tools
 
@@ -529,8 +544,6 @@ Date       | Events | Instructions | Description
   * `(peg-xform `_func_` `_peg_`)`
   * `(list->number `_chars_`)`
   * `(list->symbol `_chars_`)`
-  * `a-print`
-  * `peg-lang`
 
 ### PEG Derivations
 

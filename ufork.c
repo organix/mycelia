@@ -1896,17 +1896,17 @@ cell_t cell_table[CELL_MAX] = {
 //
 
 #define F_INT_FIX (F_LST_SYM+3)
-    { .t=Actor_T,       .x=F_INT_FIX+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=Actor_T,       .x=F_INT_FIX+1, .y=NIL,         .z=UNDEF        },  // (int->fix <rawint>)
     { .t=VM_msg,        .x=2,           .y=F_INT_FIX+2, .z=UNDEF        },  // rawint = arg1
     { .t=VM_cvt,        .x=CVT_INT_FIX, .y=CUST_SEND,   .z=UNDEF        },  // TO_FIX(rawint)
 
 #define F_FIX_INT (F_INT_FIX+3)
-    { .t=Actor_T,       .x=F_FIX_INT+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=Actor_T,       .x=F_FIX_INT+1, .y=NIL,         .z=UNDEF        },  // (fix->int <fixnum>)
     { .t=VM_msg,        .x=2,           .y=F_FIX_INT+2, .z=UNDEF        },  // fixnum = arg1
     { .t=VM_cvt,        .x=CVT_FIX_INT, .y=CUST_SEND,   .z=UNDEF        },  // TO_INT(fixnum)
 
 #define F_CELL (F_FIX_INT+3)
-    { .t=Actor_T,       .x=F_CELL+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=Actor_T,       .x=F_CELL+1,    .y=NIL,         .z=UNDEF        },  // (cell <T> <X> <Y> <Z>)
     { .t=VM_msg,        .x=2,           .y=F_CELL+2,    .z=UNDEF        },  // T = arg1
     { .t=VM_msg,        .x=3,           .y=F_CELL+3,    .z=UNDEF        },  // X = arg2
     { .t=VM_msg,        .x=4,           .y=F_CELL+4,    .z=UNDEF        },  // Y = arg3
@@ -1914,47 +1914,47 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_cell,       .x=4,           .y=CUST_SEND,   .z=UNDEF        },  // cell(T, X, Y, Z)
 
 #define F_GET_T (F_CELL+6)
-    { .t=Actor_T,       .x=F_GET_T+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=Actor_T,       .x=F_GET_T+1,   .y=NIL,         .z=UNDEF        },  // (get-t <cell>)
     { .t=VM_msg,        .x=2,           .y=F_GET_T+2,   .z=UNDEF        },  // cell = arg1
     { .t=VM_get,        .x=FLD_T,       .y=CUST_SEND,   .z=UNDEF        },  // get-t(cell)
 
 #define F_GET_X (F_GET_T+3)
-    { .t=Actor_T,       .x=F_GET_X+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=Actor_T,       .x=F_GET_X+1,   .y=NIL,         .z=UNDEF        },  // (get-x <cell>)
     { .t=VM_msg,        .x=2,           .y=F_GET_X+2,   .z=UNDEF        },  // cell = arg1
     { .t=VM_get,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // get-x(cell)
 
 #define F_GET_Y (F_GET_X+3)
-    { .t=Actor_T,       .x=F_GET_Y+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=Actor_T,       .x=F_GET_Y+1,   .y=NIL,         .z=UNDEF        },  // (get-y <cell>)
     { .t=VM_msg,        .x=2,           .y=F_GET_Y+2,   .z=UNDEF        },  // cell = arg1
     { .t=VM_get,        .x=FLD_Y,       .y=CUST_SEND,   .z=UNDEF        },  // get-y(cell)
 
 #define F_GET_Z (F_GET_Y+3)
-    { .t=Actor_T,       .x=F_GET_Z+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=Actor_T,       .x=F_GET_Z+1,   .y=NIL,         .z=UNDEF        },  // (get-z <cell>)
     { .t=VM_msg,        .x=2,           .y=F_GET_Z+2,   .z=UNDEF        },  // cell = arg1
     { .t=VM_get,        .x=FLD_Z,       .y=CUST_SEND,   .z=UNDEF        },  // get-z(cell)
 
 #define F_SET_T (F_GET_Z+3)
-    { .t=Actor_T,       .x=F_SET_T+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=Actor_T,       .x=F_SET_T+1,   .y=NIL,         .z=UNDEF        },  // (set-t <cell> <T>)
     { .t=VM_msg,        .x=2,           .y=F_SET_T+2,   .z=UNDEF        },  // cell = arg1
-    { .t=VM_msg,        .x=3,           .y=F_SET_T+3,   .z=UNDEF        },  // T = arg1
+    { .t=VM_msg,        .x=3,           .y=F_SET_T+3,   .z=UNDEF        },  // T = arg2
     { .t=VM_set,        .x=FLD_T,       .y=CUST_SEND,   .z=UNDEF        },  // set-t(cell, T)
 
 #define F_SET_X (F_SET_T+4)
-    { .t=Actor_T,       .x=F_SET_X+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=Actor_T,       .x=F_SET_X+1,   .y=NIL,         .z=UNDEF        },  // (set-x <cell> <X>)
     { .t=VM_msg,        .x=2,           .y=F_SET_X+2,   .z=UNDEF        },  // cell = arg1
-    { .t=VM_msg,        .x=3,           .y=F_SET_X+3,   .z=UNDEF        },  // X = arg1
+    { .t=VM_msg,        .x=3,           .y=F_SET_X+3,   .z=UNDEF        },  // X = arg2
     { .t=VM_set,        .x=FLD_X,       .y=CUST_SEND,   .z=UNDEF        },  // set-x(cell, X)
 
 #define F_SET_Y (F_SET_X+4)
-    { .t=Actor_T,       .x=F_SET_Y+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=Actor_T,       .x=F_SET_Y+1,   .y=NIL,         .z=UNDEF        },  // (set-y <cell> <Y>)
     { .t=VM_msg,        .x=2,           .y=F_SET_Y+2,   .z=UNDEF        },  // cell = arg1
-    { .t=VM_msg,        .x=3,           .y=F_SET_Y+3,   .z=UNDEF        },  // Y = arg1
+    { .t=VM_msg,        .x=3,           .y=F_SET_Y+3,   .z=UNDEF        },  // Y = arg2
     { .t=VM_set,        .x=FLD_Y,       .y=CUST_SEND,   .z=UNDEF        },  // set-y(cell, Y)
 
 #define F_SET_Z (F_SET_Y+4)
-    { .t=Actor_T,       .x=F_SET_Z+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=Actor_T,       .x=F_SET_Z+1,   .y=NIL,         .z=UNDEF        },  // (set-z <cell> <Z>)
     { .t=VM_msg,        .x=2,           .y=F_SET_Z+2,   .z=UNDEF        },  // cell = arg1
-    { .t=VM_msg,        .x=3,           .y=F_SET_Z+3,   .z=UNDEF        },  // Z = arg1
+    { .t=VM_msg,        .x=3,           .y=F_SET_Z+3,   .z=UNDEF        },  // Z = arg2
     { .t=VM_set,        .x=FLD_Z,       .y=CUST_SEND,   .z=UNDEF        },  // set-z(cell, Z)
 
 #define ASM_END (F_SET_Z+4)
@@ -2201,7 +2201,7 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define FX_M_BEH (A_COMMIT_B+2)
 #define OP_M_BEH (FX_M_BEH+1)
-    { .t=Fexpr_T,       .x=OP_M_BEH,    .y=UNDEF,       .z=UNDEF        },  // (BEH frml . body)
+    { .t=Fexpr_T,       .x=OP_M_BEH,    .y=UNDEF,       .z=UNDEF        },  // (BEH <frml> . <body>)
 
     { .t=Actor_T,       .x=OP_M_BEH+1,  .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=VM_msg,        .x=2,           .y=OP_M_BEH+2,  .z=UNDEF        },  // opnds
@@ -2219,18 +2219,25 @@ cell_t cell_table[CELL_MAX] = {
       (SEND cust (CREATE (meta-actor-beh (car args)))) )))
 */
 #define F_CREATE (OP_M_BEH+8)
-    { .t=Actor_T,       .x=F_CREATE+1,  .y=NIL,         .z=UNDEF        },  // (CREATE behavior)
+    { .t=Actor_T,       .x=F_CREATE+1,  .y=NIL,         .z=UNDEF        },  // (CREATE <behavior>)
     { .t=VM_msg,        .x=2,           .y=F_CREATE+2,  .z=UNDEF        },  // beh = arg1
     { .t=VM_push,       .x=M_ACTOR_B,   .y=F_CREATE+3,  .z=UNDEF        },  // M_ACTOR_B
     { .t=VM_new,        .x=1,           .y=CUST_SEND,   .z=UNDEF        },  // actor = (M_ACTOR_B beh)
 
 #define F_SEND (F_CREATE+4)
-    { .t=Actor_T,       .x=F_SEND+1,    .y=NIL,         .z=UNDEF        },  // (SEND actor message)
+    { .t=Actor_T,       .x=F_SEND+1,    .y=NIL,         .z=UNDEF        },  // (SEND <actor> <message>)
     { .t=VM_msg,        .x=3,           .y=F_SEND+2,    .z=UNDEF        },  // msg = arg2
     { .t=VM_msg,        .x=2,           .y=F_SEND+3,    .z=UNDEF        },  // actor = arg1
     { .t=VM_send,       .x=0,           .y=RV_UNIT,     .z=UNDEF        },  // (actor . msg)
 
-#define ACTOR_END (F_SEND+4)
+#define F_CALL (F_SEND+4)
+    { .t=Actor_T,       .x=F_CALL+1,    .y=NIL,         .z=UNDEF        },  // (CALL <actor> <args>)
+    { .t=VM_msg,        .x=3,           .y=F_CALL+2,    .z=UNDEF        },  // args = arg2
+    { .t=VM_msg,        .x=1,           .y=F_CALL+3,    .z=UNDEF        },  // cust = arg0
+    { .t=VM_pair,       .x=1,           .y=F_CALL+4,    .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=2,           .y=SEND_0,      .z=UNDEF        },  // actor = arg1
+
+#define ACTOR_END (F_CALL+5)
 #else // !META_ACTORS
 #define ACTOR_END (ASM_END+0)
 #endif // META_ACTORS
@@ -3465,6 +3472,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { OP_M_BEH, "OP_M_BEH" },
     { F_CREATE, "F_CREATE" },
     { F_SEND, "F_SEND" },
+    { F_CALL, "F_CALL" },
 #endif // META_ACTORS
 
     { G_EMPTY, "G_EMPTY" },
@@ -4286,6 +4294,7 @@ int_t init_global_env() {
     bind_global("BEH", FX_M_BEH);
     bind_global("CREATE", F_CREATE);
     bind_global("SEND", F_SEND);
+    bind_global("CALL", F_CALL);
 #endif // META_ACTORS
 
     bind_global("a-print", A_PRINT);
