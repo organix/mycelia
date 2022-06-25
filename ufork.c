@@ -5650,11 +5650,11 @@ static char repl_lib[] =
 #if QQUOTE_SYNTAX
 " (define quasiquote (vau (x) e (if (pair? x)"
 "   (if (eq? (car x) 'unquote) (eval (cadr x) e)"
-"   (quasi-list x)) x)))"
-" (define quasi-list (lambda (x) (if (pair? x) (if (pair? (car x))"
-"   (if (eq? (caar x) 'unquote-splicing) (append (eval (cadar x) e) (quasi-list (cdr x)))"
-"   (cons (apply quasiquote (list (car x)) e) (quasi-list (cdr x))))"
-"   (cons (car x) (quasi-list (cdr x)))) x)))"
+"   (quasi-list x e)) x)))"
+" (define quasi-list (lambda (x e) (if (pair? x) (if (pair? (car x))"
+"   (if (eq? (caar x) 'unquote-splicing) (append (eval (cadar x) e) (quasi-list (cdr x) e))"
+"   (cons (apply quasiquote (list (car x)) e) (quasi-list (cdr x) e)))"
+"   (cons (car x) (quasi-list (cdr x) e))) x)))"
 #endif // QQUOTE_SYNTAX
 " \0";
 static char *repl_inp = repl_lib;

@@ -370,6 +370,10 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
         (cell VM_send #0  ; (fix->int 0)
           RV_UNIT)))
     ()))
+
+(define disasm
+  (lambda (ip)
+    (list (get-t ip) (get-x ip) (get-y ip) (get-z ip))))
 ```
 
 ### Meta-Actor Facilities
