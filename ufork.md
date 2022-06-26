@@ -514,6 +514,7 @@ Date       | Events | Instructions | Description
 2022-06-16 |  55926 |       655174 | `zip` matches parameter-trees
 2022-06-20 |  69640 |       816774 | inline `apply` combination
 2022-06-24 |  78718 |       934417 | Meta-Actor Facilities
+2022-06-26 |  81381 |       966101 | gc_safepoint policy
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
@@ -529,6 +530,7 @@ Date       | Events | Instructions | Description
 2022-06-16 |   1177 |        13674 | `zip` matches parameter-trees
 2022-06-20 |   1171 |        13627 | inline `apply` combination
 2022-06-24 |   1268 |        14876 | Meta-Actor Facilities
+2022-06-26 |   1268 |        14876 | gc_safepoint policy
 
 ## PEG Tools
 

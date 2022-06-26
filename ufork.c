@@ -3892,6 +3892,17 @@ i32 gc_mark_and_sweep(int_t dump) {
     }
     return m;
 }
+
+i32 gc_safepoint() {
+    if ((cell_top > (CELL_MAX - 256)) && (gc_free_cnt < 64)) {
+        gc_mark_and_sweep(FALSE);  // no gc output
+        //gc_mark_and_sweep(UNDEF);  // one-line gc summary
+        if (gc_free_cnt < 128) {  // low-memory warning!
+            gc_mark_and_sweep(UNDEF);  // one-line gc summary
+        }
+    }
+    return gc_free_cnt;
+}
 #endif // MARK_SWEEP_GC
 
 /*
@@ -4552,8 +4563,7 @@ static int_t execute() {  // execute next VM instruction
         event = XFREE(event);
         cont = XFREE(cont);
 #if MARK_SWEEP_GC
-        gc_mark_and_sweep(FALSE);  // no gc output
-        //gc_mark_and_sweep(UNDEF);  // one-line gc summary
+        gc_safepoint();
 #endif
     }
     return UNIT;
