@@ -6,18 +6,25 @@
 (define macro (vau (frml . body) env
   (eval (list vau frml '_env_ (list eval (cons seq body) '_env_)) env) ))
 ;current-env
-;==> #fexpr@2127
+;==> #fexpr@6913
 ;(current-env)
 ;==> ()
 ;(define f (lambda x (seq (list list x (current-env) current-env))))
 ;(f 1 2 3)
-;==> (#actor@565 (+1 +2 +3) ((x +1 +2 +3) (_ . #?)) #fexpr@2127)
+;==> (#actor@575 (+1 +2 +3) ((x +1 +2 +3) (_ . #?)) #fexpr@6913)
 ;(define m (macro x (list list x (current-env) current-env)))
 ;(m 1 2 3)
-;==> (#? #? #fexpr@2127)
+;==> (#? #? #fexpr@6913)
 ;(define v (vau x e (eval (seq (list list x (current-env) current-env)) e) ))
+;(define v (vau x e (eval (list list x (current-env) current-env) e) ))
 ;(v 1 2 3)
-;==> (#? #? #fexpr@2127)
+;==> (#? #? #fexpr@6913)
+;(define q (macro x `(list x ,x ,@x 'x)))
+;(q +1 +2 +3)
+;==> (#? #? +1 +2 +3 x)
+;(define qq (macro x `'(list x ,x ,@x 'x)))
+;(qq +1 +2 +3)
+;==> (list x (+1 +2 +3) +1 +2 +3 (quote x))
 
 ;(define qlist (macro x (list quote x)))
 (define qlist (vau x _ x))
