@@ -1524,19 +1524,19 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_if pred env)
 
 /*
-(define op-cond                         ; (cond (<test> <expr>) . <clauses>)
+(define op-cond                         ; (cond (<test> . <body>) . <clauses>)
   (CREATE
     (BEH (cust opnds env)
       (if (pair? (car opnds))
         (if (eval (caar opnds) env)
-          (SEND cust (eval (cadar opnds) env))
+          (SEND cust (evbody #unit (cdar opnds) env))
           (SEND SELF (list cust (cdr opnds) env)))
         (SEND cust #?)) )))
 */
 #define FX_COND (OP_IF+11)
 #define OP_COND (FX_COND+1)
 #define K_COND (OP_COND+17)
-    { .t=Fexpr_T,       .x=OP_COND,     .y=UNDEF,       .z=UNDEF        },  // (cond (<test> <expr>) . <clauses>)
+    { .t=Fexpr_T,       .x=OP_COND,     .y=UNDEF,       .z=UNDEF        },  // (cond (<test> . <body>) . <clauses>)
 
     { .t=Actor_T,       .x=OP_COND+1,   .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=VM_msg,        .x=2,           .y=OP_COND+2,   .z=UNDEF        },  // opnds
@@ -1545,35 +1545,36 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=VM_msg,        .x=2,           .y=OP_COND+5,   .z=UNDEF        },  // opnds
     { .t=VM_part,       .x=1,           .y=OP_COND+6,   .z=UNDEF        },  // rest first
-    { .t=VM_part,       .x=2,           .y=OP_COND+7,   .z=UNDEF        },  // rest () expr test
+    { .t=VM_part,       .x=1,           .y=OP_COND+7,   .z=UNDEF        },  // rest body test
 
     { .t=VM_msg,        .x=3,           .y=OP_COND+8,   .z=UNDEF        },  // env
-    { .t=VM_roll,       .x=2,           .y=OP_COND+9,   .z=UNDEF        },  // test
+    { .t=VM_roll,       .x=2,           .y=OP_COND+9,   .z=UNDEF        },  // env test
 
     { .t=VM_msg,        .x=1,           .y=OP_COND+10,  .z=UNDEF        },  // cust
-    { .t=VM_roll,       .x=4,           .y=OP_COND+11,  .z=UNDEF        },  // expr
-    { .t=VM_roll,       .x=6,           .y=OP_COND+12,  .z=UNDEF        },  // opnds' = rest
-    { .t=VM_msg,        .x=3,           .y=OP_COND+13,  .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=4,           .y=OP_COND+11,  .z=UNDEF        },  // rest env test cust body
+    { .t=VM_msg,        .x=3,           .y=OP_COND+12,  .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=6,           .y=OP_COND+13,  .z=UNDEF        },  // opnds' = rest
     { .t=VM_push,       .x=K_COND,      .y=OP_COND+14,  .z=UNDEF        },  // K_COND
-    { .t=VM_new,        .x=4,           .y=OP_COND+15,  .z=UNDEF        },  // k_cond = (K_COND cust expr opnds' env)
+    { .t=VM_new,        .x=4,           .y=OP_COND+15,  .z=UNDEF        },  // k_cond = (K_COND cust body env opnds')
 
     { .t=VM_push,       .x=M_EVAL,      .y=OP_COND+16,  .z=UNDEF        },  // M_EVAL
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_cond test env)
 
 //  { .t=VM_push,       .x=_cust_,      .y=K_COND-3,    .z=UNDEF        },
-//  { .t=VM_push,       .x=_expr_,      .y=K_COND-2,    .z=UNDEF        },
-//  { .t=VM_push,       .x=_opnds_,     .y=K_COND-1,    .z=UNDEF        },
+//  { .t=VM_push,       .x=_body_,      .y=K_COND-2,    .z=UNDEF        },
 //  { .t=VM_push,       .x=_env_,       .y=K_COND+0,    .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=K_COND+1,    .z=UNDEF        },  // test result
-    { .t=VM_if,         .x=K_COND+2,    .y=K_COND+6,    .z=UNDEF        },
+//  { .t=VM_push,       .x=_opnds_,     .y=K_COND-1,    .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_COND+1,    .z=UNDEF        },  // test_result
+    { .t=VM_if,         .x=K_COND+2,    .y=K_COND+7,    .z=UNDEF        },
 
-    { .t=VM_roll,       .x=3,           .y=K_COND+3,    .z=UNDEF        },  // cust opnds env expr
-    { .t=VM_roll,       .x=4,           .y=K_COND+4,    .z=UNDEF        },  // opnds env expr cust
-    { .t=VM_push,       .x=M_EVAL,      .y=K_COND+5,    .z=UNDEF        },  // M_EVAL
-    { .t=VM_send,       .x=3,           .y=RELEASE,     .z=UNDEF        },  // (M_EVAL cust expr env)
+    { .t=VM_drop,       .x=1,           .y=K_COND+3,    .z=UNDEF        },  // cust body env
+    { .t=VM_push,       .x=K_SEQ_B,     .y=K_COND+4,    .z=UNDEF        },  // K_SEQ_B
+    { .t=VM_beh,        .x=3,           .y=K_COND+5,    .z=UNDEF        },  // BECOME (K_SEQ_B cust body env)
 
-    { .t=VM_roll,       .x=2,           .y=K_COND+7,    .z=UNDEF        },  // cust expr env opnds
-    { .t=VM_roll,       .x=4,           .y=K_COND+8,    .z=UNDEF        },  // expr env opnds cust
+    { .t=VM_push,       .x=UNIT,        .y=K_COND+6,    .z=UNDEF        },  // UNIT
+    { .t=VM_self,       .x=UNDEF,       .y=SEND_0,      .z=UNDEF        },  // (SELF . UNIT)
+
+    { .t=VM_roll,       .x=4,           .y=K_COND+8,    .z=UNDEF        },  // body env opnds cust
     { .t=VM_push,       .x=OP_COND,     .y=K_COND+9,    .z=UNDEF        },  // OP_COND
     { .t=VM_send,       .x=3,           .y=RELEASE,     .z=UNDEF        },  // (OP_COND cust opnds env)
 

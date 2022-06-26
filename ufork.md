@@ -308,7 +308,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(symbol? . `_values_`)`
   * `(actor? . `_values_`)`
   * `(if `_test_` `_consequence_` `_alternative_`)`
-  * `(cond (`_test_` `_expr_`) . `_clauses_`)`
+  * `(cond (`_test_` . `_body_`) . `_clauses_`)`
   * `(eq? . `_values_`)`
   * `(= . `_numbers_`)`
   * `(< . `_numbers_`)`
@@ -1512,12 +1512,12 @@ The extended reference-implementation looks like this:
         (evalif (eval (car opnds) env) (cadr opnds) (caddr opnds) env)
       ))))
 
-(define op-cond                         ; (cond (<test> <expr>) . <clauses>)
+(define op-cond                         ; (cond (<test> . <body>) . <clauses>)
   (CREATE
     (BEH (cust opnds env)
       (if (pair? (car opnds))
         (if (eval (caar opnds) env)
-          (SEND cust (eval (cadar opnds) env))
+          (SEND cust (evbody #unit (cdar opnds) env))
           (SEND SELF (list cust (cdr opnds) env)))
         (SEND cust #?)) )))
 
