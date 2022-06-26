@@ -29,9 +29,16 @@
 ;(define qlist (macro x (list quote x)))
 (define qlist (vau x _ x))
 (define quote (vau (x) _ x))
-(define seq (macro body _ (list (list* 'lambda '_ body))))
+(define seq (macro body _ (list (list* 'lambda '_ body))))  ; WARNING! introduces spurious local scope
 
 (define integer? number?)  ; integers are currently the only number type implemented
+(define equal?
+  (lambda (x y)
+    (if (pair? x)
+      (if (equal? (car x) (car y))
+        (equal? (cdr x) (cdr y))
+        #f)
+      (eq? x y))))
 
 (define when
   (macro (cond . body)
@@ -207,7 +214,11 @@
       x)))
 ;((lambda (x) `(x ,x ,(car x) ,(cdr x) ,@x 'x ,(current-env))) '(1 2 3))
 
+;
 ; short-circuit logical connectives
+;
+
+; examples from Kernel
 ($define! $and?
   ($vau x e
     ($cond
@@ -224,27 +235,6 @@
       ((eval (car x) e) #t)
       (#t (apply (wrap $or?) (cdr x) e))
     )))
-; macro definitions using quasiquote templates
-(define or
-  (macro x
-    (if (pair? x)
-      (if (pair? (cdr x))
-        `(let ((_test_ ,(car x)))  ; FIXME: need (gensym) here?
-          (if _test_
-            _test_
-            (or ,@(cdr x))))
-        (car x))  ; tail-call
-      #f)))
-(define expand-or
-  (lambda (x)
-    (if (pair? x)
-      (if (pair? (cdr x))
-        `(let ((_test_ ,(car x)))  ; FIXME: need (gensym) here?
-          (if _test_
-            _test_
-            (or ,@(cdr x))))
-        (car x))  ; tail-call
-      #f)))
 ; macro definitions using explicit construction
 (define expand-or
   (lambda (x)
@@ -256,9 +246,7 @@
             (cons 'or (cdr x))))
         (car x))  ; tail-call
       #f)))
-(define or
-  (macro x
-    (expand-or x)))
+(define or (macro x (expand-or x)))
 ;(or #f (eq? 0 1) (not 1) -1 (eq? 1 1) -no-eval-) ==> -1
 (define and
   (macro x
@@ -280,8 +268,62 @@
             (cons 'or (cdr x))))
         (car x))  ; tail-call
       #f)))
+; macro definitions using quasiquote templates
+(define or
+  (macro x
+    (if (pair? x)
+      (if (pair? (cdr x))
+        `(let ((_test_ ,(car x)))  ; FIXME: need (gensym) here?
+          (if _test_
+            _test_
+            (or ,@(cdr x))))
+        (car x))  ; tail-call
+      #f)))
+(define expand-or
+  (lambda (x)
+    (if (pair? x)
+      (if (pair? (cdr x))
+        `(let ((_test_ ,(car x)))  ; FIXME: need (gensym) here?
+          (if _test_
+            _test_
+            (or ,@(cdr x))))
+        (car x))  ; tail-call
+      #f)))
+(define or (macro x (expand-or x)))
+(define expand-or
+  (lambda (x)
+    (cond ((pair? x)
+            (define t (gensym))
+            `(seq (define ,t ,(car x))
+                  (if ,t ,t (or ,@(cdr x))) ))
+          (#t
+            #f) )))
+(define or
+  (macro x
+    (cond ((pair? x)
+            (define t (gensym))
+            `(,seq (,define ,t ,(car x))
+                  (,if ,t ,t (,or ,@(cdr x))) ))
+          (#t
+            #f) )))
 
+;
+; macro helpers
+;
+
+;(define expand-with-gensyms
+;  (lambda (syms . body)
+(define with-gensyms
+  (macro (syms . body)
+    (define defsym (lambda (s) `(define ,s (gensym))))
+    `(seq ,@(map defsym syms) ,@body) ))
+
+;
 ; Little Schemer (4th edition)
-(define atom? (lambda (x) (and (not (pair? x)) (not (null? x)))))
+;
+
 (define add1 (lambda (x) (+ x 1)))
 (define sub1 (lambda (x) (- x 1)))
+(define atom? (lambda (x) (and (not (pair? x)) (not (null? x)))))
+(define list? (lambda (p) (if (pair? p) (list? (cdr p)) (null? p))))
+(define member? (lambda (x xs) (if (pair? xs) (or (eq? x (car xs)) (member? x (cdr xs))) #f)))
