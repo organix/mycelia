@@ -329,6 +329,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(reverse `_list_`)`
   * `(let ((`_var_` `_val_`) . `_bindings_`) . `_body_`)`
   * `(current-env)`
+  * `(gensym)`
   * `a-print`
   * `(quit)`
 
@@ -365,11 +366,15 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 ```
 (define print
   (cell Actor_T
-    (cell VM_msg #-1  ; (fix->int -1)
+    (cell VM_msg '#-1  ; (fix->int -1)
       (cell VM_push a-print
-        (cell VM_send #0  ; (fix->int 0)
+        (cell VM_send '#0  ; (fix->int 0)
           RV_UNIT)))
     ()))
+
+(define gensym
+  (lambda ()
+    (cell Symbol_T (get-x '_) (get-y '_))))
 
 (define disasm
   (lambda (ip)

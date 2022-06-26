@@ -5656,6 +5656,7 @@ static char repl_lib[] =
 "   (if (eq? (caar x) 'unquote-splicing) (append (eval (cadar x) e) (quasi-list (cdr x) e))"
 "   (cons (apply quasiquote (list (car x)) e) (quasi-list (cdr x) e)))"
 "   (cons (car x) (quasi-list (cdr x) e))) x)))"
+" (define gensym (lambda () (cell Symbol_T (get-x '_) (get-y '_))))"
 #endif // QQUOTE_SYNTAX
 " \0";
 static char *repl_inp = repl_lib;
