@@ -319,6 +319,28 @@
     `(seq ,@(map defsym syms) ,@body) ))
 
 ;
+; encapsulated (sealed) data-types
+;
+
+(define new-seal
+  (lambda ()
+    (define brand (gensym))
+    (define seal
+      (lambda (payload)
+        (cell brand payload)))
+    (define unseal
+      (lambda (sealed)
+        (if (eq? (get-t sealed) brand) (get-x sealed) #?)))
+    (define sealed?
+      (lambda objs
+        (if (pair? objs)
+          (if (eq? (get-t (car objs)) brand)
+            (apply sealed? (cdr objs))
+            #f)
+          #t)))
+    (list seal unseal sealed?)))
+
+;
 ; Little Schemer (4th edition)
 ;
 
