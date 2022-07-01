@@ -347,6 +347,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * classes: `CTL`, `DGT`, `UPR`, `LWR`, `DLM`, `SYM`, `HEX`, `WSP`
   * `VM_end`: `END_ABORT`, `END_STOP`, `END_COMMIT`, `END_RELEASE`
   * `VM_cvt`: `CVT_INT_FIX`, `CVT_FIX_INT`, `CVT_LST_NUM`, `CVT_LST_SYM`
+  * continuations: `RV_SELF`, `CUST_SEND`, `SEND_0`, `COMMIT`, `RESEND`, `RELEASE_0`, `RELEASE`, `RV_FALSE`, `RV_TRUE`, `RV_NIL`, `RV_UNDEF`, `RV_UNIT`, `RV_ZERO`, `RV_ONE`
 
 #### Procedures
 
