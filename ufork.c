@@ -1456,43 +1456,106 @@ cell_t cell_table[CELL_MAX] = {
 
 /*
 (define k-define-beh
-  (lambda (cust symbol env)
+  (lambda (cust env frml)
     (BEH value
-      (SEND cust
-        (bind-env symbol value env) ))))
+      (SEND
+        (CREATE (k-defzip-beh cust env))
+        (CALL zip (list k-defzip-beh frml value ())) ))))
 */
-#define K_DEF_B (OP_VAU+13)
-//  { .t=VM_push,       .x=_env_,       .y=K_DEF_B-2,   .z=UNDEF        },
-//  { .t=VM_push,       .x=_symbol_,    .y=K_DEF_B-1,   .z=UNDEF        },
-//  { .t=VM_push,       .x=_cust_,      .y=K_DEF_B+0,   .z=UNDEF        },
-    { .t=VM_msg,        .x=0,           .y=K_DEF_B+1,   .z=UNDEF        },  // value
-    { .t=VM_roll,       .x=-3,          .y=K_DEF_B+2,   .z=UNDEF        },  // env value symbol cust
-    { .t=VM_push,       .x=M_BIND_E,    .y=K_DEF_B+3,   .z=UNDEF        },  // M_BIND_E
-    { .t=VM_send,       .x=4,           .y=RELEASE,     .z=UNDEF        },  // (M_BIND_E cust symbol value env)
+#define K_DEFINE_B (OP_VAU+13)
+#define K_DZIP_B (K_DEFINE_B+8)
+#define K_BIND_B (K_DZIP_B+17)
+//  { .t=VM_push,       .x=_cust_,      .y=K_DEFINE_B-2,.z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=K_DEFINE_B-1,.z=UNDEF        },
+//  { .t=VM_push,       .x=_frml_,      .y=K_DEFINE_B+0,.z=UNDEF        },
+    { .t=VM_push,       .x=NIL,         .y=K_DEFINE_B+1,.z=UNDEF        },  // ()
+    { .t=VM_msg,        .x=0,           .y=K_DEFINE_B+2,.z=UNDEF        },  // value
+    { .t=VM_roll,       .x=3,           .y=K_DEFINE_B+3,.z=UNDEF        },  // frml
+    { .t=VM_self,       .x=UNDEF,       .y=K_DEFINE_B+4,.z=UNDEF        },  // SELF
+    { .t=VM_push,       .x=M_ZIP,       .y=K_DEFINE_B+5,.z=UNDEF        },  // M_ZIP
+    { .t=VM_send,       .x=4,           .y=K_DEFINE_B+6,.z=UNDEF        },  // (M_ZIP SELF frml value NIL)
+
+    { .t=VM_push,       .x=K_DZIP_B,    .y=K_DEFINE_B+7,.z=UNDEF        },  // K_DZIP_B
+    { .t=VM_beh,        .x=2,           .y=COMMIT,      .z=UNDEF        },  // BECOME (K_DZIP_B cust env)
+/*
+(define k-defzip-beh
+  (lambda (cust env)
+    (BEH alist
+      (if (pair? alist)
+        (seq
+          (define k-bind (CREATE (k-bind-beh cust (cdr alist) env)))
+          (SEND bind-env (list k-defbind (caar alist) (cdar alist) env)))
+        (SEND cust #unit))
+*/
+//  { .t=VM_push,       .x=_cust_,      .y=K_DZIP_B-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=K_DZIP_B+0,  .z=UNDEF        },
+    { .t=VM_msg,        .x=0,           .y=K_DZIP_B+1,  .z=UNDEF        },  // alist
+    { .t=VM_typeq,      .x=Pair_T,      .y=K_DZIP_B+2,  .z=UNDEF        },  // alist has type Pair_T
+    { .t=VM_if,         .x=K_DZIP_B+6,  .y=K_DZIP_B+3,  .z=UNDEF        },
+
+    { .t=VM_push,       .x=UNIT,        .y=K_DZIP_B+4,  .z=UNDEF        },  // #unit
+    { .t=VM_roll,       .x=3,           .y=K_DZIP_B+5,  .z=UNDEF        },  // cust
+    { .t=VM_send,       .x=0,           .y=RELEASE,     .z=UNDEF        },  // (cust UNIT)
+
+    { .t=VM_msg,        .x=0,           .y=K_DZIP_B+7,  .z=UNDEF        },  // alist
+    { .t=VM_part,       .x=1,           .y=K_DZIP_B+8,  .z=UNDEF        },  // rest first
+    { .t=VM_part,       .x=1,           .y=K_DZIP_B+9,  .z=UNDEF        },  // value symbol
+    { .t=VM_pick,       .x=4,           .y=K_DZIP_B+10, .z=UNDEF        },  // env
+    { .t=VM_roll,       .x=-3,          .y=K_DZIP_B+11, .z=UNDEF        },  // rest env value symbol
+    { .t=VM_self,       .x=UNDEF,       .y=K_DZIP_B+12, .z=UNDEF        },  // SELF
+    { .t=VM_push,       .x=M_BIND_E,    .y=K_DZIP_B+13, .z=UNDEF        },  // M_BIND_E
+    { .t=VM_send,       .x=4,           .y=K_DZIP_B+14, .z=UNDEF        },  // (M_BIND_E SELF symbol value env)
+
+    { .t=VM_roll,       .x=-2,          .y=K_DZIP_B+15, .z=UNDEF        },  // cust rest env
+    { .t=VM_push,       .x=K_BIND_B,    .y=K_DZIP_B+16, .z=UNDEF        },  // K_BIND_B
+    { .t=VM_beh,        .x=3,           .y=COMMIT,      .z=UNDEF        },  // BECOME (K_BIND_B cust rest env)
+/*
+(define k-bind-beh
+  (lambda (cust alist env)
+    (BEH _
+      (BECOME (k-defzip-beh cust env))
+      (SEND SELF alist) )))
+*/
+//  { .t=VM_push,       .x=_cust_,      .y=K_BIND_B-2,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_alist_,     .y=K_BIND_B-1,  .z=UNDEF        },
+//  { .t=VM_push,       .x=_env_,       .y=K_BIND_B+0,  .z=UNDEF        },
+    { .t=VM_roll,       .x=2,           .y=K_BIND_B+1,  .z=UNDEF        },  // alist
+    { .t=VM_self,       .x=UNDEF,       .y=K_BIND_B+2,  .z=UNDEF        },  // SELF
+    { .t=VM_send,       .x=0,           .y=K_BIND_B+3,  .z=UNDEF        },  // (SELF alist)
+
+    { .t=VM_push,       .x=K_DZIP_B,    .y=K_BIND_B+4,  .z=UNDEF        },  // K_DZIP_B
+    { .t=VM_beh,        .x=2,           .y=COMMIT,      .z=UNDEF        },  // BECOME (K_DZIP_B cust env)
 
 /*
-(define op-define                       ; (define <symbol> <expr>)
+(define bind-each
+  (lambda (alist env)
+    (if (pair? alist)
+      (seq
+        (bind-env (caar alist) (cdar alist) env)
+        (bind-each (cdr alist) env))
+      #unit)))
+(define op-define                       ; (define <frml> <expr>)
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
-        (bind-env (car opnds) (eval (cadr opnds) env) env)
+        (bind-each (zip (car opnds) (eval (cadr opnds) env) ()) env)
       ))))
 */
-#define FX_DEFINE (K_DEF_B+4)
+#define FX_DEFINE (K_BIND_B+5)
 #define OP_DEFINE (FX_DEFINE+1)
-    { .t=Fexpr_T,       .x=OP_DEFINE,   .y=UNDEF,       .z=UNDEF        },  // (define <symbol> <expr>)
+    { .t=Fexpr_T,       .x=OP_DEFINE,   .y=UNDEF,       .z=UNDEF        },  // (define <frml> <expr>)
 
     { .t=Actor_T,       .x=OP_DEFINE+1, .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=VM_msg,        .x=3,           .y=OP_DEFINE+2, .z=UNDEF        },  // env
     { .t=VM_msg,        .x=2,           .y=OP_DEFINE+3, .z=UNDEF        },  // opnds
     { .t=VM_nth,        .x=2,           .y=OP_DEFINE+4, .z=UNDEF        },  // expr = cadr(opnds)
 
-    { .t=VM_msg,        .x=3,           .y=OP_DEFINE+5, .z=UNDEF        },  // env
-    { .t=VM_msg,        .x=2,           .y=OP_DEFINE+6, .z=UNDEF        },  // opnds
-    { .t=VM_nth,        .x=1,           .y=OP_DEFINE+7, .z=UNDEF        },  // symbol = car(opnds)
-    { .t=VM_msg,        .x=1,           .y=OP_DEFINE+8, .z=UNDEF        },  // cust
-    { .t=VM_push,       .x=K_DEF_B,     .y=OP_DEFINE+9, .z=UNDEF        },  // K_DEF_B
-    { .t=VM_new,        .x=3,           .y=OP_DEFINE+10,.z=UNDEF        },  // k_define = (K_DEF_B env symbol cust)
+    { .t=VM_msg,        .x=1,           .y=OP_DEFINE+5, .z=UNDEF        },  // cust
+    { .t=VM_msg,        .x=3,           .y=OP_DEFINE+6, .z=UNDEF        },  // env
+    { .t=VM_msg,        .x=2,           .y=OP_DEFINE+7, .z=UNDEF        },  // opnds
+    { .t=VM_nth,        .x=1,           .y=OP_DEFINE+8, .z=UNDEF        },  // frml = car(opnds)
+    { .t=VM_push,       .x=K_DEFINE_B,  .y=OP_DEFINE+9, .z=UNDEF        },  // K_DEFINE_B
+    { .t=VM_new,        .x=3,           .y=OP_DEFINE+10,.z=UNDEF        },  // k_define = (K_DEFINE_B cust env frml)
 
     { .t=VM_push,       .x=M_EVAL,      .y=OP_DEFINE+11,.z=UNDEF        },  // M_EVAL
     { .t=VM_send,       .x=3,           .y=COMMIT,      .z=UNDEF        },  // (M_EVAL k_define expr env)
@@ -3409,7 +3472,9 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { OP_LAMBDA, "OP_LAMBDA" },
     { FX_VAU, "FX_VAU" },
     { OP_VAU, "OP_VAU" },
-    { K_DEF_B, "K_DEF_B" },
+    { K_DEFINE_B, "K_DEFINE_B" },
+    { K_DZIP_B, "K_DZIP_B" },
+    { K_BIND_B, "K_BIND_B" },
     { FX_DEFINE, "FX_DEFINE" },
     { OP_DEFINE, "OP_DEFINE" },
     { FX_IF, "FX_IF" },

@@ -49,6 +49,16 @@
     (if (= n 0) #f
       (even? (- n 1)))))
 
+; Ackermann function
+(define ack
+  (lambda (n m)
+    (cond ((eq? n 0)
+            (+ m 1))
+          ((eq? m 0)
+            (ack (- n 1) 1))
+          (#t
+            (ack (- n 1) (ack n (- m 1)))) )))
+
 (define member?
   (lambda (x xs)
     (if (pair? xs)

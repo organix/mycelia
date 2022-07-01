@@ -1365,7 +1365,8 @@ we add extensions to enhance modularity and flexibility.
 Additional features implemented here are:
 
   * Inline `invoke`/`apply` combination
-  * `zip` matches parameter-trees
+  * `zip` matches parameter-trees (used by `lambda`, et. al.)
+  * `define` uses `zip` to bind multiple variables
   * `define` mutates local bindings (not just globals)
   * General operative constructor `vau`
   * More useful `macro` operative constructor
@@ -1499,11 +1500,18 @@ The extended reference-implementation looks like this:
           (CREATE (fexpr-beh (cons (cadr opnds) (car opnds)) (cddr opnds) env)))
       ))))
 
-(define op-define                       ; (define <symbol> <expr>)
+(define bind-each
+  (lambda (alist env)
+    (if (pair? alist)
+      (seq
+        (bind-env (caar alist) (cdar alist) env)
+        (bind-each (cdr alist) env))
+      #unit)))
+(define op-define                       ; (define <frml> <expr>)
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
-        (bind-env (car opnds) (eval (cadr opnds) env) env)
+        (bind-each (zip (car opnds) (eval (cadr opnds) env) ()) env)
       ))))
 
 (define evalif                          ; if `test` is #f, evaluate `altn`,
