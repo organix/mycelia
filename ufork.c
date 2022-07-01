@@ -4179,6 +4179,7 @@ int_t init_global_env() {
     bind_global("lambda", FX_LAMBDA);
     bind_global("vau", FX_VAU);
     bind_global("define", FX_DEFINE);
+    bind_global("zip", M_ZIP);
     bind_global("if", FX_IF);
     bind_global("cond", FX_COND);
 #if !EVLIS_IS_PAR

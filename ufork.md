@@ -284,12 +284,13 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(apply `_proc_` `_args_` . `_optenv_`)`
   * `(list . `_values_`)`
   * `(list* `_value_` . `_values_`)`
-  * `(lambda `_formals_` . `_body_`)`
-  * `(vau `_formals_` `_evar_` . `_body_`)`
-  * `(macro `_formals_` . `_body_`)`
+  * `(lambda `_formal_` . `_body_`)`
+  * `(vau `_formal_` `_evar_` . `_body_`)`
+  * `(macro `_formal_` . `_body_`)`
   * `(par .  `_exprs_`)`
   * `(seq . `_body_`)`
-  * `(define `_symbol_` `_value_`)`
+  * `(define `_formal_` `_value_`)`
+  * `(zip `_formal_` `_value_` `_env_`)`
   * `(cons `_head_` `_tail_`)`
   * `(car `_list_`)`
   * `(cdr `_list_`)`
@@ -387,7 +388,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(SEND `_actor_` `_message_`)`
   * `(BECOME `_behavior_`)`
   * `SELF`
-  * `(BEH `_formals_` . `_body_`)`
+  * `(BEH `_formal_` . `_body_`)`
   * `(CALL `_actor_` `_args_`)`
 
 #### Examples
