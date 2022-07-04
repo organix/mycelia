@@ -3948,17 +3948,11 @@ static int_t gc_find_cell(char mark) {  // find next cell with `mark`
 static char gc_state = 0;
 static int_t gc_index = 0;
 
-static long gc_state_0 = 0;
-static long gc_state_1 = 0;
-static long gc_state_2 = 0;
-static long gc_state_3 = 0;
-
 static void gc_increment() {  // perform an incremental GC step
     //fprintf(stderr, "gc_increment: gc_state=%d gc_index=%"PdI"\n", gc_state, gc_index);
     switch (gc_state) {
         case 0: {
             // swap generations
-            ++gc_state_0;
 #if RUNTIME_STATS
             ++gc_cycle_count;
 #endif
@@ -3980,7 +3974,6 @@ static void gc_increment() {  // perform an incremental GC step
         }
         case 1: {
             // mark global symbols
-            ++gc_state_1;
             while ((--gc_index & GC_STRIDE) != 0) {
                 gc_mark_cell(sym_intern[gc_index]);
             }
@@ -3994,7 +3987,6 @@ static void gc_increment() {  // perform an incremental GC step
         }
         case 2: {
             // scan cells
-            ++gc_state_2;
             while ((++gc_index & GC_STRIDE) != 0) {
                 int_t cell = gc_find_cell(GC_SCAN);
                 if (IN_HEAP(cell)) {
@@ -4010,7 +4002,6 @@ static void gc_increment() {  // perform an incremental GC step
         }
         case 3: {
             // free unreachable cells
-            ++gc_state_3;
             while ((++gc_index & GC_STRIDE) != 0) {
                 int_t cell = gc_find_cell(gc_prev_gen);
                 if (IN_HEAP(cell)) {
@@ -4147,6 +4138,9 @@ i32 gc_mark_and_sweep(int_t dump) {
             "gc: top=%"PRId32" free=%"PRId32" used=%"PRId32" avail=%"PRId32"\n",
             t, f, m, a);
     }
+#if RUNTIME_STATS
+    ++gc_cycle_count;
+#endif
     return m;
 }
 
@@ -5842,20 +5836,10 @@ int_t debugger() {
             if (*cmd == 's') {              // info statistics
                 fprintf(stderr, "events=%ld instructions=%ld gc_cycles=%ld\n",
                     event_count, instruction_count, gc_cycle_count);
-#if CONCURRENT_GC
-                fprintf(stderr, "gc: state_0=%ld state_1=%ld state_2=%ld state_3=%ld\n",
-                    gc_state_0, gc_state_1, gc_state_2, gc_state_3);
-#endif
                 // reset counters
                 event_count = 0;
                 instruction_count = 0;
                 gc_cycle_count = 0;
-#if CONCURRENT_GC
-                gc_state_0 = 0;
-                gc_state_1 = 0;
-                gc_state_2 = 0;
-                gc_state_3 = 0;
-#endif
                 continue;
             }
             fprintf(stderr, "info: r[egs] t[hreads] e[vents] s[tats]\n");
