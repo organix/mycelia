@@ -18,7 +18,8 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define INCLUDE_DEBUG 1 // include debugging facilities
 #define RUN_DEBUGGER  1 // run program under interactive debugger
 #define EXPLICIT_FREE 1 // explicitly free known-dead memory
-#define MARK_SWEEP_GC 1 // stop-the-world garbage collection
+#define MARK_SWEEP_GC 0 // stop-the-world garbage collection
+#define CONCURRENT_GC 1 // concurrent garbage collection
 #define RUNTIME_STATS 1 // collect statistics on the runtime
 #define SCM_PEG_TOOLS 0 // include PEG tools for LISP/Scheme (+232 cells)
 #define BOOTSTRAP_LIB 1 // include bootstrap library definitions
@@ -3667,15 +3668,27 @@ char *get_symbol_label(int_t addr) {
     return symbol_table[i].label;
 }
 
+#if CONCURRENT_GC
+static int_t gc_mark_cell(int_t addr);  // FORWARD DECLARATION
+static int_t gc_free_cell(int_t addr);  // FORWARD DECLARATION
+#define MARK_CELL(n) gc_mark_cell(n)
+#define FREE_CELL(n) gc_free_cell(n)
+#endif // CONCURRENT_GC
+
+#if MARK_SWEEP_GC
+#define MARK_CELL(n) (n)
+#define FREE_CELL(n) (n)
+#endif // MARK_SWEEP_GC
+
 #define get_t(n) (cell_zero[(n)].t)
 #define get_x(n) (cell_zero[(n)].x)
 #define get_y(n) (cell_zero[(n)].y)
 #define get_z(n) (cell_zero[(n)].z)
 
-#define set_t(n,v) (cell_zero[(n)].t = (v))
-#define set_x(n,v) (cell_zero[(n)].x = (v))
-#define set_y(n,v) (cell_zero[(n)].y = (v))
-#define set_z(n,v) (cell_zero[(n)].z = (v))
+#define set_t(n,v) (cell_zero[(n)].t = MARK_CELL(v))
+#define set_x(n,v) (cell_zero[(n)].x = MARK_CELL(v))
+#define set_y(n,v) (cell_zero[(n)].y = MARK_CELL(v))
+#define set_z(n,v) (cell_zero[(n)].z = MARK_CELL(v))
 
 #define IS_CELL(n)  (NAT(n) < cell_top)
 #define IN_HEAP(n)  (((n)>=START) && ((n)<cell_top))
@@ -3716,16 +3729,17 @@ static int_t cell_new(int_t t, int_t x, int_t y, int_t z) {
     set_x(next, x);
     set_y(next, y);
     set_z(next, z);
-    return next;
+    return MARK_CELL(next);
 }
 
 static void cell_reclaim(int_t addr) {
     // link into free-list
-    set_z(addr, cell_next);
-    set_y(addr, UNDEF);
-    set_x(addr, UNDEF);
-    set_t(addr, Free_T);
-    cell_next = addr;
+    cell_zero[addr].z = cell_next;
+    cell_zero[addr].y = UNDEF;
+    cell_zero[addr].x = UNDEF;
+    cell_zero[addr].t = Free_T;
+    // NOTE: we don't use the set_*() macros to avoid marking the cell in-use
+    cell_next = FREE_CELL(addr);
     ++gc_free_cnt;
 }
 
@@ -3826,6 +3840,195 @@ int_t fixnum(int_t str) {  // FIXME: add `base` parameter
  * garbage collection (reclaiming the heap)
  */
 
+// FORWARD DECLARATIONS
+static int_t sym_intern[256];
+int_t e_queue_head;  
+int_t k_queue_head;
+
+static i32 gc_free_cnt = 0;  // number of cells in free-list
+static int_t gc_root_set = NIL;
+#if RUNTIME_STATS
+static long gc_cycle_count = 0;
+#endif
+
+void gc_add_root(int_t addr) {
+    gc_root_set = cons(addr, gc_root_set);
+}
+
+#if CONCURRENT_GC
+#define GC_GENX (0x0)  // This cell is in use as of Generation X
+#define GC_GENY (0x1)  // This cell is in use as of Generation Y
+#define GC_SCAN (0x2)  // This cell is in use, but has not been scanned
+#define GC_FREE (0x3)  // This cell is in the free-cell chain {t:Free_T}
+
+static char gc_marks[CELL_MAX] = { 0 };
+static char gc_prev_gen = GC_GENY;
+static char gc_next_gen = GC_GENX;
+
+static void gc_dump_map() {  // dump memory allocation map
+    static char mark_label[] = { 'x', 'y', '?', '.' };
+    i32 gc_prev_cnt = 0;
+    i32 gc_next_cnt = 0;
+    i32 gc_scan_cnt = 0;
+    for (int_t a = 0; a < cell_top; ++a) {
+    //for (int_t a = 0; a < CELL_MAX; ++a) {
+        if (a && ((a & 0x3F) == 0)) {
+            fprintf(stderr, "\n");
+        }
+        char m = gc_marks[a];
+        char c = mark_label[m];
+        if (a < START) {
+            c = 't';
+        } else if (a >= cell_top) {
+            c = '-';
+        } else if (m == gc_prev_gen) {
+            ++gc_prev_cnt;
+        } else if (m == gc_next_gen) {
+            ++gc_next_cnt;
+        } else if (m == GC_SCAN) {
+            ++gc_scan_cnt;
+        }
+        fprintf(stderr, "%c", c);
+    }
+    fprintf(stderr, "\n");
+    fprintf(stderr,
+        "gc: top=%"PRId32" gen_%c=%"PRId32" gen_%c=%"PRId32" free=%"PRId32" scan=%"PRId32"\n",
+        cell_top,
+        mark_label[gc_prev_gen], gc_prev_cnt,
+        mark_label[gc_next_gen], gc_next_cnt,
+        gc_free_cnt, gc_scan_cnt);
+}
+
+static int_t gc_scan_cell(int_t addr) {  // mark cell be scanned
+    if (IN_HEAP(addr)) {
+        if (gc_marks[addr] == gc_prev_gen) {
+            gc_marks[addr] = GC_SCAN;
+        }
+    }
+    return addr;
+}
+
+static int_t gc_mark_cell(int_t addr) {  // mark cell in-use
+    if (IN_HEAP(addr)) {
+        gc_marks[addr] = gc_next_gen;
+        gc_scan_cell(get_t(addr));
+        gc_scan_cell(get_x(addr));
+        gc_scan_cell(get_y(addr));
+        gc_scan_cell(get_z(addr));
+    }
+    return addr;
+}
+
+static int_t gc_free_cell(int_t addr) {  // mark cell free
+    if (IN_HEAP(addr)) {
+        gc_marks[addr] = GC_FREE;
+    }
+    return addr;
+}
+
+static int_t gc_scan_addr = START;
+static int_t gc_find_cell(char mark) {  // find next cell with `mark`
+    int_t gc_scan_stop = gc_scan_addr;
+    while (1) {
+        if (++gc_scan_addr >= cell_top) {
+            gc_scan_addr = START;
+        }
+        if (gc_scan_addr == gc_scan_stop) {
+            break;  // nothing to scan...
+        }
+        if (gc_marks[gc_scan_addr] == mark) {
+            return gc_scan_addr;
+        }
+    }
+    return UNDEF;
+}
+
+#define GC_STRIDE (0x0F)
+
+static char gc_state = 0;
+static int_t gc_index = 0;
+
+static long gc_state_0 = 0;
+static long gc_state_1 = 0;
+static long gc_state_2 = 0;
+static long gc_state_3 = 0;
+
+static void gc_increment() {  // perform an incremental GC step
+    //fprintf(stderr, "gc_increment: gc_state=%d gc_index=%"PdI"\n", gc_state, gc_index);
+    switch (gc_state) {
+        case 0: {
+            // swap generations
+            ++gc_state_0;
+#if RUNTIME_STATS
+            ++gc_cycle_count;
+#endif
+            if (gc_next_gen == GC_GENX) {
+                gc_prev_gen = GC_GENX;
+                gc_next_gen = GC_GENY;
+            } else {
+                gc_prev_gen = GC_GENY;
+                gc_next_gen = GC_GENX;
+            }
+            // mark roots
+            gc_mark_cell(e_queue_head);
+            gc_mark_cell(k_queue_head);
+            gc_mark_cell(gc_root_set);
+            // next state
+            gc_state = 1;
+            gc_index = 256;
+            break;
+        }
+        case 1: {
+            // mark global symbols
+            ++gc_state_1;
+            while ((--gc_index & GC_STRIDE) != 0) {
+                gc_mark_cell(sym_intern[gc_index]);
+            }
+            gc_mark_cell(sym_intern[gc_index]);
+            if (gc_index == 0) {
+                // next state
+                gc_state = 2;
+                gc_index = 0;
+            }
+            break;
+        }
+        case 2: {
+            // scan cells
+            ++gc_state_2;
+            while ((++gc_index & GC_STRIDE) != 0) {
+                int_t cell = gc_find_cell(GC_SCAN);
+                if (IN_HEAP(cell)) {
+                    gc_mark_cell(cell);
+                } else {
+                    // next state
+                    gc_index = 0;
+                    gc_state = 3;
+                    break;
+                }
+            }
+            break;
+        }
+        case 3: {
+            // free unreachable cells
+            ++gc_state_3;
+            while ((++gc_index & GC_STRIDE) != 0) {
+                int_t cell = gc_find_cell(gc_prev_gen);
+                if (IN_HEAP(cell)) {
+                    cell_reclaim(cell);
+                } else {
+                    // next state
+                    gc_index = 0;
+                    gc_state = 0;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    return;
+}
+#endif // CONCURRENT_GC
+
 #if MARK_SWEEP_GC
 #define GC_LO_BITS(val) I32(I32(val) & 0x1F)
 #define GC_HI_BITS(val) I32(I32(val) >> 5)
@@ -3834,7 +4037,6 @@ int_t fixnum(int_t str) {  // FIXME: add `base` parameter
 #define GC_RESERVED (I32(1 << GC_LO_BITS(START)) - 1)
 
 i32 gc_bits[GC_MAX_BITS] = { GC_RESERVED };  // in-use mark bits
-static i32 gc_free_cnt = 0;  // number of cells in free-list
 
 i32 gc_clear() {  // clear all GC bits (except RESERVED)
     i32 cnt = gc_free_cnt;
@@ -3905,16 +4107,6 @@ i32 gc_mark_cells(int_t val) {  // mark cells reachable from `val`
         val = get_y(val);                   // iterate over y
     }
     return cnt;
-}
-
-// FORWARD DECLARATIONS
-static int_t sym_intern[256];
-int_t e_queue_head;  
-int_t k_queue_head;
-static int_t gc_root_set = NIL;
-
-void gc_add_root(int_t addr) {
-    gc_root_set = cons(addr, gc_root_set);
 }
 
 i32 gc_mark_roots(int_t dump) {  // mark cells reachable from the root-set
@@ -4571,6 +4763,9 @@ static int_t interrupt() {  // service interrupts (if any)
     return TRUE;
 }
 static int_t dispatch() {  // dispatch next event (if any)
+#if CONCURRENT_GC
+    gc_increment();  // perform an increment of concurrent GC
+#endif
     XTRACE(event_q_dump());
     if (event_q_empty()) {
         return UNDEF;  // event queue empty
@@ -5645,11 +5840,22 @@ int_t debugger() {
             }
 #if RUNTIME_STATS
             if (*cmd == 's') {              // info statistics
-                fprintf(stderr, "events=%ld instructions=%ld\n",
-                    event_count, instruction_count);
+                fprintf(stderr, "events=%ld instructions=%ld gc_cycles=%ld\n",
+                    event_count, instruction_count, gc_cycle_count);
+#if CONCURRENT_GC
+                fprintf(stderr, "gc: state_0=%ld state_1=%ld state_2=%ld state_3=%ld\n",
+                    gc_state_0, gc_state_1, gc_state_2, gc_state_3);
+#endif
                 // reset counters
                 event_count = 0;
                 instruction_count = 0;
+                gc_cycle_count = 0;
+#if CONCURRENT_GC
+                gc_state_0 = 0;
+                gc_state_1 = 0;
+                gc_state_2 = 0;
+                gc_state_3 = 0;
+#endif
                 continue;
             }
             fprintf(stderr, "info: r[egs] t[hreads] e[vents] s[tats]\n");
@@ -5677,6 +5883,12 @@ int_t debugger() {
                 case 'q' : fprintf(stderr, "q[uit] -- quit runtime\n"); continue;
             }
         }
+#if CONCURRENT_GC
+        if (*cmd == 'g') {  // undocumented command to display memory map
+            gc_dump_map();
+            continue;
+        }
+#endif
 #if MARK_SWEEP_GC
         if (*cmd == 'g') {  // undocumented command to perform garbage collection
             gc_mark_and_sweep(TRUE);
@@ -5808,12 +6020,16 @@ int main(int argc, char const *argv[])
     DEBUG(debug_print("main result", result));
     DEBUG(test_symbol_intern());
     //DEBUG(hexdump("cell memory", ((int_t *)&cell_table[500]), 16*4));
+#if CONCURRENT_GC
+    gc_dump_map();
+#endif
 #if MARK_SWEEP_GC
     gc_mark_and_sweep(TRUE);
 #endif // MARK_SWEEP_GC
     DEBUG(fprintf(stderr, "cell_top=%"PuI" gc_free_cnt=%"PRId32"\n", cell_top, gc_free_cnt));
 #if RUNTIME_STATS
-    fprintf(stderr, "events=%ld instructions=%ld\n", event_count, instruction_count);
+    fprintf(stderr, "events=%ld instructions=%ld gc_cycles=%ld\n",
+        event_count, instruction_count, gc_cycle_count);
 #endif
 #endif
     return 0;
