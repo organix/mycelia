@@ -5898,6 +5898,7 @@ static char repl_lib[] =
 " (define cadar (lambda (x) (cadr (car x))))"
 " (define cadddr (lambda (x) (nth 4 x))))"
 " (define not (lambda (x) (if x #f #t))))"
+" (define equal? (lambda (x y) (if (pair? x) (if (equal? (car x) (car y)) (equal? (cdr x) (cdr y)) #f) (eq? x y))))"
 " (define length (lambda (x) (if (pair? x) (+ (length (cdr x)) 1) 0)))"
 " (define list* (lambda (h . t) (if (pair? t) (cons h (apply list* t)) h)))"
 " (define append (lambda x (if (pair? x) (apply (lambda (h . t)"

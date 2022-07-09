@@ -311,6 +311,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(if `_test_` `_consequence_` `_alternative_`)`
   * `(cond (`_test_` . `_body_`) . `_clauses_`)`
   * `(eq? . `_values_`)`
+  * `(equal? `_value_` `_value_`)`
   * `(= . `_numbers_`)`
   * `(< . `_numbers_`)`
   * `(<= . `_numbers_`)`
