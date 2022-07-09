@@ -965,70 +965,79 @@ apply[fn;x;a] =
 ```
 
 A LISP rendition of the assembly-coded implementation
+(with a few enhancements)
 might look like this:
 
 ```
 (define eval
   (lambda (form env)
-    (if (symbol? form)
-      (lookup form env)                 ; bound variable
-      (if (pair? form)
-        (if (eq? (car form) 'quote)     ; (quote <form>)
-          (cadr form)
-          (if (eq? (car form) 'if)      ; (if <pred> <cnsq> <altn>)
-            (evalif (eval (cadr form) env) (caddr form) (cadddr form) env)
-            (apply (car form) (evlis (cdr form) env) env)))
-        form))))                        ; self-evaluating form
+    (cond
+      ((symbol? form)                                         ; bound variable
+        (lookup form env))
+      ((pair? form)
+        (cond
+          ((eq? (car form) 'quote)                            ; (quote <form>)
+            (cadr form))
+          ((eq? (car form) 'if)                               ; (if <pred> <cnsq> <altn>)
+            (evalif (eval (cadr form) env) (caddr form) (cadddr form) env))
+          (#t                                                 ; procedure call
+            (apply (car form) (evlis (cdr form) env) env)) ))
+      (#t                                                     ; self-evaluating form
+        form) )))
 
 (define apply
   (lambda (fn args env)
-    (if (symbol? fn)
-      (if (eq? fn 'list)                ; (list . <args>)
-        args
-        (if (eq? fn 'cons)              ; (cons <first> <rest>)
-          (cons (car args) (cadr args))
-          (if (eq? fn 'car)             ; (car <pair>)
-            (caar args)
-            (if (eq? fn 'cdr)           ; (cdr <pair>)
-              (cdar args)
-              (if (eq? fn 'eq?)         ; (eq? <left> <right>)
-                (eq? (car args) (cadr args))
-                (if (eq? fn 'pair?)     ; (pair? <value>)
-                  (pair? (car args))
-                  (if (eq? fn 'symbol?) ; (symbol? <value>)
-                    (symbol? (car args))
-                    (apply (lookup fn env) args env))))))))
-      (if (pair? fn)
-        (if (eq? (car fn) 'lambda)      ; ((lambda <frml> <body>) <args>)
-          (eval (caddr fn) (zip (cadr fn) args env))
-          (apply (eval fn env) args env))
-        #?)))
+    (cond
+      ((symbol? fn)
+        (cond
+          ((eq? fn 'cons)                                     ; (cons <first> <rest>)
+            (cons (car args) (cadr args)))
+          ((eq? fn 'car)                                      ; (car <pair>)
+            (caar args))
+          ((eq? fn 'cdr)                                      ; (cdr <pair>)
+            (cdar args))
+          ((eq? fn 'eq?)                                      ; (eq? <left> <right>)
+            (eq? (car args) (cadr args)))
+          ((eq? fn 'pair?)                                    ; (pair? <value>)
+            (pair? (car args)))
+          ((eq? fn 'symbol?)                                  ; (symbol? <value>)
+            (symbol? (car args)))
+          (#t                                                 ; look up function in environment
+            (apply (lookup fn env) args env)) ))
+      ((pair? fn)
+        (cond
+          ((eq? (car fn) 'lambda)                             ; ((lambda <frml> <body>) <args>)
+            (eval (caddr fn) (zip (cadr fn) args env)))
+          (#t                                                 ; expression in function position
+            (apply (eval fn env) args env)) ))
+      (#t                                                     ; not applicable
+        #?) )))
 
-(define lookup                          ; look up variable binding in environment
+(define lookup                                                ; look up variable binding in environment
   (lambda (key alist)
     (if (pair? alist)
-      (if (eq? (caar alist) key)
-        (cdar alist)
-        (lookup key (cdr alist)))
-      #?)))                             ; value is undefined
+        (if (eq? (caar alist) key)
+            (cdar alist)
+            (lookup key (cdr alist)))
+        #?)))                                                 ; binding not found
 
-(define evalif                          ; if `test` is #f, evaluate `altn`,
-  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
+(define evalif                                                ; if `test` is #f, evaluate `altn`,
+  (lambda (test cnsq altn env)                                ; otherwise evaluate `cnsq`.
     (if test
-      (eval cnsq env)
-      (eval altn env))))
+        (eval cnsq env)
+        (eval altn env) )))
 
-(define evlis
+(define evlis                                                 ; map `eval` over a list of operands
   (lambda (opnds env)
     (if (pair? opnds)
-      (cons (eval (car opnds) env) (evlis (cdr opnds) env))
-      ())))                             ; value is NIL
+        (cons (eval (car opnds) env) (evlis (cdr opnds) env))
+        () )))                                                ; value is NIL
 
 (define zip
   (lambda (xs ys env)
     (if (pair? xs)
-      (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
-      env)))
+        (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
+        env)))
 ```
 
 ### Meta-circular Evolution
@@ -1047,75 +1056,89 @@ The hybrid reference-implementation looks like this:
 ```
 (define eval
   (lambda (form env)
-    (if (symbol? form)
-      (lookup form env)                 ; bound variable
-      (if (pair? form)
-        (if (eq? (car form) 'quote)     ; (quote <form>)
-          (cadr form)
-          (if (eq? (car form) 'if)      ; (if <pred> <cnsq> <altn>)
-            (evalif (eval (cadr form) env) (caddr form) (cadddr form) env)
-            (if (eq? (car form) 'lambda) ; (lambda <frml> <body>)
-              (CREATE (closure-beh (cadr form) (caddr form) env))
-              (if (eq? (car form) 'define) ; (define <symbol> <expr>)
-                (set-z (cadr form) (eval (caddr form) env))
-                (apply (car form) (evlis (cdr form) env) env)))))
-        form))))                        ; self-evaluating form
+    (cond
+      ((symbol? form)                                         ; bound variable
+        (lookup form env))
+      ((pair? form)
+        (cond
+          ((eq? (car form) 'quote)                            ; (quote <form>)
+            (cadr form))
+          ((eq? (car form) 'if)                               ; (if <pred> <cnsq> <altn>)
+            (evalif (eval (cadr form) env) (caddr form) (cadddr form) env))
+          ((eq? (car form) 'lambda)                           ; (lambda <frml> <body>)
+            (CREATE (closure-beh (cadr form) (caddr form) env)))
+          ((eq? (car form) 'define)                           ; (define <symbol> <expr>)
+            (set-z (cadr form) (eval (caddr form) env)))
+          (#t                                                 ; procedure call
+            (apply (car form) (evlis (cdr form) env) env)) ))
+      (#t                                                     ; self-evaluating form
+        form) )))
 
 (define apply
   (lambda (fn args env)
-    (if (symbol? fn)
-      (if (eq? fn 'list)                ; (list . <args>)
-        args
-        (if (eq? fn 'cons)              ; (cons <first> <rest>)
-          (cons (car args) (cadr args))
-          (if (eq? fn 'car)             ; (car <pair>)
-            (caar args)
-            (if (eq? fn 'cdr)           ; (cdr <pair>)
-              (cdar args)
-              (if (eq? fn 'eq?)         ; (eq? <left> <right>)
-                (eq? (car args) (cadr args))
-                (if (eq? fn 'pair?)     ; (pair? <value>)
-                  (pair? (car args))
-                  (if (eq? fn 'symbol?) ; (symbol? <value>)
-                    (symbol? (car args))
-                    (apply (lookup fn env) args env))))))))
-      (if (pair? fn)
-        (if (eq? (car fn) 'lambda)      ; ((lambda <frml> <body>) <args>)
-          (eval (caddr fn) (zip (cadr fn) args env))
-          (apply (eval fn env) args env))
-        (if (actor? fn)
-          (CALL fn args)                ; delegate to "functional" actor
-          #?)))))
+    (cond
+      ((symbol? fn)
+        (cond
+          ((eq? fn 'list)                                     ; (list . <args>)
+            args)
+          ((eq? fn 'cons)                                     ; (cons <first> <rest>)
+            (cons (car args) (cadr args)))
+          ((eq? fn 'car)                                      ; (car <pair>)
+            (caar args))
+          ((eq? fn 'cdr)                                      ; (cdr <pair>)
+            (cdar args))
+          ((eq? fn 'eq?)                                      ; (eq? <left> <right>)
+            (eq? (car args) (cadr args)))
+          ((eq? fn 'pair?)                                    ; (pair? <value>)
+            (pair? (car args)))
+          ((eq? fn 'symbol?)                                  ; (symbol? <value>)
+            (symbol? (car args)))
+          (#t                                                 ; look up function in environment
+            (apply (lookup fn env) args env)) ))
+      ((pair? fn)
+        (cond
+          ((eq? (car fn) 'lambda)                             ; ((lambda <frml> <body>) <args>)
+            (eval (caddr fn) (zip (cadr fn) args env)))
+          (#t                                                 ; expression in function position
+            (apply (eval fn env) args env)) ))
+      ((actor? fn)                                            ; delegate to "functional" actor
+        (CALL fn args))
+      (#t                                                     ; not applicable
+        #?) )))
 
-(define lookup                          ; look up variable binding in environment
+(define lookup                                                ; look up variable binding in environment
   (lambda (key alist)
-    (if (pair? alist)
-      (if (eq? (caar alist) key)
-        (cdar alist)
-        (lookup key (cdr alist)))
-      (if (symbol? key)
-        (get-z key)                     ; get top-level binding
-        #?))))                          ; value is undefined
+    (cond
+      ((pair? alist)
+        (if (eq? (caar alist) key)                            ; if key matches,
+            (cdar alist)                                      ;   get binding value
+            (lookup key (cdr alist))))                        ;   else, keep looking
+      ((symbol? key)                                          ; get top-level binding
+        (get-z key))
+      (#t                                                     ; value is undefined
+        #?) )))
 
-(define evalif                          ; if `test` is #f, evaluate `altn`,
-  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
+(define evalif                                                ; if `test` is #f, evaluate `altn`,
+  (lambda (test cnsq altn env)                                ; otherwise evaluate `cnsq`.
     (if test
-      (eval cnsq env)
-      (eval altn env))))
+        (eval cnsq env)
+        (eval altn env) )))
 
-(define evlis
+(define evlis                                                 ; map `eval` over a list of operands
   (lambda (opnds env)
     (if (pair? opnds)
-      (cons (eval (car opnds) env) (evlis (cdr opnds) env))
-      ())))                             ; value is NIL
+        (cons (eval (car opnds) env) (evlis (cdr opnds) env))
+        () )))                                                ; value is NIL
 
 (define zip
   (lambda (xs ys env)
-    (if (pair? xs)
-      (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
-      (if (symbol? xs)
-        (cons (cons xs ys) env)         ; dotted-tail binds to &rest
-        env))))
+    (cond
+      ((pair? xs)
+        (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env)))
+      ((symbol? xs)                                           ; dotted-tail binds to &rest
+        (cons (cons xs ys) env))
+      (#t
+        env) )))
 
 (define closure-beh
   (lambda (frml body env)
@@ -1130,6 +1153,7 @@ Additional features implemented here are:
 
   * Replace special-cases in `apply` with environment bindings
   * Remove literal match for `lambda` in `apply`
+  * Add `cond` special-form, equipotent to `if`
   * Allow delegation to actor environments
 
 The current reference-implementation looks like this:
@@ -1137,78 +1161,88 @@ The current reference-implementation looks like this:
 ```
 (define eval
   (lambda (form env)
-    (if (symbol? form)
-      (lookup form env)                 ; bound variable
-      (if (pair? form)
-        (if (eq? (car form) 'quote)     ; (quote <form>)
-          (cadr form)
-          (if (eq? (car form) 'if)      ; (if <pred> <cnsq> <altn>)
-            (evalif (eval (cadr form) env) (caddr form) (cadddr form) env)
-            (if (eq? (car form) 'cond)  ; (cond (<test> <expr>) . <clauses>)
-              (evcon (cdr form) env)
-              (if (eq? (car form) 'lambda) ; (lambda <frml> <body>)
-                (CREATE (closure-beh (cadr form) (caddr form) env))
-                (if (eq? (car form) 'define) ; (define <symbol> <expr>)
-                  (set-z (cadr form) (eval (caddr form) env))
-                  (apply (car form) (evlis (cdr form) env) env))))))
-        form))))                        ; self-evaluating form
+    (cond
+      ((symbol? form)                                         ; bound variable
+        (lookup form env))
+      ((pair? form)
+        (cond
+          ((eq? (car form) 'quote)                            ; (quote <form>)
+            (cadr form))
+          ((eq? (car form) 'if)                               ; (if <pred> <cnsq> <altn>)
+            (evalif (eval (cadr form) env) (caddr form) (cadddr form) env))
+          ((eq? (car form) 'cond)                             ; (cond (<test> <expr>) . <clauses>)
+            (evcon (cdr form) env))
+          ((eq? (car form) 'lambda)                           ; (lambda <frml> <body>)
+            (CREATE (closure-beh (cadr form) (caddr form) env)))
+          ((eq? (car form) 'define)                           ; (define <symbol> <expr>)
+            (set-z (cadr form) (eval (caddr form) env)))
+          (#t                                                 ; procedure call
+            (apply (car form) (evlis (cdr form) env) env)) ))
+      (#t                                                     ; self-evaluating form
+        form) )))
 
 (define apply
   (lambda (fn args env)
-    (if (symbol? fn)
-      (apply (lookup fn env) args env)
-      (if (pair? fn)
-        (apply (eval fn env) args env)
-        (if (actor? fn)
-          (CALL fn args)                ; delegate to "functional" actor
-          #?)))))
+    (cond
+      ((symbol? fn)                                           ; look up function in environment
+        (apply (lookup fn env) args env))
+      ((pair? fn)                                             ; expression in function position
+        (apply (eval fn env) args env))
+      ((actor? fn)                                            ; delegate to "functional" actor
+        (CALL fn args))
+      (#t                                                     ; not applicable
+        #?) )))
 
-(define lookup                          ; look up variable binding in environment
+(define lookup                                                ; look up variable binding in environment
   (lambda (key env)
-    (if (pair? env)                     ; association list
-      (if (eq? (caar env) key)
-        (cdar env)
-        (lookup key (cdr env)))
-      (if (actor? env)
-        (CALL env key)                  ; delegate to actor environment
-        (if (symbol? key)
-          (get-z key)                   ; get top-level binding
-          #?))))                        ; value is undefined
+    (cond
+      ((pair? env)                                            ; association list
+        (if (eq? (caar env) key)                              ; if key matches,
+            (cdar env)                                        ;   get binding value
+            (lookup key (cdr env))))                          ;   else, keep looking
+      ((actor? env)                                           ; delegate to actor environment
+        (CALL env key))
+      ((symbol? key)                                          ; get top-level binding
+        (get-z key))
+      (#t                                                     ; value is undefined
+        #?) )))
 
-(define evalif                          ; if `test` is #f, evaluate `altn`,
-  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
+(define evalif                                                ; if `test` is #f, evaluate `altn`,
+  (lambda (test cnsq altn env)                                ; otherwise evaluate `cnsq`.
     (if test
-      (eval cnsq env)
-      (eval altn env))))
+        (eval cnsq env)
+        (eval altn env) )))
 
-(define evcon                           ; (cond (<test> <expr>) . <clauses>)
+(define evcon                                                 ; (cond (<test> <expr>) . <clauses>)
   (lambda (clauses env)
     ((lambda (clause)
       (if (pair? clause)
-        (if (eval (car clause) env)
-          (eval (cadr clause) env)
-          (evcon (cdr clauses) env))
-        #?)
-    ) (car clauses))))
+          (if (eval (car clause) env)
+              (eval (cadr clause) env)
+              (evcon (cdr clauses) env))
+          #?))
+    (car clauses)) ))
 
-(define evlis                           ; map `eval` over a list of operands
+(define evlis                                                 ; map `eval` over a list of operands
   (lambda (opnds env)
     (if (pair? opnds)
-      (cons (eval (car opnds) env) (evlis (cdr opnds) env))
-      ())))                             ; value is NIL
+        (cons (eval (car opnds) env) (evlis (cdr opnds) env))
+        () )))                                                ; value is NIL
 
-(define zip                             ; extend `env` by binding names `xs` to values `ys`
-  (lambda (xs ys env)
-    (if (pair? xs)
-      (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
-      (if (symbol? xs)
-        (cons (cons xs ys) env)         ; dotted-tail binds to &rest
-        env))))
+(define zip                                                   ; extend `env` by binding
+  (lambda (xs ys env)                                         ; names `xs` to values `ys`
+    (cond
+      ((pair? xs)
+        (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env)))
+      ((symbol? xs)                                           ; dotted-tail binds to &rest
+        (cons (cons xs ys) env))
+      (#t
+        env) )))
 
 (define closure-beh
   (lambda (frml body env)
     (BEH (cust . args)
-      (SEND cust (eval body (zip frml args env))))))
+      (eval body (zip frml args env)))))
 ```
 
 Moving operatives (special forms) into the environment,
@@ -1233,130 +1267,130 @@ The refactored reference-implementation looks like this:
 ```
 (define eval
   (lambda (form env)
-    (if (symbol? form)                  ; bound variable
-      (lookup form env)
-      (if (pair? form)                  ; procedure call
-        (invoke (eval (car form) env) (cdr form) env)
-        form))))                        ; self-evaluating form
+    (cond
+      ((symbol? form)                                         ; bound variable
+        (lookup form env))
+      ((pair? form)                                           ; procedure call
+        (invoke (eval (car form) env) (cdr form) env))
+      (#t                                                     ; self-evaluating form
+        form) )))
 
 (define invoke
   (lambda (fn opnds env)
-    (if (actor? fn)                     ; _applicative_
-      ;(apply fn (evlis opnds env) env)
-      (apply fn (CALL op-par (list opnds env)) env)
-      (apply fn opnds env))))
+    (if (actor? fn)                                           ; if _applicative_
+        (apply fn (CALL op-par (list opnds env)) env)         ;   parallel (apply fn (evlis opnds env) env)
+        (apply fn opnds env) )))                              ;   else, apply _combiner_
 
 (define apply
   (lambda (fn args env)
-    (if (actor? fn)
-      (CALL fn args)
-      (if (fexpr? fn)
-        (CALL (get-x fn) (list args env))
-        #?))))
+    (cond
+      ((actor? fn)                                            ; _applicative_ combiner
+        (CALL fn args))
+      ((fexpr? fn)                                            ; _operative_ combiner
+        (CALL (get-x fn) (list args env)))
+      (#t                                                     ; not applicable
+        #?) )))
 
-(define lookup                          ; look up variable binding in environment
+(define lookup                                                ; look up variable binding in environment
   (lambda (key env)
-    (if (pair? env)                     ; association list
-      (if (eq? (caar env) key)
-        (cdar env)
-        (lookup key (cdr env)))
-      (if (actor? env)
-        (CALL env key)                  ; delegate to actor environment
-        (if (symbol? key)
-          (get-z key)                   ; get top-level binding
-          #?))))                        ; value is undefined
+    (cond
+      ((pair? env)                                            ; association list
+        (if (eq? (caar env) key)                              ; if key matches,
+            (cdar env)                                        ;   get binding value
+            (lookup key (cdr env))))                          ;   else, keep looking
+      ((actor? env)                                           ; delegate to actor environment
+        (CALL env key))
+      ((symbol? key)                                          ; get top-level binding
+        (get-z key))
+      (#t                                                     ; value is undefined
+        #?) )))
 
-(define evlis                           ; map `eval` over a list of operands
+(define evlis                                                 ; map `eval` over a list of operands
   (lambda (opnds env)
     (if (pair? opnds)
-      (cons (eval (car opnds) env) (evlis (cdr opnds) env))
-      ())))                             ; value is NIL
+        (cons (eval (car opnds) env) (evlis (cdr opnds) env))
+        () )))                                                ; value is NIL
 
-(define op-par                          ; (par . <exprs>)
+(define op-par                                                ; (par . <exprs>)
   (CREATE
     (BEH (cust opnds env)
       (if (pair? opnds)
-        (SEND
-          (CREATE (fork-beh cust eval op-par))
-          (list ((car opnds) env) ((cdr opnds) env)))
-        (SEND cust ()))
-      )))
+          (SEND
+            (CREATE (fork-beh cust eval op-par))
+            (list ((car opnds) env) ((cdr opnds) env)))
+          (SEND cust ()) ))))
 
-(define zip                             ; extend `env` by binding names `xs` to values `ys`
-  (lambda (xs ys env)
-    (if (pair? xs)
-      (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env))
-      (if (symbol? xs)
-        (cons (cons xs ys) env)         ; dotted-tail binds to &rest
-        env))))
+(define zip                                                   ; extend `env` by binding
+  (lambda (xs ys env)                                         ; names `xs` to values `ys`
+    (cond
+      ((pair? xs)
+        (cons (cons (car xs) (car ys)) (zip (cdr xs) (cdr ys) env)))
+      ((symbol? xs)                                           ; dotted-tail binds to &rest
+        (cons (cons xs ys) env))
+      (#t
+        env) )))
 
-(define closure-beh                     ; lexically-bound applicative function
+(define closure-beh                                           ; lexically-bound applicative function
   (lambda (frml body env)
     (BEH (cust . args)
-      (SEND cust (evbody #unit body (zip frml args env))))))
+      (SEND cust (evbody #unit body (zip frml args env))) )))
 
-(define op-quote                        ; (quote <form>)
+(define op-quote                                              ; (quote <form>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust (car opnds)) )))
+
+(define op-lambda                                             ; (lambda <frml> . <body>)
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
-        (car opnds)
-      ))))
+        (CREATE (closure-beh (car opnds) (cdr opnds) env))) )))
 
-(define op-lambda                       ; (lambda <frml> . <body>)
+(define op-define                                             ; (define <symbol> <expr>)
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
-        (CREATE (closure-beh (car opnds) (cdr opnds) env))
-      ))))
+        (set-z (car opnds) (eval (cadr opnds) env))) )))
 
-(define op-define                       ; (define <symbol> <expr>)
-  (CREATE
-    (BEH (cust opnds env)
-      (SEND cust
-        (set-z (car opnds) (eval (cadr opnds) env))
-      ))))
-
-(define evalif                          ; if `test` is #f, evaluate `altn`,
-  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
+(define evalif                                                ; if `test` is #f, evaluate `altn`,
+  (lambda (test cnsq altn env)                                ; otherwise evaluate `cnsq`.
     (if test
-      (eval cnsq env)
-      (eval altn env))))
+        (eval cnsq env)
+        (eval altn env) )))
 
-(define op-if                           ; (if <pred> <cnsq> <altn>)
+(define op-if                                                 ; (if <pred> <cnsq> <altn>)
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
-        (evalif (eval (car opnds) env) (cadr opnds) (caddr opnds) env)
-      ))))
+        (evalif (eval (car opnds) env) (cadr opnds) (caddr opnds) env)) )))
 
-(define op-cond                         ; (cond (<test> <expr>) . <clauses>)
+(define op-cond                                               ; (cond (<test> <expr>) . <clauses>)
   (CREATE
     (BEH (cust opnds env)
       (if (pair? (car opnds))
-        (if (eval (caar opnds) env)
-          (SEND cust (eval (cadar opnds) env))
-          (SEND SELF (list cust (cdr opnds) env)))
-        (SEND cust #?)) )))
+          (if (eval (caar opnds) env)
+              (SEND cust (eval (cadar opnds) env))
+              (SEND SELF (list cust (cdr opnds) env)))
+          (SEND cust #?)) )))
 
-(define evbody                          ; evaluate a list of expressions,
-  (lambda (value body env)              ; returning the value of the last.
+(define evbody                                                ; evaluate a list of expressions,
+  (lambda (value body env)                                    ; returning the value of the last.
     (if (pair? body)
-      (evbody (eval (car body) env) (cdr body) env)
-      value)))
-(define op-seq                          ; (seq . <body>)
-  (CREATE
-    (BEH (cust opnds env)
-      ;(SEND cust (evbody #unit opnds env))
-      (SEND (CREATE (k-seq-beh cust opnds env)) #unit)
-    )))
+        (evbody (eval (car body) env) (cdr body) env)
+        value)))
+
 (define k-seq-beh
   (lambda (cust body env)
     (BEH value
       (if (pair? body)
-        (SEND
-          (CREATE (k-seq-beh cust (cdr body) env))
-          (eval (car body) env))
-        (SEND cust value)) )))
+          (SEND
+            (CREATE (k-seq-beh cust (cdr body) env))
+            (eval (car body) env))
+          (SEND cust value)) )))
+(define op-seq                                                ; (seq . <body>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND (CREATE (k-seq-beh cust opnds env)) #unit) )))    ; (SEND cust (evbody #unit opnds env))
 ```
 
 We now have a fully-functional interpreter implementation.
@@ -1370,7 +1404,7 @@ Additional features implemented here are:
   * Inline `invoke`/`apply` combination
   * `zip` matches parameter-trees (used by `lambda`, et. al.)
   * `define` uses `zip` to bind multiple variables
-  * `define` mutates local bindings (not just globals)
+  * `define` mutates local bindings (not just top-level globals)
   * General operative constructor `vau`
   * More useful `macro` operative constructor
   * `quasiquote`, et. al. for ease of use
@@ -1380,76 +1414,89 @@ The extended reference-implementation looks like this:
 ```
 (define eval
   (lambda (form env)
-    (if (symbol? form)                  ; bound variable
-      (lookup form env)
-      (if (pair? form)                  ; combination
+    (cond
+      ((symbol? form)                                         ; bound variable
+        (lookup form env))
+      ((pair? form)                                           ; combination
         (let ((fn    (eval (car form) env))
               (opnds (cdr form)))
-          (if (actor? fn)               ; _applicative_
-            (CALL fn (evlis opnds env))
-            (if (fexpr?)                ; _operative_
-              (CALL (get-x fn) (list opnds env))
-              #?)))
-        form))))                        ; self-evaluating form
+          (cond
+            ((actor? fn)                                      ; _applicative_
+              (CALL fn (evlis opnds env)))
+            ((fexpr? fn)                                      ; _operative_
+              (CALL (get-x fn) (list opnds env)))
+            (#t                                               ; not applicable
+              #?)) ))
+      (#t                                                     ; self-evaluating form
+        form) )))
 
 (define apply
   (lambda (fn args env)
-    (if (actor? fn)                     ; _compiled_
-      (CALL fn args)
-      (if (fexpr? fn)                   ; _interpreted_
-        (CALL (get-x fn) (list args env))
-        #?))))
+    (cond
+      ((actor? fn)                                            ; _compiled_
+        (CALL fn args))
+      ((fexpr? fn)                                            ; _interpreted_
+        (CALL (get-x fn) (list args env)))
+      (#t                                                     ; not applicable
+        #?) )))
 
-(define lookup                          ; look up variable binding in environment
+(define lookup                                                ; look up variable binding in environment
   (lambda (key env)
-    (if (pair? env)                     ; association list
-      (if (eq? (caar env) key)
-        (cdar env)
-        (lookup key (cdr env)))
-      (if (actor? env)
-        (CALL env key)                  ; delegate to environment actor
-        (if (symbol? key)
-          (get-z key)                   ; get top-level binding
-          #?))))                        ; value is undefined
+    (cond
+      ((pair? env)                                            ; association list
+        (if (eq? (caar env) key)                              ; if key matches,
+            (cdar env)                                        ;   get binding value
+            (lookup key (cdr env))))                          ;   else, keep looking
+      ((actor? env)                                           ; delegate to actor environment
+        (CALL env key))
+      ((symbol? key)                                          ; get top-level binding
+        (get-z key))
+      (#t                                                     ; value is undefined
+        #?) )))
 
-(define bind-env                        ; update binding in environment
+(define bind-env                                              ; update (mutate) binding in environment
   (lambda (key val env)
-    (if (pair? env)                     ; association list
-      (if (eq? (caar env) '_)
-        (seq                            ; insert new binding
-          (set-cdr env (cons (car env) (cdr env)))
-          (set-car env (cons key val)))
-        (if (eq? (caar env) key)
-          (set-cdr (car env) val)       ; mutate binding
-          (bind-env key val (cdr env))))
-      (if (symbol? key)
-        (set-z key val)))               ; set top-level binding
-    #unit))                             ; value is UNIT
+    (cond
+      ((pair? env)                                            ; association list
+        (cond
+          ((eq? (caar env) '_)                                ; insert new binding
+            (set-cdr env (cons (car env) (cdr env)))
+            (set-car env (cons key val)))
+          ((eq? (caar env) key)                               ; mutate binding
+            (set-cdr (car env) val))
+          (#t                                                 ; keep searching for binding
+            (bind-env key val (cdr env))) ))
+      ((symbol? key)                                          ; set top-level binding
+        (set-z key val)))
+    #unit))                                                   ; value is UNIT
 
-(define evlis                           ; map `eval` over a list of operands
+(define evlis                                                 ; map `eval` over a list of operands
   (lambda (opnds env)
     (if (pair? opnds)
-      (cons (eval (car opnds) env) (evlis (cdr opnds) env))
-      ())))                             ; value is NIL
+        (cons (eval (car opnds) env) (evlis (cdr opnds) env))
+        () )))                                                ; value is NIL
 
-(define op-par                          ; (par . <exprs>)
+(define op-par                                                ; (par . <exprs>)
   (CREATE
     (BEH (cust opnds env)
       (if (pair? opnds)
-        (SEND
-          (CREATE (fork-beh cust eval op-par))
-          (list ((car opnds) env) ((cdr opnds) env)))
-        (SEND cust ()))
-      )))
+          (SEND
+            (CREATE (fork-beh cust eval op-par))
+            (list ((car opnds) env) ((cdr opnds) env)))
+          (SEND cust ()) ))))
 
-(define var-name? (lambda (x) (if (symbol? x) (if (eq? x '_) #f #t) #f)))
-(define zip-it                          ; extend `env` by binding names `x` to values `y`
-  (lambda (x y xs ys env)
+(define var-name?                                             ; valid variable name?
+  (lambda (x)
+    (if (eq? x '_)
+        #f
+        (symbol? x) )))
+(define zip-it                                                ; extend `env` by binding
+  (lambda (x y xs ys env)                                     ; names `x` to values `y`
     (cond
       ((pair? x)
         (if (null? (cdr x))
-          (zip-it (car x) (car y) xs ys env)
-          (zip-it (car x) (car y) (cons (cdr x) xs) (cons (cdr y) ys) env)))
+            (zip-it (car x) (car y) xs ys env)
+            (zip-it (car x) (car y) (cons (cdr x) xs) (cons (cdr y) ys) env)))
       ((var-name? x)
         (zip-it xs ys () () (cons (cons x y) env)))
       ((null? xs)
@@ -1457,130 +1504,130 @@ The extended reference-implementation looks like this:
       (#t
         (zip-it xs ys () () env))
     )))
-(define zip                             ; extend `env` by binding names `x` to values `y`
-  (lambda (x y env)
+(define zip                                                   ; extend `env` by binding
+  (lambda (x y env)                                           ; names `x` to values `y`
     (zip-it x y () () env)))
-;(zip '((a b) c . d) '((1 2 3) (4 5 6) (7 8 9)) global-env)
-;==> ((d (+7 +8 +9)) (c +4 +5 +6) (b . +2) (a . +1) . #actor@55)
-;((lambda ((a b) c . d) (list a b c d)) '(1 2 3) '(4 5 6) '(7 8 9))
-;==> (+1 +2 (+4 +5 +6) ((+7 +8 +9)))
 
-(define scope                           ; delimit local scope (inline function)
-  (lambda (env)
-    (cons (cons '_ #?) env)))
+(define scope (lambda (env) (cons (cons '_ #?) env)))         ; delimit local scope (inline function)
 
-(define closure-beh                     ; lexically-bound applicative procedure
+(define closure-beh                                           ; lexically-bound applicative procedure
   (lambda (frml body env)
     (BEH (cust . args)
-      (SEND cust
-        (evbody #unit body (zip frml args (scope env)))))))
+      (SEND cust (evbody #unit body (zip frml args (scope env)))) )))
 
-(define fexpr-beh                       ; lexically-bound operative procedure
+(define fexpr-beh                                             ; lexically-bound operative procedure
   (lambda (frml body denv)
     (BEH (cust opnds senv)
-      (SEND cust
-        (evbody #unit body (zip frml (cons denv opnds) (scope senv)))))))
+      (SEND cust (evbody #unit body (zip frml (cons denv opnds) (scope senv)))) )))
 
-(define op-quote                        ; (quote <form>)
+(define op-quote                                              ; (quote <form>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND cust (car opnds)) )))
+
+(define op-lambda                                             ; (lambda <frml> . <body>)
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
-        (car opnds)
-      ))))
+        (CREATE (closure-beh (car opnds) (cdr opnds) env))) )))
 
-(define op-lambda                       ; (lambda <frml> . <body>)
-  (CREATE
-    (BEH (cust opnds env)
-      (SEND cust
-        (CREATE (closure-beh (car opnds) (cdr opnds) env))
-      ))))
-
-(define op-vau                          ; (vau <frml> <evar> . <body>)
+(define op-vau                                                ; (vau <frml> <evar> . <body>)
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
         (cell Fexpr_T
-          (CREATE (fexpr-beh (cons (cadr opnds) (car opnds)) (cddr opnds) env)))
-      ))))
+          (CREATE (fexpr-beh (cons (cadr opnds) (car opnds)) (cddr opnds) env)) )) )))
 
 (define bind-each
   (lambda (alist env)
-    (if (pair? alist)
-      (seq
+    (cond
+      ((pair? alist)
         (bind-env (caar alist) (cdar alist) env)
         (bind-each (cdr alist) env))
-      #unit)))
-(define op-define                       ; (define <frml> <expr>)
+      (#t
+        #unit) )))
+(define op-define                                             ; (define <frml> <expr>)
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
-        (bind-each (zip (car opnds) (eval (cadr opnds) env) ()) env)
-      ))))
+        (bind-each (zip (car opnds) (eval (cadr opnds) env) ()) env)) )))
 
-(define evalif                          ; if `test` is #f, evaluate `altn`,
-  (lambda (test cnsq altn env)          ; otherwise evaluate `cnsq`.
+(define evalif                                                ; if `test` is #f, evaluate `altn`,
+  (lambda (test cnsq altn env)                                ; otherwise evaluate `cnsq`.
     (if test
-      (eval cnsq env)
-      (eval altn env))))
+        (eval cnsq env)
+        (eval altn env) )))
 
-(define op-if                           ; (if <pred> <cnsq> <altn>)
+(define op-if                                                 ; (if <pred> <cnsq> <altn>)
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
-        (evalif (eval (car opnds) env) (cadr opnds) (caddr opnds) env)
-      ))))
+        (evalif (eval (car opnds) env) (cadr opnds) (caddr opnds) env)) )))
 
-(define op-cond                         ; (cond (<test> . <body>) . <clauses>)
+(define op-cond                                               ; (cond (<test> <expr>) . <clauses>)
   (CREATE
     (BEH (cust opnds env)
       (if (pair? (car opnds))
-        (if (eval (caar opnds) env)
-          (SEND cust (evbody #unit (cdar opnds) env))
-          (SEND SELF (list cust (cdr opnds) env)))
-        (SEND cust #?)) )))
+          (if (eval (caar opnds) env)
+              (SEND cust (eval (cadar opnds) env))
+              (SEND SELF (list cust (cdr opnds) env)))
+          (SEND cust #?)) )))
 
-(define evbody                          ; evaluate a list of expressions,
-  (lambda (value body env)              ; returning the value of the last.
+(define evbody                                                ; evaluate a list of expressions,
+  (lambda (value body env)                                    ; returning the value of the last.
     (if (pair? body)
-      (evbody (eval (car body) env) (cdr body) env)
-      value)))
-(define op-seq                          ; (seq . <body>)
-  (CREATE
-    (BEH (cust opnds env)
-      ;(SEND cust (evbody #unit opnds env))
-      (SEND (CREATE (k-seq-beh cust opnds env)) #unit)
-    )))
+        (evbody (eval (car body) env) (cdr body) env)
+        value)))
+
 (define k-seq-beh
   (lambda (cust body env)
     (BEH value
       (if (pair? body)
-        (SEND
-          (CREATE (k-seq-beh cust (cdr body) env))
-          (eval (car body) env))
-        (SEND cust value)) )))
+          (SEND
+            (CREATE (k-seq-beh cust (cdr body) env))
+            (eval (car body) env))
+          (SEND cust value)) )))
+(define op-seq                                                ; (seq . <body>)
+  (CREATE
+    (BEH (cust opnds env)
+      (SEND (CREATE (k-seq-beh cust opnds env)) #unit) )))    ; (SEND cust (evbody #unit opnds env))
 
-(define macro                           ; (macro <frml> . <body>)
+(define macro                                                 ; (macro <frml> . <body>)
   (vau (frml . body) env
     (eval
       (list vau frml '_env_
-        (list eval (cons seq body) '_env_)) env) ))
+        (list eval (cons seq body) '_env_))
+      env)))
 
 (define quasiquote
   (vau (x) e
     (if (pair? x)
-      (if (eq? (car x) 'unquote)
-        (eval (cadr x) e)
-        (quasi-list x))
-      x)))
+        (if (eq? (car x) 'unquote)
+            (eval (cadr x) e)
+            (quasi-list x))
+        x)))
 (define quasi-list
   (lambda (x)
     (if (pair? x)
-      (if (pair? (car x))
-        (if (eq? (caar x) 'unquote-splicing)
-          (append (eval (cadar x) e) (quasi-list (cdr x)))
-          (cons (apply quasiquote (car x) e) (quasi-list (cdr x))))
-        (cons (car x) (quasi-list (cdr x))))
-      x)))
+        (if (pair? (car x))
+            (if (eq? (caar x) 'unquote-splicing)
+                (append (eval (cadar x) e) (quasi-list (cdr x)))
+                (cons (apply quasiquote (car x) e) (quasi-list (cdr x))))
+            (cons (car x) (quasi-list (cdr x))))
+        x)))
+
+(define gensym
+  (lambda ()
+    (cell Symbol_T (get-x '_) (get-y '_)) ))
+
+;;; alternative definition using quasiquote, et. al.
+(define macro                                                 ; (macro <frml> . <body>)
+  (vau (frml . body) env
+    (eval
+      ((lambda (evar)
+          `(vau ,frml ,evar (eval (seq ,@body) ,evar)))
+        (gensym))
+      env)))
 ```
 
 #### Test-Cases

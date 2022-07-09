@@ -35,10 +35,10 @@
 (define equal?
   (lambda (x y)
     (if (pair? x)
-      (if (equal? (car x) (car y))
-        (equal? (cdr x) (cdr y))
-        #f)
-      (eq? x y))))
+        (if (equal? (car x) (car y))
+            (equal? (cdr x) (cdr y))
+            #f)
+        (eq? x y))))
 
 (define when
   (macro (cond . body)
@@ -50,53 +50,53 @@
 (define cond
   (macro clauses
     (if (null? clauses)
-      #unit
-      (apply
-        (lambda ((test . body) . rest)
-          (list if test (cons seq body) (cons cond rest)) )
-        clauses) )))
+        #unit
+        (apply
+          (lambda ((test . body) . rest)
+            (list if test (cons seq body) (cons cond rest)) )
+          clauses) )))
 
 ;(define append (lambda (x y) (if (null? x) y (cons (car x) (append (cdr x) y)))))  ; two lists only
 (define append
   (lambda x
     (if (pair? x)
-      (apply
-        (lambda (h . t)
-          (if (pair? t)
-            (if (pair? h)
-              (cons
-                (car h)
-                (apply append (cons (cdr h) t)))
-              (apply append t))
-            h))
-        x)
-      x)))
+        (apply
+          (lambda (h . t)
+            (if (pair? t)
+                (if (pair? h)
+                    (cons
+                      (car h)
+                      (apply append (cons (cdr h) t)))
+                    (apply append t))
+                h))
+          x)
+        x)))
 
 (define filter
   (lambda (pred? xs)
     (if (pair? xs)
-      (if (pred? (car xs))
-        (cons (car xs) (filter pred? (cdr xs)))
-        (filter pred? (cdr xs)))
-      ())))
+        (if (pred? (car xs))
+            (cons (car xs) (filter pred? (cdr xs)))
+            (filter pred? (cdr xs)))
+        ())))
 
 (define reduce
   (lambda (binop zero xs)
     (if (pair? xs)
-      (if (pair? (cdr xs))
-        (binop (car xs) (reduce binop zero (cdr xs)))
-        (car xs))
-      zero)))
+        (if (pair? (cdr xs))
+            (binop (car xs) (reduce binop zero (cdr xs)))
+            (car xs))
+          zero)))
 (define foldl
   (lambda (binop zero xs)
     (if (pair? xs)
-      (foldl binop (binop zero (car xs)) (cdr xs))
-      zero)))
+        (foldl binop (binop zero (car xs)) (cdr xs))
+        zero)))
 (define foldr
   (lambda (binop zero xs)
     (if (pair? xs)
-      (binop (car xs) (foldr binop zero (cdr xs)))
-      zero)))
+        (binop (car xs) (foldr binop zero (cdr xs)))
+        zero)))
 
 ;(define reverse (lambda (xs) (if (pair? xs) (append (reverse (cdr xs)) (list (car xs))) xs)))  ; O(n^2) algorithm
 (define reverse
@@ -115,10 +115,10 @@
 (define map
   (lambda (f . xs)
     (if (pair? (car xs))
-      (cons
-        (apply f (foldr (lambda (x y) (cons (car x) y)) () xs))
-        (apply map (cons f (foldr (lambda (x y) (cons (cdr x) y)) () xs))))
-      ())))
+        (cons
+          (apply f (foldr (lambda (x y) (cons (car x) y)) () xs))
+          (apply map (cons f (foldr (lambda (x y) (cons (cdr x) y)) () xs))))
+        ())))
 
 ;(define expand-let (vau (kvs . body) _ (cons (list* 'lambda (map car kvs) body) (map cadr kvs)))
 (define let
@@ -145,15 +145,14 @@
     (cond
       ((pair? t)
         (if (null? (cdr t))
-          (fringe (car t) s r)
-          (fringe (car t) s (cons (cdr t) r))))
+            (fringe (car t) s r)
+            (fringe (car t) s (cons (cdr t) r))))
       ((symbol? t)
         (fringe r (cons t s) ()))
       ((null? r)
         s)
       (#t
-        (fringe r s ()))
-    )))
+        (fringe r s ())) )))
 ;(fringe '((a b) c . d) () ())
 ;==> (d c b a)
 
@@ -161,20 +160,20 @@
 (define zip                             ; extend `env` by binding names `x` to values `y`
   (lambda (x y env)
     (if (pair? x)
-      (cons (cons (car x) (car y)) (zip (cdr x) (cdr y) env))
-      (if (symbol? x)
-        (cons (cons x y) env)         ; dotted-tail binds to &rest
-        env))))
+        (cons (cons (car x) (car y)) (zip (cdr x) (cdr y) env))
+        (if (symbol? x)
+            (cons (cons x y) env)         ; dotted-tail binds to &rest
+            env))))
 ; helper function to recognize valid variable names
 (define var-name? (lambda (x) (if (symbol? x) (if (eq? x '_) #f #t) #f)))
 ; simple tree-recursive implementation
 (define zip                             ; extend `env` by binding names `x` to values `y`
   (lambda (x y env)
     (if (pair? x)
-      (zip (car x) (car y) (zip (cdr x) (cdr y) env))
-      (if (var-name? x)
-        (cons (cons x y) env)
-        env))))
+        (zip (car x) (car y) (zip (cdr x) (cdr y) env))
+        (if (var-name? x)
+            (cons (cons x y) env)
+            env))))
 ;(zip '((a b) c . d) '((1 2 3) (4 5 6) (7 8 9)) global-env)
 ;==> ((a . +1) (b . +2) (c +4 +5 +6) (d (+7 +8 +9)) . #actor@55)
 ; interative (tail-recursive) implementation
@@ -183,36 +182,41 @@
     (cond
       ((pair? x)
         (if (null? (cdr x))
-          (zip-it (car x) (car y) xs ys env)
-          (zip-it (car x) (car y) (cons (cdr x) xs) (cons (cdr y) ys) env)))
+            (zip-it (car x) (car y) xs ys env)
+            (zip-it (car x) (car y) (cons (cdr x) xs) (cons (cdr y) ys) env)))
       ((var-name? x)
         (zip-it xs ys () () (cons (cons x y) env)))
       ((null? xs)
         env)
       (#t
-        (zip-it xs ys () () env))
-    )))
+        (zip-it xs ys () () env)) )))
 ;(zip-it '((a b) c . d) '((1 2 3) (4 5 6) (7 8 9)) () () global-env)
 ;==> ((d (+7 +8 +9)) (c +4 +5 +6) (b . +2) (a . +1) . #actor@55)
+;((lambda ((a b) c . d) (list a b c d)) '(1 2 3) '(4 5 6) '(7 8 9))
+;==> (+1 +2 (+4 +5 +6) ((+7 +8 +9)))
 
 ; Quasi-Quotation based on `vau`
 (define quasiquote
   (vau (x) e
     (if (pair? x)
-      (if (eq? (car x) 'unquote)
-        (eval (cadr x) e)
-        (quasi-list x e))
-      x)))
+        (if (eq? (car x) 'unquote)
+            (eval (cadr x) e)
+            (quasi-list x e))
+        x)))
 (define quasi-list
   (lambda (x e)
     (if (pair? x)
-      (if (pair? (car x))
-        (if (eq? (caar x) 'unquote-splicing)
-          (append (eval (cadar x) e) (quasi-list (cdr x) e))
-          (cons (apply quasiquote (list (car x)) e) (quasi-list (cdr x) e)))
-        (cons (car x) (quasi-list (cdr x) e)))
-      x)))
+        (if (pair? (car x))
+            (if (eq? (caar x) 'unquote-splicing)
+                (append (eval (cadar x) e) (quasi-list (cdr x) e))
+                (cons (apply quasiquote (list (car x)) e) (quasi-list (cdr x) e)))
+            (cons (car x) (quasi-list (cdr x) e)))
+        x)))
 ;((lambda (x) `(x ,x ,(car x) ,(cdr x) ,@x 'x ,(current-env))) '(1 2 3))
+
+(define gensym
+  (lambda ()
+    (cell Symbol_T (get-x '_) (get-y '_)) ))
 
 ;
 ; short-circuit logical connectives
@@ -225,87 +229,89 @@
       ((null? x) #t)
       ((null? (cdr x)) (eval (car x) e))  ; tail context
       ((eval (car x) e) (apply (wrap $and?) (cdr x) e))
-      (#t #f)
-    )))
+      (#t #f) )))
 ($define! $or?
   ($vau x e
     ($cond
       ((null? x) #f)
       ((null? (cdr x)) (eval (car x) e))  ; tail context
       ((eval (car x) e) #t)
-      (#t (apply (wrap $or?) (cdr x) e))
-    )))
+      (#t (apply (wrap $or?) (cdr x) e)) )))
 ; macro definitions using explicit construction
 (define expand-or
   (lambda (x)
     (if (pair? x)
-      (if (pair? (cdr x))
-        (list let (list (list '_test_ (car x)))  ; FIXME: need (gensym) here?
-          (list if '_test_
-            '_test_
-            (cons 'or (cdr x))))
-        (car x))  ; tail-call
-      #f)))
+        (if (pair? (cdr x))
+            (list let (list (list '_test_ (car x)))  ; FIXME: need (gensym) here?
+              (list if '_test_
+                '_test_
+                (cons 'or (cdr x))))
+            (car x))  ; tail-call
+        #f)))
 (define or (macro x (expand-or x)))
 ;(or #f (eq? 0 1) (not 1) -1 (eq? 1 1) -no-eval-) ==> -1
 (define and
   (macro x
     (if (pair? x)
-      (if (pair? (cdr x))
-        (list let (list (list '_test_ (car x)))  ; FIXME: need (gensym) here?
-          (list if '_test_
-            (cons 'and (cdr x))
-            '_test_))
-        (car x))  ; tail-call
-      #t)))
+        (if (pair? (cdr x))
+            (list let (list (list '_test_ (car x)))  ; FIXME: need (gensym) here?
+              (list if '_test_
+                (cons 'and (cdr x))
+                '_test_))
+            (car x))  ; tail-call
+        #t)))
 (define or
   (macro x
     (if (pair? x)
-      (if (pair? (cdr x))
-        (list let (list (list '_test_ (car x)))  ; FIXME: need (gensym) here?
-          (list if '_test_
-            '_test_
-            (cons 'or (cdr x))))
-        (car x))  ; tail-call
-      #f)))
+        (if (pair? (cdr x))
+            (list let (list (list '_test_ (car x)))  ; FIXME: need (gensym) here?
+              (list if '_test_
+                '_test_
+                (cons 'or (cdr x))))
+            (car x))  ; tail-call
+        #f)))
 ; macro definitions using quasiquote templates
 (define or
   (macro x
     (if (pair? x)
-      (if (pair? (cdr x))
-        `(let ((_test_ ,(car x)))  ; FIXME: need (gensym) here?
-          (if _test_
-            _test_
-            (or ,@(cdr x))))
-        (car x))  ; tail-call
-      #f)))
+        (if (pair? (cdr x))
+            `(let ((_test_ ,(car x)))  ; FIXME: need (gensym) here?
+              (if _test_
+                  _test_
+                  (or ,@(cdr x))))
+            (car x))  ; tail-call
+        #f)))
 (define expand-or
   (lambda (x)
     (if (pair? x)
-      (if (pair? (cdr x))
-        `(let ((_test_ ,(car x)))  ; FIXME: need (gensym) here?
-          (if _test_
-            _test_
-            (or ,@(cdr x))))
-        (car x))  ; tail-call
-      #f)))
+        (if (pair? (cdr x))
+            `(let ((_test_ ,(car x)))  ; FIXME: need (gensym) here?
+              (if _test_
+                  _test_
+                  (or ,@(cdr x))))
+            (car x))  ; tail-call
+        #f)))
 (define or (macro x (expand-or x)))
 (define expand-or
   (lambda (x)
-    (cond ((pair? x)
-            (define t (gensym))
-            `(seq (define ,t ,(car x))
-                  (if ,t ,t (or ,@(cdr x))) ))
-          (#t
-            #f) )))
+    (cond
+      ((pair? x)
+        (define t (gensym))
+        `(seq
+          (define ,t ,(car x))
+          (if ,t ,t (or ,@(cdr x))) ))
+      (#t
+        #f) )))
 (define or
   (macro x
-    (cond ((pair? x)
-            (define t (gensym))
-            `(,seq (,define ,t ,(car x))
-                  (,if ,t ,t (,or ,@(cdr x))) ))
-          (#t
-            #f) )))
+    (cond
+      ((pair? x)
+        (define t (gensym))
+        `(,seq
+          (,define ,t ,(car x))
+          (,if ,t ,t (,or ,@(cdr x))) ))
+      (#t
+        #f) )))
 
 ;
 ; macro helpers
@@ -330,14 +336,16 @@
         (cell brand payload)))
     (define unseal
       (lambda (sealed)
-        (if (eq? (get-t sealed) brand) (get-x sealed) #?)))
+        (if (eq? (get-t sealed) brand)
+            (get-x sealed)
+            #?)))
     (define sealed?
       (lambda objs
         (if (pair? objs)
-          (if (eq? (get-t (car objs)) brand)
-            (apply sealed? (cdr objs))
-            #f)
-          #t)))
+            (if (eq? (get-t (car objs)) brand)
+                (apply sealed? (cdr objs))
+                #f)
+            #t)))
     (list seal unseal sealed?)))
 
 ;

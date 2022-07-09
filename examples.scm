@@ -14,56 +14,59 @@
 (define fact  ; recursive factorial (inefficient)
   (lambda (n)
     (if (> n 1)
-      (* n (fact (- n 1)))
-      1)))
+        (* n (fact (- n 1)))
+        1)))
 ;(define fact (lambda (n) (if (< n 2) 1 (* n (fact (- n 1))))))
 
 (define fib  ; O(n^3) performance?
   (lambda (n)
     (if (< n 2)
-      n
-      (+ (fib (- n 1)) (fib (- n 2))))))
+        n
+        (+ (fib (- n 1)) (fib (- n 2))))))
 (define fib  ; exercise local `let` bindings
   (lambda (n)
     (if (< n 2)
-      n
-      (let ((x (fib (- n 1)))
-            (y (fib (- n 2))))
-        (+ x y)) )))
+        n
+        (let ((x (fib (- n 1)))
+              (y (fib (- n 2))))
+          (+ x y)) )))
 (define fib  ; exercise local `define` bindings
   (lambda (n)
     (if (< n 2)
-      n
-      (seq
-        (define x (fib (- n 1)))
-        (define y (fib (- n 2)))
-        (+ x y)) )))
+        n
+        (seq
+          (define x (fib (- n 1)))
+          (define y (fib (- n 2)))
+          (+ x y)) )))
 
 ; mutual recursion example (very inefficient)
 (define even?
   (lambda (n)
-    (if (= n 0) #t
-      (odd? (- n 1)))))
+    (if (= n 0)
+        #t
+        (odd? (- n 1)) )))
 (define odd?
   (lambda (n)
-    (if (= n 0) #f
-      (even? (- n 1)))))
+    (if (= n 0)
+        #f
+        (even? (- n 1)) )))
 
 ; Ackermann function
 (define ack
   (lambda (n m)
-    (cond ((eq? n 0)
-            (+ m 1))
-          ((eq? m 0)
-            (ack (- n 1) 1))
-          (#t
-            (ack (- n 1) (ack n (- m 1)))) )))
+    (cond
+      ((eq? n 0)
+        (+ m 1))
+      ((eq? m 0)
+        (ack (- n 1) 1))
+      (#t
+        (ack (- n 1) (ack n (- m 1)))) )))
 
 (define member?
   (lambda (x xs)
     (if (pair? xs)
-      (or (eq? x (car xs)) (member? x (cdr xs)))
-      #f)))
+        (or (eq? x (car xs)) (member? x (cdr xs)))
+        #f)))
 
 ;
 ; variadic mapping function
@@ -73,10 +76,10 @@
 (define map
   (lambda (f . xs)
     (if (pair? (car xs))
-      (cons
-        (apply f (foldr (lambda (x y) (cons (car x) y)) () xs))
-        (apply map (cons f (foldr (lambda (x y) (cons (cdr x) y)) () xs))))
-      ())))
+        (cons
+          (apply f (foldr (lambda (x y) (cons (car x) y)) () xs))
+          (apply map (cons f (foldr (lambda (x y) (cons (cdr x) y)) () xs))))
+        ())))
 
 ;
 ; pure-functional dequeue
@@ -92,8 +95,8 @@
   (define dq-norm
     (lambda (p q)
       (if (null? p)
-        (cons (reverse q) ())
-        (cons p q))))
+          (cons (reverse q) ())
+          (cons p q))))
   (define dq-put
     (lambda ((p . q) x)
       (dq-norm p (cons x q))))
