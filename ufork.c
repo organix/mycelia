@@ -18,8 +18,8 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define INCLUDE_DEBUG 1 // include debugging facilities
 #define RUN_DEBUGGER  1 // run program under interactive debugger
 #define EXPLICIT_FREE 1 // explicitly free known-dead memory
-#define MARK_SWEEP_GC 0 // stop-the-world garbage collection
-#define CONCURRENT_GC 1 // concurrent garbage collection
+#define MARK_SWEEP_GC 1 // stop-the-world garbage collection
+#define CONCURRENT_GC 0 // concurrent garbage collection
 #define RUNTIME_STATS 1 // collect statistics on the runtime
 #define SCM_PEG_TOOLS 0 // include PEG tools for LISP/Scheme (+232 cells)
 #define BOOTSTRAP_LIB 1 // include bootstrap library definitions
@@ -1955,12 +1955,18 @@ cell_t cell_table[CELL_MAX] = {
     { .t=VM_msg,        .x=2,           .y=F_LST_SYM+2, .z=UNDEF        },  // chars = arg1
     { .t=VM_cvt,        .x=CVT_LST_SYM, .y=CUST_SEND,   .z=UNDEF        },  // lst_sym(chars)
 
+#define F_PRINT (F_LST_SYM+3)
+    { .t=Actor_T,       .x=F_PRINT+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
+    { .t=VM_msg,        .x=-1,          .y=F_PRINT+2,   .z=UNDEF        },
+    { .t=VM_debug,      .x=TO_FIX(555), .y=F_PRINT+3,   .z=UNDEF        },
+    { .t=VM_msg,        .x=2,           .y=CUST_SEND,   .z=UNDEF        },
+
 #if SCM_ASM_TOOLS
 //
 // Assembly-language Tools
 //
 
-#define F_INT_FIX (F_LST_SYM+3)
+#define F_INT_FIX (F_PRINT+4)
     { .t=Actor_T,       .x=F_INT_FIX+1, .y=NIL,         .z=UNDEF        },  // (int->fix <rawint>)
     { .t=VM_msg,        .x=2,           .y=F_INT_FIX+2, .z=UNDEF        },  // rawint = arg1
     { .t=VM_cvt,        .x=CVT_INT_FIX, .y=CUST_SEND,   .z=UNDEF        },  // TO_FIX(rawint)
@@ -2024,7 +2030,7 @@ cell_t cell_table[CELL_MAX] = {
 
 #define ASM_END (F_SET_Z+4)
 #else // !SCM_ASM_TOOLS
-#define ASM_END (F_LST_SYM+3)
+#define ASM_END (F_PRINT+4)
 #endif // SCM_ASM_TOOLS
 
 #if META_ACTORS
@@ -3509,6 +3515,7 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { F_NUM_MUL, "F_NUM_MUL" },
     { F_LST_NUM, "F_LST_NUM" },
     { F_LST_SYM, "F_LST_SYM" },
+    { F_PRINT, "F_PRINT" },
 
 #if SCM_ASM_TOOLS
     { F_INT_FIX, "F_INT_FIX" },
@@ -4394,6 +4401,7 @@ int_t init_global_env() {
     bind_global("*", F_NUM_MUL);
     bind_global("list->number", F_LST_NUM);
     bind_global("list->symbol", F_LST_SYM);
+    bind_global("print", F_PRINT);
 
 #if (SCM_PEG_TOOLS || SCM_ASM_TOOLS)
     bind_global("CTL", TO_FIX(CTL));

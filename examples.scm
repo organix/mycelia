@@ -1,6 +1,6 @@
-;;
-;; examples.scm (tutorial examples)
-;;
+;;;
+;;; examples.scm (tutorial examples)
+;;;
 
 (define w (lambda (f) (f f)))  ; self-application
 (define Y  ; applicative Y-combinator (recursive fixed-point)
@@ -51,7 +51,7 @@
         #f
         (even? (- n 1)) )))
 
-; Ackermann function
+;; Ackermann function
 (define ack
   (lambda (n m)
     (cond
@@ -68,9 +68,9 @@
         (or (eq? x (car xs)) (member? x (cdr xs)))
         #f)))
 
-;
-; variadic mapping function
-;
+;;;
+;;; variadic mapping function
+;;;
 ;(define map (lambda (f xs) (if (pair? xs) (cons (f (car xs)) (map f (cdr xs))) ())))  ; single-arg version
 ;(define foldr (lambda (op z xs) (if (pair? xs) (op (car xs) (foldr op z (cdr xs))) z)))
 (define map
@@ -81,9 +81,9 @@
           (apply map (cons f (foldr (lambda (x y) (cons (cdr x) y)) () xs))))
         ())))
 
-;
-; pure-functional dequeue
-;
+;;;
+;;; pure-functional dequeue
+;;;
 
 (provide (new-dq dq-empty? dq-put dq-push dq-pop)
   (define new-dq
@@ -107,9 +107,9 @@
     (lambda (((x . p) . q))
       (list x (dq-norm p q)))))
 
-;
-; a stateful counting procedure
-;
+;;;
+;;; a stateful counting procedure
+;;;
 (provide (counter)
   (define env (current-env))
   (define count 0)
@@ -121,9 +121,9 @@
           count)
         env))))
 
-;
-; scoping test case
-;
+;;;
+;;; scoping test case
+;;;
 
 (define x 0)
 (define f
@@ -140,10 +140,10 @@
 ; (h 4)
 ; ==> 2
 
-;
-; PEG number-list example (requires: parse.scm)
-;   regex: ([\t-\r ]*[+-]?[0-9]+)*
-;
+;;;
+;;; PEG number-list example (requires: parse.scm)
+;;;   regex: ([\t-\r ]*[+-]?[0-9]+)*
+;;;
 
 (define peg-number-list
   (lambda (in)
@@ -163,16 +163,16 @@
 (define number-list-example '(48 9 45 49 50 13 32 43 51 54 57 10))  ; "0\t-12\r +369\n"
 (seq (print (peg-number-list number-list-example)) (newline))  ; test-case
 
-;
-; S-Expression Grammar
-;
-; sexpr  = _ (list | atom)
-; list   = '(' sexpr* _ ')'
-; atom   = number | symbol
-; number = [0-9]+
-; symbol = [a-zA-Z0-9]+
-; _      = [ \t-\r]*
-;
+;;;
+;;; S-Expression Grammar
+;;;
+;;; sexpr  = _ (list | atom)
+;;; list   = '(' sexpr* _ ')'
+;;; atom   = number | symbol
+;;; number = [0-9]+
+;;; symbol = [a-zA-Z0-9]+
+;;; _      = [ \t-\r]*
+;;;
 
 (define sexpr-grammar '(
   (sexpr
@@ -192,9 +192,9 @@
 ; test-case "(CAR ( LIST 0 1)\t)"
 (define sexpr-example '(40 67 65 82 32 40 32 76 73 83 84 32 48 32 49 41 9 41))
 
-;
-; ASM Experiments
-;
+;;;
+;;; ASM Experiments
+;;;
 (define print
   (cell Actor_T
     (cell VM_msg (fix->int -1)  ; #-1

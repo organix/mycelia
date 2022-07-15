@@ -332,6 +332,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `(let ((`_var_` `_val_`) . `_bindings_`) . `_body_`)`
   * `(current-env)`
   * `(gensym)`
+  * `(print . `_values_`)`
   * `a-print`
   * `(quit)`
 
@@ -1658,51 +1659,53 @@ The extended reference-implementation looks like this:
 (define meta-busy-beh
   (lambda (txn pending)
     (BEH msg
-      (if (eq? msg txn)                 ; end txn
-        (seq
+      (cond
+        ((eq? msg txn)                                        ; end txn
           (define beh (get-z msg))
           (define outbox (get-y msg))
-          (map (lambda (x) (SEND (car x) (cdr x))) outbox)  ; (send-msgs outbox)
-          (if (pair? pending)
-            (seq
+          (map (lambda (x) (SEND (car x) (cdr x))) outbox)    ; (send-msgs outbox)
+          (cond
+            ((pair? pending)
               (define txn (cell Fexpr_T SELF () beh))
               (SEND beh (cons txn (car pending)))
-              (BECOME (meta-busy-beh txn (cdr pending))) )
-            (BECOME (meta-actor-beh beh)) ))
-        (BECOME (meta-busy-beh txn (cons msg pending))) ))))
+              (BECOME (meta-busy-beh txn (cdr pending))))
+            (#t
+              (BECOME (meta-actor-beh beh)))))
+        (#t
+          (BECOME (meta-busy-beh txn (cons msg pending)))) ))))
 
-(define meta-CREATE                     ; (CREATE behavior)
+(define meta-CREATE                                           ; (CREATE behavior)
   (CREATE
     (BEH (cust . args)
       (SEND cust (CREATE (meta-actor-beh (car args)))) )))
 
-(define meta-SEND                       ; (SEND actor message)
+(define meta-SEND                                             ; (SEND actor message)
   (lambda (txn)
     (lambda (actor msg)
       (set-y txn (cons (cons actor msg) (get-y txn))) )))
 
-(define meta-BECOME                     ; (BECOME behavior)
+(define meta-BECOME                                           ; (BECOME behavior)
   (lambda (txn)
     (lambda (beh)
       (set-z txn beh) )))
 
-(define actor-env                       ; extend environment with actor primitives
+(define actor-env                                             ; extend environment with actor primitives
   (lambda (txn env)
-    (zip '(SEND BECOME SELF)
+    (zip
+      '(SEND BECOME SELF)
       ((CREATE (meta-SEND txn)) (CREATE (meta-BECOME txn)) (get-x txn))
       env)))
-(define a-meta-beh                      ; actor meta-behavior
+(define a-meta-beh                                            ; actor meta-behavior
   (lambda (frml body env)
     (BEH (txn . msg)
       (define aenv (scope (actor-env txn env)))
       (evbody #unit body (zip frml msg aenv))
       (SEND (get-x txn) txn) )))
-(define meta-BEH                        ; (BEH <frml> . <body>)
+(define meta-BEH                                              ; (BEH <frml> . <body>)
   (CREATE
     (BEH (cust opnds env)
       (SEND cust
-        (CREATE (a-meta-beh (car opnds) (cdr opnds) env))
-      ))))
+        (CREATE (a-meta-beh (car opnds) (cdr opnds) env))) )))
 ```
 
 ## Garbage Collection

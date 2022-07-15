@@ -1,6 +1,6 @@
-;;
-;; library.scm (extended library definitions)
-;;
+;;;
+;;; library.scm (extended library definitions)
+;;;
 
 (define current-env (vau _ e e))
 (define macro (vau (frml . body) env
@@ -102,7 +102,7 @@
 (define reverse
   (lambda (xs)
     (foldl (lambda (x y) (cons y x)) () xs)))
-; An alternative using an explicit helper function.
+;; An alternative using an explicit helper function.
 ;(define push-pop (lambda (to from)
 ;  (if (pair? from) (push-pop (cons (car from) to) (cdr from)) to)))
 (define reverse
@@ -139,7 +139,7 @@
   (lambda ()
     (emit 10)))
 
-; interative (tail-recursive) tree -> sequence
+;; interative (tail-recursive) tree -> sequence
 (define fringe
   (lambda (t s r)
     (cond
@@ -156,7 +156,7 @@
 ;(fringe '((a b) c . d) () ())
 ;==> (d c b a)
 
-; match flat argument list w/ dotted-tail
+;; match flat argument list w/ dotted-tail
 (define zip                             ; extend `env` by binding names `x` to values `y`
   (lambda (x y env)
     (if (pair? x)
@@ -164,9 +164,9 @@
         (if (symbol? x)
             (cons (cons x y) env)         ; dotted-tail binds to &rest
             env))))
-; helper function to recognize valid variable names
+;; helper function to recognize valid variable names
 (define var-name? (lambda (x) (if (symbol? x) (if (eq? x '_) #f #t) #f)))
-; simple tree-recursive implementation
+;; simple tree-recursive implementation
 (define zip                             ; extend `env` by binding names `x` to values `y`
   (lambda (x y env)
     (if (pair? x)
@@ -176,7 +176,7 @@
             env))))
 ;(zip '((a b) c . d) '((1 2 3) (4 5 6) (7 8 9)) global-env)
 ;==> ((a . +1) (b . +2) (c +4 +5 +6) (d (+7 +8 +9)) . #actor@55)
-; interative (tail-recursive) implementation
+;; interative (tail-recursive) implementation
 (define zip-it                          ; extend `env` by binding names `x` to values `y`
   (lambda (x y xs ys env)
     (cond
@@ -195,7 +195,9 @@
 ;((lambda ((a b) c . d) (list a b c d)) '(1 2 3) '(4 5 6) '(7 8 9))
 ;==> (+1 +2 (+4 +5 +6) ((+7 +8 +9)))
 
-; Quasi-Quotation based on `vau`
+;;
+;; Quasi-Quotation based on `vau`
+;;
 (define quasiquote
   (vau (x) e
     (if (pair? x)
@@ -218,11 +220,11 @@
   (lambda ()
     (cell Symbol_T (get-x '_) (get-y '_)) ))
 
-;
-; short-circuit logical connectives
-;
+;;;
+;;; short-circuit logical connectives
+;;;
 
-; examples from Kernel
+;; examples from Kernel
 ($define! $and?
   ($vau x e
     ($cond
@@ -237,7 +239,7 @@
       ((null? (cdr x)) (eval (car x) e))  ; tail context
       ((eval (car x) e) #t)
       (#t (apply (wrap $or?) (cdr x) e)) )))
-; macro definitions using explicit construction
+;; macro definitions using explicit construction
 (define expand-or
   (lambda (x)
     (if (pair? x)
@@ -270,7 +272,7 @@
                 (cons 'or (cdr x))))
             (car x))  ; tail-call
         #f)))
-; macro definitions using quasiquote templates
+;; macro definitions using quasiquote templates
 (define or
   (macro x
     (if (pair? x)
@@ -313,9 +315,9 @@
       (#t
         #f) )))
 
-;
-; macro helpers
-;
+;;;
+;;; macro helpers
+;;;
 
 ;(define expand-with-gensyms
 ;  (lambda (syms . body)
@@ -324,9 +326,9 @@
     (define defsym (lambda (s) `(define ,s (gensym))))
     `(seq ,@(map defsym syms) ,@body) ))
 
-;
-; encapsulated (sealed) data-types
-;
+;;;
+;;; encapsulated (sealed) data-types
+;;;
 
 (define new-seal
   (lambda ()
@@ -348,9 +350,106 @@
             #t)))
     (list seal unseal sealed?)))
 
-;
-; Little Schemer (4th edition)
-;
+;;;
+;;; secure immutable polymorphic abstract data-types
+;;;
+
+(define new-adt
+  (lambda (dispatch)
+    (define new
+      (lambda (x y z)
+        (cell dispatch x y z)))
+    (define adt?
+      (lambda objs
+        (if (pair? objs)
+            (if (eq? (get-t (car objs)) dispatch)
+                (apply adt? (cdr objs))
+                #f)
+            #t)))
+    (define fields
+      (lambda (adt)
+        (if (eq? (get-t adt) dispatch)
+            (list (get-x adt) (get-y adt) (get-z adt))
+            #?)))
+    (list new adt? fields) ))
+(define adt-call
+  (lambda (adt . method)
+    ;(print 'adt-call: (get-t adt) (get-x adt) (get-y adt) (get-z adt) (cons adt method))  ;; tracing...
+    (if (actor? (get-t adt))
+        (CALL (get-t adt) (cons adt method))
+        #?)))
+
+;; dict = { t:dict-dispatch, x:key, y:value, z:next }
+(define dict-dispatch
+  (lambda (this selector . args)
+    (let (((key value next) (dict-fields this)))
+      ;(print 'dict-dispatch: this (cons selector args) key value next)  ;; tracing...
+      (cond
+        ((eq? selector 'get)                                  ; (get <key>)
+          (if (eq? key (car args))
+              value
+              (if (dict? next)
+                  (adt-call next 'get (car args))
+                  #?)))
+        ((eq? selector 'has)                                  ; (has <key>)
+          (if (eq? key (car args))
+              #t
+              (if (dict? next)
+                  (adt-call next 'has (car args))
+                  #f)))
+        ((eq? selector 'set)                                  ; (set <key> <value>)
+          (if (adt-call this 'has (car args))
+              (new-dict (car args) (cadr args) (adt-call this 'delete (car args)))
+              (new-dict (car args) (cadr args) this) ))
+        ((eq? selector 'delete)                               ; (delete <key>)
+          (if (eq? key (car args))
+              next
+              (if (dict? next)
+                (new-dict key value (adt-call next 'delete (car args)))
+                this)))
+        ((eq? selector 'zip)                                  ; (zip)
+          (if (dict? next)
+              (cons (cons key value) (adt-call next 'zip))
+              (cons (cons key value) next) ))
+        (#t
+          #?) )) ))
+(define (new-dict dict? dict-fields) (new-adt dict-dispatch))
+;> (define d0 (new-dict 'foo 123 ()))
+;==> #unit
+;> (dict? d0)
+;==> #t
+;> (adt-call d0 'has 'foo)
+;==> #t
+;> (adt-call d0 'has 'bar)
+;==> #f
+;> (adt-call d0 'get 'foo)
+;==> +123
+;> (adt-call d0 'get 'bar)
+;==> #?
+;> (adt-call d0 'delete 'foo)
+;==> ()
+;> (eq? (adt-call d0 'delete 'bar) d0)
+;==> #t
+;> (define d1 (adt-call d0 'set 'bar 456))
+;==> #unit
+;> (dict? d1)
+;==> #t
+;> (adt-call d1 'get 'foo)
+;==> +123
+;> (adt-call d1 'get 'bar)
+;==> +456
+;> (list d0 d1)
+;==> (^6453 ^10641)
+;> (list (get-t d0) (get-x d0) (get-y d0) (get-z d0))
+;==> (#actor@5038 foo +123 ())
+;> (list (get-t d1) (get-x d1) (get-y d1) (get-z d1))
+;==> (#actor@5038 bar +456 ^6453)
+;> (eq? (caddr (dict-fields d1)) d0)
+;==> #t
+
+;;;
+;;; Little Schemer (4th edition)
+;;;
 
 (define add1 (lambda (x) (+ x 1)))
 (define sub1 (lambda (x) (- x 1)))
