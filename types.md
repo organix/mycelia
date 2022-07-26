@@ -1,4 +1,4 @@
-# A Type System for Programming Languages
+# A Type System for Actor Programming
 
 The concept of _Type_ in a programming language
 expresses a set of _constraints_ on a _value_.
@@ -92,3 +92,63 @@ between Unicode strings (code-point sequences)
 and the six basic data-types that may be "encoded" in JSON.
 This is **not** a sub-type (or substitutability) relationship.
 It is a transformation from one value to another.
+
+## Computational Types
+
+The [Basic Types](#basic-types) from JSON all denote immutable data values.
+Several additional types of Objects may arise during computation.
+Some of these may have [Representations](#representations) in terms of the Basic Types,
+which implies an additional layer of translation/interpretation.
+Some important Computational Types include:
+
+  * Actor
+    * Function
+  * Behavior
+  * Message
+
+### Actor
+
+An _Actor_ **is-a** Object that designates the capability to send a _Message_.
+Values of this type are **opaque**, but may be compared for identity.
+Making a copy does not duplicate the _Actor_,
+only the _Capability_ to send it a message.
+For transport, the capability can be represented by a specially-encoded _String_.
+
+### Function
+
+A _Function_ **is-a** Actor that denotes a transformation
+from a _domain_ value to a _range_ value.
+The types of the domain and range may be different.
+The Function is represented by an Actor with a restricted protocol.
+In the simplest case, the restricted protocol entails:
+
+  * Each message includes a _customer_
+  * Each message results in exactly one message to the _customer_
+  * Equals messages (excluding the _customer_) produce equal results
+
+### Behavior
+
+A _Behavior_ **is-a** Object that describes the _Effect(s)_
+of an _Actor_ handling a _Message_.
+
+### Message
+
+A _Message_ **is-a** Value sent to an _Actor_
+to invoke the actor's _Behavior_,
+causing some set of _Effects_.
+
+## Abstract Data Types
+
+### Bits
+
+### Blob
+
+### Set
+
+## Extended Types
+
+### Stream
+
+### Sum Type
+
+### Product Type
