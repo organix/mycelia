@@ -81,6 +81,7 @@ A _Sequence_ **is-a** Object that denotes a finite sequence of _Values_.
 
 A _Dictionary_ **is-a** Object that denotes a finite association
 between _Strings_ (keys) and _Values_.
+\[\[Q: What about non-_String_ keys?\]\]
 
 
 ## Representations
@@ -112,38 +113,44 @@ An _Actor_ **is-a** Object that designates the capability to send a _Message_.
 Values of this type are **opaque**, but may be compared for identity.
 Making a copy does not duplicate the _Actor_,
 only the _Capability_ to send it a message.
-For transport, the capability can be represented by a specially-encoded _String_.
+For transport, the Capability can be represented by a specially-encoded _String_.
 
 ### Function
 
-A _Function_ **is-a** Actor that denotes a transformation
+A _Function_ **is-a** Actor that performs a transformation
 from a _domain_ value to a _range_ value.
 The types of the domain and range may be different.
 The Function is represented by an Actor with a restricted protocol.
-In the simplest case, the restricted protocol entails:
+In the simplest case, the restricted protocol entails that:
 
   * Each message includes a _customer_
   * Each message results in exactly one message to the _customer_
-  * Equals messages (excluding the _customer_) produce equal results
+  * Equal messages (excluding the _customer_) produce equal results
 
 ### Behavior
 
-A _Behavior_ **is-a** Object that describes the _Effect(s)_
+A _Behavior_ **is-a** Object that describes the _Effects_
 of an _Actor_ handling a _Message_.
 
 ### Message
 
 A _Message_ **is-a** Value sent to an _Actor_
 to invoke the actor's _Behavior_,
-causing some set of _Effects_.
+causing some (possibly empty) set of _Effects_.
 
 ## Abstract Data Types
 
-### Bits
+### Bitvector
+
+A _Bitvector_ **is-a** Object that denotes a finite sequence of _Boolean_ values.
+For transport, a Bitvector can be represented by an arbitrary-precision Integer _Number_.
 
 ### Blob
 
-### Set
+A _Blob_ **is-a** Object that denotes a finite sequence of _Byte_ values
+(Integer _Numbers_ in the range \[0, 255\]).
+For transport, a Blob can be represented by a _String_,
+with code-points restricted the _Byte_ range.
 
 ## Extended Types
 
