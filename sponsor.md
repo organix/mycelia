@@ -69,9 +69,27 @@ The Controller can send the following messages to a Periperal:
 
   * Run(Resources)
   * Pause
-  * Stop
 
 A Peripheral can send the following messages to its Controller:
 
   * Paused(Resources)
   * Stopped(Resources)
+
+## Actor Failure
+
+If an Actor detects a condition
+where it is unable or unwilling
+to continue processing an Event,
+it can signal a _Failure_
+to its Sponsor.
+The Event transaction is aborted,
+so there are no Effects.
+The Controller and Peripheral Sponsors
+may have a variety of policies
+for handling a Failure:
+
+  * Ignore the Failure, discard the Event, and continue
+  * Log the failed Event, and continue
+  * Pause the Periperhal (retaining the Event)
+    * The Controller may modify the Configuration and restart the Peripheral
+    * The Controller may provide a debugger to examine/modify the Configuration
