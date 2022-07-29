@@ -150,7 +150,7 @@ For transport, a Bitvector can be represented by an arbitrary-precision Integer 
 A _Blob_ **is-a** Object that denotes a finite sequence of _Byte_ values
 (Integer _Numbers_ in the range \[0, 255\]).
 For transport, a Blob can be represented by a _String_,
-with code-points restricted the _Byte_ range.
+with code-points restricted to the _Byte_ range.
 
 ## Extended Types
 
