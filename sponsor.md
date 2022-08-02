@@ -47,9 +47,11 @@ it enters `ACTIVE` state
 and begins to dispatch pending Events.
 
 ```
-  +--------+ ---Run---> +--------+
+   --------              --------
+  |        | ---Run---> |        |
   |  IDLE  | <--Pause-- | ACTIVE |
-  +--------+ <--Stop--- +--------+
+  |        | <--Stop--- |        |
+   --------              --------
 ```
 
 If an Actor cannot obtain enough resources
