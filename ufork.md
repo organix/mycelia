@@ -31,8 +31,8 @@ Effects caused by an actor's behavior (send, create, and become)
 are applied to the system in an all-or-nothing transaction.
 The instruction stream defining the actor's behavior
 will end with a "commit" or "abort" instruction,
-at which time tranactional effects will either be applied or discarded.
-Since these instruction have no "next instruction",
+at which time transactional effects will either be applied or discarded.
+Since these instructions have no "next instruction" field,
 there is nothing to put on the continuation queue
 and the stream ends (the "thread" dies).
 
@@ -150,8 +150,8 @@ based on their 2 MSBs.
 
 ### Virtual Machine
 
-The uFork _virtual machine_ is designed to support machine-level actors.
-All instructions execute within the context of actor handling a message-event.
+The **uFork** _virtual machine_ is designed to support machine-level actors.
+All instructions execute within the context of an actor handling a message-event.
 There is no support for procedure/function call/return.
 Instead actors are used to implement procedure/function abstractions.
 There is no support for load/store of arbitrary memory.
@@ -183,9 +183,9 @@ The uFork instruction execution engine implements an explicit stack machine.
 The _input_ for each instruction is taken from the stack
 and the _output_ is placed back onto the stack.
 Many instructions also have an immediate value,
-usually carried in the **x** field of the instruction.
+usually carried in the `x` field of the instruction.
 For the typical case of a instruction with a single continuation,
-the "next instruction" is carried in the **y** field of the instruction.
+the "next instruction" is carried in the `y` field of the instruction.
 
  Input            | Instruction                   | Output   | Description
 ------------------|-------------------------------|----------|------------------------------
@@ -254,8 +254,10 @@ _value_           | {t:VM_debug, x:_tag_, y:_K_}  | &mdash;  | debug_print _tag_
 ### Object Graph
 
 The diagram below shows a typical graph of quad-cells
-representing the contents of the event queue (`e_queue`)
-and the continuation queue (`k_queue`).
+representing the contents of the `e_queue` (event queue)
+and the `k_queue` (continuation queue).
+These two queues, plus the global symbol table,
+form the root-set of objects for garbage-collection.
 
 ```
 e_queue: [head,tail]--------------------------+
@@ -847,7 +849,7 @@ NIL or --->[token,next]--->
 
 The `{t:VM_cmp, x:CLS}` instruction
 produces `TRUE` if a character value
-is part of specified class,
+is part of the specified class,
 or `FALSE` otherwise.
 The class is defined as a union
 of the named classes:
@@ -861,7 +863,7 @@ of the named classes:
   * `HEX` Hexadecimal Digit
   * `WSP` Whitespace
 
-The table below defines which characters fall into which classes.
+The table below defines which characters are included in each class.
 
 | ch | dec | hex | CTL | DGT | UPR | LWR | DLM | SYM | HEX | WSP |
 |----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
@@ -1785,7 +1787,7 @@ Cell memory (quads) are subject to machine-level garbage collection.
 The garbage-collected _heap_ ranges from `START` up to (not including) `cell_top`.
 The floor (currently `START`) may be moved upward to include additional "reserved" cells.
 The ceiling (held in the variable `cell_top`) is extended upward
-to expand to pool of available memory,
+to expand the pool of available memory,
 up to a limit of `CELL_MAX`.
 The bootstrap image initially occupies cells up to `CELL_BASE`,
 which determines the initial value of `cell_top`.
