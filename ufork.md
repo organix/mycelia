@@ -15,6 +15,27 @@ Then the next context can be dequeued and executed.
 Thus an arbitrary number of instruction streams can be executed,
 interleaved at the instruction level.
 
+This interleaved instruction execution engine
+is used to service an actor message-event queue.
+If the target of the event at the head of the queue
+is not already busy handling a prior event,
+a new computational context (continuation, or "thread")
+is created (and added to the continuation queue)
+to execute instructions in the target actor's behavior.
+If the event target is busy,
+the event is recycled to the tail of the queue.
+Since asynchronous actor messages may be arbitrarily delayed,
+this does not change the semantics.
+
+Effects caused by an actor's behavior (send, create, and become)
+are applied to the system in an all-or-nothing transaction.
+The instruction stream defining the actor's behavior
+will end with a "commit" or "abort" instruction,
+at which time tranactional effects will either be applied or discarded.
+Since these instruction have no "next instruction",
+there is nothing to put on the continuation queue
+and the stream ends (the "thread" dies).
+
 ## Primitives
 
 There are several groups of _primitives_
@@ -110,8 +131,8 @@ usually via some late-bound named-reference.
 
 ## Representation
 
-The cell is the primary internal data-structure in **uFork**.
-It consists of four integers.
+The quad-cell is the primary internal data-structure in **uFork**.
+It consists of four integers (current compile options are 16, 32, and 64 bits).
 
  t        | x        | y        | z
 ----------|----------|----------|----------
@@ -129,7 +150,19 @@ based on their 2 MSBs.
 
 ### Virtual Machine
 
+The uFork _virtual machine_ is designed to support machine-level actors.
+All instructions execute within the context of actor handling a message-event.
+There is no support for procedure/function call/return.
+Instead actors are used to implement procedure/function abstractions.
+There is no support for load/store of arbitrary memory.
+Mutation is always local to an actor's private state.
+Immutable values are passed between actors via message-events.
+External events (such as "interrupts")
+are turned into message-events.
+
 #### Data Structures
+
+Quad-cells are used to encode most of the important data-structures in uFork.
 
  Structure                              | Description
 ----------------------------------------|---------------------------------
@@ -145,6 +178,14 @@ based on their 2 MSBs.
 {t:Fexpr_T, x:self, y:msgs, z:beh}      | meta-actor transaction
 
 #### Instructions
+
+The uFork instruction execution engine implements an explicit stack machine.
+The _input_ for each instruction is taken from the stack
+and the _output_ is placed back onto the stack.
+Many instructions also have an immediate value,
+usually carried in the **x** field of the instruction.
+For the typical case of a instruction with a single continuation,
+the "next instruction" is carried in the **y** field of the instruction.
 
  Input            | Instruction                   | Output   | Description
 ------------------|-------------------------------|----------|------------------------------
@@ -212,6 +253,10 @@ _value_           | {t:VM_debug, x:_tag_, y:_K_}  | &mdash;  | debug_print _tag_
 
 ### Object Graph
 
+The diagram below shows a typical graph of quad-cells
+representing the contents of the event queue (`e_queue`)
+and the continuation queue (`k_queue`).
+
 ```
 e_queue: [head,tail]--------------------------+
           |                                   V
@@ -251,6 +296,10 @@ k_queue: [head,tail]--------------------+
 ```
 
 ### Common Code Structures
+
+Many instruction streams end with a common suffix.
+These immutable continuation sequences are available
+to be shared by many behaviors.
 
 ```
 K_CALL:     [MSG,+0,k]---+
@@ -504,6 +553,8 @@ Date       | Events | Instructions | Description
 
 #### Bootstrap Library
 
+Start-up overhead to reach the interactive REPL.
+
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
 2022-06-07 |   7123 |        82277 | baseline measurement
@@ -519,6 +570,8 @@ Date       | Events | Instructions | Description
 2022-06-20 |  69640 |       816774 | inline `apply` combination
 2022-06-24 |  78718 |       934417 | Meta-Actor Facilities
 2022-06-26 |  81381 |       966101 | gc_safepoint policy
+
+Parsing and execution of the test-case expression `((lambda (x) x) (list 1 2 3))`
 
 Date       | Events | Instructions | Description
 -----------|--------|--------------|-------------
@@ -791,6 +844,24 @@ NIL or --->[token,next]--->
 ```
 
 ### Character Classes
+
+The `{t:VM_cmp, x:CLS}` instruction
+produces `TRUE` if a character value
+is part of specified class,
+or `FALSE` otherwise.
+The class is defined as a union
+of the named classes:
+
+  * `CTL` Control Character
+  * `DGT` Decimal Digit
+  * `UPR` Uppercase Letter
+  * `LWR` Lowercase Letter
+  * `DLM` Delimiter
+  * `SYM` Name Symbol
+  * `HEX` Hexadecimal Digit
+  * `WSP` Whitespace
+
+The table below defines which characters fall into which classes.
 
 | ch | dec | hex | CTL | DGT | UPR | LWR | DLM | SYM | HEX | WSP |
 |----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|

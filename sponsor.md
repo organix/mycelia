@@ -4,7 +4,7 @@ A _Configuration_ is a set of Actors
 and a set of pending Events.
 An _Actor_ in a Configuration
 is a mapping between an _Address_ (a _Capability_)
-that designates the Actor,
+that designates the Actor
 and a _Behavior_.
 An _Event_ designates a target Actor,
 and immutable _Message_ data.
