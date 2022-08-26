@@ -1,6 +1,6 @@
 # uFork (Actor Virtual Machine)
 
-The key idea behind this Actor Virtual Machine is
+The **uFork** Actor Virtual Machine performs
 interleaved execution of threaded instruction streams.
 Instruction streams are not assumed to be
 arranged in consecutive memory locations.
@@ -37,7 +37,8 @@ there is nothing to put on the continuation queue
 and the stream ends (the "thread" dies).
 
 For an in-depth description of this architecture,
-please see [Memory Safety Simplifies Microprocessor Design](http://www.dalnefre.com/wp/2022/08/memory-safety-simplifies-microprocessor-design/)
+and the rationale behind it,
+please see the [Memory Safety Simplifies Microprocessor Design](http://www.dalnefre.com/wp/2022/08/memory-safety-simplifies-microprocessor-design/) blog post.
 
 ## Primitives
 
@@ -134,6 +135,8 @@ usually via some late-bound named-reference.
 
 ## Representation
 
+**WARNING! _THE REPRESENTATION AND IMPLEMENTATION IS CHANGING TO BETTER MATCH THE DESIGN DESCRIBED ON THE BLOG_**
+
 The quad-cell is the primary internal data-structure in **uFork**.
 It consists of four integers (current compile options are 16, 32, and 64 bits).
 
@@ -157,7 +160,7 @@ The **uFork** _virtual machine_ is designed to support machine-level actors.
 All instructions execute within the context of an actor handling a message-event.
 There is no support for procedure/function call/return.
 Instead actors are used to implement procedure/function abstractions.
-There is no support for load/store of arbitrary memory.
+There is no support for address arithmatic or load/store of arbitrary memory.
 Mutation is always local to an actor's private state.
 Immutable values are passed between actors via message-events.
 External events (such as "interrupts")
