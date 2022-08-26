@@ -36,6 +36,9 @@ Since these instructions have no "next instruction" field,
 there is nothing to put on the continuation queue
 and the stream ends (the "thread" dies).
 
+For an in-depth description of this architecture,
+please see [Memory Safety Simplifies Microprocessor Design](http://www.dalnefre.com/wp/2022/08/memory-safety-simplifies-microprocessor-design/)
+
 ## Primitives
 
 There are several groups of _primitives_
@@ -166,6 +169,7 @@ Quad-cells are used to encode most of the important data-structures in uFork.
 
  Structure                              | Description
 ----------------------------------------|---------------------------------
+{t:opcode, x:data, y:next}              | machine instruction (typical)
 {t:Pair_T, x:car, y:cdr}                | pair-lists of user data
 {t:Free_T, z:next}                      | cell in the free-list
 {t:Pair_T, x:item, y:rest}              | stack entry holding _item_
@@ -179,7 +183,8 @@ Quad-cells are used to encode most of the important data-structures in uFork.
 
 #### Instructions
 
-The uFork instruction execution engine implements an explicit stack machine.
+The uFork instruction execution engine implements a linked-stack machine,
+however the stack is only used for local state in a computation.
 The _input_ for each instruction is taken from the stack
 and the _output_ is placed back onto the stack.
 Many instructions also have an immediate value,
@@ -204,8 +209,8 @@ _cell_ _Y_        | {t:VM_set, x:Y, y:_K_}        | _cell'_  | set _y_ to _Y_ in
 _cell_ _Z_        | {t:VM_set, x:Z, y:_K_}        | _cell'_  | set _z_ to _Z_ in _cell_
 ... _tail_ _head_ | {t:VM_pair, x:_n_, y:_K_}     | _pair_   | create {t:Pair_T, x:_head_, y:_tail_} (_n_ times)
 _pair_            | {t:VM_part, x:_n_, y:_K_}     | ... _tail_ _head_ | split _pair_ into _head_ and _tail_ (_n_ times)
-_pair_            | {t:VM_nth, x:_n_, y:_K_}      | _item_<sub>_n_</sub> | extract item _n_ from _pair_
-_pair_            | {t:VM_nth, x:-_n_, y:_K_}     | _tail_<sub>_n_</sub> | extract tail _n_ from _pair_
+_pair_            | {t:VM_nth, x:_n_, y:_K_}      | _item_<sub>_n_</sub> | extract item _n_ from a _pair_ list
+_pair_            | {t:VM_nth, x:-_n_, y:_K_}     | _tail_<sub>_n_</sub> | extract tail _n_ from a _pair_ list
 &mdash;           | {t:VM_push, x:_value_, y:_K_} | _value_  | push literal _value_ on stack
 _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t:VM_depth, y:_K_} | _v_<sub>_n_</sub> ... _v_<sub>1</sub> _n_ | count items on stack
 _v_<sub>_n_</sub> ... _v_<sub>1</sub> | {t:VM_drop, x:_n_, y:_K_} | &mdash; | remove _n_ items from stack
@@ -863,7 +868,7 @@ of the named classes:
   * `HEX` Hexadecimal Digit
   * `WSP` Whitespace
 
-The table below defines which characters are included in each class.
+The tables below define which characters are included in each class.
 
 | ch | dec | hex | CTL | DGT | UPR | LWR | DLM | SYM | HEX | WSP |
 |----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
