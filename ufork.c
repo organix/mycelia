@@ -29,6 +29,7 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define RAWINT_SYNTAX 1 // include support for ASM rawint data (#1)
 #define PLACEH_SYNTAX 1 // include support for placeholder variables (?x)
 #define META_ACTORS   1 // include meta-actor definitions
+#define CELLS_4_TYPES 0 // allocate type-labels from quad-cell memory
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -96,6 +97,12 @@ typedef int64_t i64;
 #define MSB(n) NAT(~(NAT(-1)>>(n)))
 #define MSB1   NAT(MSB(1))
 #define MSB2   NAT(MSB1>>1)
+#define TAG    (MSB1|MSB2)
+
+#define IS_REF(v)   (!((v)&MSB1))
+#define IS_VAL(v)   ((v)&MSB1)
+#define IS_QUAD(v)  (!((v)&TAG))
+#define IS_CAP(v)   ((v)&TAG == MSB2)
 
 #define TO_INT(x) INT(INT(NAT(x) << 1) >> 1)
 #define TO_FIX(n) INT(TO_INT(n) + MSB1)
@@ -136,12 +143,37 @@ int_t debugger();
 #define ASSERT(cond)    if (!(cond)) return failure(__FILE__, __LINE__)
 
 // constant values
+#if CELLS_4_TYPES
+
+#define UNDEF       (0)
+#define NIL         (1)
+#define FALSE       (2)
+#define TRUE        (3)
+#define UNIT        (4)
+
+#define Literal_T   UNDEF
+#define Type_T      (5)
+#define Event_T     (6)
+#define Opcode_T    (7)
+#define Actor_T     (8)
+#define Fixnum_T    (9)
+#define Symbol_T    (10)
+#define Pair_T      (11)
+#define Fexpr_T     (12)
+#define Free_T      (13)
+
+#define START       (14)
+
+#else
+
 #define FALSE       (0)
 #define TRUE        (1)
 #define NIL         (2)
 #define UNDEF       (3)
 #define UNIT        (4)
 #define START       (5)
+
+#endif
 
 /*
  * native code procedures
@@ -330,40 +362,40 @@ int_t call_proc(int_t proc, int_t self, int_t arg) {
 }
 
 // VM_get/VM_set fields
-#define FLD_T       (0)
-#define FLD_X       (1)
-#define FLD_Y       (2)
-#define FLD_Z       (3)
+#define FLD_T       TO_FIX(0)
+#define FLD_X       TO_FIX(1)
+#define FLD_Y       TO_FIX(2)
+#define FLD_Z       TO_FIX(3)
 
 // VM_alu operations
-#define ALU_NOT     (0)
-#define ALU_AND     (1)
-#define ALU_OR      (2)
-#define ALU_XOR     (3)
-#define ALU_ADD     (4)
-#define ALU_SUB     (5)
-#define ALU_MUL     (6)
+#define ALU_NOT     TO_FIX(0)
+#define ALU_AND     TO_FIX(1)
+#define ALU_OR      TO_FIX(2)
+#define ALU_XOR     TO_FIX(3)
+#define ALU_ADD     TO_FIX(4)
+#define ALU_SUB     TO_FIX(5)
+#define ALU_MUL     TO_FIX(6)
 
 // VM_cmp relations
-#define CMP_EQ      (0)
-#define CMP_GE      (1)
-#define CMP_GT      (2)
-#define CMP_LT      (3)
-#define CMP_LE      (4)
-#define CMP_NE      (5)
-#define CMP_CLS     (6)
+#define CMP_EQ      TO_FIX(0)
+#define CMP_GE      TO_FIX(1)
+#define CMP_GT      TO_FIX(2)
+#define CMP_LT      TO_FIX(3)
+#define CMP_LE      TO_FIX(4)
+#define CMP_NE      TO_FIX(5)
+#define CMP_CLS     TO_FIX(6)
 
 // VM_end thread action
-#define END_ABORT   (-1)
-#define END_STOP    (0)
-#define END_COMMIT  (+1)
-#define END_RELEASE (+2)
+#define END_ABORT   TO_FIX(-1)
+#define END_STOP    TO_FIX(0)
+#define END_COMMIT  TO_FIX(+1)
+#define END_RELEASE TO_FIX(+2)
 
 // VM_cvt conversions
-#define CVT_INT_FIX (0)
-#define CVT_FIX_INT (1)
-#define CVT_LST_NUM (2)
-#define CVT_LST_SYM (3)
+#define CVT_INT_FIX TO_FIX(0)
+#define CVT_FIX_INT TO_FIX(1)
+#define CVT_LST_NUM TO_FIX(2)
+#define CVT_LST_SYM TO_FIX(3)
 
 /*
  * character classes
@@ -437,19 +469,22 @@ static char *cell_label(int_t cell) {
 
 #define CELL_MAX NAT(1<<14)  // 16K cells
 cell_t cell_table[CELL_MAX] = {
-#if 0
-    { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // UNDEF = #?
-    { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // NIL = ()
-    { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // FALSE = #f
-    { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // TRUE = #t
-    { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // UNIT = #unit
-    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // Type_T
-    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // Event_T
-    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // Actor_T
-    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // Fexpr_T
-    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // Fixnum_T
-    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // Symbol_T
-    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // Pair_T
+#if CELLS_4_TYPES
+    { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  0: UNDEF = #?
+    { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  1: NIL = ()
+    { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  2: FALSE = #f
+    { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  3: TRUE = #t
+    { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  4: UNIT = #unit
+    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  5: Type_T
+    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  6: Event_T
+    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  7: Opcode_T
+    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  8: Actor_T
+    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  9: Fixnum_T
+    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // 10: Symbol_T
+    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // 11: Pair_T
+    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // 12: Fexpr_T
+    { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // 13: Free_T
+    { .t=Event_T,       .x=91,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
 #else
     { .t=Boolean_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // FALSE = #f
     { .t=Boolean_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // TRUE = #t
@@ -462,18 +497,18 @@ cell_t cell_table[CELL_MAX] = {
 #define RV_SELF (START+1)
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=RV_SELF+1,   },  // value = SELF
 #define CUST_SEND (RV_SELF+1)
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=CUST_SEND+1, },  // cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=CUST_SEND+1, },  // cust
 #define SEND_0 (CUST_SEND+1)
-    { .t=Opcode_T,      .x=VM_send,     .y=0,           .z=SEND_0+1,    },  // (cust . msg)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(0),   .z=SEND_0+1,    },  // (cust . msg)
 #define COMMIT (SEND_0+1)
     { .t=Opcode_T,      .x=VM_end,      .y=END_COMMIT,  .z=UNDEF,       },  // commit actor transaction
 
 #define RESEND (COMMIT+1)
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=RESEND+1,    },  // msg
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=RESEND+1,    },  // msg
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=SEND_0,      },  // SELF
 
 #define RELEASE_0 (RESEND+2)
-    { .t=Opcode_T,      .x=VM_send,     .y=0,           .z=RELEASE_0+1, },  // (cust . msg)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(0),   .z=RELEASE_0+1, },  // (cust . msg)
 #define RELEASE (RELEASE_0+1)
     { .t=Opcode_T,      .x=VM_end,      .y=END_RELEASE, .z=UNDEF,       },  // commit transaction and free actor
 
@@ -494,55 +529,55 @@ cell_t cell_table[CELL_MAX] = {
 
 #define S_VALUE (RV_ONE+1)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_in_,        .z=S_VALUE+0,   },  // (token . next) -or- NIL
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=S_VALUE+1,   },  // in
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=SEND_0,      },  // cust
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=S_VALUE+1,   },  // in
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=SEND_0,      },  // cust
 
 #define S_GETC (S_VALUE+2)
 #define S_END_X (S_GETC+9)
 #define S_VAL_X (S_GETC+10)
     { .t=Opcode_T,      .x=VM_getc,     .y=UNDEF,       .z=S_GETC+1,    },  // ch
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=S_GETC+2,    },  // ch ch
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=S_GETC+2,    },  // ch ch
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('\0'),.z=S_GETC+3,    },
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_LT,      .z=S_GETC+4,    },  // ch < '\0'
     { .t=Opcode_T,      .x=VM_if,       .y=S_END_X,     .z=S_GETC+5,    },
 
     { .t=Opcode_T,      .x=VM_push,     .y=S_GETC,      .z=S_GETC+6,    },  // S_GETC
-    { .t=Opcode_T,      .x=VM_new,      .y=0,           .z=S_GETC+7,    },  // next
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=S_GETC+8,    },  // ch
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=S_VAL_X,     },  // in = (ch . next)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(0),   .z=S_GETC+7,    },  // next
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=S_GETC+8,    },  // ch
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=S_VAL_X,     },  // in = (ch . next)
 
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=S_GETC+10,   },  // in = ()
 
     { .t=Opcode_T,      .x=VM_push,     .y=S_VALUE,     .z=S_GETC+11,   },  // S_VALUE
-    { .t=Opcode_T,      .x=VM_beh,      .y=1,           .z=RESEND,      },  // BECOME (S_VALUE in)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(1),   .z=RESEND,      },  // BECOME (S_VALUE in)
 
 #define S_LIST_B (S_GETC+12)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_list_,      .z=S_LIST_B+0,  },
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=S_LIST_B+1,  },  // list
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=S_LIST_B+1,  },  // list
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=S_LIST_B+2,  },  // list has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=S_LIST_B+3,  .z=S_END_X,     },  // list
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=S_LIST_B+4,  },  // tail head
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=S_LIST_B+5,  },  // head tail
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=S_LIST_B+4,  },  // tail head
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=S_LIST_B+5,  },  // head tail
     { .t=Opcode_T,      .x=VM_push,     .y=S_LIST_B,    .z=S_LIST_B+6,  },  // S_LIST_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=S_LIST_B+7,  },  // next
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=S_LIST_B+8,  },  // head
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=S_VAL_X,     },  // in = (head . next)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=S_LIST_B+7,  },  // next
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=S_LIST_B+8,  },  // head
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=S_VAL_X,     },  // in = (head . next)
 
 #define G_START (S_LIST_B+9)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_custs_,     .z=G_START-1,   },  // (ok . fail)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrn_,      .z=G_START+0,   },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=G_START+1,   },  // in
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=G_START+1,   },  // in
     { .t=Opcode_T,      .x=VM_push,     .y=UNDEF,       .z=G_START+2,   },  // value = UNDEF
-    { .t=Opcode_T,      .x=VM_pick,     .y=4,           .z=G_START+3,   },  // custs
-    { .t=Opcode_T,      .x=VM_pair,     .y=2,           .z=G_START+4,   },  // (custs value . in)
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=SEND_0,      },  // ptrn
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(4),   .z=G_START+3,   },  // custs
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=G_START+4,   },  // (custs value . in)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=SEND_0,      },  // ptrn
 
 #define G_CALL_B (G_START+5)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_symbol_,    .z=G_CALL_B+0,  },  // name = symbol
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_Z,       .z=G_CALL_B+1,  },  // ptrn = lookup(name)
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=G_CALL_B+2,  },  // (custs value . in)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=SEND_0,      },  // (ptrn custs value . in)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=G_CALL_B+2,  },  // (custs value . in)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=SEND_0,      },  // (ptrn custs value . in)
 
 #define G_LANG (G_CALL_B+3)
     { .t=Actor_T,       .x=G_LANG+1,    .y=NIL,         .z=UNDEF        },
@@ -565,7 +600,7 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define GLOBAL_ENV (EMPTY_ENV+1)
     { .t=Actor_T,       .x=GLOBAL_ENV+1,.y=NIL,         .z=UNDEF        },
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=GLOBAL_ENV+2,},  // symbol = key
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=GLOBAL_ENV+2,},  // symbol = key
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_Z,       .z=CUST_SEND,   },  // get_z(symbol)
 
 /*
@@ -581,15 +616,15 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=Opcode_T,      .x=VM_push,     .y=_var_,       .z=BOUND_BEH-2, },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_val_,       .z=BOUND_BEH-1, },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_env_,       .z=BOUND_BEH+0, },
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=BOUND_BEH+1, },  // key
-    { .t=Opcode_T,      .x=VM_pick,     .y=4,           .z=BOUND_BEH+2, },  // var
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=BOUND_BEH+1, },  // key
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(4),   .z=BOUND_BEH+2, },  // var
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_EQ,      .z=BOUND_BEH+3, },  // key == var
     { .t=Opcode_T,      .x=VM_if,       .y=BOUND_BEH+4, .z=BOUND_BEH+5, },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=CUST_SEND,   },  // val
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=CUST_SEND,   },  // val
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=BOUND_BEH+6, },  // msg
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=SEND_0,      },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=BOUND_BEH+6, },  // msg
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=SEND_0,      },  // env
 
 #define REPL_R (BOUND_BEH+7)
 #define REPL_E (REPL_R+8)
@@ -598,26 +633,26 @@ cell_t cell_table[CELL_MAX] = {
 #define REPL_F (REPL_L+4)
     { .t=Opcode_T,      .x=VM_push,     .y=REPL_F,      .z=REPL_R+1,    },  // fail = REPL_F
     { .t=Opcode_T,      .x=VM_push,     .y=REPL_E,      .z=REPL_R+2,    },  // ok = REPL_E
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=REPL_R+3,    },  // custs = (ok . fail)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=REPL_R+3,    },  // custs = (ok . fail)
     { .t=Opcode_T,      .x=VM_push,     .y=G_LANG,      .z=REPL_R+4,    },  // ptrn = G_LANG
     { .t=Opcode_T,      .x=VM_push,     .y=G_START,     .z=REPL_R+5,    },  // G_START
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=REPL_R+6,    },  // start
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=REPL_R+6,    },  // start
     { .t=Opcode_T,      .x=VM_push,     .y=S_GETC,      .z=REPL_R+7,    },  // S_GETC
-    { .t=Opcode_T,      .x=VM_new,      .y=0,           .z=SEND_0,      },  // src
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(0),   .z=SEND_0,      },  // src
 
     { .t=Actor_T,       .x=REPL_E+1,    .y=NIL,         .z=UNDEF        },
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=REPL_E+2,    },  // sexpr
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=REPL_E+2,    },  // sexpr
     { .t=Opcode_T,      .x=VM_debug,    .y=TO_FIX(888), .z=REPL_E+3,    },
 
     //{ .t=Opcode_T,      .x=VM_push,     .y=GLOBAL_ENV,  .z=REPL_E+4,    },  // env = GLOBAL_ENV
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=REPL_E+4,    },  // env = ()
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=REPL_E+5,    },  // form = sexpr
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=REPL_E+5,    },  // form = sexpr
     { .t=Opcode_T,      .x=VM_push,     .y=REPL_P,      .z=REPL_E+6,    },  // cust = REPL_P
     { .t=Opcode_T,      .x=VM_push,     .y=222,         .z=REPL_E+7,    },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=COMMIT,      },  // (M_EVAL cust form env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL cust form env)
 
     { .t=Actor_T,       .x=REPL_P+1,    .y=NIL,         .z=UNDEF        },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=REPL_P+2,    },
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=REPL_P+2,    },
     { .t=Opcode_T,      .x=VM_debug,    .y=TO_FIX(999), .z=REPL_L,      },
 
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('>'), .z=REPL_L+1,    },
@@ -626,7 +661,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_putc,     .y=UNDEF,       .z=REPL_R,      },
 
     { .t=Actor_T,       .x=REPL_F+1,    .y=NIL,         .z=UNDEF        },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=REPL_F+2,    },
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=REPL_F+2,    },
     { .t=Opcode_T,      .x=VM_debug,    .y=TO_FIX(666), .z=COMMIT,      },
 
 #define A_BOOT (REPL_F+3)
@@ -654,12 +689,12 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(-1),  .z=A_CLOCK+2,   },
 #define CLOCK_BEH (A_CLOCK+2)
 #if 0
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=A_CLOCK+3,   },
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=A_CLOCK+3,   },
     { .t=Opcode_T,      .x=VM_push,     .y=CLOCK_BEH,   .z=A_CLOCK+4,   },
-    { .t=Opcode_T,      .x=VM_beh,      .y=1,           .z=COMMIT,      },
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(1),   .z=COMMIT,      },
 #else
     { .t=Opcode_T,      .x=VM_push,     .y=A_CLOCK+1,   .z=A_CLOCK+3,   },  // address of VM_push instruction
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=A_CLOCK+4,   },  // clock value
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=A_CLOCK+4,   },  // clock value
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_Y,       .z=COMMIT,      },  // update stored value (WARNING! SELF-MODIFYING CODE)
 #endif
 
@@ -676,35 +711,35 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define TAG_BEH (A_CLOCK+5)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=TAG_BEH+0,   },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=TAG_BEH+1,   },  // msg
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=TAG_BEH+1,   },  // msg
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=TAG_BEH+2,   },  // SELF
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=TAG_BEH+3,   },  // (SELF . msg)
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=SEND_0,      },  // cust
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=TAG_BEH+3,   },  // (SELF . msg)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=SEND_0,      },  // cust
 
 #define K_JOIN_H (TAG_BEH+4)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=K_JOIN_H-2,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_head_,      .z=K_JOIN_H-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_k_tail_,    .z=K_JOIN_H+0,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=K_JOIN_H+1,  },  // (tag . value)
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=K_JOIN_H+2,  },  // value tag
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=K_JOIN_H+3,  },  // k_tail
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_JOIN_H+1,  },  // (tag . value)
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=K_JOIN_H+2,  },  // value tag
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=K_JOIN_H+3,  },  // k_tail
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_EQ,      .z=K_JOIN_H+4,  },  // (tag == k_tail)
     { .t=Opcode_T,      .x=VM_if,       .y=K_JOIN_H+5,  .z=RELEASE,     },  // WRONG TAG!
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=K_JOIN_H+6,  },  // value head
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=K_JOIN_H+7,  },  // pair = (head . value)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=RELEASE_0,   },  // pair cust
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=K_JOIN_H+6,  },  // value head
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=K_JOIN_H+7,  },  // pair = (head . value)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=RELEASE_0,   },  // pair cust
 
 #define K_JOIN_T (K_JOIN_H+8)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=K_JOIN_T-2,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_tail_,      .z=K_JOIN_T-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_k_head_,    .z=K_JOIN_T+0,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=K_JOIN_T+1,  },  // (tag . value)
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=K_JOIN_T+2,  },  // value tag
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=K_JOIN_T+3,  },  // k_head
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_JOIN_T+1,  },  // (tag . value)
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=K_JOIN_T+2,  },  // value tag
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=K_JOIN_T+3,  },  // k_head
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_EQ,      .z=K_JOIN_T+4,  },  // (tag == k_head)
     { .t=Opcode_T,      .x=VM_if,       .y=K_JOIN_T+5,  .z=RELEASE,     },  // WRONG TAG!
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=K_JOIN_T+6,  },  // pair = (value . tail)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=RELEASE_0,   },  // pair cust
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=K_JOIN_T+6,  },  // pair = (value . tail)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=RELEASE_0,   },  // pair cust
 
 /*
 (define join-beh
@@ -717,30 +752,30 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=JOIN_BEH-2,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_k_head_,    .z=JOIN_BEH-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_k_tail_,    .z=JOIN_BEH+0,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=JOIN_BEH+1,  },  // (tag . value)
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=JOIN_BEH+2,  },  // value tag
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=JOIN_BEH+1,  },  // (tag . value)
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=JOIN_BEH+2,  },  // value tag
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=4,           .z=JOIN_BEH+3,  },  // k_head
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=JOIN_BEH+4,  },  // tag
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(4),   .z=JOIN_BEH+3,  },  // k_head
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=JOIN_BEH+4,  },  // tag
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_EQ,      .z=JOIN_BEH+5,  },  // (tag == k_head)
     { .t=Opcode_T,      .x=VM_if,       .y=JOIN_BEH+6,  .z=JOIN_BEH+11, },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=5,           .z=JOIN_BEH+7,  },  // k_head k_tail value tag cust
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=JOIN_BEH+8,  },  // k_head k_tail tag cust value
-    { .t=Opcode_T,      .x=VM_roll,     .y=4,           .z=JOIN_BEH+9,  },  // k_head tag cust value k_tail
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(5),   .z=JOIN_BEH+7,  },  // k_head k_tail value tag cust
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=JOIN_BEH+8,  },  // k_head k_tail tag cust value
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(4),   .z=JOIN_BEH+9,  },  // k_head tag cust value k_tail
     { .t=Opcode_T,      .x=VM_push,     .y=K_JOIN_H,    .z=JOIN_BEH+10, },  // K_JOIN_H
-    { .t=Opcode_T,      .x=VM_beh,      .y=3,           .z=COMMIT,      },  // BECOME (K_JOIN_H cust value k_tail)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(3),   .z=COMMIT,      },  // BECOME (K_JOIN_H cust value k_tail)
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=JOIN_BEH+12, },  // k_tail
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=JOIN_BEH+13, },  // tag
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=JOIN_BEH+12, },  // k_tail
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=JOIN_BEH+13, },  // tag
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_EQ,      .z=JOIN_BEH+14, },  // (tag == k_tail)
     { .t=Opcode_T,      .x=VM_if,       .y=JOIN_BEH+15, .z=COMMIT,      },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=5,           .z=JOIN_BEH+16, },  // k_head k_tail value tag cust
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=JOIN_BEH+17, },  // k_head k_tail tag cust value
-    { .t=Opcode_T,      .x=VM_roll,     .y=5,           .z=JOIN_BEH+18, },  // k_tail tag cust value k_head
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(5),   .z=JOIN_BEH+16, },  // k_head k_tail value tag cust
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=JOIN_BEH+17, },  // k_head k_tail tag cust value
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(5),   .z=JOIN_BEH+18, },  // k_tail tag cust value k_head
     { .t=Opcode_T,      .x=VM_push,     .y=K_JOIN_T,    .z=JOIN_BEH+19, },  // K_JOIN_T
-    { .t=Opcode_T,      .x=VM_beh,      .y=3,           .z=COMMIT,      },  // BECOME (K_JOIN_T cust value k_head)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(3),   .z=COMMIT,      },  // BECOME (K_JOIN_T cust value k_head)
 
 /*
 (define fork-beh
@@ -756,26 +791,26 @@ cell_t cell_table[CELL_MAX] = {
 
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=FORK_BEH+1,  },  // self
     { .t=Opcode_T,      .x=VM_push,     .y=TAG_BEH,     .z=FORK_BEH+2,  },  // TAG_BEH
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=FORK_BEH+3,  },  // k_head
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=FORK_BEH+3,  },  // k_head
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=FORK_BEH+4,  },  // h_req
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=FORK_BEH+5,  },  // k_head
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=FORK_BEH+6,  },  // msg = (k_head . h_req)
-    { .t=Opcode_T,      .x=VM_roll,     .y=4,           .z=FORK_BEH+7,  },  // tail cust k_head msg head
-    { .t=Opcode_T,      .x=VM_send,     .y=0,           .z=FORK_BEH+8,  },  // (head . msg)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=FORK_BEH+4,  },  // h_req
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=FORK_BEH+5,  },  // k_head
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=FORK_BEH+6,  },  // msg = (k_head . h_req)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(4),   .z=FORK_BEH+7,  },  // tail cust k_head msg head
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(0),   .z=FORK_BEH+8,  },  // (head . msg)
 
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=FORK_BEH+9,  },  // self
     { .t=Opcode_T,      .x=VM_push,     .y=TAG_BEH,     .z=FORK_BEH+10, },  // TAG_BEH
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=FORK_BEH+11, },  // k_tail
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=FORK_BEH+11, },  // k_tail
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=FORK_BEH+12, },  // t_req
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=FORK_BEH+13, },  // k_tail
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=FORK_BEH+14, },  // msg = (k_tail . t_req)
-    { .t=Opcode_T,      .x=VM_roll,     .y=5,           .z=FORK_BEH+15, },  // cust k_head k_tail msg tail
-    { .t=Opcode_T,      .x=VM_send,     .y=0,           .z=FORK_BEH+16, },  // (tail . msg)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=FORK_BEH+12, },  // t_req
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=FORK_BEH+13, },  // k_tail
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=FORK_BEH+14, },  // msg = (k_tail . t_req)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(5),   .z=FORK_BEH+15, },  // cust k_head k_tail msg tail
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(0),   .z=FORK_BEH+16, },  // (tail . msg)
 
     { .t=Opcode_T,      .x=VM_push,     .y=JOIN_BEH,    .z=FORK_BEH+17, },  // JOIN_BEH
-    { .t=Opcode_T,      .x=VM_beh,      .y=3,           .z=COMMIT,      },  // BECOME (JOIN_BEH cust k_head k_tail)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(3),   .z=COMMIT,      },  // BECOME (JOIN_BEH cust k_head k_tail)
 
 //
 // Static Symbols
@@ -891,36 +926,36 @@ cell_t cell_table[CELL_MAX] = {
         form))))                        ; self-evaluating form
 */
     { .t=Actor_T,       .x=M_EVAL+1,    .y=NIL,         .z=UNDEF        },  // (cust form env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_EVAL+2,    },  // form = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_EVAL+2,    },  // form = arg1
     { .t=Opcode_T,      .x=VM_typeq,    .y=Symbol_T,    .z=M_EVAL+3,    },  // form has type Symbol_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_EVAL+4,    .z=M_EVAL+6,    },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=M_EVAL+5,    },  // msg = (cust form env)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=M_EVAL+5,    },  // msg = (cust form env)
     { .t=Opcode_T,      .x=VM_push,     .y=M_LOOKUP,    .z=SEND_0,      },  // (M_LOOKUP cust key alist)
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_EVAL+7,    },  // form = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_EVAL+7,    },  // form = arg1
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=M_EVAL+8,    },  // form has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_EVAL+10,   .z=M_EVAL+9,    },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=CUST_SEND,   },  // self-eval form
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=CUST_SEND,   },  // self-eval form
 
 /*
       (if (pair? form)                  ; combination
         (let ((fn    (eval (car form) env))
               (opnds (cdr form)))
 */
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=M_EVAL+11,   },  // env
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_EVAL+12,   },  // form
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=M_EVAL+13,   },  // tail head
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=M_EVAL+11,   },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_EVAL+12,   },  // form
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=M_EVAL+13,   },  // tail head
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=M_EVAL+14,   },  // env
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=M_EVAL+15,   },  // opnds = tail
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=M_EVAL+16,   },  // cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=M_EVAL+14,   },  // env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=M_EVAL+15,   },  // opnds = tail
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=M_EVAL+16,   },  // cust
     { .t=Opcode_T,      .x=VM_push,     .y=K_COMBINE,   .z=M_EVAL+17,   },  // K_COMBINE
-    { .t=Opcode_T,      .x=VM_new,      .y=3,           .z=M_EVAL+18,   },  // k_combine = (K_COMBINE env tail cust)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=M_EVAL+18,   },  // k_combine = (K_COMBINE env tail cust)
 
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=M_EVAL+19,   },  // M_EVAL
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=COMMIT,      },  // (M_EVAL k_combine head env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL k_combine head env)
 
 /*
           (if (actor? fn)               ; _applicative_
@@ -932,31 +967,31 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=Opcode_T,      .x=VM_push,     .y=_env_,       .z=K_COMBINE-2, },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_opnds_,     .z=K_COMBINE-1, },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=K_COMBINE+0, },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=K_COMBINE+1, },  // fn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_COMBINE+1, },  // fn
     { .t=Opcode_T,      .x=VM_typeq,    .y=Actor_T,     .z=K_COMBINE+2, },  // fn has type Actor_T
     { .t=Opcode_T,      .x=VM_if,       .y=K_COMBINE+10,.z=K_COMBINE+3, },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=K_COMBINE+4, },  // fn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_COMBINE+4, },  // fn
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fexpr_T,     .z=K_COMBINE+5, },  // fn has type Fexpr_T
     { .t=Opcode_T,      .x=VM_if,       .y=K_COMBINE+7, .z=K_COMBINE+6, },
 
     { .t=Opcode_T,      .x=VM_push,     .y=UNDEF,       .z=RELEASE_0,   },  // UNDEF
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=K_COMBINE+8, },  // env opnds cust fn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_COMBINE+8, },  // env opnds cust fn
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_X,       .z=K_COMBINE+9, },  // oper = get_x(fn)
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=RELEASE,     },  // (oper cust args env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=RELEASE,     },  // (oper cust args env)
 
 // env opnds cust
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=K_COMBINE+11,},  // fn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_COMBINE+11,},  // fn
     { .t=Opcode_T,      .x=VM_push,     .y=K_APPLY_F,   .z=K_COMBINE+12,},  // K_APPLY_F
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=K_COMBINE+13,},  // k_apply = (K_APPLY_F cust fn)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=K_COMBINE+13,},  // k_apply = (K_APPLY_F cust fn)
 
 #if EVLIS_IS_PAR
     { .t=Opcode_T,      .x=VM_push,     .y=OP_PAR,      .z=K_COMBINE+14,},  // OP_PAR
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=RELEASE,     },  // (OP_PAR k_apply opnds env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=RELEASE,     },  // (OP_PAR k_apply opnds env)
 #else
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVLIS,     .z=K_COMBINE+14,},  // M_EVLIS
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=RELEASE,     },  // (M_EVLIS k_apply opnds env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=RELEASE,     },  // (M_EVLIS k_apply opnds env)
 #endif
 
 /*
@@ -964,10 +999,10 @@ cell_t cell_table[CELL_MAX] = {
 */
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=K_APPLY_F-1, },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_fn_,        .z=K_APPLY_F+0, },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=K_APPLY_F+1, },  // args
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=K_APPLY_F+2, },  // fn args cust
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=K_APPLY_F+3, },  // fn (cust . args)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=RELEASE_0,   },  // (cust . args) fn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_APPLY_F+1, },  // args
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=K_APPLY_F+2, },  // fn args cust
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=K_APPLY_F+3, },  // fn (cust . args)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=RELEASE_0,   },  // (cust . args) fn
 
 /*
 (define apply
@@ -979,25 +1014,25 @@ cell_t cell_table[CELL_MAX] = {
         #?))))
 */
     { .t=Actor_T,       .x=M_APPLY+1,   .y=NIL,         .z=UNDEF        },  // (cust fn args env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_APPLY+2,   },  // fn = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_APPLY+2,   },  // fn = arg1
     { .t=Opcode_T,      .x=VM_typeq,    .y=Actor_T,     .z=M_APPLY+3,   },  // fn has type Actor_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_APPLY+4,   .z=M_APPLY+8,   },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=M_APPLY+5,   },  // args
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=M_APPLY+6,   },  // cust
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_APPLY+7,   },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=SEND_0,      },  // fn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=M_APPLY+5,   },  // args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=M_APPLY+6,   },  // cust
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_APPLY+7,   },  // (cust . args)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=SEND_0,      },  // fn
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_APPLY+9,   },  // fn = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_APPLY+9,   },  // fn = arg1
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fexpr_T,     .z=M_APPLY+10,  },  // fn has type Fexpr_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_APPLY+11,  .z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=4,           .z=M_APPLY+12,  },  // env
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=M_APPLY+13,  },  // args
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=M_APPLY+14,  },  // cust
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_APPLY+15,  },  // fn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(4),   .z=M_APPLY+12,  },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=M_APPLY+13,  },  // args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=M_APPLY+14,  },  // cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_APPLY+15,  },  // fn
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_X,       .z=M_APPLY+16,  },  // oper = get_x(fn)
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=COMMIT,      },  // (oper cust args env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (oper cust args env)
 
 /*
 (define lookup                          ; look up variable binding in environment
@@ -1013,30 +1048,30 @@ cell_t cell_table[CELL_MAX] = {
           #?))))                        ; value is undefined
 */
     { .t=Actor_T,       .x=M_LOOKUP+1,  .y=NIL,         .z=UNDEF        },  // (cust key env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=M_LOOKUP+2,  },  // env = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=M_LOOKUP+2,  },  // env = arg2
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=M_LOOKUP+3,  },  // env env
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=M_LOOKUP+3,  },  // env env
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=M_LOOKUP+4,  },  // env has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_LOOKUP+5,  .z=M_LOOKUP+11, },
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=M_LOOKUP+6,  },  // tail head
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=M_LOOKUP+7,  },  // tail value name
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_LOOKUP+8,  },  // key = arg1
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=M_LOOKUP+6,  },  // tail head
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=M_LOOKUP+7,  },  // tail value name
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_LOOKUP+8,  },  // key = arg1
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_EQ,      .z=M_LOOKUP+9,  },  // (name == key)
     { .t=Opcode_T,      .x=VM_if,       .y=CUST_SEND,   .z=M_LOOKUP+10, },
-    { .t=Opcode_T,      .x=VM_drop,     .y=1,           .z=M_LOOKUP+2,  },  // env = tail
+    { .t=Opcode_T,      .x=VM_drop,     .y=TO_FIX(1),   .z=M_LOOKUP+2,  },  // env = tail
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=M_LOOKUP+12, },  // env env
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=M_LOOKUP+12, },  // env env
     { .t=Opcode_T,      .x=VM_typeq,    .y=Actor_T,     .z=M_LOOKUP+13, },  // env has type Actor_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_LOOKUP+14, .z=M_LOOKUP+18, },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_LOOKUP+15, },  // key = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=M_LOOKUP+16, },  // cust = arg0
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_LOOKUP+17, },  // (cust . key)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=SEND_0,      },  // (cust . key) env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_LOOKUP+15, },  // key = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=M_LOOKUP+16, },  // cust = arg0
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_LOOKUP+17, },  // (cust . key)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=SEND_0,      },  // (cust . key) env
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_LOOKUP+19, },  // key = arg1
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=M_LOOKUP+20, },  // key key
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_LOOKUP+19, },  // key = arg1
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=M_LOOKUP+20, },  // key key
     { .t=Opcode_T,      .x=VM_typeq,    .y=Symbol_T,    .z=M_LOOKUP+21, },  // key has type Symbol_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_LOOKUP+22, .z=RV_UNDEF,    },
 
@@ -1051,38 +1086,38 @@ cell_t cell_table[CELL_MAX] = {
 */
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=M_EVLIS_P-1, },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_head_,      .z=M_EVLIS_P+0, },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=M_EVLIS_P+1, },  // tail
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=M_EVLIS_P+2, },  // head
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_EVLIS_P+3, },  // (head . tail)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=RELEASE_0,   },  // cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=M_EVLIS_P+1, },  // tail
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=M_EVLIS_P+2, },  // head
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_EVLIS_P+3, },  // (head . tail)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=RELEASE_0,   },  // cust
 
 //  { .t=Opcode_T,      .x=VM_push,     .y=_env_,       .z=M_EVLIS_K-2, },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_rest_,      .z=M_EVLIS_K-1, },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=M_EVLIS_K+0, },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=M_EVLIS_K+1, },  // head
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=M_EVLIS_K+1, },  // head
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVLIS_P,   .z=M_EVLIS_K+2, },  // M_EVLIS_P
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=M_EVLIS_K+3, },  // BECOME (M_EVLIS_P cust head)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=M_EVLIS_K+3, },  // BECOME (M_EVLIS_P cust head)
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=M_EVLIS_K+4, },  // SELF
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVLIS,     .z=M_EVLIS_K+5, },  // M_EVLIS
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=COMMIT,      },  // (M_EVLIS SELF rest env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVLIS SELF rest env)
 
     { .t=Actor_T,       .x=M_EVLIS+1,   .y=NIL,         .z=UNDEF        },  // (cust opnds env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_EVLIS+2,   },  // opnds = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_EVLIS+2,   },  // opnds = arg1
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=M_EVLIS+3,   },  // opnds has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_EVLIS+4,   .z=RV_NIL,      },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=M_EVLIS+5,   },  // env = arg2
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_EVLIS+6,   },  // opnds = arg1
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=M_EVLIS+7,   },  // rest first
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=M_EVLIS+5,   },  // env = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_EVLIS+6,   },  // opnds = arg1
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=M_EVLIS+7,   },  // rest first
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=M_EVLIS+8,   },  // env
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=M_EVLIS+9,   },  // rest
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=M_EVLIS+10,  },  // cust
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=M_EVLIS+8,   },  // env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=M_EVLIS+9,   },  // rest
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=M_EVLIS+10,  },  // cust
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVLIS_K,   .z=M_EVLIS+11,  },  // M_EVLIS_K
-    { .t=Opcode_T,      .x=VM_new,      .y=3,           .z=M_EVLIS+12,  },  // k_eval = (M_EVLIS_K env rest cust)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=M_EVLIS+12,  },  // k_eval = (M_EVLIS_K env rest cust)
 
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=M_EVLIS+13,  },  // M_EVAL
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=COMMIT,      },  // (M_EVAL k_eval first env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL k_eval first env)
 
 /*
 (define op-par                          ; (par . <exprs>)
@@ -1098,29 +1133,29 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Fexpr_T,       .x=OP_PAR,      .y=UNDEF,       .z=UNDEF,       },  // (par . <exprs>)
 
     { .t=Actor_T,       .x=OP_PAR+1,    .y=NIL,         .z=UNDEF        },  // (cust opnds env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_PAR+2,    },  // exprs = opnds
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_PAR+2,    },  // exprs = opnds
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=OP_PAR+3,    },  // exprs has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=OP_PAR+4,    .z=RV_NIL,      },
 
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=OP_PAR+5,    },  // ()
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=OP_PAR+6,    },  // env
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_PAR+7,    },  // exprs = opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=-1,          .z=OP_PAR+8,    },  // cdr(exprs)
-    { .t=Opcode_T,      .x=VM_pair,     .y=2,           .z=OP_PAR+9,    },  // t_req = (cdr(exprs) env)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_PAR+6,    },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_PAR+7,    },  // exprs = opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-1),  .z=OP_PAR+8,    },  // cdr(exprs)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=OP_PAR+9,    },  // t_req = (cdr(exprs) env)
 
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=OP_PAR+10,   },  // ()
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=OP_PAR+11,   },  // env
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_PAR+12,   },  // exprs = opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=OP_PAR+13,   },  // car(exprs)
-    { .t=Opcode_T,      .x=VM_pair,     .y=2,           .z=OP_PAR+14,   },  // h_req = (car(exprs) env)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_PAR+11,   },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_PAR+12,   },  // exprs = opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=OP_PAR+13,   },  // car(exprs)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=OP_PAR+14,   },  // h_req = (car(exprs) env)
 
     { .t=Opcode_T,      .x=VM_push,     .y=OP_PAR,      .z=OP_PAR+15,   },  // tail = OP_PAR
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=OP_PAR+16,   },  // head = M_EVAL
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=OP_PAR+17,   },  // cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=OP_PAR+17,   },  // cust
     { .t=Opcode_T,      .x=VM_push,     .y=FORK_BEH,    .z=OP_PAR+18,   },  // FORK_BEH
-    { .t=Opcode_T,      .x=VM_new,      .y=3,           .z=OP_PAR+19,   },  // ev_fork = (FORK_BEH OP_PAR M_EVAL cust)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=OP_PAR+19,   },  // ev_fork = (FORK_BEH OP_PAR M_EVAL cust)
 
-    { .t=Opcode_T,      .x=VM_send,     .y=2,           .z=COMMIT,      },  // (ev_fork h_req t_req)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(2),   .z=COMMIT,      },  // (ev_fork h_req t_req)
 
 /*
 (define var-name? (lambda (x) (if (symbol? x) (if (eq? x '_) #f #t) #f)))
@@ -1146,74 +1181,74 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=Opcode_T,      .x=VM_push,     .y=_env_,       .z=M_ZIP_IT+0,  },
 
 // ys xs y x env
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=M_ZIP_IT+1,  },  // x
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=M_ZIP_IT+1,  },  // x
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=M_ZIP_IT+2,  },  // x has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_ZIP_P,     .z=M_ZIP_IT+3,  },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=M_ZIP_IT+4,  },  // x
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=M_ZIP_IT+4,  },  // x
     { .t=Opcode_T,      .x=VM_typeq,    .y=Symbol_T,    .z=M_ZIP_IT+5,  },  // x has type Symbol_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_ZIP_IT+6,  .z=M_ZIP_IT+9,  },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=M_ZIP_IT+7,  },  // x
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=M_ZIP_IT+7,  },  // x
     { .t=Opcode_T,      .x=VM_eq,       .y=S_IGNORE,    .z=M_ZIP_IT+8,  },  // (x == '_)
     { .t=Opcode_T,      .x=VM_if,       .y=M_ZIP_IT+9,  .z=M_ZIP_S,     },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=4,           .z=M_ZIP_IT+10, },  // xs
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(4),   .z=M_ZIP_IT+10, },  // xs
     { .t=Opcode_T,      .x=VM_eq,       .y=NIL,         .z=M_ZIP_IT+11, },  // (xs == NIL)
     { .t=Opcode_T,      .x=VM_if,       .y=CUST_SEND,   .z=M_ZIP_K,     },  // return(env)
 
 // ys xs y x env
-    { .t=Opcode_T,      .x=VM_roll,     .y=-3,          .z=M_ZIP_K+1,   },  // ys xs env y x
-    { .t=Opcode_T,      .x=VM_drop,     .y=2,           .z=M_ZIP_K+2,   },  // ys xs env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-3),  .z=M_ZIP_K+1,   },  // ys xs env y x
+    { .t=Opcode_T,      .x=VM_drop,     .y=TO_FIX(2),   .z=M_ZIP_K+2,   },  // ys xs env
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=M_ZIP_K+3,   },  // ys xs env ()
-    { .t=Opcode_T,      .x=VM_roll,     .y=-4,          .z=M_ZIP_K+4,   },  // () ys xs env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-4),  .z=M_ZIP_K+4,   },  // () ys xs env
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=M_ZIP_K+5,   },  // () ys xs env ()
-    { .t=Opcode_T,      .x=VM_roll,     .y=-4,          .z=M_ZIP_IT,    },  // () () ys xs env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-4),  .z=M_ZIP_IT,    },  // () () ys xs env
 
 /*
         (if (null? (cdr x))
           (zip-it (car x) (car y) xs ys env)
 */
 // ys xs y x env
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=M_ZIP_P+1,   },  // x
-    { .t=Opcode_T,      .x=VM_nth,      .y=-1,          .z=M_ZIP_P+2,   },  // cdr(x)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=M_ZIP_P+1,   },  // x
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-1),  .z=M_ZIP_P+2,   },  // cdr(x)
     { .t=Opcode_T,      .x=VM_eq,       .y=NIL,         .z=M_ZIP_P+3,   },  // (cdr(x) == NIL)
     { .t=Opcode_T,      .x=VM_if,       .y=M_ZIP_P+4,   .z=M_ZIP_R,     },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=M_ZIP_P+5,   },  // ys xs x env y
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=M_ZIP_P+6,   },  // ys xs x env car(y)
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=M_ZIP_P+7,   },  // ys xs env car(y) x
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=M_ZIP_P+8,   },  // ys xs env car(y) car(x)
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=M_ZIP_IT,    },  // ys xs car(y) car(x) env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=M_ZIP_P+5,   },  // ys xs x env y
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=M_ZIP_P+6,   },  // ys xs x env car(y)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=M_ZIP_P+7,   },  // ys xs env car(y) x
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=M_ZIP_P+8,   },  // ys xs env car(y) car(x)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=M_ZIP_IT,    },  // ys xs car(y) car(x) env
 
 /*
           (zip-it (car x) (car y) (cons (cdr x) xs) (cons (cdr y) ys) env)))
 */
 // ys xs y x env
-    { .t=Opcode_T,      .x=VM_roll,     .y=5,           .z=M_ZIP_R+1,   },  // xs y x env ys
-    { .t=Opcode_T,      .x=VM_roll,     .y=4,           .z=M_ZIP_R+2,   },  // xs x env ys y
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=M_ZIP_R+3,   },  // xs x env ys cdr(y) car(y)
-    { .t=Opcode_T,      .x=VM_roll,     .y=-6,          .z=M_ZIP_R+4,   },  // car(y) xs x env ys cdr(y)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_ZIP_R+5,   },  // car(y) xs x env (cdr(y) . ys)
-    { .t=Opcode_T,      .x=VM_roll,     .y=-5,          .z=M_ZIP_R+6,   },  // (cdr(y) . ys) car(y) xs x env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(5),   .z=M_ZIP_R+1,   },  // xs y x env ys
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(4),   .z=M_ZIP_R+2,   },  // xs x env ys y
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=M_ZIP_R+3,   },  // xs x env ys cdr(y) car(y)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-6),  .z=M_ZIP_R+4,   },  // car(y) xs x env ys cdr(y)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_ZIP_R+5,   },  // car(y) xs x env (cdr(y) . ys)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-5),  .z=M_ZIP_R+6,   },  // (cdr(y) . ys) car(y) xs x env
 // ys' y' xs x env
-    { .t=Opcode_T,      .x=VM_roll,     .y=-3,          .z=M_ZIP_R+7,   },  // ys' y' env xs x
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=M_ZIP_R+8,   },  // ys' y' env xs cdr(x) car(x)
-    { .t=Opcode_T,      .x=VM_roll,     .y=-4,          .z=M_ZIP_R+9,   },  // ys' y' car(x) env xs cdr(x)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_ZIP_R+10,  },  // ys' y' car(x) env (cdr(x) . xs)
-    { .t=Opcode_T,      .x=VM_roll,     .y=-4,          .z=M_ZIP_IT,    },  // ys' (cdr(x) . xs) y' car(x) env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-3),  .z=M_ZIP_R+7,   },  // ys' y' env xs x
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=M_ZIP_R+8,   },  // ys' y' env xs cdr(x) car(x)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-4),  .z=M_ZIP_R+9,   },  // ys' y' car(x) env xs cdr(x)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_ZIP_R+10,  },  // ys' y' car(x) env (cdr(x) . xs)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-4),  .z=M_ZIP_IT,    },  // ys' (cdr(x) . xs) y' car(x) env
 
 /*
         (zip-it xs ys () () (cons (cons x y) env)))
 */
 // ys xs y x env
-    { .t=Opcode_T,      .x=VM_roll,     .y=-3,          .z=M_ZIP_S+1,   },  // ys xs env y x
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_ZIP_S+2,   },  // ys xs env (x . y)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_ZIP_S+3,   },  // ys xs ((x . y) . env)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-3),  .z=M_ZIP_S+1,   },  // ys xs env y x
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_ZIP_S+2,   },  // ys xs env (x . y)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_ZIP_S+3,   },  // ys xs ((x . y) . env)
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=M_ZIP_S+4,   },  // ys xs env' ()
-    { .t=Opcode_T,      .x=VM_roll,     .y=-4,          .z=M_ZIP_S+5,   },  // () ys xs env'
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-4),  .z=M_ZIP_S+5,   },  // () ys xs env'
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=M_ZIP_S+6,   },  // () ys xs env' ()
-    { .t=Opcode_T,      .x=VM_roll,     .y=-4,          .z=M_ZIP_IT,    },  // () () ys xs env'
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-4),  .z=M_ZIP_IT,    },  // () () ys xs env'
 
 /*
 (define zip                             ; extend `env` by binding names `x` to values `y`
@@ -1223,9 +1258,9 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=M_ZIP+1,     .y=NIL,         .z=UNDEF        },  // (cust x y env)
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=M_ZIP+2,     },  // ys = ()
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=M_ZIP+3,     },  // xs = ()
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=M_ZIP+4,     },  // y = arg2
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_ZIP+5,     },  // x = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=4,           .z=M_ZIP_IT,    },  // env = arg3
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=M_ZIP+4,     },  // y = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_ZIP+5,     },  // x = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(4),   .z=M_ZIP_IT,    },  // env = arg3
 
 /*
 (define closure-beh                     ; lexically-bound applicative procedure
@@ -1237,31 +1272,31 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=Opcode_T,      .x=VM_push,     .y=_frml_,      .z=CLOSURE_B-2, },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_body_,      .z=CLOSURE_B-1, },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_env_,       .z=CLOSURE_B+0, },
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=CLOSURE_B+1, },  // env
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=CLOSURE_B+1, },  // env
     { .t=Opcode_T,      .x=VM_push,     .y=UNDEF,       .z=CLOSURE_B+2, },  // #?
     { .t=Opcode_T,      .x=VM_push,     .y=S_IGNORE,    .z=CLOSURE_B+3, },  // '_
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=CLOSURE_B+4, },  // ('_ . #?)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=CLOSURE_B+5, },  // env' = (('_ . #?) . env)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=CLOSURE_B+4, },  // ('_ . #?)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=CLOSURE_B+5, },  // env' = (('_ . #?) . env)
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=CLOSURE_B+6, },  // args
-    { .t=Opcode_T,      .x=VM_pick,     .y=5,           .z=CLOSURE_B+7, },  // frml
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=CLOSURE_B+6, },  // args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(5),   .z=CLOSURE_B+7, },  // frml
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=CLOSURE_B+8, },  // cust
-    { .t=Opcode_T,      .x=VM_pick,     .y=6,           .z=CLOSURE_B+9, },  // body
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=CLOSURE_B+8, },  // cust
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(6),   .z=CLOSURE_B+9, },  // body
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL_B,    .z=CLOSURE_B+10,},  // M_EVAL_B
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=CLOSURE_B+11,},  // k_eval = (M_EVAL_B cust body)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=CLOSURE_B+11,},  // k_eval = (M_EVAL_B cust body)
 
     { .t=Opcode_T,      .x=VM_push,     .y=M_ZIP,       .z=CLOSURE_B+12,},  // M_ZIP
-    { .t=Opcode_T,      .x=VM_send,     .y=4,           .z=COMMIT,      },  // (M_ZIP k_eval frml args env')
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(4),   .z=COMMIT,      },  // (M_ZIP k_eval frml args env')
 
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=M_EVAL_B-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_body_,      .z=M_EVAL_B-0,  },
     { .t=Opcode_T,      .x=VM_push,     .y=UNIT,        .z=M_EVAL_B+1,  },  // UNIT
-    { .t=Opcode_T,      .x=VM_roll,     .y=-3,          .z=M_EVAL_B+2,  },  // #unit cust body
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-3),  .z=M_EVAL_B+2,  },  // #unit cust body
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=M_EVAL_B+3,  },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=M_EVAL_B+3,  },  // env
     { .t=Opcode_T,      .x=VM_push,     .y=K_SEQ_B,     .z=M_EVAL_B+4,  },  // K_SEQ_B
-    { .t=Opcode_T,      .x=VM_new,      .y=3,           .z=SEND_0,      },  // k-seq = (K_SEQ_B cust body env)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=SEND_0,      },  // k-seq = (K_SEQ_B cust body env)
 
 /*
 (define fexpr-beh                       ; lexically-bound operative procedure
@@ -1273,25 +1308,25 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=Opcode_T,      .x=VM_push,     .y=_frml_,      .z=FEXPR_B-2,   },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_body_,      .z=FEXPR_B-1,   },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_senv_,      .z=FEXPR_B+0,   },
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=FEXPR_B+1,   },  // senv
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=FEXPR_B+1,   },  // senv
     { .t=Opcode_T,      .x=VM_push,     .y=UNDEF,       .z=FEXPR_B+2,   },  // #?
     { .t=Opcode_T,      .x=VM_push,     .y=S_IGNORE,    .z=FEXPR_B+3,   },  // '_
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=FEXPR_B+4,   },  // ('_ . #?)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=FEXPR_B+5,   },  // env' = (('_ . #?) . senv)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=FEXPR_B+4,   },  // ('_ . #?)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=FEXPR_B+5,   },  // env' = (('_ . #?) . senv)
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=FEXPR_B+6,   },  // opnds
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=FEXPR_B+7,   },  // denv
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=FEXPR_B+8,   },  // opnds' = (denv . opnds)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=FEXPR_B+6,   },  // opnds
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=FEXPR_B+7,   },  // denv
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=FEXPR_B+8,   },  // opnds' = (denv . opnds)
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=5,           .z=FEXPR_B+9,   },  // frml'
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(5),   .z=FEXPR_B+9,   },  // frml'
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=FEXPR_B+10,  },  // cust
-    { .t=Opcode_T,      .x=VM_pick,     .y=6,           .z=FEXPR_B+11,  },  // body
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=FEXPR_B+10,  },  // cust
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(6),   .z=FEXPR_B+11,  },  // body
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL_B,    .z=FEXPR_B+12,  },  // M_EVAL_B
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=FEXPR_B+13,  },  // k_eval = (M_EVAL_B cust body)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=FEXPR_B+13,  },  // k_eval = (M_EVAL_B cust body)
 
     { .t=Opcode_T,      .x=VM_push,     .y=M_ZIP,       .z=FEXPR_B+14,  },  // M_ZIP
-    { .t=Opcode_T,      .x=VM_send,     .y=4,           .z=COMMIT,      },  // (M_ZIP k_eval frml' opnds' env')
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(4),   .z=COMMIT,      },  // (M_ZIP k_eval frml' opnds' env')
 
 /*
 (define k-seq-beh
@@ -1306,25 +1341,25 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=K_SEQ_B-2,   },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_body_,      .z=K_SEQ_B-1,   },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_env_,       .z=K_SEQ_B+0,   },
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=K_SEQ_B+1,   },  // body
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=K_SEQ_B+1,   },  // body
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=K_SEQ_B+2,   },  // body has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=K_SEQ_B+5,   .z=K_SEQ_B+3,   },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=K_SEQ_B+4,   },  // value
-    { .t=Opcode_T,      .x=VM_roll,     .y=4,           .z=RELEASE_0,   },  // (cust . value)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_SEQ_B+4,   },  // value
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(4),   .z=RELEASE_0,   },  // (cust . value)
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=K_SEQ_B+6,   },  // cust env body
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=K_SEQ_B+7,   },  // rest first
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=K_SEQ_B+6,   },  // cust env body
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=K_SEQ_B+7,   },  // rest first
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=K_SEQ_B+8,   },  // env
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=K_SEQ_B+9,   },  // expr = first
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=K_SEQ_B+8,   },  // env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=K_SEQ_B+9,   },  // expr = first
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=K_SEQ_B+10,  },  // cust = SELF
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=K_SEQ_B+11,  },  // M_EVAL
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=K_SEQ_B+12,  },  // (M_EVAL SELF first env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=K_SEQ_B+12,  },  // (M_EVAL SELF first env)
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=-2,          .z=K_SEQ_B+13,  },  // cust rest env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-2),  .z=K_SEQ_B+13,  },  // cust rest env
     { .t=Opcode_T,      .x=VM_push,     .y=K_SEQ_B,     .z=K_SEQ_B+14,  },  // K_SEQ_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=3,           .z=COMMIT,      },  // BECOME (K_SEQ_B cust rest env)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(3),   .z=COMMIT,      },  // BECOME (K_SEQ_B cust rest env)
 
 /*
 (define evalif                          ; if `test` is #f, evaluate `altn`,
@@ -1336,16 +1371,16 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=M_IF_K-2,    },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_env_,       .z=M_IF_K-1,    },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cont_,      .z=M_IF_K+0,    },  // (cnsq altn)
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=M_IF_K+1,    },  // bool
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=M_IF_K+1,    },  // bool
     { .t=Opcode_T,      .x=VM_if,       .y=M_IF_K+2,    .z=M_IF_K+3,    },
 
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=M_IF_K+4,    },  // cnsq
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=M_IF_K+4,    },  // cnsq
 
-    { .t=Opcode_T,      .x=VM_nth,      .y=2,           .z=M_IF_K+4,    },  // altn
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(2),   .z=M_IF_K+4,    },  // altn
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=M_IF_K+5,    },  // cust
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=M_IF_K+5,    },  // cust
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=M_IF_K+6,    },  // M_EVAL
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=RELEASE,     },  // (M_EVAL cust cnsq/altn env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=RELEASE,     },  // (M_EVAL cust cnsq/altn env)
 
 /*
 (define bind-env                        ; update binding in environment
@@ -1364,44 +1399,44 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define M_BIND_E (M_IF_K+7)
     { .t=Actor_T,       .x=M_BIND_E+1,  .y=NIL,         .z=UNDEF        },  // (cust key val env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=4,           .z=M_BIND_E+2,  },  // env = arg3
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(4),   .z=M_BIND_E+2,  },  // env = arg3
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=M_BIND_E+3,  },  // env env
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=M_BIND_E+3,  },  // env env
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=M_BIND_E+4,  },  // env has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_BIND_E+5,  .z=M_BIND_E+25, },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=M_BIND_E+6,  },  // env env
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=M_BIND_E+7,  },  // cdr(env) car(env)
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=M_BIND_E+8,  },  // car(env) car(env)
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=M_BIND_E+9,  },  // caar(env)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=M_BIND_E+6,  },  // env env
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=M_BIND_E+7,  },  // cdr(env) car(env)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=M_BIND_E+8,  },  // car(env) car(env)
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=M_BIND_E+9,  },  // caar(env)
     { .t=Opcode_T,      .x=VM_eq,       .y=S_IGNORE,    .z=M_BIND_E+10, },  // (caar(env) == '_)
     { .t=Opcode_T,      .x=VM_if,       .y=M_BIND_E+11, .z=M_BIND_E+17, },
 
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_BIND_E+12, },  // (car(env) . cdr(env))
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_BIND_E+12, },  // (car(env) . cdr(env))
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_Y,       .z=M_BIND_E+13, },  // set-cdr
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=M_BIND_E+14, },  // val = arg2
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_BIND_E+15, },  // key = arg1
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_BIND_E+16, },  // (key . val)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=M_BIND_E+14, },  // val = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_BIND_E+15, },  // key = arg1
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_BIND_E+16, },  // (key . val)
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_X,       .z=RV_UNIT,     },  // set-car
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=M_BIND_E+18, },  // car(env) car(env)
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=M_BIND_E+19, },  // caar(env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_BIND_E+20, },  // key = arg1
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=M_BIND_E+18, },  // car(env) car(env)
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=M_BIND_E+19, },  // caar(env)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_BIND_E+20, },  // key = arg1
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_EQ,      .z=M_BIND_E+21, },  // (caar(env) == key)
     { .t=Opcode_T,      .x=VM_if,       .y=M_BIND_E+22, .z=M_BIND_E+24, },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=M_BIND_E+23, },  // val = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=M_BIND_E+23, },  // val = arg2
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_Y,       .z=RV_UNIT,     },  // set-cdr
 
-    { .t=Opcode_T,      .x=VM_drop,     .y=1,           .z=M_BIND_E+2,  },  // (bind-env key val (cdr env))
+    { .t=Opcode_T,      .x=VM_drop,     .y=TO_FIX(1),   .z=M_BIND_E+2,  },  // (bind-env key val (cdr env))
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_BIND_E+26, },  // key = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_BIND_E+26, },  // key = arg1
     { .t=Opcode_T,      .x=VM_typeq,    .y=Symbol_T,    .z=M_BIND_E+27, },  // key has type Symbol_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_BIND_E+28, .z=RV_UNIT,     },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_BIND_E+29, },  // key = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=M_BIND_E+30, },  // val = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_BIND_E+29, },  // key = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=M_BIND_E+30, },  // val = arg2
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_Z,       .z=RV_UNIT,     },  // bind(key, val)
 
 /*
@@ -1417,8 +1452,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Fexpr_T,       .x=OP_QUOTE,    .y=UNDEF,       .z=UNDEF,       },  // (quote <form>)
 
     { .t=Actor_T,       .x=OP_QUOTE+1,  .y=NIL,         .z=UNDEF        },  // (cust opnds env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_QUOTE+2,  },  // opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=CUST_SEND,   },  // form = car(opnds)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_QUOTE+2,  },  // opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // form = car(opnds)
 
 /*
 (define op-lambda                       ; (lambda <frml> . <body>)
@@ -1433,13 +1468,13 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Fexpr_T,       .x=OP_LAMBDA,   .y=UNDEF,       .z=UNDEF,       },  // (lambda <frml> . <body>)
 
     { .t=Actor_T,       .x=OP_LAMBDA+1, .y=NIL,         .z=UNDEF        },  // (cust opnds env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_LAMBDA+2, },  // opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=OP_LAMBDA+3, },  // frml = car(opnds)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_LAMBDA+4, },  // opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=-1,          .z=OP_LAMBDA+5, },  // body = cdr(opnds)
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=OP_LAMBDA+6, },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_LAMBDA+2, },  // opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=OP_LAMBDA+3, },  // frml = car(opnds)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_LAMBDA+4, },  // opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-1),  .z=OP_LAMBDA+5, },  // body = cdr(opnds)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_LAMBDA+6, },  // env
     { .t=Opcode_T,      .x=VM_push,     .y=CLOSURE_B,   .z=OP_LAMBDA+7, },  // CLOSURE_B
-    { .t=Opcode_T,      .x=VM_new,      .y=3,           .z=CUST_SEND,   },  // closure = (CLOSURE_B frml body env)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=CUST_SEND,   },  // closure = (CLOSURE_B frml body env)
 
 /*
 (define op-vau                          ; (vau <frml> <evar> . <body>)
@@ -1457,19 +1492,19 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=OP_VAU+1,    .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=Opcode_T,      .x=VM_push,     .y=Fexpr_T,     .z=OP_VAU+2,    },  // Fexpr_T
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_VAU+3,    },  // opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=OP_VAU+4,    },  // frml = car(opnds)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_VAU+5,    },  // opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=2,           .z=OP_VAU+6,    },  // evar = cadr(opnds)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=OP_VAU+7,    },  // frml' = (evar . frml)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_VAU+3,    },  // opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=OP_VAU+4,    },  // frml = car(opnds)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_VAU+5,    },  // opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(2),   .z=OP_VAU+6,    },  // evar = cadr(opnds)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=OP_VAU+7,    },  // frml' = (evar . frml)
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_VAU+8,    },  // opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=-2,          .z=OP_VAU+9,    },  // body = cddr(opnds)
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=OP_VAU+10,   },  // senv = env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_VAU+8,    },  // opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-2),  .z=OP_VAU+9,    },  // body = cddr(opnds)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_VAU+10,   },  // senv = env
     { .t=Opcode_T,      .x=VM_push,     .y=FEXPR_B,     .z=OP_VAU+11,   },  // FEXPR_B
-    { .t=Opcode_T,      .x=VM_new,      .y=3,           .z=OP_VAU+12,   },  // oper = (FEXPR_B frml' body senv)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=OP_VAU+12,   },  // oper = (FEXPR_B frml' body senv)
 
-    { .t=Opcode_T,      .x=VM_cell,     .y=2,           .z=CUST_SEND,   },  // fexpr = {t:Fexpr_T, x:oper}
+    { .t=Opcode_T,      .x=VM_cell,     .y=TO_FIX(2),   .z=CUST_SEND,   },  // fexpr = {t:Fexpr_T, x:oper}
 
 /*
 (define k-define-beh
@@ -1486,14 +1521,14 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=Opcode_T,      .x=VM_push,     .y=_env_,       .z=K_DEFINE_B-1,},
 //  { .t=Opcode_T,      .x=VM_push,     .y=_frml_,      .z=K_DEFINE_B+0,},
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=K_DEFINE_B+1,},  // ()
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=K_DEFINE_B+2,},  // value
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=K_DEFINE_B+3,},  // frml
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_DEFINE_B+2,},  // value
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=K_DEFINE_B+3,},  // frml
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=K_DEFINE_B+4,},  // SELF
     { .t=Opcode_T,      .x=VM_push,     .y=M_ZIP,       .z=K_DEFINE_B+5,},  // M_ZIP
-    { .t=Opcode_T,      .x=VM_send,     .y=4,           .z=K_DEFINE_B+6,},  // (M_ZIP SELF frml value NIL)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(4),   .z=K_DEFINE_B+6,},  // (M_ZIP SELF frml value NIL)
 
     { .t=Opcode_T,      .x=VM_push,     .y=K_DZIP_B,    .z=K_DEFINE_B+7,},  // K_DZIP_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=COMMIT,      },  // BECOME (K_DZIP_B cust env)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=COMMIT,      },  // BECOME (K_DZIP_B cust env)
 /*
 (define k-defzip-beh
   (lambda (cust env)
@@ -1506,26 +1541,26 @@ cell_t cell_table[CELL_MAX] = {
 */
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=K_DZIP_B-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_env_,       .z=K_DZIP_B+0,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=K_DZIP_B+1,  },  // alist
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_DZIP_B+1,  },  // alist
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=K_DZIP_B+2,  },  // alist has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=K_DZIP_B+6,  .z=K_DZIP_B+3,  },
 
     { .t=Opcode_T,      .x=VM_push,     .y=UNIT,        .z=K_DZIP_B+4,  },  // #unit
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=K_DZIP_B+5,  },  // cust
-    { .t=Opcode_T,      .x=VM_send,     .y=0,           .z=RELEASE,     },  // (cust UNIT)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=K_DZIP_B+5,  },  // cust
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(0),   .z=RELEASE,     },  // (cust UNIT)
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=K_DZIP_B+7,  },  // alist
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=K_DZIP_B+8,  },  // rest first
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=K_DZIP_B+9,  },  // value symbol
-    { .t=Opcode_T,      .x=VM_pick,     .y=4,           .z=K_DZIP_B+10, },  // env
-    { .t=Opcode_T,      .x=VM_roll,     .y=-3,          .z=K_DZIP_B+11, },  // rest env value symbol
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_DZIP_B+7,  },  // alist
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=K_DZIP_B+8,  },  // rest first
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=K_DZIP_B+9,  },  // value symbol
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(4),   .z=K_DZIP_B+10, },  // env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-3),  .z=K_DZIP_B+11, },  // rest env value symbol
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=K_DZIP_B+12, },  // SELF
     { .t=Opcode_T,      .x=VM_push,     .y=M_BIND_E,    .z=K_DZIP_B+13, },  // M_BIND_E
-    { .t=Opcode_T,      .x=VM_send,     .y=4,           .z=K_DZIP_B+14, },  // (M_BIND_E SELF symbol value env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(4),   .z=K_DZIP_B+14, },  // (M_BIND_E SELF symbol value env)
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=-2,          .z=K_DZIP_B+15, },  // cust rest env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-2),  .z=K_DZIP_B+15, },  // cust rest env
     { .t=Opcode_T,      .x=VM_push,     .y=K_BIND_B,    .z=K_DZIP_B+16, },  // K_BIND_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=3,           .z=COMMIT,      },  // BECOME (K_BIND_B cust rest env)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(3),   .z=COMMIT,      },  // BECOME (K_BIND_B cust rest env)
 /*
 (define k-bind-beh
   (lambda (cust alist env)
@@ -1536,12 +1571,12 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=K_BIND_B-2,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_alist_,     .z=K_BIND_B-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_env_,       .z=K_BIND_B+0,  },
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=K_BIND_B+1,  },  // alist
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=K_BIND_B+1,  },  // alist
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=K_BIND_B+2,  },  // SELF
-    { .t=Opcode_T,      .x=VM_send,     .y=0,           .z=K_BIND_B+3,  },  // (SELF alist)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(0),   .z=K_BIND_B+3,  },  // (SELF alist)
 
     { .t=Opcode_T,      .x=VM_push,     .y=K_DZIP_B,    .z=K_BIND_B+4,  },  // K_DZIP_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=COMMIT,      },  // BECOME (K_DZIP_B cust env)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=COMMIT,      },  // BECOME (K_DZIP_B cust env)
 
 /*
 (define bind-each
@@ -1563,19 +1598,19 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Fexpr_T,       .x=OP_DEFINE,   .y=UNDEF,       .z=UNDEF,       },  // (define <frml> <expr>)
 
     { .t=Actor_T,       .x=OP_DEFINE+1, .y=NIL,         .z=UNDEF        },  // (cust opnds env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=OP_DEFINE+2, },  // env
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_DEFINE+3, },  // opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=2,           .z=OP_DEFINE+4, },  // expr = cadr(opnds)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_DEFINE+2, },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_DEFINE+3, },  // opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(2),   .z=OP_DEFINE+4, },  // expr = cadr(opnds)
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=OP_DEFINE+5, },  // cust
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=OP_DEFINE+6, },  // env
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_DEFINE+7, },  // opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=OP_DEFINE+8, },  // frml = car(opnds)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=OP_DEFINE+5, },  // cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_DEFINE+6, },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_DEFINE+7, },  // opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=OP_DEFINE+8, },  // frml = car(opnds)
     { .t=Opcode_T,      .x=VM_push,     .y=K_DEFINE_B,  .z=OP_DEFINE+9, },  // K_DEFINE_B
-    { .t=Opcode_T,      .x=VM_new,      .y=3,           .z=OP_DEFINE+10,},  // k_define = (K_DEFINE_B cust env frml)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=OP_DEFINE+10,},  // k_define = (K_DEFINE_B cust env frml)
 
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=OP_DEFINE+11,},  // M_EVAL
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=COMMIT,      },  // (M_EVAL k_define expr env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL k_define expr env)
 
 /*
 (define op-if                           ; (if <pred> <cnsq> <altn>)
@@ -1590,18 +1625,18 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Fexpr_T,       .x=OP_IF,       .y=UNDEF,       .z=UNDEF,       },  // (if <pred> <cnsq> <altn>)
 
     { .t=Actor_T,       .x=OP_IF+1,     .y=NIL,         .z=UNDEF        },  // (cust opnds env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=OP_IF+2,     },  // env
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_IF+3,     },  // opnds
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=OP_IF+4,     },  // (cnsq altn) pred
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_IF+2,     },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_IF+3,     },  // opnds
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=OP_IF+4,     },  // (cnsq altn) pred
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=OP_IF+5,     },  // cust
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=OP_IF+6,     },  // env
-    { .t=Opcode_T,      .x=VM_roll,     .y=4,           .z=OP_IF+7,     },  // cont = (cnsq altn)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=OP_IF+5,     },  // cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_IF+6,     },  // env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(4),   .z=OP_IF+7,     },  // cont = (cnsq altn)
     { .t=Opcode_T,      .x=VM_push,     .y=M_IF_K,      .z=OP_IF+8,     },  // M_IF_K
-    { .t=Opcode_T,      .x=VM_new,      .y=3,           .z=OP_IF+9,     },  // k_if = (M_IF_K cust env cont)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=OP_IF+9,     },  // k_if = (M_IF_K cust env cont)
 
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=OP_IF+10,    },  // M_EVAL
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=COMMIT,      },  // (M_EVAL k_if pred env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL k_if pred env)
 
 /*
 (define op-cond                         ; (cond (<test> . <body>) . <clauses>)
@@ -1619,44 +1654,44 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Fexpr_T,       .x=OP_COND,     .y=UNDEF,       .z=UNDEF,       },  // (cond (<test> . <body>) . <clauses>)
 
     { .t=Actor_T,       .x=OP_COND+1,   .y=NIL,         .z=UNDEF        },  // (cust opnds env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_COND+2,   },  // opnds
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_COND+2,   },  // opnds
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=OP_COND+3,   },  // opnds has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=OP_COND+4,   .z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_COND+5,   },  // opnds
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=OP_COND+6,   },  // rest first
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=OP_COND+7,   },  // rest body test
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_COND+5,   },  // opnds
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=OP_COND+6,   },  // rest first
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=OP_COND+7,   },  // rest body test
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=OP_COND+8,   },  // env
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=OP_COND+9,   },  // env test
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_COND+8,   },  // env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=OP_COND+9,   },  // env test
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=OP_COND+10,  },  // cust
-    { .t=Opcode_T,      .x=VM_roll,     .y=4,           .z=OP_COND+11,  },  // rest env test cust body
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=OP_COND+12,  },  // env
-    { .t=Opcode_T,      .x=VM_roll,     .y=6,           .z=OP_COND+13,  },  // opnds' = rest
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=OP_COND+10,  },  // cust
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(4),   .z=OP_COND+11,  },  // rest env test cust body
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_COND+12,  },  // env
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(6),   .z=OP_COND+13,  },  // opnds' = rest
     { .t=Opcode_T,      .x=VM_push,     .y=K_COND,      .z=OP_COND+14,  },  // K_COND
-    { .t=Opcode_T,      .x=VM_new,      .y=4,           .z=OP_COND+15,  },  // k_cond = (K_COND cust body env opnds')
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(4),   .z=OP_COND+15,  },  // k_cond = (K_COND cust body env opnds')
 
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=OP_COND+16,  },  // M_EVAL
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=COMMIT,      },  // (M_EVAL k_cond test env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL k_cond test env)
 
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=K_COND-3,    },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_body_,      .z=K_COND-2,    },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_env_,       .z=K_COND+0,    },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_opnds_,     .z=K_COND-1,    },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=K_COND+1,    },  // test_result
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_COND+1,    },  // test_result
     { .t=Opcode_T,      .x=VM_if,       .y=K_COND+2,    .z=K_COND+7,    },
 
-    { .t=Opcode_T,      .x=VM_drop,     .y=1,           .z=K_COND+3,    },  // cust body env
+    { .t=Opcode_T,      .x=VM_drop,     .y=TO_FIX(1),   .z=K_COND+3,    },  // cust body env
     { .t=Opcode_T,      .x=VM_push,     .y=K_SEQ_B,     .z=K_COND+4,    },  // K_SEQ_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=3,           .z=K_COND+5,    },  // BECOME (K_SEQ_B cust body env)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(3),   .z=K_COND+5,    },  // BECOME (K_SEQ_B cust body env)
 
     { .t=Opcode_T,      .x=VM_push,     .y=UNIT,        .z=K_COND+6,    },  // UNIT
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=SEND_0,      },  // (SELF . UNIT)
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=4,           .z=K_COND+8,    },  // body env opnds cust
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(4),   .z=K_COND+8,    },  // body env opnds cust
     { .t=Opcode_T,      .x=VM_push,     .y=OP_COND,     .z=K_COND+9,    },  // OP_COND
-    { .t=Opcode_T,      .x=VM_send,     .y=3,           .z=RELEASE,     },  // (OP_COND cust opnds env)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=RELEASE,     },  // (OP_COND cust opnds env)
 
 /*
 (define op-seq                          ; (seq . <body>)
@@ -1673,11 +1708,11 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=OP_SEQ+1,    .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=Opcode_T,      .x=VM_push,     .y=UNIT,        .z=OP_SEQ+2,    },  // UNIT
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=OP_SEQ+3,    },  // cust
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_SEQ+4,    },  // body = opnds
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=OP_SEQ+5,    },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=OP_SEQ+3,    },  // cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_SEQ+4,    },  // body = opnds
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_SEQ+5,    },  // env
     { .t=Opcode_T,      .x=VM_push,     .y=K_SEQ_B,     .z=OP_SEQ+6,    },  // K_SEQ_B
-    { .t=Opcode_T,      .x=VM_new,      .y=3,           .z=SEND_0,      },  // k-seq = (K_SEQ_B cust opnds env)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=SEND_0,      },  // k-seq = (K_SEQ_B cust opnds env)
 
 //
 // Global LISP/Scheme Procedures
@@ -1685,75 +1720,75 @@ cell_t cell_table[CELL_MAX] = {
 
 #define F_LIST (OP_SEQ+7)
     { .t=Actor_T,       .x=F_LIST+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=CUST_SEND,   },  // args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=CUST_SEND,   },  // args
 
 #define F_CONS (F_LIST+2)
     { .t=Actor_T,       .x=F_CONS+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
 #if 1
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_CONS+2,    },  // tail = arg2
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_CONS+3,    },  // head = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_CONS+2,    },  // tail = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CONS+3,    },  // head = arg1
 #else
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_CONS+2,    },  // (head tail)
-    { .t=Opcode_T,      .x=VM_part,     .y=2,           .z=F_CONS+3,    },  // () tail head
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_CONS+2,    },  // (head tail)
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(2),   .z=F_CONS+3,    },  // () tail head
 #endif
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=CUST_SEND,   },  // (head . tail)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=CUST_SEND,   },  // (head . tail)
 
 #define F_CAR (F_CONS+4)
     { .t=Actor_T,       .x=F_CAR+1,     .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_CAR+2,     },  // pair = arg1
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=CUST_SEND,   },  // car(pair)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CAR+2,     },  // pair = arg1
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // car(pair)
 
 #define F_CDR (F_CAR+3)
     { .t=Actor_T,       .x=F_CDR+1,     .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_CDR+2,     },  // pair = arg1
-    { .t=Opcode_T,      .x=VM_nth,      .y=-1,          .z=CUST_SEND,   },  // cdr(pair)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CDR+2,     },  // pair = arg1
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-1),  .z=CUST_SEND,   },  // cdr(pair)
 
 #define F_CADR (F_CDR+3)
     { .t=Actor_T,       .x=F_CADR+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_CADR+2,    },  // pair = arg1
-    { .t=Opcode_T,      .x=VM_nth,      .y=2,           .z=CUST_SEND,   },  // cadr(pair)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CADR+2,    },  // pair = arg1
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(2),   .z=CUST_SEND,   },  // cadr(pair)
 
 #define F_CADDR (F_CADR+3)
     { .t=Actor_T,       .x=F_CADDR+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_CADDR+2,   },  // pair = arg1
-    { .t=Opcode_T,      .x=VM_nth,      .y=3,           .z=CUST_SEND,   },  // caddr(pair)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CADDR+2,   },  // pair = arg1
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(3),   .z=CUST_SEND,   },  // caddr(pair)
 
 #define F_NTH (F_CADDR+3)
     { .t=Actor_T,       .x=F_NTH+1,     .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=F_NTH+2,     },  // msg = (cust . args)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=F_NTH+2,     },  // msg = (cust . args)
 
     { .t=Opcode_T,      .x=VM_push,     .y=VM_nth,      .z=F_NTH+3,     },  // VM_nth
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_NTH+4,     },  // index = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_NTH+4,     },  // index = arg1
     { .t=Opcode_T,      .x=VM_cvt,      .y=CVT_FIX_INT, .z=F_NTH+5,     },  // TO_INT(index)
     { .t=Opcode_T,      .x=VM_push,     .y=CUST_SEND,   .z=F_NTH+6,     },  // CUST_SEND
-    { .t=Opcode_T,      .x=VM_cell,     .y=3,           .z=F_NTH+7,     },  // beh = {t:VM_nth, x:index, k:CUST_SEND}
+    { .t=Opcode_T,      .x=VM_cell,     .y=TO_FIX(3),   .z=F_NTH+7,     },  // beh = {t:VM_nth, x:index, k:CUST_SEND}
 
     { .t=Opcode_T,      .x=VM_push,     .y=VM_msg,      .z=F_NTH+8,     },  // VM_msg
-    { .t=Opcode_T,      .x=VM_push,     .y=3,           .z=F_NTH+9,     },  // 3
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=F_NTH+10,    },  // beh
-    { .t=Opcode_T,      .x=VM_cell,     .y=3,           .z=F_NTH+11,    },  // beh' = {t:VM_msg, x:3, k:beh}
+    { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(3),   .z=F_NTH+9,     },  // 3
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=F_NTH+10,    },  // beh
+    { .t=Opcode_T,      .x=VM_cell,     .y=TO_FIX(3),   .z=F_NTH+11,    },  // beh' = {t:VM_msg, x:3, k:beh}
 
-    { .t=Opcode_T,      .x=VM_new,      .y=0,           .z=SEND_0,      },  // (k_nth cust . args)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(0),   .z=SEND_0,      },  // (k_nth cust . args)
 
 #define F_NULL_P (F_NTH+12)
     { .t=Actor_T,       .x=F_NULL_P+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_NULL_P+2,  },  // args
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NULL_P+3,  },  // args args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NULL_P+2,  },  // args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NULL_P+3,  },  // args args
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NULL_P+4,  },  // args has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NULL_P+5,  .z=RV_TRUE,     },
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NULL_P+6,  },  // rest first
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NULL_P+6,  },  // rest first
     { .t=Opcode_T,      .x=VM_eq,       .y=NIL,         .z=F_NULL_P+7,  },  // first == NIL
     { .t=Opcode_T,      .x=VM_if,       .y=F_NULL_P+2,  .z=RV_FALSE,    },
 
 #define F_TYPE_P (F_NULL_P+8)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_type_,      .z=F_TYPE_P+0,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_TYPE_P+1,  },  // args
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_TYPE_P+2,  },  // args args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_TYPE_P+1,  },  // args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_TYPE_P+2,  },  // args args
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_TYPE_P+3,  },  // args has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_TYPE_P+4,  .z=RV_TRUE,     },
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_TYPE_P+5,  },  // rest first
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_TYPE_P+5,  },  // rest first
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_T,       .z=F_TYPE_P+6,  },  // get_t(first)
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=F_TYPE_P+7,  },  // type
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=F_TYPE_P+7,  },  // type
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_EQ,      .z=F_TYPE_P+8,  },  // get_t(first) == type
     { .t=Opcode_T,      .x=VM_if,       .y=F_TYPE_P+1,  .z=RV_FALSE,    },
 
@@ -1767,11 +1802,11 @@ cell_t cell_table[CELL_MAX] = {
 
 #define F_NUM_P (F_BOOL_P+2)
     { .t=Actor_T,       .x=F_NUM_P+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_NUM_P+2,   },  // args
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_P+3,   },  // args args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_P+2,   },  // args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_P+3,   },  // args args
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_P+4,   },  // args has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_P+5,   .z=RV_TRUE,     },
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_P+6,   },  // rest first
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_P+6,   },  // rest first
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_P+7,   },  // first has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_P+2,   .z=RV_FALSE,    },
 
@@ -1785,197 +1820,197 @@ cell_t cell_table[CELL_MAX] = {
 
 #define F_EQ_P (F_ACT_P+2)
     { .t=Actor_T,       .x=F_EQ_P+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=F_EQ_P+2,    },  // rest = cdr(args)
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_EQ_P+3,    },  // rest rest
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=F_EQ_P+2,    },  // rest = cdr(args)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_EQ_P+3,    },  // rest rest
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_EQ_P+4,    },  // rest has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_EQ_P+5,    .z=RV_TRUE,     },
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_EQ_P+6,    },  // rest first
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_EQ_P+7,    },  // car(args)
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_EQ_P+6,    },  // rest first
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_EQ_P+7,    },  // car(args)
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_EQ,      .z=F_EQ_P+8,    },  // first == car(args)
     { .t=Opcode_T,      .x=VM_if,       .y=F_EQ_P+2,    .z=RV_FALSE,    },
 
 #define F_NUM_EQ (F_EQ_P+9)
     { .t=Actor_T,       .x=F_NUM_EQ+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_NUM_EQ+2,  },  // args
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_EQ+3,  },  // args args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_EQ+2,  },  // args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_EQ+3,  },  // args args
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_EQ+4,  },  // args has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_EQ+5,  .z=RV_TRUE,     },
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_EQ+6,  },  // rest first
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_EQ+7,  },  // rest first first
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_EQ+6,  },  // rest first
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_EQ+7,  },  // rest first first
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_EQ+8,  },  // first has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_EQ+9,  .z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=F_NUM_EQ+10, },  // rest
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=F_NUM_EQ+10, },  // rest
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_EQ+11, },  // rest has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_EQ+12, .z=RV_TRUE,     },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=F_NUM_EQ+13, },  // first rest
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_EQ+14, },  // first rest second
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_EQ+15, },  // second second
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=F_NUM_EQ+13, },  // first rest
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_EQ+14, },  // first rest second
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_EQ+15, },  // second second
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_EQ+16, },  // second has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_EQ+17, .z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=F_NUM_EQ+18, },  // rest second first
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=F_NUM_EQ+19, },  // rest second first second
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=F_NUM_EQ+18, },  // rest second first
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=F_NUM_EQ+19, },  // rest second first second
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_EQ,      .z=F_NUM_EQ+20, },  // first == second
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_EQ+9,  .z=RV_FALSE,    },
 
 #define F_NUM_LT (F_NUM_EQ+21)
     { .t=Actor_T,       .x=F_NUM_LT+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_NUM_LT+2,  },  // args
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_LT+3,  },  // args args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_LT+2,  },  // args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_LT+3,  },  // args args
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_LT+4,  },  // args has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_LT+5,  .z=RV_TRUE,     },
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_LT+6,  },  // rest first
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_LT+7,  },  // rest first first
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_LT+6,  },  // rest first
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_LT+7,  },  // rest first first
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_LT+8,  },  // first has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_LT+9,  .z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=F_NUM_LT+10, },  // rest
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=F_NUM_LT+10, },  // rest
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_LT+11, },  // rest has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_LT+12, .z=RV_TRUE,     },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=F_NUM_LT+13, },  // first rest
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_LT+14, },  // first rest second
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_LT+15, },  // second second
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=F_NUM_LT+13, },  // first rest
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_LT+14, },  // first rest second
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_LT+15, },  // second second
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_LT+16, },  // second has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_LT+17, .z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=F_NUM_LT+18, },  // rest second first
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=F_NUM_LT+19, },  // rest second first second
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=F_NUM_LT+18, },  // rest second first
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=F_NUM_LT+19, },  // rest second first second
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_LT,      .z=F_NUM_LT+20, },  // first < second
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_LT+9,  .z=RV_FALSE,    },
 
 #define F_NUM_LE (F_NUM_LT+21)
     { .t=Actor_T,       .x=F_NUM_LE+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_NUM_LE+2,  },  // args
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_LE+3,  },  // args args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_LE+2,  },  // args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_LE+3,  },  // args args
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_LE+4,  },  // args has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_LE+5,  .z=RV_TRUE,     },
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_LE+6,  },  // rest first
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_LE+7,  },  // rest first first
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_LE+6,  },  // rest first
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_LE+7,  },  // rest first first
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_LE+8,  },  // first has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_LE+9,  .z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=F_NUM_LE+10, },  // rest
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=F_NUM_LE+10, },  // rest
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_LE+11, },  // rest has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_LE+12, .z=RV_TRUE,     },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=F_NUM_LE+13, },  // first rest
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_LE+14, },  // first rest second
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_LE+15, },  // second second
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=F_NUM_LE+13, },  // first rest
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_LE+14, },  // first rest second
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_LE+15, },  // second second
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_LE+16, },  // second has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_LE+17, .z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=F_NUM_LE+18, },  // rest second first
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=F_NUM_LE+19, },  // rest second first second
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=F_NUM_LE+18, },  // rest second first
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=F_NUM_LE+19, },  // rest second first second
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_LE,      .z=F_NUM_LE+20, },  // first <= second
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_LE+9,  .z=RV_FALSE,    },
 
 #define F_NUM_ADD (F_NUM_LE+21)
     { .t=Actor_T,       .x=F_NUM_ADD+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_NUM_ADD+2, },  // args
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_ADD+3, },  // args args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_ADD+2, },  // args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_ADD+3, },  // args args
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_ADD+4, },  // args has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_ADD+5, .z=RV_ZERO,     },
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_ADD+6, },  // rest first
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_ADD+7, },  // rest first first
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_ADD+6, },  // rest first
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_ADD+7, },  // rest first first
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_ADD+8, },  // first has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_ADD+9, .z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=F_NUM_ADD+10,},  // rest
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=F_NUM_ADD+10,},  // rest
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_ADD+11,},  // rest has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_ADD+12,.z=CUST_SEND,   },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=F_NUM_ADD+13,},  // first rest
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_ADD+14,},  // first rest second
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_ADD+15,},  // second second
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=F_NUM_ADD+13,},  // first rest
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_ADD+14,},  // first rest second
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_ADD+15,},  // second second
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_ADD+16,},  // second has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_ADD+17,.z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=F_NUM_ADD+18,},  // rest second first
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=F_NUM_ADD+19,},  // rest first second
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=F_NUM_ADD+18,},  // rest second first
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=F_NUM_ADD+19,},  // rest first second
     { .t=Opcode_T,      .x=VM_alu,      .y=ALU_ADD,     .z=F_NUM_ADD+9, },  // first + second
 
 #define F_NUM_SUB (F_NUM_ADD+20)
     { .t=Actor_T,       .x=F_NUM_SUB+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_NUM_SUB+2, },  // args
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_SUB+3, },  // args args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_SUB+2, },  // args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_SUB+3, },  // args args
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_SUB+4, },  // args has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_SUB+5, .z=RV_ZERO,     },
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_SUB+6, },  // rest first
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_SUB+7, },  // rest first first
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_SUB+6, },  // rest first
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_SUB+7, },  // rest first first
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_SUB+8, },  // first has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_SUB+9, .z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=F_NUM_SUB+10,},  // rest
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=F_NUM_SUB+10,},  // rest
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_SUB+11,},  // rest has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_SUB+15,.z=F_NUM_SUB+12,},
 
-    { .t=Opcode_T,      .x=VM_push,     .y=0,           .z=F_NUM_SUB+13,},  // +0
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=F_NUM_SUB+14,},  // +0 first
+    { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(0),   .z=F_NUM_SUB+13,},  // +0
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=F_NUM_SUB+14,},  // +0 first
     { .t=Opcode_T,      .x=VM_alu,      .y=ALU_SUB,     .z=CUST_SEND,   },  // +0 - first
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=F_NUM_SUB+16,},  // first rest
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_SUB+17,},  // first rest second
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_SUB+18,},  // second second
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=F_NUM_SUB+16,},  // first rest
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_SUB+17,},  // first rest second
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_SUB+18,},  // second second
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_SUB+19,},  // second has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_SUB+20,.z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=F_NUM_SUB+21,},  // rest second first
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=F_NUM_SUB+22,},  // rest first second
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=F_NUM_SUB+21,},  // rest second first
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=F_NUM_SUB+22,},  // rest first second
     { .t=Opcode_T,      .x=VM_alu,      .y=ALU_SUB,     .z=F_NUM_SUB+23,},  // first - second
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=F_NUM_SUB+24,},  // rest
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=F_NUM_SUB+24,},  // rest
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_SUB+25,},  // rest has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_SUB+15,.z=CUST_SEND,   },
 
 #define F_NUM_MUL (F_NUM_SUB+26)
     { .t=Actor_T,       .x=F_NUM_MUL+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_NUM_MUL+2, },  // args
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_MUL+3, },  // args args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_MUL+2, },  // args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_MUL+3, },  // args args
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_MUL+4, },  // args has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_MUL+5, .z=RV_ONE,      },
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_MUL+6, },  // rest first
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_MUL+7, },  // rest first first
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_MUL+6, },  // rest first
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_MUL+7, },  // rest first first
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_MUL+8, },  // first has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_MUL+9, .z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=F_NUM_MUL+10,},  // rest
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=F_NUM_MUL+10,},  // rest
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_NUM_MUL+11,},  // rest has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_MUL+12,.z=CUST_SEND,   },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=F_NUM_MUL+13,},  // first rest
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_NUM_MUL+14,},  // first rest second
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_NUM_MUL+15,},  // second second
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=F_NUM_MUL+13,},  // first rest
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_NUM_MUL+14,},  // first rest second
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_MUL+15,},  // second second
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fixnum_T,    .z=F_NUM_MUL+16,},  // second has type Fixnum_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_MUL+17,.z=RV_UNDEF,    },
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=F_NUM_MUL+18,},  // rest second first
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=F_NUM_MUL+19,},  // rest first second
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=F_NUM_MUL+18,},  // rest second first
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=F_NUM_MUL+19,},  // rest first second
     { .t=Opcode_T,      .x=VM_alu,      .y=ALU_MUL,     .z=F_NUM_MUL+9, },  // first * second
 
 #define F_LST_NUM (F_NUM_MUL+20)
     { .t=Actor_T,       .x=F_LST_NUM+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_LST_NUM+2, },  // chars = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_LST_NUM+2, },  // chars = arg1
     { .t=Opcode_T,      .x=VM_cvt,      .y=CVT_LST_NUM, .z=CUST_SEND,   },  // lst_num(chars)
 
 #define F_LST_SYM (F_LST_NUM+3)
     { .t=Actor_T,       .x=F_LST_SYM+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_LST_SYM+2, },  // chars = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_LST_SYM+2, },  // chars = arg1
     { .t=Opcode_T,      .x=VM_cvt,      .y=CVT_LST_SYM, .z=CUST_SEND,   },  // lst_sym(chars)
 
 #define F_PRINT (F_LST_SYM+3)
     { .t=Actor_T,       .x=F_PRINT+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_PRINT+2,   },
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_PRINT+2,   },
     { .t=Opcode_T,      .x=VM_debug,    .y=TO_FIX(555), .z=F_PRINT+3,   },
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=CUST_SEND,   },
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=CUST_SEND,   },
 
 #if SCM_ASM_TOOLS
 //
@@ -1984,64 +2019,64 @@ cell_t cell_table[CELL_MAX] = {
 
 #define F_INT_FIX (F_PRINT+4)
     { .t=Actor_T,       .x=F_INT_FIX+1, .y=NIL,         .z=UNDEF        },  // (int->fix <rawint>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_INT_FIX+2, },  // rawint = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_INT_FIX+2, },  // rawint = arg1
     { .t=Opcode_T,      .x=VM_cvt,      .y=CVT_INT_FIX, .z=CUST_SEND,   },  // TO_FIX(rawint)
 
 #define F_FIX_INT (F_INT_FIX+3)
     { .t=Actor_T,       .x=F_FIX_INT+1, .y=NIL,         .z=UNDEF        },  // (fix->int <fixnum>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_FIX_INT+2, },  // fixnum = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_FIX_INT+2, },  // fixnum = arg1
     { .t=Opcode_T,      .x=VM_cvt,      .y=CVT_FIX_INT, .z=CUST_SEND,   },  // TO_INT(fixnum)
 
 #define F_CELL (F_FIX_INT+3)
     { .t=Actor_T,       .x=F_CELL+1,    .y=NIL,         .z=UNDEF        },  // (cell <T> <X> <Y> <Z>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_CELL+2,    },  // T = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_CELL+3,    },  // X = arg2
-    { .t=Opcode_T,      .x=VM_msg,      .y=4,           .z=F_CELL+4,    },  // Y = arg3
-    { .t=Opcode_T,      .x=VM_msg,      .y=5,           .z=F_CELL+5,    },  // Z = arg4
-    { .t=Opcode_T,      .x=VM_cell,     .y=4,           .z=CUST_SEND,   },  // cell(T, X, Y, Z)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CELL+2,    },  // T = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_CELL+3,    },  // X = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(4),   .z=F_CELL+4,    },  // Y = arg3
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(5),   .z=F_CELL+5,    },  // Z = arg4
+    { .t=Opcode_T,      .x=VM_cell,     .y=TO_FIX(4),   .z=CUST_SEND,   },  // cell(T, X, Y, Z)
 
 #define F_GET_T (F_CELL+6)
     { .t=Actor_T,       .x=F_GET_T+1,   .y=NIL,         .z=UNDEF        },  // (get-t <cell>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_GET_T+2,   },  // cell = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_GET_T+2,   },  // cell = arg1
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_T,       .z=CUST_SEND,   },  // get-t(cell)
 
 #define F_GET_X (F_GET_T+3)
     { .t=Actor_T,       .x=F_GET_X+1,   .y=NIL,         .z=UNDEF        },  // (get-x <cell>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_GET_X+2,   },  // cell = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_GET_X+2,   },  // cell = arg1
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_X,       .z=CUST_SEND,   },  // get-x(cell)
 
 #define F_GET_Y (F_GET_X+3)
     { .t=Actor_T,       .x=F_GET_Y+1,   .y=NIL,         .z=UNDEF        },  // (get-y <cell>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_GET_Y+2,   },  // cell = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_GET_Y+2,   },  // cell = arg1
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_Y,       .z=CUST_SEND,   },  // get-y(cell)
 
 #define F_GET_Z (F_GET_Y+3)
     { .t=Actor_T,       .x=F_GET_Z+1,   .y=NIL,         .z=UNDEF        },  // (get-z <cell>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_GET_Z+2,   },  // cell = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_GET_Z+2,   },  // cell = arg1
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_Z,       .z=CUST_SEND,   },  // get-z(cell)
 
 #define F_SET_T (F_GET_Z+3)
     { .t=Actor_T,       .x=F_SET_T+1,   .y=NIL,         .z=UNDEF        },  // (set-t <cell> <T>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_SET_T+2,   },  // cell = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_SET_T+3,   },  // T = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_SET_T+2,   },  // cell = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_SET_T+3,   },  // T = arg2
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_T,       .z=CUST_SEND,   },  // set-t(cell, T)
 
 #define F_SET_X (F_SET_T+4)
     { .t=Actor_T,       .x=F_SET_X+1,   .y=NIL,         .z=UNDEF        },  // (set-x <cell> <X>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_SET_X+2,   },  // cell = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_SET_X+3,   },  // X = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_SET_X+2,   },  // cell = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_SET_X+3,   },  // X = arg2
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_X,       .z=CUST_SEND,   },  // set-x(cell, X)
 
 #define F_SET_Y (F_SET_X+4)
     { .t=Actor_T,       .x=F_SET_Y+1,   .y=NIL,         .z=UNDEF        },  // (set-y <cell> <Y>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_SET_Y+2,   },  // cell = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_SET_Y+3,   },  // Y = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_SET_Y+2,   },  // cell = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_SET_Y+3,   },  // Y = arg2
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_Y,       .z=CUST_SEND,   },  // set-y(cell, Y)
 
 #define F_SET_Z (F_SET_Y+4)
     { .t=Actor_T,       .x=F_SET_Z+1,   .y=NIL,         .z=UNDEF        },  // (set-z <cell> <Z>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_SET_Z+2,   },  // cell = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_SET_Z+3,   },  // Z = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_SET_Z+2,   },  // cell = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_SET_Z+3,   },  // Z = arg2
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_Z,       .z=CUST_SEND,   },  // set-z(cell, Z)
 
 #define ASM_END (F_SET_Z+4)
@@ -2091,18 +2126,18 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=Fexpr_T,     .z=M_ACTOR_B+1, },  // T = Fexpr_T
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=M_ACTOR_B+2, },  // X = SELF
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=M_ACTOR_B+3, },  // Y = ()
-    { .t=Opcode_T,      .x=VM_pick,     .y=4,           .z=M_ACTOR_B+4, },  // Z = beh
-    { .t=Opcode_T,      .x=VM_cell,     .y=4,           .z=M_ACTOR_B+5, },  // txn = cell(T, X, Y, Z)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(4),   .z=M_ACTOR_B+4, },  // Z = beh
+    { .t=Opcode_T,      .x=VM_cell,     .y=TO_FIX(4),   .z=M_ACTOR_B+5, },  // txn = cell(T, X, Y, Z)
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=M_ACTOR_B+6, },  // txn txn
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=M_ACTOR_B+6, },  // txn txn
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=M_ACTOR_B+7, },  // pending = ()
     { .t=Opcode_T,      .x=VM_push,     .y=M_BUSY_B,    .z=M_ACTOR_B+8, },  // M_BUSY_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=M_ACTOR_B+9, },  // BECOME (M_BUSY_B txn pending)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=M_ACTOR_B+9, },  // BECOME (M_BUSY_B txn pending)
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=M_ACTOR_B+10,},  // msg
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=M_ACTOR_B+11,},  // txn
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_ACTOR_B+12,},  // (txn . msg)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=SEND_0,      },  // beh
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=M_ACTOR_B+10,},  // msg
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=M_ACTOR_B+11,},  // txn
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_ACTOR_B+12,},  // (txn . msg)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=SEND_0,      },  // beh
 
 /*
 (define meta-busy-beh
@@ -2123,55 +2158,55 @@ cell_t cell_table[CELL_MAX] = {
 */
 //  { .t=Opcode_T,      .x=VM_push,     .y=_txn_,       .z=M_BUSY_B-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_pending_,   .z=M_BUSY_B+0,  },
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=M_BUSY_B+1,  },  // txn
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=M_BUSY_B+2,  },  // msg
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=M_BUSY_B+1,  },  // txn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=M_BUSY_B+2,  },  // msg
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_EQ,      .z=M_BUSY_B+3,  },  // (msg == txn)
     { .t=Opcode_T,      .x=VM_if,       .y=M_BUSY_B+8,  .z=M_BUSY_B+4,  },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=M_BUSY_B+5,  },  // msg
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_BUSY_B+6,  },  // (msg . pending)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=M_BUSY_B+5,  },  // msg
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_BUSY_B+6,  },  // (msg . pending)
     { .t=Opcode_T,      .x=VM_push,     .y=M_BUSY_B,    .z=M_BUSY_B+7,  },  // M_BUSY_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=COMMIT,      },  // BECOME (M_BUSY_B txn (msg . pending))
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=COMMIT,      },  // BECOME (M_BUSY_B txn (msg . pending))
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=M_BUSY_B+9,  },  // msg
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=M_BUSY_B+9,  },  // msg
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_Y,       .z=M_BUSY_B+10, },  // outbox
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=M_BUSY_B+11, },  // outbox outbox
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=M_BUSY_B+11, },  // outbox outbox
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=M_BUSY_B+12, },  // outbox has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_BUSY_B+13, .z=M_BUSY_B+16, },
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=M_BUSY_B+14, },  // rest first
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=M_BUSY_B+15, },  // rest msg actor
-    { .t=Opcode_T,      .x=VM_send,     .y=0,           .z=M_BUSY_B+10, },  // (actor . msg)
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=M_BUSY_B+14, },  // rest first
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=M_BUSY_B+15, },  // rest msg actor
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(0),   .z=M_BUSY_B+10, },  // (actor . msg)
 
-    { .t=Opcode_T,      .x=VM_drop,     .y=1,           .z=M_BUSY_B+17, },  // txn pending
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=M_BUSY_B+18, },  // msg
+    { .t=Opcode_T,      .x=VM_drop,     .y=TO_FIX(1),   .z=M_BUSY_B+17, },  // txn pending
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=M_BUSY_B+18, },  // msg
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_Z,       .z=M_BUSY_B+19, },  // beh'
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=M_BUSY_B+20, },  // txn pending beh' pending
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=M_BUSY_B+20, },  // txn pending beh' pending
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=M_BUSY_B+21, },  // pending has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=M_BUSY_B+24, .z=M_BUSY_B+22, },
 
     { .t=Opcode_T,      .x=VM_push,     .y=M_ACTOR_B,   .z=M_BUSY_B+23, },  // M_ACTOR_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=1,           .z=COMMIT,      },  // BECOME (M_ACTOR_B beh')
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(1),   .z=COMMIT,      },  // BECOME (M_ACTOR_B beh')
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=M_BUSY_B+25, },  // beh' pending
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=M_BUSY_B+26, },  // beh' tail head
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=M_BUSY_B+25, },  // beh' pending
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=M_BUSY_B+26, },  // beh' tail head
 
     { .t=Opcode_T,      .x=VM_push,     .y=Fexpr_T,     .z=M_BUSY_B+27, },  // T = Fexpr_T
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=M_BUSY_B+28, },  // X = SELF
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=M_BUSY_B+29, },  // Y = ()
-    { .t=Opcode_T,      .x=VM_pick,     .y=6,           .z=M_BUSY_B+30, },  // Z = beh'
-    { .t=Opcode_T,      .x=VM_cell,     .y=4,           .z=M_BUSY_B+31, },  // txn' = cell(T, X, Y, Z)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(6),   .z=M_BUSY_B+30, },  // Z = beh'
+    { .t=Opcode_T,      .x=VM_cell,     .y=TO_FIX(4),   .z=M_BUSY_B+31, },  // txn' = cell(T, X, Y, Z)
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=M_BUSY_B+32, },  // beh' tail txn' head
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=M_BUSY_B+33, },  // beh' tail txn' head txn'
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_BUSY_B+34, },  // beh' tail txn' (txn' . head)
-    { .t=Opcode_T,      .x=VM_roll,     .y=4,           .z=M_BUSY_B+35, },  // tail txn' (txn' . head) beh'
-    { .t=Opcode_T,      .x=VM_send,     .y=0,           .z=M_BUSY_B+36, },  // (beh' . (txn' . head))
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=M_BUSY_B+32, },  // beh' tail txn' head
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=M_BUSY_B+33, },  // beh' tail txn' head txn'
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_BUSY_B+34, },  // beh' tail txn' (txn' . head)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(4),   .z=M_BUSY_B+35, },  // tail txn' (txn' . head) beh'
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(0),   .z=M_BUSY_B+36, },  // (beh' . (txn' . head))
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=M_BUSY_B+37, },  // txn' tail
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=M_BUSY_B+37, },  // txn' tail
     { .t=Opcode_T,      .x=VM_push,     .y=M_BUSY_B,    .z=M_BUSY_B+38, },  // M_BUSY_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=COMMIT,      },  // BECOME (M_BUSY_B txn' tail)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=COMMIT,      },  // BECOME (M_BUSY_B txn' tail)
 
 /*
 (define meta-SEND                       ; (SEND actor message)
@@ -2181,13 +2216,13 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define M_SEND (M_BUSY_B+39)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_txn_,       .z=M_SEND+0,    },
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=M_SEND+1,    },  // txn txn
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=M_SEND+2,    },  // txn txn txn
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=M_SEND+1,    },  // txn txn
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=M_SEND+2,    },  // txn txn txn
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_Y,       .z=M_SEND+3,    },  // outbox = get_y(txn)
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=M_SEND+4,    },  // msg = arg2
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_SEND+5,    },  // actor = arg1
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_SEND+6,    },  // (actor . msg)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=M_SEND+7,    },  // outbox' = ((actor . msg) . outbox)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=M_SEND+4,    },  // msg = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_SEND+5,    },  // actor = arg1
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_SEND+6,    },  // (actor . msg)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=M_SEND+7,    },  // outbox' = ((actor . msg) . outbox)
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_Y,       .z=RV_UNIT,     },  // set_y(txn, outbox')
 
 /*
@@ -2198,8 +2233,8 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define M_BECOME (M_SEND+8)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_txn_,       .z=M_BECOME+0,  },
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=M_BECOME+1,  },  // txn txn
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=M_BECOME+2,  },  // beh = arg1
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=M_BECOME+1,  },  // txn txn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_BECOME+2,  },  // beh = arg1
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_Z,       .z=RV_UNIT,     },  // set_z(txn, beh)
 
 /*
@@ -2221,61 +2256,61 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=Opcode_T,      .x=VM_push,     .y=_frml_,      .z=A_META_B-2,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_body_,      .z=A_META_B-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_env_,       .z=A_META_B+0,  },
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=A_META_B+1,  },  // env
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=A_META_B+1,  },  // env
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=A_META_B+2,  },  // txn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=A_META_B+2,  },  // txn
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_X,       .z=A_META_B+3,  },  // get_x(txn)
     { .t=Opcode_T,      .x=VM_push,     .y=S_SELF,      .z=A_META_B+4,  },  // 'SELF
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=A_META_B+5,  },  // ('SELF . get_x(txn))
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=A_META_B+5,  },  // ('SELF . get_x(txn))
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=A_META_B+6,  },  // txn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=A_META_B+6,  },  // txn
     { .t=Opcode_T,      .x=VM_push,     .y=M_BECOME,    .z=A_META_B+7,  },  // M_BECOME
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=A_META_B+8,  },  // m-become
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=A_META_B+8,  },  // m-become
     { .t=Opcode_T,      .x=VM_push,     .y=S_BECOME,    .z=A_META_B+9,  },  // 'BECOME
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=A_META_B+10, },  // ('BECOME . m-become)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=A_META_B+10, },  // ('BECOME . m-become)
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=A_META_B+11, },  // txn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=A_META_B+11, },  // txn
     { .t=Opcode_T,      .x=VM_push,     .y=M_SEND,      .z=A_META_B+12, },  // M_SEND
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=A_META_B+13, },  // m-send
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=A_META_B+13, },  // m-send
     { .t=Opcode_T,      .x=VM_push,     .y=S_SEND,      .z=A_META_B+14, },  // 'SEND
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=A_META_B+15, },  // ('SEND . m-send)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=A_META_B+15, },  // ('SEND . m-send)
 
     { .t=Opcode_T,      .x=VM_push,     .y=UNDEF,       .z=A_META_B+16, },  // #?
     { .t=Opcode_T,      .x=VM_push,     .y=S_IGNORE,    .z=A_META_B+17, },  // '_
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=A_META_B+18, },  // ('_ . #?)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=A_META_B+18, },  // ('_ . #?)
 
-    { .t=Opcode_T,      .x=VM_pair,     .y=4,           .z=A_META_B+19, },  // aenv
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=A_META_B+20, },  // msg
-    { .t=Opcode_T,      .x=VM_pick,     .y=5,           .z=A_META_B+21, },  // frml
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(4),   .z=A_META_B+19, },  // aenv
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=A_META_B+20, },  // msg
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(5),   .z=A_META_B+21, },  // frml
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=A_META_B+22, },  // txn
-    { .t=Opcode_T,      .x=VM_pick,     .y=6,           .z=A_META_B+23, },  // body
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=A_META_B+22, },  // txn
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(6),   .z=A_META_B+23, },  // body
     { .t=Opcode_T,      .x=VM_push,     .y=A_EXEC_B,    .z=A_META_B+24, },  // A_EXEC_B
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=A_META_B+25, },  // k_exec = (A_EXEC_B txn body)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=A_META_B+25, },  // k_exec = (A_EXEC_B txn body)
 
     { .t=Opcode_T,      .x=VM_push,     .y=M_ZIP,       .z=A_META_B+26, },  // M_ZIP
-    { .t=Opcode_T,      .x=VM_send,     .y=4,           .z=COMMIT,      },  // (M_ZIP k_exec frml msg aenv)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(4),   .z=COMMIT,      },  // (M_ZIP k_exec frml msg aenv)
 
 //      (evbody #unit body (zip frml msg aenv))
 
 //  { .t=Opcode_T,      .x=VM_push,     .y=_txn_,       .z=A_EXEC_B-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_body_,      .z=A_EXEC_B+0,  },
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=A_EXEC_B+1,  },  // body txn
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=A_EXEC_B+1,  },  // body txn
     { .t=Opcode_T,      .x=VM_push,     .y=A_COMMIT_B,  .z=A_EXEC_B+2,  },  // A_COMMIT_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=1,           .z=A_EXEC_B+3,  },  // BECOME (A_COMMIT_B txn)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(1),   .z=A_EXEC_B+3,  },  // BECOME (A_COMMIT_B txn)
 
     { .t=Opcode_T,      .x=VM_push,     .y=UNIT,        .z=A_EXEC_B+4,  },  // #unit
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=A_EXEC_B+5,  },  // SELF
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=A_EXEC_B+6,  },  // #unit SELF body
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=A_EXEC_B+6,  },  // #unit SELF body
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=A_EXEC_B+7,  },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=A_EXEC_B+7,  },  // env
     { .t=Opcode_T,      .x=VM_push,     .y=K_SEQ_B,     .z=A_EXEC_B+8,  },  // K_SEQ_B
-    { .t=Opcode_T,      .x=VM_new,      .y=3,           .z=SEND_0,      },  // k-seq = (K_SEQ_B SELF body env)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=SEND_0,      },  // k-seq = (K_SEQ_B SELF body env)
 
 //      (SEND (get-x txn) txn) )))
 
 //  { .t=Opcode_T,      .x=VM_push,     .y=_txn_,       .z=A_COMMIT_B+0,},
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=A_COMMIT_B+1,},  // txn txn
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=A_COMMIT_B+1,},  // txn txn
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_X,       .z=RELEASE_0,   },  // txn get-x(txn)
 
 /*
@@ -2291,13 +2326,13 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Fexpr_T,       .x=OP_M_BEH,    .y=UNDEF,       .z=UNDEF,       },  // (BEH <frml> . <body>)
 
     { .t=Actor_T,       .x=OP_M_BEH+1,  .y=NIL,         .z=UNDEF        },  // (cust opnds env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_M_BEH+2,  },  // opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=OP_M_BEH+3,  },  // frml = car(opnds)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_M_BEH+4,  },  // opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=-1,          .z=OP_M_BEH+5,  },  // body = cdr(opnds)
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=OP_M_BEH+6,  },  // env
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_M_BEH+2,  },  // opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=OP_M_BEH+3,  },  // frml = car(opnds)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_M_BEH+4,  },  // opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-1),  .z=OP_M_BEH+5,  },  // body = cdr(opnds)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_M_BEH+6,  },  // env
     { .t=Opcode_T,      .x=VM_push,     .y=A_META_B,    .z=OP_M_BEH+7,  },  // A_META_B
-    { .t=Opcode_T,      .x=VM_new,      .y=3,           .z=CUST_SEND,   },  // closure = (A_META_B frml body env)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=CUST_SEND,   },  // closure = (A_META_B frml body env)
 
 /*
 (define meta-CREATE                     ; (CREATE behavior)
@@ -2307,22 +2342,22 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define F_CREATE (OP_M_BEH+8)
     { .t=Actor_T,       .x=F_CREATE+1,  .y=NIL,         .z=UNDEF        },  // (CREATE <behavior>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_CREATE+2,  },  // beh = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CREATE+2,  },  // beh = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=M_ACTOR_B,   .z=F_CREATE+3,  },  // M_ACTOR_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=CUST_SEND,   },  // actor = (M_ACTOR_B beh)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // actor = (M_ACTOR_B beh)
 
 #define F_SEND (F_CREATE+4)
     { .t=Actor_T,       .x=F_SEND+1,    .y=NIL,         .z=UNDEF        },  // (SEND <actor> <message>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_SEND+2,    },  // msg = arg2
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_SEND+3,    },  // actor = arg1
-    { .t=Opcode_T,      .x=VM_send,     .y=0,           .z=RV_UNIT,     },  // (actor . msg)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_SEND+2,    },  // msg = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_SEND+3,    },  // actor = arg1
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(0),   .z=RV_UNIT,     },  // (actor . msg)
 
 #define F_CALL (F_SEND+4)
     { .t=Actor_T,       .x=F_CALL+1,    .y=NIL,         .z=UNDEF        },  // (CALL <actor> <args>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_CALL+2,    },  // args = arg2
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=F_CALL+3,    },  // cust = arg0
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=F_CALL+4,    },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=SEND_0,      },  // actor = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_CALL+2,    },  // args = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=F_CALL+3,    },  // cust = arg0
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=F_CALL+4,    },  // (cust . args)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=SEND_0,      },  // actor = arg1
 
 #define ACTOR_END (F_CALL+5)
 #else // !META_ACTORS
@@ -2336,161 +2371,161 @@ cell_t cell_table[CELL_MAX] = {
 #define G_EMPTY (ACTOR_END+0)
     { .t=Actor_T,       .x=G_EMPTY+1,   .y=NIL,         .z=UNDEF        },
 #define G_EMPTY_B (G_EMPTY+1)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_EMPTY+2,   },  // in
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_EMPTY+2,   },  // in
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=G_EMPTY+3,   },  // ()
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_EMPTY+4,   },  // (() . in)
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=G_EMPTY+5,   },  // custs = (ok . fail)
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=SEND_0,      },  // ok = car(custs)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_EMPTY+4,   },  // (() . in)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_EMPTY+5,   },  // custs = (ok . fail)
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=SEND_0,      },  // ok = car(custs)
 
 #define G_FAIL (G_EMPTY+6)
     { .t=Actor_T,       .x=G_FAIL+1,    .y=NIL,         .z=UNDEF        },
 #define G_FAIL_B (G_FAIL+1)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_FAIL+2,    },  // in
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=G_FAIL+3,    },  // custs = (ok . fail)
-    { .t=Opcode_T,      .x=VM_nth,      .y=-1,          .z=SEND_0,      },  // fail = cdr(custs)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_FAIL+2,    },  // in
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_FAIL+3,    },  // custs = (ok . fail)
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-1),  .z=SEND_0,      },  // fail = cdr(custs)
 
 #define G_NEXT_K (G_FAIL+4)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=G_NEXT_K-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_value_,     .z=G_NEXT_K+0,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=G_NEXT_K+1,  },  // in
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=G_NEXT_K+2,  },  // value
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_NEXT_K+3,  },  // (value . in)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=RELEASE_0,   },  // cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=G_NEXT_K+1,  },  // in
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=G_NEXT_K+2,  },  // value
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_NEXT_K+3,  },  // (value . in)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=RELEASE_0,   },  // cust
 
 #define G_ANY (G_NEXT_K+4)
     { .t=Actor_T,       .x=G_ANY+1,     .y=NIL,         .z=UNDEF        },
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=G_ANY+2,     },  // custs = (ok . fail)
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_ANY+3,     },  // fail ok
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_ANY+4,     },  // in
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_ANY+2,     },  // custs = (ok . fail)
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_ANY+3,     },  // fail ok
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_ANY+4,     },  // in
     { .t=Opcode_T,      .x=VM_eq,       .y=NIL,         .z=G_ANY+5,     },  // in == ()
     { .t=Opcode_T,      .x=VM_if,       .y=G_ANY+13,    .z=G_ANY+6,     },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_ANY+7,     },  // in
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_ANY+8,     },  // next token
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=G_ANY+9,     },  // ok
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=G_ANY+10,    },  // token
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_ANY+7,     },  // in
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_ANY+8,     },  // next token
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=G_ANY+9,     },  // ok
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=G_ANY+10,    },  // token
     { .t=Opcode_T,      .x=VM_push,     .y=G_NEXT_K,    .z=G_ANY+11,    },  // G_NEXT_K
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=G_ANY+12,    },  // k_next
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=SEND_0,      },  // next
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=G_ANY+12,    },  // k_next
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=SEND_0,      },  // next
 
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=G_ANY+14,    },  // ()
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=SEND_0,      },  // fail
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=SEND_0,      },  // fail
 
 #define G_EQ_B (G_ANY+15)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_value_,     .z=G_EQ_B+0,    },
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=G_EQ_B+1,    },  // custs = (ok . fail)
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_EQ_B+2,    },  // fail ok
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_EQ_B+3,    },  // in
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_EQ_B+1,    },  // custs = (ok . fail)
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_EQ_B+2,    },  // fail ok
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_EQ_B+3,    },  // in
     { .t=Opcode_T,      .x=VM_eq,       .y=NIL,         .z=G_EQ_B+4,    },  // in == ()
     { .t=Opcode_T,      .x=VM_if,       .y=G_EQ_B+17,   .z=G_EQ_B+5,    },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_EQ_B+6,    },  // in
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_EQ_B+7,    },  // next token
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=G_EQ_B+8,    },  // token token
-    { .t=Opcode_T,      .x=VM_pick,     .y=6,           .z=G_EQ_B+9,    },  // value
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_EQ_B+6,    },  // in
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_EQ_B+7,    },  // next token
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=G_EQ_B+8,    },  // token token
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(6),   .z=G_EQ_B+9,    },  // value
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_NE,      .z=G_EQ_B+10,   },  // token != value
     { .t=Opcode_T,      .x=VM_if,       .y=G_EQ_B+16,   .z=G_EQ_B+11,   },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=G_EQ_B+12,   },  // ok
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=G_EQ_B+13,   },  // token
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=G_EQ_B+12,   },  // ok
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=G_EQ_B+13,   },  // token
     { .t=Opcode_T,      .x=VM_push,     .y=G_NEXT_K,    .z=G_EQ_B+14,   },  // G_NEXT_K
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=G_EQ_B+15,   },  // k_next
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=SEND_0,      },  // next
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=G_EQ_B+15,   },  // k_next
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=SEND_0,      },  // next
 
-    { .t=Opcode_T,      .x=VM_drop,     .y=2,           .z=G_EQ_B+17,   },  // fail ok
+    { .t=Opcode_T,      .x=VM_drop,     .y=TO_FIX(2),   .z=G_EQ_B+17,   },  // fail ok
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_EQ_B+18,   },  // in
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=SEND_0,      },  // fail
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_EQ_B+18,   },  // in
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=SEND_0,      },  // fail
 
 #define G_FAIL_K (G_EQ_B+19)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_msg_,       .z=G_FAIL_K-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=G_FAIL_K+0,  },
-    { .t=Opcode_T,      .x=VM_send,     .y=0,           .z=RELEASE,     },  // (cust . msg)
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(0),   .z=RELEASE,     },  // (cust . msg)
 
 #define G_OR_B (G_FAIL_K+1)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_first_,     .z=G_OR_B-1,    },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_rest_,      .z=G_OR_B+0,    },
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=G_OR_B+1,    },  // resume = (value . in)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=G_OR_B+1,    },  // resume = (value . in)
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=G_OR_B+2,    },  // msg = (custs value . in)
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=G_OR_B+3,    },  // cust = rest
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=G_OR_B+2,    },  // msg = (custs value . in)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=G_OR_B+3,    },  // cust = rest
     { .t=Opcode_T,      .x=VM_push,     .y=G_FAIL_K,    .z=G_OR_B+4,    },  // G_FAIL_K
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=G_OR_B+5,    },  // or_fail
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=G_OR_B+5,    },  // or_fail
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=G_OR_B+6,    },  // custs
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=G_OR_B+7,    },  // ok = car(custs)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_OR_B+8,    },  // (ok . or_fail)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_OR_B+9,    },  // ((ok . or_fail) . resume)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_OR_B+6,    },  // custs
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=G_OR_B+7,    },  // ok = car(custs)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_OR_B+8,    },  // (ok . or_fail)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_OR_B+9,    },  // ((ok . or_fail) . resume)
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=SEND_0,      },  // first
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=SEND_0,      },  // first
 
 #define G_AND_PR (G_OR_B+10)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=G_AND_PR-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_head_,      .z=G_AND_PR+0,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=G_AND_PR+1,  },  // (value . in)
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_AND_PR+2,  },  // in tail
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=G_AND_PR+3,  },  // head
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_AND_PR+4,  },  // (head . tail)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_AND_PR+5,  },  // ((head . tail) . in)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=RELEASE_0,   },  // cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=G_AND_PR+1,  },  // (value . in)
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_AND_PR+2,  },  // in tail
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=G_AND_PR+3,  },  // head
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_AND_PR+4,  },  // (head . tail)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_AND_PR+5,  },  // ((head . tail) . in)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=RELEASE_0,   },  // cust
 #define G_AND_OK (G_AND_PR+6)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_rest_,      .z=G_AND_OK-2,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_and_fail_,  .z=G_AND_OK-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ok_,        .z=G_AND_OK+0,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=G_AND_OK+1,  },  // head = value
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_AND_OK+1,  },  // head = value
     { .t=Opcode_T,      .x=VM_push,     .y=G_AND_PR,    .z=G_AND_OK+2,  },  // G_AND_PR
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=G_AND_OK+3,  },  // BECOME (G_AND_PR ok value)
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=G_AND_OK+4,  },  // resume = (value . in)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=G_AND_OK+5,  },  // and_fail
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=G_AND_OK+3,  },  // BECOME (G_AND_PR ok value)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=G_AND_OK+4,  },  // resume = (value . in)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=G_AND_OK+5,  },  // and_fail
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=G_AND_OK+6,  },  // and_pair = SELF
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_AND_OK+7,  },  // (and_pair . and_fail)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_AND_OK+8,  },  // ((and_pair . and_fail) . resume)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=SEND_0,      },  // rest
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_AND_OK+7,  },  // (and_pair . and_fail)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_AND_OK+8,  },  // ((and_pair . and_fail) . resume)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=SEND_0,      },  // rest
 #define G_AND_B (G_AND_OK+9)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_first_,     .z=G_AND_B-1,   },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_rest_,      .z=G_AND_B+0,   },
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=G_AND_B+1,   },  // resume = (value . in)
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=G_AND_B+2,   },  // custs
-    { .t=Opcode_T,      .x=VM_nth,      .y=-1,          .z=G_AND_B+3,   },  // fail = cdr(custs)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=G_AND_B+1,   },  // resume = (value . in)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_AND_B+2,   },  // custs
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-1),  .z=G_AND_B+3,   },  // fail = cdr(custs)
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=G_AND_B+4,   },  // rest
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=G_AND_B+4,   },  // rest
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_AND_B+5,   },  // msg = in
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=G_AND_B+6,   },  // cust = fail
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_AND_B+5,   },  // msg = in
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=G_AND_B+6,   },  // cust = fail
     { .t=Opcode_T,      .x=VM_push,     .y=G_FAIL_K,    .z=G_AND_B+7,   },  // G_FAIL_K
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=G_AND_B+8,   },  // and_fail = (G_FAIL_K in fail)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=G_AND_B+8,   },  // and_fail = (G_FAIL_K in fail)
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=G_AND_B+9,   },  // custs
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=G_AND_B+10,  },  // ok = car(custs)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_AND_B+9,   },  // custs
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=G_AND_B+10,  },  // ok = car(custs)
     { .t=Opcode_T,      .x=VM_push,     .y=G_AND_OK,    .z=G_AND_B+11,  },  // G_AND_OK
-    { .t=Opcode_T,      .x=VM_new,      .y=3,           .z=G_AND_B+12,  },  // and_ok = (G_AND_OK rest and_fail ok)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=G_AND_B+12,  },  // and_ok = (G_AND_OK rest and_fail ok)
 
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_AND_B+13,  },  // (and_ok . fail)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_AND_B+14,  },  // ((and_ok . fail) . resume)
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=SEND_0,      },  // first
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_AND_B+13,  },  // (and_ok . fail)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_AND_B+14,  },  // ((and_ok . fail) . resume)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=SEND_0,      },  // first
 
 #define G_NOT_B (G_AND_B+15)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrn_,      .z=G_NOT_B+0,   },
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=G_NOT_B+1,   },  // custs
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_NOT_B+2,   },  // fail ok
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_NOT_B+1,   },  // custs
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_NOT_B+2,   },  // fail ok
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_NOT_B+3,   },  // in
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_NOT_B+3,   },  // in
     { .t=Opcode_T,      .x=VM_push,     .y=UNIT,        .z=G_NOT_B+4,   },  // value = UNIT
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_NOT_B+5,   },  // ctx = (#unit . in)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=G_NOT_B+6,   },  // ok
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_NOT_B+5,   },  // ctx = (#unit . in)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=G_NOT_B+6,   },  // ok
     { .t=Opcode_T,      .x=VM_push,     .y=RELEASE_0,   .z=G_NOT_B+7,   },  // RELEASE_0
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=G_NOT_B+8,   },  // fail' = (RELEASE_0 ctx ok)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=G_NOT_B+8,   },  // fail' = (RELEASE_0 ctx ok)
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_NOT_B+9,   },  // in
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=G_NOT_B+10,  },  // fail
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_NOT_B+9,   },  // in
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=G_NOT_B+10,  },  // fail
     { .t=Opcode_T,      .x=VM_push,     .y=RELEASE_0,   .z=G_NOT_B+11,  },  // RELEASE_0
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=G_NOT_B+12,  },  // ok' = (RELEASE_0 in fail)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=G_NOT_B+12,  },  // ok' = (RELEASE_0 in fail)
 
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_NOT_B+13,  },  // custs' = (ok' . fail')
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=G_NOT_B+14,  },  // ctx = (value . in)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=G_NOT_B+15,  },  // ctx custs'
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_NOT_B+16,  },  // msg = (custs' value . in)
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=SEND_0,      },  // ptrn
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_NOT_B+13,  },  // custs' = (ok' . fail')
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=G_NOT_B+14,  },  // ctx = (value . in)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=G_NOT_B+15,  },  // ctx custs'
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_NOT_B+16,  },  // msg = (custs' value . in)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=SEND_0,      },  // ptrn
 
 /*
 Optional(pattern) = Or(And(pattern, Empty), Empty)
@@ -2503,231 +2538,231 @@ Star(pattern) = Or(Plus(pattern), Empty)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrn_,      .z=G_OPT_B+0,   },
     { .t=Opcode_T,      .x=VM_push,     .y=G_EMPTY,     .z=G_OPT_B+1,   },  // G_EMPTY
     { .t=Opcode_T,      .x=VM_push,     .y=G_AND_B,     .z=G_OPT_B+2,   },  // G_AND_B
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=G_OPT_B+3,   },  // ptrn' = (And ptrn Empty)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=G_OPT_B+3,   },  // ptrn' = (And ptrn Empty)
     { .t=Opcode_T,      .x=VM_push,     .y=G_EMPTY,     .z=G_OPT_B+4,   },  // G_EMPTY
     { .t=Opcode_T,      .x=VM_push,     .y=G_OR_B,      .z=G_OPT_B+5,   },  // G_OR_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=RESEND,      },  // BECOME (Or ptrn' Empty)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=RESEND,      },  // BECOME (Or ptrn' Empty)
 
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrn_,      .z=G_PLUS_B+0,  },
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=G_PLUS_B+1,  },  // ptrn
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=G_PLUS_B+1,  },  // ptrn
     { .t=Opcode_T,      .x=VM_push,     .y=G_STAR_B,    .z=G_PLUS_B+2,  },  // G_STAR_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=G_PLUS_B+3,  },  // star = (Star ptrn)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=G_PLUS_B+3,  },  // star = (Star ptrn)
     { .t=Opcode_T,      .x=VM_push,     .y=G_AND_B,     .z=G_PLUS_B+4,  },  // G_AND_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=RESEND,      },  // BECOME (And ptrn star)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=RESEND,      },  // BECOME (And ptrn star)
 
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrn_,      .z=G_STAR_B+0,  },
     { .t=Opcode_T,      .x=VM_push,     .y=G_PLUS_B,    .z=G_STAR_B+1,  },  // G_PLUS_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=G_STAR_B+2,  },  // plus = (Plus ptrn)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=G_STAR_B+2,  },  // plus = (Plus ptrn)
     { .t=Opcode_T,      .x=VM_push,     .y=G_EMPTY,     .z=G_STAR_B+3,  },  // G_EMPTY
     { .t=Opcode_T,      .x=VM_push,     .y=G_OR_B,      .z=G_STAR_B+4,  },  // G_OR_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=RESEND,      },  // BECOME (Or plus Empty)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=RESEND,      },  // BECOME (Or plus Empty)
 
 #define G_ALT_B (G_STAR_B+5)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrns_,     .z=G_ALT_B+0,   },
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=G_ALT_B+1,   },  // ptrns
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=G_ALT_B+1,   },  // ptrns
     { .t=Opcode_T,      .x=VM_eq,       .y=NIL,         .z=G_ALT_B+2,   },  // ptrns == ()
     { .t=Opcode_T,      .x=VM_if,       .y=G_ALT_B+13,  .z=G_ALT_B+3,   },
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_ALT_B+4,   },  // tail head
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=G_ALT_B+5,   },  // tail
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_ALT_B+4,   },  // tail head
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=G_ALT_B+5,   },  // tail
     { .t=Opcode_T,      .x=VM_eq,       .y=NIL,         .z=G_ALT_B+6,   },  // tail == ()
     { .t=Opcode_T,      .x=VM_if,       .y=G_ALT_B+10,  .z=G_ALT_B+7,   },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=G_ALT_B+8,   },  // tail
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=G_ALT_B+8,   },  // tail
     { .t=Opcode_T,      .x=VM_push,     .y=G_ALT_B,     .z=G_ALT_B+9,   },  // G_ALT_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=G_ALT_B+11,  },  // rest = (Alt tail)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=G_ALT_B+11,  },  // rest = (Alt tail)
 
     { .t=Opcode_T,      .x=VM_push,     .y=G_FAIL,      .z=G_ALT_B+11,  },  // rest = G_FAIL
     { .t=Opcode_T,      .x=VM_push,     .y=G_OR_B,      .z=G_ALT_B+12,  },  // G_OR_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=RESEND,      },  // BECOME
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=RESEND,      },  // BECOME
 
     { .t=Opcode_T,      .x=VM_push,     .y=G_FAIL_B,    .z=G_ALT_B+14,  },  // G_FAIL_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=0,           .z=RESEND,      },  // BECOME
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(0),   .z=RESEND,      },  // BECOME
 
 #define G_SEQ_B (G_ALT_B+15)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrns_,     .z=G_SEQ_B+0,   },
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=G_SEQ_B+1,   },  // ptrns
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=G_SEQ_B+1,   },  // ptrns
     { .t=Opcode_T,      .x=VM_eq,       .y=NIL,         .z=G_SEQ_B+2,   },  // ptrns == ()
     { .t=Opcode_T,      .x=VM_if,       .y=G_SEQ_B+13,  .z=G_SEQ_B+3,   },
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_SEQ_B+4,   },  // tail head
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=G_SEQ_B+5,   },  // tail
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_SEQ_B+4,   },  // tail head
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=G_SEQ_B+5,   },  // tail
     { .t=Opcode_T,      .x=VM_eq,       .y=NIL,         .z=G_SEQ_B+6,   },  // tail == ()
     { .t=Opcode_T,      .x=VM_if,       .y=G_SEQ_B+10,  .z=G_SEQ_B+7,   },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=G_SEQ_B+8,   },  // tail
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=G_SEQ_B+8,   },  // tail
     { .t=Opcode_T,      .x=VM_push,     .y=G_SEQ_B,     .z=G_SEQ_B+9,   },  // G_SEQ_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=G_SEQ_B+11,  },  // rest = (Seq tail)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=G_SEQ_B+11,  },  // rest = (Seq tail)
 
     { .t=Opcode_T,      .x=VM_push,     .y=G_EMPTY,     .z=G_SEQ_B+11,  },  // rest = G_EMPTY
     { .t=Opcode_T,      .x=VM_push,     .y=G_AND_B,     .z=G_SEQ_B+12,  },  // G_AND_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=RESEND,      },  // BECOME
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=RESEND,      },  // BECOME
 
     { .t=Opcode_T,      .x=VM_push,     .y=G_EMPTY_B,   .z=G_SEQ_B+14,  },  // G_EMPTY_B
-    { .t=Opcode_T,      .x=VM_beh,      .y=0,           .z=RESEND,      },  // BECOME
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(0),   .z=RESEND,      },  // BECOME
 
 #define G_CLS_B (G_SEQ_B+15)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_class_,     .z=G_CLS_B+0,   },
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=G_CLS_B+1,   },  // custs = (ok . fail)
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_CLS_B+2,   },  // fail ok
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_CLS_B+3,   },  // in
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_CLS_B+1,   },  // custs = (ok . fail)
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_CLS_B+2,   },  // fail ok
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_CLS_B+3,   },  // in
     { .t=Opcode_T,      .x=VM_eq,       .y=NIL,         .z=G_CLS_B+4,   },  // in == ()
     { .t=Opcode_T,      .x=VM_if,       .y=G_CLS_B+18,  .z=G_CLS_B+5,   },
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_CLS_B+6,   },  // in
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_CLS_B+7,   },  // next token
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=G_CLS_B+8,   },  // token token
-    { .t=Opcode_T,      .x=VM_pick,     .y=6,           .z=G_CLS_B+9,   },  // class
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_CLS_B+6,   },  // in
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_CLS_B+7,   },  // next token
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=G_CLS_B+8,   },  // token token
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(6),   .z=G_CLS_B+9,   },  // class
     { .t=Opcode_T,      .x=VM_cmp,      .y=CMP_CLS,     .z=G_CLS_B+10,  },  // token in class
     { .t=Opcode_T,      .x=VM_eq,       .y=FALSE,       .z=G_CLS_B+11,  },  // token ~in class
     { .t=Opcode_T,      .x=VM_if,       .y=G_CLS_B+17,  .z=G_CLS_B+12,  },
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=G_CLS_B+13,  },  // ok
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=G_CLS_B+14,  },  // token
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=G_CLS_B+13,  },  // ok
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=G_CLS_B+14,  },  // token
     { .t=Opcode_T,      .x=VM_push,     .y=G_NEXT_K,    .z=G_CLS_B+15,  },  // G_NEXT_K
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=G_CLS_B+16,  },  // k_next
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=SEND_0,      },  // next
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=G_CLS_B+16,  },  // k_next
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=SEND_0,      },  // next
 
-    { .t=Opcode_T,      .x=VM_drop,     .y=2,           .z=G_CLS_B+18,  },  // fail ok
+    { .t=Opcode_T,      .x=VM_drop,     .y=TO_FIX(2),   .z=G_CLS_B+18,  },  // fail ok
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=-2,          .z=G_CLS_B+19,  },  // in
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=SEND_0,      },  // fail
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_CLS_B+19,  },  // in
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=SEND_0,      },  // fail
 
 #define G_PRED_K (G_CLS_B+20)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_more_,      .z=G_PRED_K-1,  },  // (value' . in')
 //  { .t=Opcode_T,      .x=VM_push,     .y=_msg0_,      .z=G_PRED_K+0,  },  // ((ok . fail) value . in)
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=G_PRED_K+1,  },  // cond
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=G_PRED_K+1,  },  // cond
     { .t=Opcode_T,      .x=VM_if,       .y=G_PRED_K+5,  .z=G_PRED_K+2,  },
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_PRED_K+3,  },  // resume custs
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_PRED_K+4,  },  // resume fail ok
-    { .t=Opcode_T,      .x=VM_drop,     .y=1,           .z=RELEASE_0,   },  // resume fail
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_PRED_K+3,  },  // resume custs
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_PRED_K+4,  },  // resume fail ok
+    { .t=Opcode_T,      .x=VM_drop,     .y=TO_FIX(1),   .z=RELEASE_0,   },  // resume fail
 
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=G_PRED_K+6,  },  // custs = (ok . fail)
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=RELEASE_0,   },  // ok
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=G_PRED_K+6,  },  // custs = (ok . fail)
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=RELEASE_0,   },  // ok
 
 #define G_PRED_OK (G_PRED_K+7)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_msg0_,      .z=G_PRED_OK-1, },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_pred_,      .z=G_PRED_OK+0, },
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=G_PRED_OK+1, },  // value
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_PRED_OK+1, },  // value
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=G_PRED_OK+2, },  // more
-    { .t=Opcode_T,      .x=VM_roll,     .y=4,           .z=G_PRED_OK+3, },  // msg0
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=G_PRED_OK+2, },  // more
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(4),   .z=G_PRED_OK+3, },  // msg0
     { .t=Opcode_T,      .x=VM_push,     .y=G_PRED_K,    .z=G_PRED_OK+4, },  // G_PRED_K
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=G_PRED_OK+5, },  // BECOME (G_PRED_K more msg0)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=G_PRED_OK+5, },  // BECOME (G_PRED_K more msg0)
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=G_PRED_OK+6, },  // k_pred = SELF
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=G_PRED_OK+7, },  // pred
-    { .t=Opcode_T,      .x=VM_send,     .y=2,           .z=COMMIT,      },  // (pred k_pred value)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=G_PRED_OK+7, },  // pred
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(2),   .z=COMMIT,      },  // (pred k_pred value)
 
 #define G_PRED_B (G_PRED_OK+8)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_pred_,      .z=G_PRED_B-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrn_,      .z=G_PRED_B+0,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=G_PRED_B+1,  },  // (custs . resume)
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_PRED_B+2,  },  // resume custs
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_PRED_B+3,  },  // fail ok
-    { .t=Opcode_T,      .x=VM_drop,     .y=1,           .z=G_PRED_B+4,  },  // fail
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=G_PRED_B+1,  },  // (custs . resume)
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_PRED_B+2,  },  // resume custs
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_PRED_B+3,  },  // fail ok
+    { .t=Opcode_T,      .x=VM_drop,     .y=TO_FIX(1),   .z=G_PRED_B+4,  },  // fail
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=G_PRED_B+5,  },  // msg0 = (custs . resume)
-    { .t=Opcode_T,      .x=VM_pick,     .y=5,           .z=G_PRED_B+6,  },  // pred
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=G_PRED_B+5,  },  // msg0 = (custs . resume)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(5),   .z=G_PRED_B+6,  },  // pred
     { .t=Opcode_T,      .x=VM_push,     .y=G_PRED_OK,   .z=G_PRED_B+7,  },  // G_PRED_OK
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=G_PRED_B+8,  },  // ok'
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=G_PRED_B+8,  },  // ok'
 
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_PRED_B+9,  },  // custs = (ok' . fail)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_PRED_B+10, },  // msg = (custs . resume)
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=SEND_0,      },  // ptrn
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_PRED_B+9,  },  // custs = (ok' . fail)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_PRED_B+10, },  // msg = (custs . resume)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=SEND_0,      },  // ptrn
 
 #define G_XLAT_K (G_PRED_B+11)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=G_XLAT_K-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_in_,        .z=G_XLAT_K+0,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=G_XLAT_K+1,  },  // value
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_XLAT_K+2,  },  // (value . in)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=RELEASE_0,   },  // cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=G_XLAT_K+1,  },  // value
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_XLAT_K+2,  },  // (value . in)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=RELEASE_0,   },  // cust
 
 #define G_XLAT_OK (G_XLAT_K+3)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=G_XLAT_OK-1, },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_func_,      .z=G_XLAT_OK+0, },
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=G_XLAT_OK+1, },  // value
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_XLAT_OK+1, },  // value
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=G_XLAT_OK+2, },  // cust
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=G_XLAT_OK+3, },  // in
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=G_XLAT_OK+2, },  // cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=G_XLAT_OK+3, },  // in
     { .t=Opcode_T,      .x=VM_push,     .y=G_XLAT_K,    .z=G_XLAT_OK+4, },  // G_XLAT_K
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=G_XLAT_OK+5, },  // BECOME (G_XLAT_K cust in)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=G_XLAT_OK+5, },  // BECOME (G_XLAT_K cust in)
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=G_XLAT_OK+6, },  // k_xlat = SELF
 
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=G_XLAT_OK+7, },  // func
-    { .t=Opcode_T,      .x=VM_send,     .y=2,           .z=COMMIT,      },  // (func k_xlat value)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=G_XLAT_OK+7, },  // func
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(2),   .z=COMMIT,      },  // (func k_xlat value)
 
 #define G_XLAT_B (G_XLAT_OK+8)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_func_,      .z=G_XLAT_B+0,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrn_,      .z=G_XLAT_B-1,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=G_XLAT_B+1,  },  // (custs . resume)
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_XLAT_B+2,  },  // resume custs
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=G_XLAT_B+3,  },  // fail ok
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=G_XLAT_B+1,  },  // (custs . resume)
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_XLAT_B+2,  },  // resume custs
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_XLAT_B+3,  },  // fail ok
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=5,           .z=G_XLAT_B+4,  },  // func
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(5),   .z=G_XLAT_B+4,  },  // func
     { .t=Opcode_T,      .x=VM_push,     .y=G_XLAT_OK,   .z=G_XLAT_B+5,  },  // G_XLAT_OK
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=G_XLAT_B+6,  },  // ok'
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=G_XLAT_B+6,  },  // ok'
 
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_XLAT_B+7,  },  // custs = (ok' . fail)
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=G_XLAT_B+8,  },  // msg = (custs . resume)
-    { .t=Opcode_T,      .x=VM_pick,     .y=2,           .z=SEND_0,      },  // ptrn
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_XLAT_B+7,  },  // custs = (ok' . fail)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=G_XLAT_B+8,  },  // msg = (custs . resume)
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(2),   .z=SEND_0,      },  // ptrn
 
 #define S_CHAIN (G_XLAT_B+9)
 #define S_BUSY_C (S_CHAIN+11)
 #define S_NEXT_C (S_BUSY_C+17)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrn_,      .z=S_CHAIN-1,   },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_src_,       .z=S_CHAIN+0,   },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=S_CHAIN+1,   },  // cust
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=S_CHAIN+2,   },  // ptrn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=S_CHAIN+1,   },  // cust
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=S_CHAIN+2,   },  // ptrn
     { .t=Opcode_T,      .x=VM_push,     .y=S_BUSY_C,    .z=S_CHAIN+3,   },  // S_BUSY_C
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=S_CHAIN+4,   },  // BECOME (S_BUSY_C cust ptrn)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=S_CHAIN+4,   },  // BECOME (S_BUSY_C cust ptrn)
 
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=S_CHAIN+5,   },  // fail = SELF
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=S_CHAIN+6,   },  // ok = SELF
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=S_CHAIN+7,   },  // custs = (ok . fail)
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=S_CHAIN+8,   },  // ptrn
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=S_CHAIN+7,   },  // custs = (ok . fail)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=S_CHAIN+8,   },  // ptrn
     { .t=Opcode_T,      .x=VM_push,     .y=G_START,     .z=S_CHAIN+9,   },  // G_START
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=S_CHAIN+10,  },  // start = (G_START custs ptrn)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=SEND_0,      },  // src
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=S_CHAIN+10,  },  // start = (G_START custs ptrn)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=SEND_0,      },  // src
 
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=S_BUSY_C-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrn_,      .z=S_BUSY_C+0,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=S_BUSY_C+1,  },  // msg
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=S_BUSY_C+1,  },  // msg
     { .t=Opcode_T,      .x=VM_typeq,    .y=Actor_T,     .z=S_BUSY_C+2,  },  // msg has type Actor_T
     { .t=Opcode_T,      .x=VM_if,       .y=RESEND,      .z=S_BUSY_C+3,  },  // defer "get" requests
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=S_BUSY_C+4,  },  // cdr(msg)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=S_BUSY_C+4,  },  // cdr(msg)
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=S_BUSY_C+5,  },  // cdr(msg) has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=S_BUSY_C+6,  .z=S_BUSY_C+12, },  // treat failure as end
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=S_BUSY_C+7,  },  // ptrn
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=S_BUSY_C+8,  },  // in
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=S_BUSY_C+7,  },  // ptrn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=S_BUSY_C+8,  },  // in
     { .t=Opcode_T,      .x=VM_push,     .y=S_NEXT_C,    .z=S_BUSY_C+9,  },  // S_NEXT_C
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=S_BUSY_C+10, },  // next = (S_NEXT_C ptrn in)
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=S_BUSY_C+11, },  // token = value
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=S_BUSY_C+13, },  // in = (token . next)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=S_BUSY_C+10, },  // next = (S_NEXT_C ptrn in)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=S_BUSY_C+11, },  // token = value
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=S_BUSY_C+13, },  // in = (token . next)
 
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=S_BUSY_C+13, },  // in = ()
 
     { .t=Opcode_T,      .x=VM_push,     .y=S_VALUE,     .z=S_BUSY_C+14, },  // S_VALUE
-    { .t=Opcode_T,      .x=VM_beh,      .y=1,           .z=S_BUSY_C+15, },  // BECOME (S_VALUE in)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=S_BUSY_C+16, },  // cust
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(1),   .z=S_BUSY_C+15, },  // BECOME (S_VALUE in)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=S_BUSY_C+16, },  // cust
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=SEND_0,      },  // (SELF . cust)
 
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrn_,      .z=S_NEXT_C-1,  },
 //  { .t=Opcode_T,      .x=VM_push,     .y=_in_,        .z=S_NEXT_C+0,  },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=S_NEXT_C+1,  },  // cust
-    { .t=Opcode_T,      .x=VM_pick,     .y=3,           .z=S_NEXT_C+2,  },  // ptrn
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=S_NEXT_C+1,  },  // cust
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=S_NEXT_C+2,  },  // ptrn
     { .t=Opcode_T,      .x=VM_push,     .y=S_BUSY_C,    .z=S_NEXT_C+3,  },  // S_BUSY_C
-    { .t=Opcode_T,      .x=VM_beh,      .y=2,           .z=S_NEXT_C+4,  },  // BECOME (S_BUSY_C cust ptrn)
+    { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=S_NEXT_C+4,  },  // BECOME (S_BUSY_C cust ptrn)
 
     { .t=Opcode_T,      .x=VM_push,     .y=UNDEF,       .z=S_NEXT_C+5,  },  // value = UNDEF
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=S_NEXT_C+6,  },  // fail = SELF
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=S_NEXT_C+7,  },  // ok = SELF
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=S_NEXT_C+8,  },  // custs = (ok . fail)
-    { .t=Opcode_T,      .x=VM_pair,     .y=2,           .z=S_NEXT_C+9,  },  // (custs value . in)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=SEND_0,      },  // ptrn
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=S_NEXT_C+8,  },  // custs = (ok . fail)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=S_NEXT_C+9,  },  // (custs value . in)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=SEND_0,      },  // ptrn
 
 //
 // PEG tools
@@ -2736,127 +2771,127 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #if SCM_PEG_TOOLS
 #define F_G_EQ (S_NEXT_C+10)
     { .t=Actor_T,       .x=F_G_EQ+1,    .y=NIL,         .z=UNDEF        },  // (peg-eq <token>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_G_EQ+2,    },  // token = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_EQ+2,    },  // token = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=G_EQ_B,      .z=F_G_EQ+3,    },  // G_EQ_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=CUST_SEND,   },  // (G_EQ_B token)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_EQ_B token)
 
 #define F_G_OR (F_G_EQ+4)
     { .t=Actor_T,       .x=F_G_OR+1,    .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_G_OR+2,    },  // first = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_G_OR+3,    },  // rest = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_OR+2,    },  // first = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_G_OR+3,    },  // rest = arg2
     { .t=Opcode_T,      .x=VM_push,     .y=G_OR_B,      .z=F_G_OR+4,    },  // G_OR_B
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=CUST_SEND,   },  // (G_OR_B first rest)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=CUST_SEND,   },  // (G_OR_B first rest)
 
 #define F_G_AND (F_G_OR+5)
     { .t=Actor_T,       .x=F_G_AND+1,   .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_G_AND+2,   },  // first = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_G_AND+3,   },  // rest = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_AND+2,   },  // first = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_G_AND+3,   },  // rest = arg2
     { .t=Opcode_T,      .x=VM_push,     .y=G_AND_B,     .z=F_G_AND+4,   },  // G_AND_B
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=CUST_SEND,   },  // (G_AND_B first rest)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=CUST_SEND,   },  // (G_AND_B first rest)
 
 #define F_G_NOT (F_G_AND+5)
     { .t=Actor_T,       .x=F_G_NOT+1,   .y=NIL,         .z=UNDEF        },  // (peg-not <peg>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_G_NOT+2,   },  // peg = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_NOT+2,   },  // peg = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=G_NOT_B,     .z=F_G_NOT+3,   },  // G_NOT_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=CUST_SEND,   },  // (G_NOT_B peg)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_NOT_B peg)
 
 #define F_G_CLS (F_G_NOT+4)
     { .t=Actor_T,       .x=F_G_CLS+1,   .y=NIL,         .z=UNDEF        },  // (peg-class . <classes>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=F_G_CLS+2,   },
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_G_CLS+3,   },  // args cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=F_G_CLS+2,   },
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_G_CLS+3,   },  // args cust
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(0),   .z=F_G_CLS+4,   },  // mask = +0
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=F_G_CLS+5,   },  // cust mask args
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=F_G_CLS+5,   },  // cust mask args
 
-    { .t=Opcode_T,      .x=VM_pick,     .y=1,           .z=F_G_CLS+6,   },  // args args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_G_CLS+6,   },  // args args
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_G_CLS+7,   },  // args has type Pair_T
     { .t=Opcode_T,      .x=VM_if,       .y=F_G_CLS+8,   .z=F_G_CLS+12,  },
 
-    { .t=Opcode_T,      .x=VM_part,     .y=1,           .z=F_G_CLS+9,   },  // tail head
-    { .t=Opcode_T,      .x=VM_roll,     .y=3,           .z=F_G_CLS+10,  },  // tail head mask
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_G_CLS+9,   },  // tail head
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=F_G_CLS+10,  },  // tail head mask
     { .t=Opcode_T,      .x=VM_alu,      .y=ALU_OR,      .z=F_G_CLS+11,  },  // mask |= head
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=F_G_CLS+5,   },  // mask tail
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=F_G_CLS+5,   },  // mask tail
 
-    { .t=Opcode_T,      .x=VM_drop,     .y=1,           .z=F_G_CLS+13,  },  // cust mask
+    { .t=Opcode_T,      .x=VM_drop,     .y=TO_FIX(1),   .z=F_G_CLS+13,  },  // cust mask
     { .t=Opcode_T,      .x=VM_push,     .y=G_CLS_B,     .z=F_G_CLS+14,  },  // G_CLS_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=F_G_CLS+15,  },  // ptrn = (G_CLS_B mask)
-    { .t=Opcode_T,      .x=VM_roll,     .y=2,           .z=SEND_0,      },  // ptrn cust
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=F_G_CLS+15,  },  // ptrn = (G_CLS_B mask)
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=SEND_0,      },  // ptrn cust
 
 #define F_G_OPT (F_G_CLS+16)
     { .t=Actor_T,       .x=F_G_OPT+1,   .y=NIL,         .z=UNDEF        },  // (peg-opt <peg>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_G_OPT+2,   },  // peg = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_OPT+2,   },  // peg = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=G_OPT_B,     .z=F_G_OPT+3,   },  // G_OPT_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=CUST_SEND,   },  // (G_OPT_B peg)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_OPT_B peg)
 
 #define F_G_PLUS (F_G_OPT+4)
     { .t=Actor_T,       .x=F_G_PLUS+1,  .y=NIL,         .z=UNDEF        },  // (peg-plus <peg>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_G_PLUS+2,  },  // peg = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_PLUS+2,  },  // peg = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=G_PLUS_B,    .z=F_G_PLUS+3,  },  // G_PLUS_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=CUST_SEND,   },  // (G_PLUS_B peg)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_PLUS_B peg)
 
 #define F_G_STAR (F_G_PLUS+4)
     { .t=Actor_T,       .x=F_G_STAR+1,  .y=NIL,         .z=UNDEF        },  // (peg-star <peg>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_G_STAR+2,  },  // peg = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_STAR+2,  },  // peg = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=G_STAR_B,    .z=F_G_STAR+3,  },  // G_STAR_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=CUST_SEND,   },  // (G_STAR_B peg)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_STAR_B peg)
 
 #define F_G_ALT (F_G_STAR+4)
     { .t=Actor_T,       .x=F_G_ALT+1,   .y=NIL,         .z=UNDEF        },  // (peg-alt . <pegs>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_G_ALT+2,   },  // pegs = args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_G_ALT+2,   },  // pegs = args
     { .t=Opcode_T,      .x=VM_push,     .y=G_ALT_B,     .z=F_G_ALT+3,   },  // G_ALT_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=CUST_SEND,   },  // (G_ALT_B pegs)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_ALT_B pegs)
 
 #define F_G_SEQ (F_G_ALT+4)
     { .t=Actor_T,       .x=F_G_SEQ+1,   .y=NIL,         .z=UNDEF        },  // (peg-seq . <pegs>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=-1,          .z=F_G_SEQ+2,   },  // pegs = args
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_G_SEQ+2,   },  // pegs = args
     { .t=Opcode_T,      .x=VM_push,     .y=G_SEQ_B,     .z=F_G_SEQ+3,   },  // G_SEQ_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=CUST_SEND,   },  // (G_SEQ_B pegs)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_SEQ_B pegs)
 
 #define FX_G_CALL (F_G_SEQ+4)
 #define OP_G_CALL (FX_G_CALL+1)
     { .t=Fexpr_T,       .x=OP_G_CALL,   .y=UNDEF,       .z=UNDEF,       },  // (peg-call <name>)
 
     { .t=Actor_T,       .x=OP_G_CALL+1, .y=NIL,         .z=UNDEF        },  // (cust opnds env)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=OP_G_CALL+2, },  // opnds
-    { .t=Opcode_T,      .x=VM_nth,      .y=1,           .z=OP_G_CALL+3, },  // name = car(opnds)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_G_CALL+2, },  // opnds
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=OP_G_CALL+3, },  // name = car(opnds)
     { .t=Opcode_T,      .x=VM_push,     .y=G_CALL_B,    .z=OP_G_CALL+4, },  // G_CALL_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=CUST_SEND,   },  // (G_CALL_B name)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_CALL_B name)
 
 #define F_G_PRED (OP_G_CALL+5)
     { .t=Actor_T,       .x=F_G_PRED+1,  .y=NIL,         .z=UNDEF        },  // (peg-pred <pred> <peg>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_G_PRED+2,  },  // pred = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_G_PRED+3,  },  // peg = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_PRED+2,  },  // pred = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_G_PRED+3,  },  // peg = arg2
     { .t=Opcode_T,      .x=VM_push,     .y=G_PRED_B,    .z=F_G_PRED+4,  },  // G_PRED_B
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=CUST_SEND,   },  // (G_PRED_B pred peg)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=CUST_SEND,   },  // (G_PRED_B pred peg)
 
 #define F_G_XFORM (F_G_PRED+5)
     { .t=Actor_T,       .x=F_G_XFORM+1, .y=NIL,         .z=UNDEF        },  // (peg-xform func peg)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_G_XFORM+2, },  // func = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_G_XFORM+3, },  // peg = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_XFORM+2, },  // func = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_G_XFORM+3, },  // peg = arg2
     { .t=Opcode_T,      .x=VM_push,     .y=G_XLAT_B,    .z=F_G_XFORM+4, },  // G_XLAT_B
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=CUST_SEND,   },  // (G_XLAT_B func peg)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=CUST_SEND,   },  // (G_XLAT_B func peg)
 
 #define F_S_LIST (F_G_XFORM+5)
     { .t=Actor_T,       .x=F_S_LIST+1,  .y=NIL,         .z=UNDEF        },  // (peg-source <list>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_S_LIST+2,  },  // list = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_S_LIST+2,  },  // list = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=S_LIST_B,    .z=F_S_LIST+3,  },  // S_LIST_B
-    { .t=Opcode_T,      .x=VM_new,      .y=1,           .z=CUST_SEND,   },  // src
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // src
 
 #define F_G_START (F_S_LIST+4)
     { .t=Actor_T,       .x=F_G_START+1, .y=NIL,         .z=UNDEF        },  // (peg-start <peg> <src>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=F_G_START+2, },  // fail = cust
-    { .t=Opcode_T,      .x=VM_msg,      .y=1,           .z=F_G_START+3, },  // ok = cust
-    { .t=Opcode_T,      .x=VM_pair,     .y=1,           .z=F_G_START+4, },  // custs = (ok . fail)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_G_START+5, },  // peg = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=F_G_START+2, },  // fail = cust
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=F_G_START+3, },  // ok = cust
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=F_G_START+4, },  // custs = (ok . fail)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_START+5, },  // peg = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=G_START,     .z=F_G_START+6, },  // G_START
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=F_G_START+7, },  // start
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=SEND_0,      },  // src = arg2
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=F_G_START+7, },  // start
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=SEND_0,      },  // src = arg2
 
 #define F_S_CHAIN (F_G_START+8)
     { .t=Actor_T,       .x=F_S_CHAIN+1, .y=NIL,         .z=UNDEF        },  // (peg-chain <peg> <src>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_S_CHAIN+2, },  // peg = arg1
-    { .t=Opcode_T,      .x=VM_msg,      .y=3,           .z=F_S_CHAIN+3, },  // src = arg2
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_S_CHAIN+2, },  // peg = arg1
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_S_CHAIN+3, },  // src = arg2
     { .t=Opcode_T,      .x=VM_push,     .y=S_CHAIN,     .z=F_S_CHAIN+4, },  // S_CHAIN
-    { .t=Opcode_T,      .x=VM_new,      .y=2,           .z=CUST_SEND,   },  // (S_CHAIN peg src)
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=CUST_SEND,   },  // (S_CHAIN peg src)
 
 //
 // Pre-defined PEGs
@@ -2884,7 +2919,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 */
 #define G_WSP (G_EOL+2)
     { .t=Actor_T,       .x=G_WSP+1,     .y=NIL,         .z=UNDEF        },  // (peg-class WSP)
-    { .t=Opcode_T,      .x=VM_push,     .y=WSP,         .z=G_CLS_B,     },
+    { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(WSP), .z=G_CLS_B,     },
 #define G_WSP_S (G_WSP+2)
     { .t=Actor_T,       .x=G_WSP_S+1,   .y=NIL,         .z=UNDEF        },  // (peg-star (peg-class WSP))
     { .t=Opcode_T,      .x=VM_push,     .y=G_WSP,       .z=G_STAR_B,    },
@@ -2928,7 +2963,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 */
 #define G_PRT (G_OPTWSP+5)
     { .t=Actor_T,       .x=G_PRT+1,     .y=NIL,         .z=UNDEF        },  // (peg-class DGT UPR LWR SYM)
-    { .t=Opcode_T,      .x=VM_push, .y=DGT|UPR|LWR|SYM, .z=G_CLS_B,     },
+    { .t=Opcode_T, .x=VM_push, .y=TO_FIX(DGT|UPR|LWR|SYM), .z=G_CLS_B,  },
 #define G_EOT (G_PRT+2)
     { .t=Actor_T,       .x=G_EOT+1,     .y=NIL,         .z=UNDEF        },  // (peg-not (peg-class DGT UPR LWR SYM))
     { .t=Opcode_T,      .x=VM_push,     .y=G_PRT,       .z=G_NOT_B,     },
@@ -2956,7 +2991,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 */
 #define G_DGT (G_SIGN+3)
     { .t=Actor_T,       .x=G_DGT+1,     .y=NIL,         .z=UNDEF        },  // (peg-class DGT)
-    { .t=Opcode_T,      .x=VM_push,     .y=DGT,         .z=G_CLS_B,     },  // class = [0-9]
+    { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(DGT), .z=G_CLS_B,     },  // class = [0-9]
 #define G_DIGIT (G_DGT+2)
     { .t=Actor_T,       .x=G_DIGIT+1,   .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
     { .t=Opcode_T,      .x=VM_push,     .y=G_DGT,       .z=G_DIGIT+2,   },  // first = (peg-class DGT)
@@ -3174,38 +3209,38 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define F_QUOTED (G_AT+2)
     { .t=Actor_T,       .x=F_QUOTED+1,  .y=NIL,         .z=UNDEF,       },  // (lambda (x) (list 'quote (cdr x)))
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=F_QUOTED+2,  },  // ()
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_QUOTED+3,  },  // arg1
-    { .t=Opcode_T,      .x=VM_nth,      .y=-1,          .z=F_QUOTED+4,  },  // value = cdr(arg1)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_QUOTED+3,  },  // arg1
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-1),  .z=F_QUOTED+4,  },  // value = cdr(arg1)
     { .t=Opcode_T,      .x=VM_push,     .y=S_QUOTE,     .z=F_QUOTED+5,  },  // S_QUOTE
-    { .t=Opcode_T,      .x=VM_pair,     .y=2,           .z=CUST_SEND,   },  // (S_QUOTE value)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=CUST_SEND,   },  // (S_QUOTE value)
 #define F_QQUOTED (F_QUOTED+6)
     { .t=Actor_T,       .x=F_QQUOTED+1, .y=NIL,         .z=UNDEF,       },  // (lambda (x) (list 'quasiquote (cdr x)))
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=F_QQUOTED+2, },  // ()
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_QQUOTED+3, },  // arg1
-    { .t=Opcode_T,      .x=VM_nth,      .y=-1,          .z=F_QQUOTED+4, },  // value = cdr(arg1)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_QQUOTED+3, },  // arg1
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-1),  .z=F_QQUOTED+4, },  // value = cdr(arg1)
     { .t=Opcode_T,      .x=VM_push,     .y=S_QQUOTE,    .z=F_QQUOTED+5, },  // S_QQUOTE
-    { .t=Opcode_T,      .x=VM_pair,     .y=2,           .z=CUST_SEND,   },  // (S_QQUOTE value)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=CUST_SEND,   },  // (S_QQUOTE value)
 #define F_UNQUOTED (F_QQUOTED+6)
     { .t=Actor_T,       .x=F_UNQUOTED+1,.y=NIL,         .z=UNDEF,       },  // (lambda (x) (list 'unquote (cdr x)))
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=F_UNQUOTED+2,},  // ()
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_UNQUOTED+3,},  // arg1
-    { .t=Opcode_T,      .x=VM_nth,      .y=-1,          .z=F_UNQUOTED+4,},  // value = cdr(arg1)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_UNQUOTED+3,},  // arg1
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-1),  .z=F_UNQUOTED+4,},  // value = cdr(arg1)
     { .t=Opcode_T,      .x=VM_push,     .y=S_UNQUOTE,   .z=F_UNQUOTED+5,},  // S_UNQUOTE
-    { .t=Opcode_T,      .x=VM_pair,     .y=2,           .z=CUST_SEND,   },  // (S_UNQUOTE value)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=CUST_SEND,   },  // (S_UNQUOTE value)
 #define F_QSPLICED (F_UNQUOTED+6)
     { .t=Actor_T,       .x=F_QSPLICED+1,.y=NIL,         .z=UNDEF,       },  // (lambda (x) (list 'unquote-splicing (cddr x)))
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=F_QSPLICED+2,},  // ()
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_QSPLICED+3,},  // arg1
-    { .t=Opcode_T,      .x=VM_nth,      .y=-2,          .z=F_QSPLICED+4,},  // value = cddr(arg1)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_QSPLICED+3,},  // arg1
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-2),  .z=F_QSPLICED+4,},  // value = cddr(arg1)
     { .t=Opcode_T,      .x=VM_push,     .y=S_QSPLICE,   .z=F_QSPLICED+5,},  // S_QSPLICE
-    { .t=Opcode_T,      .x=VM_pair,     .y=2,           .z=CUST_SEND,   },  // (S_QSPLICE value)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=CUST_SEND,   },  // (S_QSPLICE value)
 #define F_PLACEHD (F_QSPLICED+6)
     { .t=Actor_T,       .x=F_PLACEHD+1, .y=NIL,         .z=UNDEF,       },  // (lambda (x) (list 'placeholder (cdr x)))
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=F_PLACEHD+2, },  // ()
-    { .t=Opcode_T,      .x=VM_msg,      .y=2,           .z=F_PLACEHD+3, },  // arg1
-    { .t=Opcode_T,      .x=VM_nth,      .y=-1,          .z=F_PLACEHD+4, },  // value = cdr(arg1)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_PLACEHD+3, },  // arg1
+    { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-1),  .z=F_PLACEHD+4, },  // value = cdr(arg1)
     { .t=Opcode_T,      .x=VM_push,     .y=S_PLACEH,    .z=F_PLACEHD+5, },  // S_PLACEH
-    { .t=Opcode_T,      .x=VM_pair,     .y=2,           .z=CUST_SEND,   },  // (S_PLACEH value)
+    { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=CUST_SEND,   },  // (S_PLACEH value)
 #define F_NIL (F_PLACEHD+6)
     { .t=Actor_T,       .x=RV_NIL,      .y=NIL,         .z=UNDEF,       },  // (lambda _ ())
 
@@ -3395,7 +3430,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
 #define A_PRINT (S_EMPTY+2)
     { .t=Actor_T,       .x=A_PRINT+1,   .y=NIL,         .z=UNDEF,       },
-    { .t=Opcode_T,      .x=VM_msg,      .y=0,           .z=A_PRINT+2,   },
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=A_PRINT+2,   },
     { .t=Opcode_T,      .x=VM_debug,    .y=TO_FIX(7331),.z=COMMIT,      },
 
 #define A_QUIT (A_PRINT+3)
@@ -3725,7 +3760,7 @@ static int_t gc_free_cell(int_t addr);  // FORWARD DECLARATION
 #define IS_ACTOR(n) TYPEQ(Actor_T,(n))
 #define IS_FEXPR(n) TYPEQ(Fexpr_T,(n))
 #define IS_SYM(n)   TYPEQ(Symbol_T,(n))
-#define IS_INSTR(n) TYPEQ(Opcode_T,(n))
+#define IS_CODE(n)  TYPEQ(Opcode_T,(n))
 
 int_t get_proc(int_t value) {  // get dispatch proc for _value_
     if (IS_FIX(value)) return Fixnum_T;
@@ -4826,7 +4861,7 @@ static int_t execute() {  // execute next VM instruction
     XTRACE(debug_print("execute cont", k_queue_head));
     int_t ip = GET_IP();
     //ASSERT(IS_CELL(ip));
-    ASSERT(IS_INSTR(ip));
+    ASSERT(IS_CODE(ip));
     int_t opcode = get_x(ip);
     ASSERT(IS_PROC(opcode));
 #if INCLUDE_DEBUG
@@ -4968,7 +5003,7 @@ PROC_DECL(vm_typeq) {
 }
 
 PROC_DECL(vm_cell) {
-    int_t n = GET_IMMD();
+    int_t n = TO_INT(GET_IMMD());
     int_t z = UNDEF;
     int_t y = UNDEF;
     int_t x = UNDEF;
@@ -5029,7 +5064,7 @@ static int_t pop_pairs(int_t n) {
     return c;
 }
 PROC_DECL(vm_pair) {
-    int_t n = GET_IMMD();
+    int_t n = TO_INT(GET_IMMD());
     int_t c = pop_pairs(n);
     stack_push(c);
     return GET_CONT();
@@ -5045,7 +5080,7 @@ static void push_parts(int_t n, int_t xs) {
     }
 }
 PROC_DECL(vm_part) {
-    int_t n = GET_IMMD();
+    int_t n = TO_INT(GET_IMMD());
     int_t c = stack_pop();
     push_parts(n, c);
     return GET_CONT();
@@ -5077,7 +5112,7 @@ static int_t extract_nth(int_t m, int_t n) {
     return v;
 }
 PROC_DECL(vm_nth) {
-    int_t n = GET_IMMD();
+    int_t n = TO_INT(GET_IMMD());
     int_t m = stack_pop();
     stack_push(extract_nth(m, n));
     return GET_CONT();
@@ -5090,20 +5125,20 @@ PROC_DECL(vm_push) {
 }
 
 PROC_DECL(vm_depth) {
-    int_t v = 0;
+    int_t n = 0;
     int_t sp = GET_SP();
     sane = SANITY;
     while (IS_PAIR(sp)) {  // count items on stack
-        ++v;
+        ++n;
         sp = cdr(sp);
         if (sane-- == 0) return panic("insane vm_depth");
     }
-    stack_push(v);
+    stack_push(TO_FIX(n));
     return GET_CONT();
 }
 
 PROC_DECL(vm_drop) {
-    int_t n = GET_IMMD();
+    int_t n = TO_INT(GET_IMMD());
     sane = SANITY;
     while (n-- > 0) {  // drop n items from stack
         stack_pop();
@@ -5113,7 +5148,7 @@ PROC_DECL(vm_drop) {
 }
 
 PROC_DECL(vm_pick) {
-    int_t n = GET_IMMD();
+    int_t n = TO_INT(GET_IMMD());
     int_t v = UNDEF;
     int_t sp = GET_SP();
     sane = SANITY;
@@ -5127,7 +5162,7 @@ PROC_DECL(vm_pick) {
 }
 
 PROC_DECL(vm_dup) {
-    int_t n = GET_IMMD();
+    int_t n = TO_INT(GET_IMMD());
     int_t dup = NIL;
     int_t sp = GET_SP();
     sane = SANITY;
@@ -5141,7 +5176,7 @@ PROC_DECL(vm_dup) {
 }
 
 PROC_DECL(vm_roll) {
-    int_t n = GET_IMMD();
+    int_t n = TO_INT(GET_IMMD());
     int_t v = UNDEF;
     int_t sp = GET_SP();
     int_t pp = sp;
@@ -5205,24 +5240,32 @@ PROC_DECL(vm_eq) {
 
 PROC_DECL(vm_cmp) {
     int_t rel = GET_IMMD();
-    int_t m = TO_INT(stack_pop());
-    int_t n = TO_INT(stack_pop());
-    switch (rel) {
-        case CMP_EQ:    stack_push((n == m) ? TRUE : FALSE);    break;
-        case CMP_GE:    stack_push((n >= m) ? TRUE : FALSE);    break;
-        case CMP_GT:    stack_push((n > m)  ? TRUE : FALSE);    break;
-        case CMP_LT:    stack_push((n < m)  ? TRUE : FALSE);    break;
-        case CMP_LE:    stack_push((n <= m) ? TRUE : FALSE);    break;
-        case CMP_NE:    stack_push((n != m) ? TRUE : FALSE);    break;
-        case CMP_CLS: {  // character in class
-            if (char_in_class(n, m)) {
-                stack_push(TRUE);
-            } else {
-                stack_push(FALSE);
+    if (rel == CMP_EQ) {                // EQ works on *any* value
+        int_t m = stack_pop();
+        int_t n = stack_pop();
+        stack_push((n == m) ? TRUE : FALSE);
+    } else if (rel == CMP_NE) {         // NE works on *any* value
+        int_t m = stack_pop();
+        int_t n = stack_pop();
+        stack_push((n != m) ? TRUE : FALSE);
+    } else {                            // all other relations require numbers
+        int_t m = TO_INT(stack_pop());
+        int_t n = TO_INT(stack_pop());
+        switch (rel) {
+            case CMP_GE:    stack_push((n >= m) ? TRUE : FALSE);    break;
+            case CMP_GT:    stack_push((n > m)  ? TRUE : FALSE);    break;
+            case CMP_LT:    stack_push((n < m)  ? TRUE : FALSE);    break;
+            case CMP_LE:    stack_push((n <= m) ? TRUE : FALSE);    break;
+            case CMP_CLS: {  // character in class
+                if (char_in_class(n, m)) {
+                    stack_push(TRUE);
+                } else {
+                    stack_push(FALSE);
+                }
+                break;
             }
-            break;
+            default:        return error("unknown relation");
         }
-        default:        return error("unknown relation");
     }
     return GET_CONT();
 }
@@ -5230,11 +5273,13 @@ PROC_DECL(vm_cmp) {
 PROC_DECL(vm_if) {
     int_t b = stack_pop();
     //if (b == UNDEF) return error("undefined condition");
-    return ((b == FALSE) ? GET_CONT() : GET_IMMD());
+    int_t t = GET_IMMD();
+    int_t f = GET_CONT();
+    return ((b == FALSE) ? f : t);
 }
 
 PROC_DECL(vm_msg) {
-    int_t n = GET_IMMD();
+    int_t n = TO_INT(GET_IMMD());
     int_t ep = GET_EP();
     int_t m = get_y(ep);
     stack_push(extract_nth(m, n));
@@ -5260,7 +5305,7 @@ static int_t pop_list(int_t n) {
     return c;
 }
 PROC_DECL(vm_send) {
-    int_t n = GET_IMMD();
+    int_t n = TO_INT(GET_IMMD());
     int_t ep = GET_EP();
     int_t me = get_x(ep);
     int_t a = stack_pop();  // target
@@ -5284,7 +5329,7 @@ PROC_DECL(vm_send) {
 }
 
 PROC_DECL(vm_new) {
-    int_t n = GET_IMMD();
+    int_t n = TO_INT(GET_IMMD());
     if (n < 0) return error("vm_new (n < 0) invalid");
     int_t ip = stack_pop();  // behavior
 #if 0
@@ -5295,7 +5340,7 @@ PROC_DECL(vm_new) {
     }
     int_t a = cell_new(Actor_T, ip, NIL, UNDEF);
 #else
-    int_t sp = NIL;
+    int_t sp = NIL;  // initial stack state for new actor
     if (n > 0) {
         sp = GET_SP();
         int_t np = sp;
@@ -5316,7 +5361,7 @@ PROC_DECL(vm_new) {
 }
 
 PROC_DECL(vm_beh) {
-    int_t n = GET_IMMD();
+    int_t n = TO_INT(GET_IMMD());
     if (n < 0) return error("vm_beh (n < 0) invalid");
     int_t ep = GET_EP();
     int_t me = get_x(ep);
@@ -5342,16 +5387,17 @@ PROC_DECL(vm_beh) {
 
 PROC_DECL(vm_end) {
     int_t n = GET_IMMD();
+    int_t m = TO_INT(n);
     int_t ep = GET_EP();
     int_t me = get_x(ep);
     int_t rv = UNIT;  // STOP
-    if (n < 0) {  // ABORT
+    if (m < 0) {  // ABORT
         int_t r = stack_pop();  // reason
         DEBUG(debug_print("ABORT!", r));
         stack_clear();
         set_z(me, UNDEF);  // abort actor transaction
         rv = FALSE;
-    } else if (n > 0) {  // COMMIT
+    } else if (m > 0) {  // COMMIT
         if (n == END_RELEASE) {
             set_y(me, NIL);
         }
@@ -5609,42 +5655,44 @@ static char *conversion_label(int_t f) {
     return "<unknown>";
 }
 void print_inst(int_t ip) {
-    if (IS_FIX(ip) || (ip < 0)) {
+    if (!IS_CODE(ip)) {
         fprintf(stderr, "<non-inst:%"PdI">", ip);
         return;
     }
-    int_t proc = get_t(ip);
-    fprintf(stderr, "%s", cell_label(proc));
-    switch (proc) {
-        case VM_typeq:fprintf(stderr, "{t:%s,k:%"PdI"}", proc_label(get_x(ip)), get_y(ip)); break;
-        case VM_cell: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_get:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(get_x(ip)), get_y(ip)); break;
-        case VM_set:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(get_x(ip)), get_y(ip)); break;
-        case VM_pair: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_part: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_nth:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_push: fprintf(stderr, "{v:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_depth:fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
-        case VM_drop: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_pick: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_dup:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_roll: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_alu:  fprintf(stderr, "{op:%s,k:%"PdI"}", operation_label(get_x(ip)), get_y(ip)); break;
-        case VM_eq:   fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_cmp:  fprintf(stderr, "{r:%s,k:%"PdI"}", relation_label(get_x(ip)), get_y(ip)); break;
-        case VM_if:   fprintf(stderr, "{t:%"PdI",f:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_msg:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_self: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
-        case VM_send: fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_new:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_beh:  fprintf(stderr, "{n:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
-        case VM_end:  fprintf(stderr, "{t:%s}", end_label(get_x(ip))); break;
-        case VM_cvt:  fprintf(stderr, "{c:%s}", conversion_label(get_x(ip))); break;
-        case VM_putc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
-        case VM_getc: fprintf(stderr, "{k:%"PdI"}", get_y(ip)); break;
-        case VM_debug:fprintf(stderr, "{t:%"PdI",k:%"PdI"}", get_x(ip), get_y(ip)); break;
+    int_t op = get_x(ip);
+    int_t immd = get_y(ip);
+    int_t cont = get_z(ip);
+    fprintf(stderr, "%s", cell_label(op));
+    switch (op) {
+        case VM_typeq:fprintf(stderr, "{t:%s,k:%"PdI"}", proc_label(immd), cont); break;
+        case VM_cell: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
+        case VM_get:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(immd), cont); break;
+        case VM_set:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(immd), cont); break;
+        case VM_pair: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
+        case VM_part: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
+        case VM_nth:  fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
+        case VM_push: print_addr("{v:", immd); fprintf(stderr, ",k:%"PdI"}", cont); break;
+        case VM_depth:fprintf(stderr, "{k:%"PdI"}", cont); break;
+        case VM_drop: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
+        case VM_pick: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
+        case VM_dup:  fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
+        case VM_roll: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
+        case VM_alu:  fprintf(stderr, "{op:%s,k:%"PdI"}", operation_label(immd), cont); break;
+        case VM_eq:   print_addr("{v:", immd); fprintf(stderr, ",k:%"PdI"}", cont); break;
+        case VM_cmp:  fprintf(stderr, "{r:%s,k:%"PdI"}", relation_label(immd), cont); break;
+        case VM_if:   fprintf(stderr, "{t:%"PdI",f:%"PdI"}", immd, cont); break;
+        case VM_msg:  fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
+        case VM_self: fprintf(stderr, "{k:%"PdI"}", cont); break;
+        case VM_send: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
+        case VM_new:  fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
+        case VM_beh:  fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
+        case VM_end:  fprintf(stderr, "{t:%s}", end_label(immd)); break;
+        case VM_cvt:  fprintf(stderr, "{c:%s}", conversion_label(immd)); break;
+        case VM_putc: fprintf(stderr, "{k:%"PdI"}", cont); break;
+        case VM_getc: fprintf(stderr, "{k:%"PdI"}", cont); break;
+        case VM_debug:print_addr("{l:", immd); fprintf(stderr, ",k:%"PdI"}", cont); break;
         default: {
-            if (IS_PROC(proc)) {
+            if (IS_PROC(op)) {
                 fprintf(stderr, "{x:%"PdI",y:%"PdI",z:%"PdI"}", get_x(ip), get_y(ip), get_z(ip));
             } else {
                 fprintf(stderr, "{t:%"PdI",x:%"PdI",y:%"PdI",z:%"PdI"}",

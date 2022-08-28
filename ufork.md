@@ -200,10 +200,10 @@ the "next instruction" is carried in the `z` field of the instruction.
  Input            | Instruction                   | Output   | Description
 ------------------|-------------------------------|----------|------------------------------
 _v_               | {x:VM_typeq, y:_T_, z:_K_}    | _bool_   | `TRUE` if _v_ has type _T_, otherwise `FALSE`
-_T_               | {x:VM_cell, y:+1, z:_K_}      | _cell_   | create cell {t:_T_}
-_T_ _X_           | {x:VM_cell, y:+2, z:_K_}      | _cell_   | create cell {t:_T_, x:_X_}
-_T_ _X_ _Y_       | {x:VM_cell, y:+3, z:_K_}      | _cell_   | create cell {t:_T_, x:_X_, y:_Y_}
-_T_ _X_ _Y_ _Z_   | {x:VM_cell, y:+4, z:_K_}      | _cell_   | create cell {t:_T_, x:_X_, y:_Y_, z:_Z_}
+_T_               | {x:VM_cell, y:1, z:_K_}       | _cell_   | create cell {t:_T_}
+_T_ _X_           | {x:VM_cell, y:2, z:_K_}       | _cell_   | create cell {t:_T_, x:_X_}
+_T_ _X_ _Y_       | {x:VM_cell, y:3, z:_K_}       | _cell_   | create cell {t:_T_, x:_X_, y:_Y_}
+_T_ _X_ _Y_ _Z_   | {x:VM_cell, y:4, z:_K_}       | _cell_   | create cell {t:_T_, x:_X_, y:_Y_, z:_Z_}
 _cell_            | {x:VM_get, y:T, z:_K_}        | _t_      | get _t_ from _cell_
 _cell_            | {x:VM_get, y:X, z:_K_}        | _x_      | get _x_ from _cell_
 _cell_            | {x:VM_get, y:Y, z:_K_}        | _y_      | get _y_ from _cell_
