@@ -135,8 +135,6 @@ usually via some late-bound named-reference.
 
 ## Representation
 
-**WARNING! _THE REPRESENTATION AND IMPLEMENTATION IS CHANGING TO BETTER MATCH THE DESIGN DESCRIBED ON THE BLOG..._**
-
 The quad-cell is the primary internal data-structure in **uFork**.
 It consists of four integers (current compile options are 16, 32, and 64 bits).
 
@@ -145,14 +143,20 @@ It consists of four integers (current compile options are 16, 32, and 64 bits).
 type/proc | head/car | tail/cdr | link/next
 
 The integers in each field encode three basic types of value,
-based on their 2 MSBs.
+based on their 2 most-significant bits (MSBs).
+The 1st MSB is {0=indirect-reference, 1=direct-value}
+The 2nd MSB is {0=transparent, 1=opaque},
+and only applies to references.
 
 2-MSB | Interpretation
 ------|---------------
-2#00  | cell address (with fields {_t_, _x_, _y_, _z_})
-2#01  | negative small integer (fixnum)
-2#10  | positive small integer (fixnum)
-2#11  | internal procedure/type (no fields)
+2#00  | quad-cell reference (with fields {_t_, _x_, _y_, _z_})
+2#01  | capability (opaque reference value)
+2#10  | positive direct integer (fixnum)
+2#11  | negative direct integer (fixnum)
+
+Direct integer values (fixnums) are stored in 2's-complement representation,
+where the 2nd MSB is the sign bit of the integer value.
 
 ### Virtual Machine
 

@@ -29,7 +29,6 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define RAWINT_SYNTAX 1 // include support for ASM rawint data (#1)
 #define PLACEH_SYNTAX 1 // include support for placeholder variables (?x)
 #define META_ACTORS   1 // include meta-actor definitions
-#define CELLS_4_TYPES 0 // allocate type-labels from quad-cell memory
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
@@ -99,14 +98,16 @@ typedef int64_t i64;
 #define MSB2   NAT(MSB1>>1)
 #define TAG    (MSB1|MSB2)
 
-#define IS_REF(v)   (!((v)&MSB1))
-#define IS_VAL(v)   ((v)&MSB1)
-#define IS_QUAD(v)  (!((v)&TAG))
-#define IS_CAP(v)   ((v)&TAG == MSB2)
+#define IS_REF(v)   (!((v) & MSB1))
+#define IS_VAL(v)   ((v) & MSB1)
+#define IS_QUAD(v)  (!((v) & TAG))
+#define IS_CAP(v)   (((v) & TAG) == MSB2)
+#define TO_CAP(q)   INT(((v) & ~MSB1)|MSB2)
+#define TO_REF(v)   INT((v) & ~TAG)
 
-#define TO_INT(x) INT(INT(NAT(x) << 1) >> 1)
-#define TO_FIX(n) INT(TO_INT(n) + MSB1)
-#define IS_FIX(n) (NAT((n) - MSB2) < MSB1)
+#define TO_INT(v)   INT(INT(NAT(v) << 1) >> 1)
+#define TO_FIX(n)   INT((n) | MSB1)
+#define IS_FIX(n)   ((n) & MSB1)
 
 typedef struct cell {
     int_t       t;      // proc/type (code offset from proc_zero)
@@ -142,15 +143,13 @@ int_t debugger();
 
 #define ASSERT(cond)    if (!(cond)) return failure(__FILE__, __LINE__)
 
-// constant values
-#if CELLS_4_TYPES
-
+// literal values
 #define UNDEF       (0)
 #define NIL         (1)
 #define FALSE       (2)
 #define TRUE        (3)
 #define UNIT        (4)
-
+// type markers
 #define Literal_T   UNDEF
 #define Type_T      (5)
 #define Event_T     (6)
@@ -161,36 +160,15 @@ int_t debugger();
 #define Pair_T      (11)
 #define Fexpr_T     (12)
 #define Free_T      (13)
-
+// entry-point
 #define START       (14)
-
-#else
-
-#define FALSE       (0)
-#define TRUE        (1)
-#define NIL         (2)
-#define UNDEF       (3)
-#define UNIT        (4)
-#define START       (5)
-
-#endif
 
 /*
  * native code procedures
  */
 
 // FORWARD DECLARATIONS
-PROC_DECL(Fixnum);
-PROC_DECL(Proc);
-PROC_DECL(Undef);
-PROC_DECL(Boolean);
-PROC_DECL(Null);
-PROC_DECL(Pair);
-PROC_DECL(Symbol);
-PROC_DECL(Fexpr);
-PROC_DECL(Actor);
-PROC_DECL(Event);
-PROC_DECL(Free);
+PROC_DECL(vm_illegal);
 PROC_DECL(vm_typeq);
 PROC_DECL(vm_cell);
 PROC_DECL(vm_get);
@@ -219,98 +197,67 @@ PROC_DECL(vm_putc);
 PROC_DECL(vm_getc);
 PROC_DECL(vm_debug);
 
-#define Opcode_T    (42)
-#define Fixnum_T    (1)
-#define Proc_T      (0)
-#define Undef_T     (-1)
-#define Boolean_T   (-2)
-#define Null_T      (-3)
-#define Pair_T      (-4)
-#define Symbol_T    (-5)
-#define Fexpr_T     (-6)
-#define Actor_T     (-7)
-#define Event_T     (-8)
-#define Free_T      (-9)
-#define VM_typeq    (-10)
-#define VM_cell     (-11)
-#define VM_get      (-12)
-#define VM_set      (-13)
-#define VM_pair     (-14)
-#define VM_part     (-15)
-#define VM_nth      (-16)
-#define VM_push     (-17)
-#define VM_depth    (-18)
-#define VM_drop     (-19)
-#define VM_pick     (-20)
-#define VM_dup      (-21)
-#define VM_roll     (-22)
-#define VM_alu      (-23)
-#define VM_eq       (-24)
-#define VM_cmp      (-25)
-#define VM_if       (-26)
-#define VM_msg      (-27)
-#define VM_self     (-28)
-#define VM_send     (-29)
-#define VM_new      (-30)
-#define VM_beh      (-31)
-#define VM_end      (-32)
-#define VM_cvt      (-33)
-#define VM_putc     (-34)
-#define VM_getc     (-35)
-#define VM_debug    (-36)
+#define VM_typeq    TO_FIX(0)
+#define VM_cell     TO_FIX(1)
+#define VM_get      TO_FIX(2)
+#define VM_set      TO_FIX(3)
+#define VM_pair     TO_FIX(4)
+#define VM_part     TO_FIX(5)
+#define VM_nth      TO_FIX(6)
+#define VM_push     TO_FIX(7)
+#define VM_depth    TO_FIX(8)
+#define VM_drop     TO_FIX(9)
+#define VM_pick     TO_FIX(10)
+#define VM_dup      TO_FIX(11)
+#define VM_roll     TO_FIX(12)
+#define VM_alu      TO_FIX(13)
+#define VM_eq       TO_FIX(14)
+#define VM_cmp      TO_FIX(15)
+#define VM_if       TO_FIX(16)
+#define VM_msg      TO_FIX(17)
+#define VM_self     TO_FIX(18)
+#define VM_send     TO_FIX(19)
+#define VM_new      TO_FIX(20)
+#define VM_beh      TO_FIX(21)
+#define VM_end      TO_FIX(22)
+#define VM_cvt      TO_FIX(23)
+#define VM_putc     TO_FIX(24)
+#define VM_getc     TO_FIX(25)
+#define VM_debug    TO_FIX(26)
 
 #define PROC_MAX    NAT(sizeof(proc_table) / sizeof(proc_t))
 proc_t proc_table[] = {
-    vm_debug,
-    vm_getc,
-    vm_putc,
-    vm_cvt,
-    vm_end,
-    vm_beh,
-    vm_new,
-    vm_send,
-    vm_self,
-    vm_msg,
-    vm_if,
-    vm_cmp,
-    vm_eq,
-    vm_alu,
-    vm_roll,
-    vm_dup,
-    vm_pick,
-    vm_drop,
-    vm_depth,
-    vm_push,
-    vm_nth,
-    vm_part,
-    vm_pair,
-    vm_set,
-    vm_get,
-    vm_cell,
     vm_typeq,
-    Free,  // free-cell marker
-    Event,
-    Actor,
-    Fexpr,
-    Symbol,
-    Pair,
-    Null,
-    Boolean,
-    Undef,
+    vm_cell,
+    vm_get,
+    vm_set,
+    vm_pair,
+    vm_part,
+    vm_nth,
+    vm_push,
+    vm_depth,
+    vm_drop,
+    vm_pick,
+    vm_dup,
+    vm_roll,
+    vm_alu,
+    vm_eq,
+    vm_cmp,
+    vm_if,
+    vm_msg,
+    vm_self,
+    vm_send,
+    vm_new,
+    vm_beh,
+    vm_end,
+    vm_cvt,
+    vm_putc,
+    vm_getc,
+    vm_debug,
 };
-proc_t *proc_zero = &proc_table[PROC_MAX];  // base for proc offsets
 
 static char *proc_label(int_t proc) {
     static char *label[] = {
-        "Undef_T",
-        "Boolean_T",
-        "Null_T",
-        "Pair_T",
-        "Symbol_T",
-        "Fexpr_T",
-        "Actor_T",
-        "Event_T",
-        "Free_T",
         "VM_typeq",
         "VM_cell",
         "VM_get",
@@ -339,9 +286,7 @@ static char *proc_label(int_t proc) {
         "VM_getc",
         "VM_debug",
     };
-    if (proc == Fixnum_T) return "Fixnum_T";
-    if (proc == Proc_T) return "Proc_T";
-    nat_t ofs = NAT(Undef_T - proc);
+    nat_t ofs = NAT(TO_INT(proc));
     if (ofs < PROC_MAX) return label[ofs];
     return "<unknown>";
 }
@@ -349,14 +294,12 @@ static char *proc_label(int_t proc) {
 int_t call_proc(int_t proc, int_t self, int_t arg) {
     //XTRACE(debug_print("call_proc proc", proc));
     XTRACE(debug_print("call_proc self", self));
-    if (proc == Fixnum_T) return Fixnum(self, arg);
-    if (proc == Proc_T) return Proc(self, arg);
     int_t result = UNDEF;
-    nat_t ofs = NAT(Undef_T - proc);
+    nat_t ofs = NAT(TO_INT(proc));
     if (ofs < PROC_MAX) {
-        result = (proc_zero[proc])(self, arg);
+        result = (proc_table[ofs])(self, arg);
     } else {
-        result = error("procedure expected");
+        result = error("opcode expected");
     }
     return result;
 }
@@ -455,21 +398,29 @@ int_t char_in_class(int_t n, int_t c) {
 
 static char *cell_label(int_t cell) {
     static char *label[] = {
+        "UNDEF",  // also "Literal_T"
+        "NIL",
         "FALSE",
         "TRUE",
-        "NIL",
-        "UNDEF",
         "UNIT",
+        "Type_T",
+        "Event_T",
+        "Opcode_T",
+        "Actor_T",
+        "Fixnum_T",
+        "Symbol_T",
+        "Pair_T",
+        "Fexpr_T",
+        "Free_T",
     };
     if (IS_FIX(cell)) return "fix";
-    if (cell < 0) return proc_label(cell);
-    if (cell < START) return label[cell];
+    if (IS_CAP(cell)) return "cap";
+    if (NAT(cell) < START) return label[cell];
     return "cell";
 }
 
 #define CELL_MAX NAT(1<<14)  // 16K cells
 cell_t cell_table[CELL_MAX] = {
-#if CELLS_4_TYPES
     { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  0: UNDEF = #?
     { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  1: NIL = ()
     { .t=Literal_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  //  2: FALSE = #f
@@ -484,16 +435,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // 11: Pair_T
     { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // 12: Fexpr_T
     { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // 13: Free_T
-    { .t=Event_T,       .x=91,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-#else
-    { .t=Boolean_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // FALSE = #f
-    { .t=Boolean_T,     .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // TRUE = #t
-    { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // NIL = ()
-    { .t=Undef_T,       .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // UNDEF = #?
-    { .t=Null_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // UNIT = #unit
-    { .t=Event_T,       .x=91,          .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
-#endif
-
+    { .t=Event_T,       .x=100,         .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
 #define RV_SELF (START+1)
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=RV_SELF+1,   },  // value = SELF
 #define CUST_SEND (RV_SELF+1)
@@ -648,7 +590,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=REPL_E+4,    },  // env = ()
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=REPL_E+5,    },  // form = sexpr
     { .t=Opcode_T,      .x=VM_push,     .y=REPL_P,      .z=REPL_E+6,    },  // cust = REPL_P
-    { .t=Opcode_T,      .x=VM_push,     .y=222,         .z=REPL_E+7,    },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
+    { .t=Opcode_T,      .x=VM_push,     .y=231,         .z=REPL_E+7,    },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL cust form env)
 
     { .t=Actor_T,       .x=REPL_P+1,    .y=NIL,         .z=UNDEF        },
@@ -1798,9 +1740,19 @@ cell_t cell_table[CELL_MAX] = {
 
 #define F_BOOL_P (F_PAIR_P+2)
     { .t=Actor_T,       .x=F_BOOL_P+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_push,     .y=Boolean_T,   .z=F_TYPE_P,    },  // type = Boolean_T
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_BOOL_P+2,  },  // args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_BOOL_P+3,  },  // args args
+    { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_BOOL_P+4,  },  // args has type Pair_T
+    { .t=Opcode_T,      .x=VM_if,       .y=F_BOOL_P+5,  .z=RV_TRUE,     },
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_BOOL_P+6,  },  // rest first
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_BOOL_P+7,  },  // first first
+    { .t=Opcode_T,      .x=VM_eq,       .y=FALSE,       .z=F_BOOL_P+8,  },  // first == FALSE
+    { .t=Opcode_T,      .x=VM_if,       .y=F_BOOL_P+9,  .z=F_BOOL_P+10, },
+    { .t=Opcode_T,      .x=VM_drop,     .y=TO_FIX(1),   .z=F_BOOL_P+2,  },  // rest
+    { .t=Opcode_T,      .x=VM_eq,       .y=TRUE,        .z=F_BOOL_P+11, },  // first == TRUE
+    { .t=Opcode_T,      .x=VM_if,       .y=F_BOOL_P+2,  .z=RV_FALSE,    },
 
-#define F_NUM_P (F_BOOL_P+2)
+#define F_NUM_P (F_BOOL_P+12)
     { .t=Actor_T,       .x=F_NUM_P+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_P+2,   },  // args
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_P+3,   },  // args args
@@ -3444,11 +3396,20 @@ int_t cell_next = NIL;  // head of cell free-list (or NIL if empty)
 int_t cell_top = CELL_BASE; // limit of allocated cell memory
 
 static struct { int_t addr; char *label; } symbol_table[] = {
+    { UNDEF, "UNDEF" },
+    { NIL, "NIL" },
     { FALSE, "FALSE" },
     { TRUE, "TRUE" },
-    { NIL, "NIL" },
-    { UNDEF, "UNDEF" },
     { UNIT, "UNIT" },
+    { Type_T, "Type_T" },
+    { Event_T, "Event_T" },
+    { Opcode_T, "Opcode_T" },
+    { Actor_T, "Actor_T" },
+    { Fixnum_T, "Fixnum_T" },
+    { Symbol_T, "Symbol_T" },
+    { Pair_T, "Pair_T" },
+    { Fexpr_T, "Fexpr_T" },
+    { Free_T, "Free_T" },
     { START, "START" },
 
     { RV_SELF, "RV_SELF" },
@@ -3751,7 +3712,6 @@ static int_t gc_free_cell(int_t addr);  // FORWARD DECLARATION
 #define IS_CELL(n)  (NAT(n) < cell_top)
 #define IN_HEAP(n)  (((n)>=START) && ((n)<cell_top))
 
-#define IS_PROC(n)  (((n) < 0) && !IS_FIX(n))
 #define IS_BOOL(n)  (((n) == FALSE) || ((n) == TRUE))
 
 #define TYPEQ(t,n)  (IS_CELL(n) && (get_t(n) == (t)))
@@ -3761,13 +3721,6 @@ static int_t gc_free_cell(int_t addr);  // FORWARD DECLARATION
 #define IS_FEXPR(n) TYPEQ(Fexpr_T,(n))
 #define IS_SYM(n)   TYPEQ(Symbol_T,(n))
 #define IS_CODE(n)  TYPEQ(Opcode_T,(n))
-
-int_t get_proc(int_t value) {  // get dispatch proc for _value_
-    if (IS_FIX(value)) return Fixnum_T;
-    if (IS_PROC(value)) return Proc_T;
-    if (IS_CELL(value)) return get_t(value);
-    return error("no dispatch proc for value");
-}
 
 static i32 gc_free_cnt;  // FORWARD DECLARATION
 
@@ -4509,20 +4462,21 @@ int_t init_global_env() {
 #endif // SCM_PEG_TOOLS
 
 #if SCM_ASM_TOOLS
+    bind_global("UNDEF", UNDEF);
+    bind_global("NIL", NIL);
     bind_global("FALSE", FALSE);
     bind_global("TRUE", TRUE);
-    bind_global("NIL", NIL);
-    bind_global("UNDEF", UNDEF);
     bind_global("UNIT", UNIT);
 
-    bind_global("Undef_T", Undef_T);
-    bind_global("Boolean_T", Boolean_T);
-    bind_global("Null_T", Null_T);
-    bind_global("Pair_T", Pair_T);
-    bind_global("Symbol_T", Symbol_T);
-    bind_global("Fexpr_T", Fexpr_T);
-    bind_global("Actor_T", Actor_T);
+    bind_global("Literal_T", Literal_T);
+    bind_global("Type_T", Type_T);
     bind_global("Event_T", Event_T);
+    bind_global("Opcode_T", Opcode_T);
+    bind_global("Actor_T", Actor_T);
+    bind_global("Fixnum_T", Fixnum_T);
+    bind_global("Symbol_T", Symbol_T);
+    bind_global("Pair_T", Pair_T);
+    bind_global("Fexpr_T", Fexpr_T);
     bind_global("Free_T", Free_T);
 
     bind_global("VM_typeq", VM_typeq);
@@ -4828,28 +4782,31 @@ static int_t dispatch() {  // dispatch next event (if any)
     XTRACE(debug_print("dispatch event", event));
     ASSERT(IN_HEAP(event));
     int_t target = get_x(event);
-    int_t proc = get_proc(target);
-    //ASSERT(IS_PROC(proc));  // FIXME: does not include Fixnum_T and Proc_T
-    int_t cont = call_proc(proc, target, event);
-    if (cont == FALSE) {  // target busy
+    XTRACE(debug_print("dispatch target", target));
+    ASSERT(IS_ACTOR(target));
+//    int_t cont = Actor(target, event);
+    if (get_z(target) != UNDEF) {  // target actor busy
 #if INCLUDE_DEBUG
-        if (runtime_trace) {
+        if (runtime_trace != FALSE) {
             DEBUG(debug_print("dispatch busy", event));
         }
 #endif
         event_q_put(event);  // re-queue event
-    } else if (cont == TRUE) {  // immediate event -- retry
-        cont = dispatch();
-        XTRACE(debug_print("dispatch retry", cont));
-    } else if (IN_HEAP(cont)) {  // enqueue new continuation
-        cont_q_put(cont);
-#if INCLUDE_DEBUG
-        if (runtime_trace) {
-            fprintf(stderr, "thread spawn: %"PdI"{ip=%"PdI",sp=%"PdI",ep=%"PdI"}\n",
-                cont, get_t(cont), get_x(cont), get_y(cont));
-        }
-#endif
     }
+    int_t ip = get_x(target);  // actor behavior (initial IP)
+    int_t sp = get_y(target);  // actor state (initial SP)
+    ASSERT((sp == NIL) || IS_PAIR(sp));
+    // begin actor transaction
+    set_z(target, NIL);  // start with empty set of new events
+    // spawn new "thread" (continuation) to handle event
+    int_t cont = cell_new(ip, sp, event, NIL);
+    cont_q_put(cont);  // enqueue new continuation
+#if INCLUDE_DEBUG
+    if (runtime_trace != FALSE) {
+        fprintf(stderr, "thread spawn: %"PdI"{ip=%"PdI",sp=%"PdI",ep=%"PdI"}\n",
+            cont, get_t(cont), get_x(cont), get_y(cont));
+    }
+#endif
     return cont;
 }
 static int_t execute() {  // execute next VM instruction
@@ -4862,11 +4819,10 @@ static int_t execute() {  // execute next VM instruction
     int_t ip = GET_IP();
     //ASSERT(IS_CELL(ip));
     ASSERT(IS_CODE(ip));
-    int_t opcode = get_x(ip);
-    ASSERT(IS_PROC(opcode));
 #if INCLUDE_DEBUG
-    if (!debugger()) return FALSE;  // debugger quit
+    if (debugger() == FALSE) return FALSE;  // debugger quit
 #endif
+    int_t opcode = get_x(ip);
     ip = call_proc(opcode, ip, GET_EP());
     SET_IP(ip);  // update IP
     int_t cont = cont_q_pop();
@@ -4898,86 +4854,8 @@ int_t runtime() {
  * native procedures
  */
 
-PROC_DECL(Fixnum) {
-    return panic("Dispatch to Fixnum!?");
-}
-
-PROC_DECL(Proc) {
-    return panic("Dispatch to Proc!?");
-}
-
-PROC_DECL(Undef) {
-    int_t event = arg;
-#if 1
-    DEBUG(print_event(event));
-    DEBUG(debug_print("Undef", event));
-    return panic("Dispatch to Undef!?");
-#else
-#if INCLUDE_DEBUG
-    if (runtime_trace) {
-        DEBUG(print_event(event));
-        DEBUG(debug_print("Undef", event));
-    }
-#endif
-    ASSERT(self == get_x(event));
-    int_t msg = get_y(event);
-    event = XFREE(event);  // event is consumed
-    int_t cust = msg;
-    if (IS_PAIR(msg)) {
-        cust = car(msg);
-    }
-    if (IS_ACTOR(cust)) {
-        event = cell_new(Event_T, cust, self, NIL);
-        event_q_put(event);
-        return TRUE;  // retry event dispatch
-    }
-    return error("message not understood");
-#endif
-}
-
-PROC_DECL(Boolean) {
-    return panic("Dispatch to Boolean!?");
-}
-
-PROC_DECL(Null) {
-    return panic("Dispatch to Null!?");
-}
-
-PROC_DECL(Pair) {
-    return panic("Dispatch to Pair!?");
-}
-
-PROC_DECL(Symbol) {
-    return panic("Dispatch to Symbol!?");
-}
-
-PROC_DECL(Fexpr) {
-    return panic("Dispatch to Fexpr!?");
-}
-
-PROC_DECL(Actor) {
-    int_t actor = self;
-    int_t event = arg;
-    ASSERT(actor == get_x(event));
-    if (get_z(actor) != UNDEF) {
-        return FALSE;  // actor busy
-    }
-    int_t beh = get_x(actor);  // actor behavior (initial IP)
-    int_t isp = get_y(actor);  // actor state (initial SP)
-    ASSERT((isp == NIL) || IS_PAIR(isp));
-    // begin actor transaction
-    set_z(actor, NIL);  // start with empty set of new events
-    // spawn new "thread" to handle event
-    int_t cont = cell_new(beh, isp, event, NIL);  // ip=beh, sp=isp, ep=event
-    return cont;
-}
-
-PROC_DECL(Event) {
-    return panic("Dispatch to Event!?");
-}
-
-PROC_DECL(Free) {
-    return panic("DISPATCH TO FREE CELL!");
+PROC_DECL(vm_illegal) {
+    return error("Illegal instruction!");
 }
 
 #define GET_IMMD() get_y(self)
@@ -4986,17 +4864,12 @@ PROC_DECL(Free) {
 PROC_DECL(vm_typeq) {
     int_t t = GET_IMMD();
     int_t v = stack_pop();
-    switch (t) {
-        case Fixnum_T:  v = (IS_FIX(v) ? TRUE : FALSE);     break;
-        case Proc_T:    v = (IS_PROC(v) ? TRUE : FALSE);    break;
-        default: {
-            if (IS_CELL(v)) {
-                v = ((t == get_t(v)) ? TRUE : FALSE);
-            } else {
-                v = FALSE;  // _v_ out of range
-            }
-            break;
-        }
+    if (t == Fixnum_T) {
+        v = (IS_FIX(v) ? TRUE : FALSE);
+    } else if (IS_CELL(v)) {
+        v = ((t == get_t(v)) ? TRUE : FALSE);
+    } else {
+        v = FALSE;  // _v_ out of range
     }
     stack_push(v);
     return GET_CONT();
@@ -5275,7 +5148,7 @@ PROC_DECL(vm_if) {
     //if (b == UNDEF) return error("undefined condition");
     int_t t = GET_IMMD();
     int_t f = GET_CONT();
-    return ((b == FALSE) ? f : t);
+    return ((b != FALSE) ? t : f);
 }
 
 PROC_DECL(vm_msg) {
@@ -5474,20 +5347,14 @@ PROC_DECL(vm_debug) {
 void print_sexpr(int_t x) {
     if (IS_FIX(x)) {
         fprintf(stderr, "%+"PdI"", TO_INT(x));
-    } else if (IS_PROC(x)) {
-        if (x < VM_debug) {
-            fprintf(stderr, "^%"PdI"", x);
-        } else {
-            fprintf(stderr, "#%s", proc_label(x));
-        }
+    } else if (x == UNDEF) {
+        fprintf(stderr, "#?");
+    } else if (x == NIL) {
+        fprintf(stderr, "()");
     } else if (x == FALSE) {
         fprintf(stderr, "#f");
     } else if (x == TRUE) {
         fprintf(stderr, "#t");
-    } else if (x == NIL) {
-        fprintf(stderr, "()");
-    } else if (x == UNDEF) {
-        fprintf(stderr, "#?");
     } else if (x == UNIT) {
         fprintf(stderr, "#unit");
     } else if (IS_FREE(x)) {
@@ -5511,6 +5378,8 @@ void print_sexpr(int_t x) {
         fprintf(stderr, "#actor@%"PdI"", x);
     } else if (IS_FEXPR(x)) {
         fprintf(stderr, "#fexpr@%"PdI"", x);
+    } else if (IS_CODE(x)) {
+        fprintf(stderr, "#code@%"PdI"", x);
     } else {
         fprintf(stderr, "^%"PdI"", x);
     }
@@ -5561,10 +5430,22 @@ void hexdump(char *label, int_t *addr, size_t cnt) {
 void print_addr(char *prefix, int_t addr) {
     if (IS_FIX(addr)) {
         fprintf(stderr, "%s%+"PdI"", prefix, TO_INT(addr));
+    } else if (IS_CAP(addr)) {
+        fprintf(stderr, "%s@%"PdI"", prefix, TO_REF(addr));
     } else {
         fprintf(stderr, "%s^%"PdI"", prefix, addr);
     }
 }
+void print_type(char *prefix, int_t addr) {
+    if (addr == UNDEF) {
+        fprintf(stderr, "%sLiteral_T", prefix);
+    } else if (NAT(addr) < START) {
+        fprintf(stderr, "%s%s", prefix, cell_label(addr));
+    } else {
+        print_addr(prefix, addr);
+    }
+}
+
 void print_labelled(char *prefix, int_t addr) {
     fprintf(stderr, "%s%s(%"PdI")", prefix, cell_label(addr), addr);
 }
@@ -5640,10 +5521,13 @@ static char *relation_label(int_t r) {
     return "<unknown>";
 }
 static char *end_label(int_t t) {
-    if (t < 0) return "ABORT";
-    if (t == END_RELEASE) return "RELEASE";
-    if (t > 0) return "COMMIT";
-    return "STOP";
+    switch (t) {
+        case END_ABORT:     return "ABORT";
+        case END_STOP:      return "STOP";
+        case END_COMMIT:    return "COMMIT";
+        case END_RELEASE:   return "RELEASE";
+    }
+    return "<unknown>";
 }
 static char *conversion_label(int_t f) {
     switch (f) {
@@ -5656,15 +5540,21 @@ static char *conversion_label(int_t f) {
 }
 void print_inst(int_t ip) {
     if (!IS_CODE(ip)) {
-        fprintf(stderr, "<non-inst:%"PdI">", ip);
+        if (IS_CELL(ip)) {
+            print_type("{t:", get_t(ip));
+            fprintf(stderr, ",x:%"PdI",y:%"PdI",z:%"PdI"}",
+                get_x(ip), get_y(ip), get_z(ip));
+        } else {
+            fprintf(stderr, "<non-inst:%"PdI">", ip);
+        }
         return;
     }
     int_t op = get_x(ip);
     int_t immd = get_y(ip);
     int_t cont = get_z(ip);
-    fprintf(stderr, "%s", cell_label(op));
+    fprintf(stderr, "%s", proc_label(op));
     switch (op) {
-        case VM_typeq:fprintf(stderr, "{t:%s,k:%"PdI"}", proc_label(immd), cont); break;
+        case VM_typeq:print_type("{t:", immd); fprintf(stderr, ",k:%"PdI"}", cont); break;
         case VM_cell: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
         case VM_get:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(immd), cont); break;
         case VM_set:  fprintf(stderr, "{f:%s,k:%"PdI"}", field_label(immd), cont); break;
@@ -5691,22 +5581,14 @@ void print_inst(int_t ip) {
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", cont); break;
         case VM_getc: fprintf(stderr, "{k:%"PdI"}", cont); break;
         case VM_debug:print_addr("{l:", immd); fprintf(stderr, ",k:%"PdI"}", cont); break;
-        default: {
-            if (IS_PROC(op)) {
-                fprintf(stderr, "{x:%"PdI",y:%"PdI",z:%"PdI"}", get_x(ip), get_y(ip), get_z(ip));
-            } else {
-                fprintf(stderr, "{t:%"PdI",x:%"PdI",y:%"PdI",z:%"PdI"}",
-                    get_t(ip), get_x(ip), get_y(ip), get_z(ip));
-            }
-            break;
-        }
+        default:      fprintf(stderr, "{ILLEGAL op:%"PdI"}", op); break;
     }
 }
 void print_value(int_t v) {
     if (IS_FIX(v)) {
         fprintf(stderr, "%+"PdI"", TO_INT(v));
-    } else if (v < 0) {
-        fprintf(stderr, "%s", cell_label(v));
+    } else if (IS_CAP(v)) {
+        fprintf(stderr, "@%"PdI"", TO_REF(v));
     } else {
         print_inst(v);
     }
@@ -5815,11 +5697,11 @@ int_t debugger() {
     static int_t n_ep = 0;
     static char buf[32];        // command buffer
 
-    int_t skip = (run ? TRUE : FALSE);
-    if (!skip && (s_cnt > 0)) {
+    int_t skip = ((run != FALSE) ? TRUE : FALSE);
+    if ((skip == FALSE) && (s_cnt > 0)) {
         if (--s_cnt) skip = TRUE;
     }
-    if (!skip && n_ep) {
+    if ((skip == FALSE) && n_ep) {
         if (n_ep != GET_EP()) {
             skip = TRUE;
         } else if (n_cnt > 0) {
@@ -5829,8 +5711,8 @@ int_t debugger() {
     if (GET_IP() == bp_ip) {
         skip = FALSE;
     }
-    if (skip) {
-        if (runtime_trace) {
+    if (skip != FALSE) {
+        if (runtime_trace != FALSE) {
             continuation_trace();
         }
         return TRUE;  // continue
@@ -5895,9 +5777,9 @@ int_t debugger() {
             continue;
         }
         if (*cmd == 't') {                  // trace
-            runtime_trace = (runtime_trace ? FALSE : TRUE);
+            runtime_trace = ((runtime_trace != FALSE) ? FALSE : TRUE);
             fprintf(stderr, "instruction tracing %s\n",
-                (runtime_trace ? "on" : "off"));
+                ((runtime_trace != FALSE) ? "on" : "off"));
             continue;
         }
         if (*cmd == 'i') {
@@ -6026,7 +5908,7 @@ int_t console_stdio = TRUE;  // start reading from stdio
 int_t console_putc(int_t c) {
     ASSERT(IS_FIX(c));
     c = TO_INT(c);
-    if (console_stdio) {
+    if (console_stdio != FALSE) {
         putchar(c);
     }
     return UNIT;
@@ -6034,7 +5916,7 @@ int_t console_putc(int_t c) {
 
 int_t console_getc() {
     int_t c = -1;  // EOS
-    if (console_stdio) {
+    if (console_stdio != FALSE) {
         c = getchar();
     } else if (repl_inp && (c = *repl_inp)) {
         if (*++repl_inp == '\0') {
@@ -6079,7 +5961,7 @@ int main(int argc, char const *argv[])
     fprintf(stderr, "%"PRIu32" %"PdI"\n", list_crc(str), list_len(str));
 #else
     DEBUG(fprintf(stderr, "PROC_MAX=%"PuI" CELL_MAX=%"PuI"\n", PROC_MAX, CELL_MAX));
-    //DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 16*4));
+    DEBUG(hexdump("cell memory", ((int_t *)cell_zero), 16*4));
     DEBUG(dump_symbol_table());
     init_global_env();
     gc_add_root(clk_handler);
