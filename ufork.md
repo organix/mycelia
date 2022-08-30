@@ -36,9 +36,10 @@ Since these instructions have no "next instruction" field,
 there is nothing to put on the continuation queue
 and the stream ends (the "thread" dies).
 
-For an in-depth description of this architecture,
-and the rationale behind it,
-please see the [Memory Safety Simplifies Microprocessor Design](http://www.dalnefre.com/wp/2022/08/memory-safety-simplifies-microprocessor-design/) blog post.
+The blog post
+"[Memory Safety Simplifies Microprocessor Design](http://www.dalnefre.com/wp/2022/08/memory-safety-simplifies-microprocessor-design/)"
+describes this architecture,
+and the rationale behind it.
 
 ## Primitives
 
@@ -302,13 +303,13 @@ k_queue: [head,tail]--------------------+
                |       V
                |      item
                V
-              [EQ,0,k,?]
-                    |
-                    +--> [IF,t,f,?]
-                             | |
-                             | +--> ...
-                             V
-                             ...
+              [Op,EQ,0,k]
+                       |
+                       +--> [Op,IF,t,f]
+                                   | |
+                                   | +--> ...
+                                   V
+                                   ...
 ```
 
 ### Common Code Structures
@@ -405,8 +406,8 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 
 #### Values
 
-  * literals: `FALSE`, `TRUE`, `NIL`, `UNDEF`, `UNIT`
-  * type-ids: `Undef_T`, `Boolean_T`, `Null_T`, `Pair_T`, `Symbol_T`, `Fexpr_T`, `Actor_T`, `Event_T`, `Free_T`
+  * literals: `UNDEF`, `NIL`, `FALSE`, `TRUE`, `UNIT`
+  * type-ids: `Literal_T`, `Type_T`, `Event_T`, `Opcode_T`, `Actor_T`, `Fixnum_T`, `Symbol_T`, `Pair_T`, `Fexpr_T`, `Free_T`
   * op-codes: `VM_typeq`, `VM_cell`, `VM_get`, `VM_set`, `VM_pair`, `VM_part`, `VM_nth`, `VM_push`, `VM_depth`, `VM_drop`, `VM_pick`, `VM_dup`, `VM_roll`, `VM_alu`, `VM_eq`, `VM_cmp`, `VM_if`, `VM_msg`, `VM_self`, `VM_send`, `VM_new`, `VM_beh`, `VM_end`, `VM_cvt`, `VM_putc`, `VM_getc`, `VM_debug`
   * `VM_get`, `VM_set`: `FLD_T`, `FLD_X`, `FLD_Y`, `FLD_Z`
   * `VM_alu`: `ALU_NOT`, `ALU_AND`, `ALU_OR`, `ALU_XOR`, `ALU_ADD`, `ALU_SUB`, `ALU_MUL`

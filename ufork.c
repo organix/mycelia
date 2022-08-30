@@ -4255,7 +4255,7 @@ int_t cstr_to_list(char *s) {
 }
 
 int_t sym_new(int_t str) {
-    int_t hash = (int_t)list_crc(str);
+    int_t hash = TO_FIX(list_crc(str));
     return cell_new(Symbol_T, hash, str, UNDEF);
 }
 
@@ -4291,7 +4291,7 @@ int_t symbol(int_t str) {
 // install static symbol into symbol table
 static void sym_install(int_t sym) {
     int_t str = get_y(sym);
-    int_t hash = (int_t)list_crc(str);
+    int_t hash = TO_FIX(list_crc(str));
     set_x(sym, hash);
     int_t slot = hash & SYM_MASK;
     int_t chain = sym_intern[slot];
