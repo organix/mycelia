@@ -32,9 +32,11 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 
 #if INCLUDE_DEBUG
 #define DEBUG(x)    x   // include/exclude debug instrumentation
+#define TRACE(x)    x   // include/exclude debug trace
 #define XTRACE(x)       // include/exclude execution trace
 #else
 #define DEBUG(x)        // exclude debug instrumentation
+#define TRACE(x)        // include/exclude debug trace
 #define XTRACE(x)       // exclude execution trace
 #endif
 
@@ -290,19 +292,6 @@ static char *proc_label(int_t proc) {
     nat_t ofs = NAT(TO_INT(proc));
     if (ofs < PROC_MAX) return label[ofs];
     return "<unknown>";
-}
-
-int_t call_proc(int_t proc, int_t self, int_t arg) {
-    //XTRACE(debug_print("call_proc proc", proc));
-    XTRACE(debug_print("call_proc self", self));
-    int_t result = UNDEF;
-    nat_t ofs = NAT(TO_INT(proc));
-    if (ofs < PROC_MAX) {
-        result = (proc_table[ofs])(self, arg);
-    } else {
-        result = error("opcode expected");
-    }
-    return result;
 }
 
 // VM_get/VM_set fields
@@ -3716,6 +3705,7 @@ static int_t gc_free_cell(int_t addr);  // FORWARD DECLARATION
 #define IS_BOOL(n)  (((n) == FALSE) || ((n) == TRUE))
 
 #define TYPEQ(t,n)  (IS_CELL(n) && (get_t(n) == (t)))
+#define IS_EVENT(n) TYPEQ(Event_T,(n))
 #define IS_FREE(n)  TYPEQ(Free_T,(n))
 #define IS_PAIR(n)  TYPEQ(Pair_T,(n))
 #define IS_ACTOR(n) TYPEQ(Actor_T,(n))
@@ -4593,9 +4583,12 @@ int_t e_queue_tail = START;
 static long event_count = 0;
 #endif
 
-#define event_q_empty() (e_queue_head == NIL)
+#define event_q_empty() (!IS_EVENT(e_queue_head))
 
 int_t event_q_put(int_t event) {
+    //XTRACE(debug_print("event_q_put", event));
+    ASSERT(IS_EVENT(event));
+    ASSERT(IS_ACTOR(get_x(event)));
     set_z(event, NIL);
     if (event_q_empty()) {
         e_queue_head = event;
@@ -4609,6 +4602,8 @@ int_t event_q_put(int_t event) {
 int_t event_q_pop() {
     if (event_q_empty()) return UNDEF; // event queue empty
     int_t event = e_queue_head;
+    ASSERT(IS_EVENT(event));
+    ASSERT(IS_ACTOR(get_x(event)));
     e_queue_head = get_z(event);
     set_z(event, NIL);
     if (event_q_empty()) {
@@ -4625,7 +4620,7 @@ static int_t event_q_dump() {
     debug_print("e_queue_head", e_queue_head);
     int_t ep = e_queue_head;
     sane = SANITY;
-    while (ep != NIL) {
+    while (IS_EVENT(ep)) {
         fprintf(stderr, "-> %"PdI"{act=%"PdI",msg=%"PdI"}%s",
             ep, get_x(ep), get_y(ep), ((get_z(ep)==NIL)?"\n":""));
         ep = get_z(ep);
@@ -4645,11 +4640,12 @@ int_t k_queue_tail = NIL;
 static long instruction_count = 0;
 #endif
 
-// FIXME: e_queue and k_queue management procedures are the same...
-
-#define cont_q_empty() (k_queue_head == NIL)
+#define cont_q_empty() (!IN_HEAP(k_queue_head))
 
 int_t cont_q_put(int_t cont) {
+    //XTRACE(debug_print("cont_q_put", cont));
+    ASSERT(IN_HEAP(cont));
+    ASSERT(IS_CODE(get_t(cont)));
     set_z(cont, NIL);
     if (cont_q_empty()) {
         k_queue_head = cont;
@@ -4663,6 +4659,7 @@ int_t cont_q_put(int_t cont) {
 int_t cont_q_pop() {
     if (cont_q_empty()) return UNDEF; // cont queue empty
     int_t cont = k_queue_head;
+    ASSERT(IN_HEAP(cont));
     k_queue_head = get_z(cont);
     set_z(cont, NIL);
     if (cont_q_empty()) {
@@ -4679,7 +4676,7 @@ static int_t cont_q_dump() {
     debug_print("k_queue_head", k_queue_head);
     int_t kp = k_queue_head;
     sane = SANITY;
-    while (kp != NIL) {
+    while (IN_HEAP(kp)) {
         fprintf(stderr, "-> %"PdI"{ip=%"PdI",sp=%"PdI",ep=%"PdI"}%s",
             kp, get_t(kp), get_x(kp), get_y(kp), ((get_z(kp)==NIL)?"\n":""));
         kp = get_z(kp);
@@ -4783,11 +4780,10 @@ static int_t dispatch() {  // dispatch next event (if any)
     }
     int_t event = event_q_pop();
     XTRACE(debug_print("dispatch event", event));
-    ASSERT(IN_HEAP(event));
+    ASSERT(IS_EVENT(event));
     int_t target = get_x(event);
     XTRACE(debug_print("dispatch target", target));
     ASSERT(IS_ACTOR(target));
-//    int_t cont = Actor(target, event);
     if (get_z(target) != UNDEF) {  // target actor busy
 #if INCLUDE_DEBUG
         if (runtime_trace != FALSE) {
@@ -4795,6 +4791,7 @@ static int_t dispatch() {  // dispatch next event (if any)
         }
 #endif
         event_q_put(event);  // re-queue event
+        return FALSE;  // try busy actor later...
     }
     int_t ip = get_x(target);  // actor behavior (initial IP)
     int_t sp = get_y(target);  // actor state (initial SP)
@@ -4823,10 +4820,19 @@ static int_t execute() {  // execute next VM instruction
     //ASSERT(IS_CELL(ip));
     ASSERT(IS_CODE(ip));
 #if INCLUDE_DEBUG
-    if (debugger() == FALSE) return FALSE;  // debugger quit
+    if (debugger() == FALSE) {
+        return FALSE;  // debugger quit
+    }
 #endif
+    XTRACE(debug_print("execute inst", ip));
+    int_t event = GET_EP();
     int_t opcode = get_x(ip);
-    ip = call_proc(opcode, ip, GET_EP());
+    nat_t ofs = NAT(TO_INT(opcode));
+    if (ofs < PROC_MAX) {
+        ip = (proc_table[ofs])(ip, event);
+    } else {
+        ip = error("opcode expected");
+    }
     SET_IP(ip);  // update IP
     int_t cont = cont_q_pop();
     XTRACE(debug_print("execute done", cont));
@@ -4834,7 +4840,6 @@ static int_t execute() {  // execute next VM instruction
         cont_q_put(cont);  // enqueue continuation
     } else {
         // if "thread" is dead, free cont and event
-        int_t event = get_y(cont);
         event = XFREE(event);
         cont = XFREE(cont);
 #if MARK_SWEEP_GC
@@ -6001,5 +6006,6 @@ int_t error(char *reason) {
 
 int_t failure(char *_file_, int _line_) {
     fprintf(stderr, "\nASSERT FAILED! %s:%d\n", _file_, _line_);
+    exit(-1);
     return UNDEF;
 }
