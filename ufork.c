@@ -129,11 +129,12 @@ int_t error(char *reason);
 int_t failure(char *_file_, int _line_);
 int_t console_putc(int_t c);
 int_t console_getc();
+void print_word(char* prefix, int_t word);
+void print_quad(char* prefix, int_t quad);
 void print_sexpr(int_t x);
 #if INCLUDE_DEBUG
 void hexdump(char *label, int_t *addr, size_t cnt);
 void debug_print(char *label, int_t addr);
-void print_addr(char *prefix, int_t addr);
 void print_event(int_t ep);
 void print_inst(int_t ip);
 void print_list(int_t xs);
@@ -398,11 +399,11 @@ int_t char_in_class(int_t n, int_t c) {
 
 static char *cell_label(int_t cell) {
     static char *label[] = {
-        "UNDEF",  // also "Literal_T"
-        "NIL",
-        "FALSE",
-        "TRUE",
-        "UNIT",
+        "#?",       // UNDEF and Literal_T
+        "()",       // NIL
+        "#f",       // FALSE
+        "#t",       // TRUE
+        "#unit",    // UNIT
         "Type_T",
         "Event_T",
         "Opcode_T",
@@ -413,9 +414,9 @@ static char *cell_label(int_t cell) {
         "Fexpr_T",
         "Free_T",
     };
+    if (NAT(cell) < START) return label[cell];
     if (IS_FIX(cell)) return "fix";
     if (IS_CAP(cell)) return "cap";
-    if (NAT(cell) < START) return label[cell];
     return "cell";
 }
 
@@ -4076,14 +4077,16 @@ static void gc_dump_map() {  // dump memory allocation map
         /* extra detail */
         if (c != '.') {
             int_t t = get_t(a);
-            if (t < 0) c = 't';         // "typed" cell
-            if (t < Free_T) c = 'i';    // instruction
+            if (t == Literal_T) c = 'l';// literal value
+            if (t == Type_T) c = 't';   // type marker
             if (t == Event_T) c = 'E';  // Event_T
+            if (t == Opcode_T) c = 'i';  // Opcode_T
             if (t == Actor_T) c = 'A';  // Actor_T
-            if (t == Fexpr_T) c = 'F';  // Fexpr_T
+            if (t == Fixnum_T) c = '#';   // Fixnum_T <-- should not happen
             if (t == Symbol_T) c = 'S'; // Symbol_T
             if (t == Pair_T) c = 'p';   // Pair_T
-            if (t == Free_T) c = 'f';   // Free_T <-- should not happen
+            if (t == Fexpr_T) c = 'F';  // Fexpr_T
+            if (t == Free_T) c = '?';   // Free_T <-- should not happen
             if (t >= START) c = 'K';    // continuation
         }
 #endif
@@ -4321,7 +4324,7 @@ void print_symbol(int_t symbol) {
             fprintf(stderr, "%c", c);
         }
     } else {
-        print_addr("", symbol);
+        print_word("", symbol);
     }
 }
 #if INCLUDE_DEBUG
@@ -5324,7 +5327,7 @@ PROC_DECL(vm_debug) {
     int_t x = GET_IMMD();
     int_t v = stack_pop();
     //fprintf(stderr, "[%"PdI"] ", x);
-    print_addr("[", x);
+    print_word("[", x);
     fprintf(stderr, "] ");
 #if 1
     print_sexpr(v);
@@ -5344,27 +5347,58 @@ PROC_DECL(vm_debug) {
  * debugging tools
  */
 
+void print_word(char* prefix, int_t word) {
+    if (IS_FIX(word)) {
+        fprintf(stderr, "%s%+"PdI"", prefix, TO_INT(word));
+    } else if (IS_CAP(word)) {
+        fprintf(stderr, "%s@%"PdI"", prefix, TO_REF(word));
+    } else if (NAT(word) < START) {
+        fprintf(stderr, "%s%s", prefix, cell_label(word));
+    } else {
+        fprintf(stderr, "%s^%"PdI"", prefix, word);
+    }
+}
+static void print_type(char *prefix, int_t word) {
+    if (word == Literal_T) {
+        fprintf(stderr, "%sLiteral_T", prefix);
+    } else if (NAT(word) < START) {
+        fprintf(stderr, "%s%s", prefix, cell_label(word));
+    } else {
+        print_word(prefix, word);
+    }
+}
+void print_quad(char* prefix, int_t quad) {
+    fprintf(stderr, "%s", prefix);
+    if (IS_VAL(quad)) {
+        fprintf(stderr, "FIXNUM\n");
+    } else {
+        quad = TO_REF(quad);
+        print_type("{t:", get_t(quad));
+        print_word(",x:", get_x(quad));
+        print_word(",y:", get_y(quad));
+        print_word(",z:", get_z(quad));
+        fprintf(stderr, "}\n");
+    }
+}
+
 void print_sexpr(int_t x) {
     if (IS_FIX(x)) {
         fprintf(stderr, "%+"PdI"", TO_INT(x));
-    } else if (x == UNDEF) {
-        fprintf(stderr, "#?");
-    } else if (x == NIL) {
-        fprintf(stderr, "()");
-    } else if (x == FALSE) {
-        fprintf(stderr, "#f");
-    } else if (x == TRUE) {
-        fprintf(stderr, "#t");
-    } else if (x == UNIT) {
-        fprintf(stderr, "#unit");
+    } else if (NAT(x) < START) {
+        fprintf(stderr, "%s", cell_label(x));
     } else if (IS_FREE(x)) {
         fprintf(stderr, "#FREE-CELL!");
     } else if (IS_SYM(x)) {
         print_symbol(x);
     } else if (IS_PAIR(x)) {
         char *s = "(";
+        sane = SANITY;
         while (IS_PAIR(x)) {
             fprintf(stderr, "%s", s);
+            if (sane-- == 0) {
+                fprintf(stderr, "...)");
+                return;
+            }
             print_sexpr(car(x));
             s = " ";
             x = cdr(x);
@@ -5375,7 +5409,7 @@ void print_sexpr(int_t x) {
         }
         fprintf(stderr, ")");
     } else if (IS_ACTOR(x)) {
-        fprintf(stderr, "#actor@%"PdI"", x);
+        fprintf(stderr, "#actor@%"PdI"", TO_REF(x));
     } else if (IS_FEXPR(x)) {
         fprintf(stderr, "#fexpr@%"PdI"", x);
     } else if (IS_CODE(x)) {
@@ -5427,34 +5461,14 @@ void hexdump(char *label, int_t *addr, size_t cnt) {
 }
 #endif
 
-void print_addr(char *prefix, int_t addr) {
-    if (IS_FIX(addr)) {
-        fprintf(stderr, "%s%+"PdI"", prefix, TO_INT(addr));
-    } else if (IS_CAP(addr)) {
-        fprintf(stderr, "%s@%"PdI"", prefix, TO_REF(addr));
-    } else {
-        fprintf(stderr, "%s^%"PdI"", prefix, addr);
-    }
-}
-void print_type(char *prefix, int_t addr) {
-    if (addr == UNDEF) {
-        fprintf(stderr, "%sLiteral_T", prefix);
-    } else if (NAT(addr) < START) {
-        fprintf(stderr, "%s%s", prefix, cell_label(addr));
-    } else {
-        print_addr(prefix, addr);
-    }
-}
-
 void print_labelled(char *prefix, int_t addr) {
-    fprintf(stderr, "%s%s(%"PdI")", prefix, cell_label(addr), addr);
+    print_word(prefix, addr);
+    fprintf(stderr, "[$%"PxI"]", addr);
 }
 void debug_print(char *label, int_t addr) {
     fprintf(stderr, "%s: ", label);
-    fprintf(stderr, "%s[%"PdI"]", cell_label(addr), addr);
-    if (IS_FIX(addr)) {
-        print_addr(" = ", addr);
-    } else if (addr >= 0) {
+    print_labelled("", addr);
+    if (IS_CELL(addr)) {
         fprintf(stderr, " =");
         print_labelled(" {t:", get_t(addr));
         print_labelled(", x:", get_x(addr));
@@ -5466,16 +5480,16 @@ void debug_print(char *label, int_t addr) {
 }
 
 void print_event(int_t ep) {
-    print_addr("(", get_x(ep));  // target actor
+    print_word("(", get_x(ep));  // target actor
     int_t msg = get_y(ep);  // actor message
     sane = SANITY;
     while (IS_PAIR(msg)) {
-        print_addr(" ", car(msg));
+        print_word(" ", car(msg));
         msg = cdr(msg);
         if (sane-- == 0) panic("insane print_event");
     }
     if (msg != NIL) {
-        print_addr(" . ", msg);
+        print_word(" . ", msg);
     }
     fprintf(stderr, ") ");
 }
@@ -5484,7 +5498,7 @@ static void print_stack(int_t sp) {
         print_stack(cdr(sp));
         int_t item = car(sp);
         //fprintf(stderr, " %s[%"PdI"]", cell_label(item), item);
-        print_addr(" ", item);
+        print_word(" ", item);
     }
 }
 static char *field_label(int_t f) {
@@ -5540,13 +5554,7 @@ static char *conversion_label(int_t f) {
 }
 void print_inst(int_t ip) {
     if (!IS_CODE(ip)) {
-        if (IS_CELL(ip)) {
-            print_type("{t:", get_t(ip));
-            fprintf(stderr, ",x:%"PdI",y:%"PdI",z:%"PdI"}",
-                get_x(ip), get_y(ip), get_z(ip));
-        } else {
-            fprintf(stderr, "<non-inst:%"PdI">", ip);
-        }
+        print_quad("", ip);
         return;
     }
     int_t op = get_x(ip);
@@ -5561,14 +5569,14 @@ void print_inst(int_t ip) {
         case VM_pair: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
         case VM_part: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
         case VM_nth:  fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
-        case VM_push: print_addr("{v:", immd); fprintf(stderr, ",k:%"PdI"}", cont); break;
+        case VM_push: print_word("{v:", immd); fprintf(stderr, ",k:%"PdI"}", cont); break;
         case VM_depth:fprintf(stderr, "{k:%"PdI"}", cont); break;
         case VM_drop: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
         case VM_pick: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
         case VM_dup:  fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
         case VM_roll: fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
         case VM_alu:  fprintf(stderr, "{op:%s,k:%"PdI"}", operation_label(immd), cont); break;
-        case VM_eq:   print_addr("{v:", immd); fprintf(stderr, ",k:%"PdI"}", cont); break;
+        case VM_eq:   print_word("{v:", immd); fprintf(stderr, ",k:%"PdI"}", cont); break;
         case VM_cmp:  fprintf(stderr, "{r:%s,k:%"PdI"}", relation_label(immd), cont); break;
         case VM_if:   fprintf(stderr, "{t:%"PdI",f:%"PdI"}", immd, cont); break;
         case VM_msg:  fprintf(stderr, "{n:%+"PdI",k:%"PdI"}", TO_INT(immd), cont); break;
@@ -5580,39 +5588,30 @@ void print_inst(int_t ip) {
         case VM_cvt:  fprintf(stderr, "{c:%s}", conversion_label(immd)); break;
         case VM_putc: fprintf(stderr, "{k:%"PdI"}", cont); break;
         case VM_getc: fprintf(stderr, "{k:%"PdI"}", cont); break;
-        case VM_debug:print_addr("{l:", immd); fprintf(stderr, ",k:%"PdI"}", cont); break;
+        case VM_debug:print_word("{l:", immd); fprintf(stderr, ",k:%"PdI"}", cont); break;
         default:      fprintf(stderr, "{ILLEGAL op:%"PdI"}", op); break;
     }
-}
-void print_value(int_t v) {
-    if (IS_FIX(v)) {
-        fprintf(stderr, "%+"PdI"", TO_INT(v));
-    } else if (IS_CAP(v)) {
-        fprintf(stderr, "@%"PdI"", TO_REF(v));
-    } else {
-        print_inst(v);
-    }
+    fprintf(stderr, "\n");
 }
 void print_list(int_t xs) {
-    fprintf(stderr, "%"PdI": ", xs);
+    print_word("  ", xs);  // non-list value
     if (!IS_PAIR(xs)) {
-        print_value(xs);  // non-list value
-        fprintf(stderr, "\n");
+        print_quad(" = ", xs);
         return;
     }
-    print_addr("(", car(xs));
+    print_word(" = (", car(xs));
     xs = cdr(xs);
     int limit = 8;
     while (IS_PAIR(xs)) {
-        print_addr(" ", car(xs));
+        print_word(" ", car(xs));
         xs = cdr(xs);
         if (limit-- == 0) {
-            fprintf(stderr, " ...\n");
+            fprintf(stderr, " ...)\n");
             return;
         }
     }
     if (xs != NIL) {
-        print_addr(" . ", xs);
+        print_word(" . ", xs);
     }
     fprintf(stderr, ")\n");
 }
@@ -5622,11 +5621,12 @@ void continuation_trace() {
     print_stack(GET_SP());
     fprintf(stderr, " ");
     print_inst(GET_IP());
-    fprintf(stderr, "\n");
 }
 static void print_fixed(int width, int_t value) {
     if (IS_FIX(value)) {
         fprintf(stderr, "%+*"PdI"", width, TO_INT(value));
+    } else if (IS_CAP(value)) {
+        fprintf(stderr, "%*"PdI"*", (width - 1), TO_REF(value));
     } else {
         fprintf(stderr, "%*"PdI"", width, value);
     }
@@ -5649,7 +5649,6 @@ void disassemble(int_t ip, int_t n) {
         print_fixed(6, get_z(ip));
         fprintf(stderr, "  ");
         print_inst(ip);
-        fprintf(stderr, "\n");
         ++ip;
         if (sane-- == 0) panic("insane disassemble");
     }
