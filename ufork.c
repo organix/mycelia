@@ -26,7 +26,6 @@ See further [https://github.com/organix/mycelia/blob/master/ufork.md]
 #define EVLIS_IS_PAR  0 // concurrent argument-list evaluation
 #define SCM_ASM_TOOLS 1 // include assembly tools for LISP/Scheme
 #define QQUOTE_SYNTAX 1 // include support for quasiquote, et. al.
-#define RAWINT_SYNTAX 1 // include support for ASM rawint data (#1)
 #define PLACEH_SYNTAX 1 // include support for placeholder variables (?x)
 #define META_ACTORS   1 // include meta-actor definitions
 
@@ -126,6 +125,7 @@ int_t sane = 0;  // run-away loop prevention
 
 // FORWARD DECLARATIONS
 int_t panic(char *reason);
+int_t warning(char *reason);
 int_t error(char *reason);
 int_t failure(char *_file_, int _line_);
 int_t console_putc(int_t c);
@@ -324,10 +324,8 @@ static char *proc_label(int_t proc) {
 #define END_RELEASE TO_FIX(+2)
 
 // VM_cvt conversions
-#define CVT_INT_FIX TO_FIX(0)
-#define CVT_FIX_INT TO_FIX(1)
-#define CVT_LST_NUM TO_FIX(2)
-#define CVT_LST_SYM TO_FIX(3)
+#define CVT_LST_NUM TO_FIX(0)
+#define CVT_LST_SYM TO_FIX(1)
 
 /*
  * character classes
@@ -1718,20 +1716,21 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Actor_T,       .x=F_NTH+1,     .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=F_NTH+2,     },  // msg = (cust . args)
 
-    { .t=Opcode_T,      .x=VM_push,     .y=VM_nth,      .z=F_NTH+3,     },  // VM_nth
-    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_NTH+4,     },  // index = arg1
-    { .t=Opcode_T,      .x=VM_cvt,      .y=CVT_FIX_INT, .z=F_NTH+5,     },  // TO_INT(index)
+    { .t=Opcode_T,      .x=VM_push,     .y=Opcode_T,    .z=F_NTH+3,     },  // Opcode_T
+    { .t=Opcode_T,      .x=VM_push,     .y=VM_nth,      .z=F_NTH+4,     },  // VM_nth
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_NTH+5,     },  // index = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=CUST_SEND,   .z=F_NTH+6,     },  // CUST_SEND
-    { .t=Opcode_T,      .x=VM_cell,     .y=TO_FIX(3),   .z=F_NTH+7,     },  // beh = {t:VM_nth, x:index, k:CUST_SEND}
+    { .t=Opcode_T,      .x=VM_cell,     .y=TO_FIX(4),   .z=F_NTH+7,     },  // beh = {t:Opcode_T,x:VM_nth,y:index,z:CUST_SEND}
 
-    { .t=Opcode_T,      .x=VM_push,     .y=VM_msg,      .z=F_NTH+8,     },  // VM_msg
-    { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(3),   .z=F_NTH+9,     },  // 3
-    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=F_NTH+10,    },  // beh
-    { .t=Opcode_T,      .x=VM_cell,     .y=TO_FIX(3),   .z=F_NTH+11,    },  // beh' = {t:VM_msg, x:3, k:beh}
+    { .t=Opcode_T,      .x=VM_push,     .y=Opcode_T,    .z=F_NTH+8,     },  // Opcode_T
+    { .t=Opcode_T,      .x=VM_push,     .y=VM_msg,      .z=F_NTH+9,     },  // VM_msg
+    { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(3),   .z=F_NTH+10,    },  // 3
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(4),   .z=F_NTH+11,    },  // beh
+    { .t=Opcode_T,      .x=VM_cell,     .y=TO_FIX(4),   .z=F_NTH+12,    },  // beh' = {t:Opcode_T,x:VM_msg,y:3,z:beh}
 
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(0),   .z=SEND_0,      },  // (k_nth cust . args)
 
-#define F_NULL_P (F_NTH+12)
+#define F_NULL_P (F_NTH+13)
 #define _F_NULL_P TO_CAP(F_NULL_P)
     { .t=Actor_T,       .x=F_NULL_P+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NULL_P+2,  },  // args
@@ -2004,17 +2003,7 @@ cell_t cell_table[CELL_MAX] = {
 // Assembly-language Tools
 //
 
-#define F_INT_FIX (F_PRINT+4)  // ---DEPRECATED---
-    { .t=Actor_T,       .x=F_INT_FIX+1, .y=NIL,         .z=UNDEF        },  // (int->fix <rawint>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_INT_FIX+2, },  // rawint = arg1
-    { .t=Opcode_T,      .x=VM_cvt,      .y=CVT_INT_FIX, .z=CUST_SEND,   },  // TO_FIX(rawint)
-
-#define F_FIX_INT (F_INT_FIX+3)  // ---DEPRECATED---
-    { .t=Actor_T,       .x=F_FIX_INT+1, .y=NIL,         .z=UNDEF        },  // (fix->int <fixnum>)
-    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_FIX_INT+2, },  // fixnum = arg1
-    { .t=Opcode_T,      .x=VM_cvt,      .y=CVT_FIX_INT, .z=CUST_SEND,   },  // TO_INT(fixnum)
-
-#define F_CELL (F_FIX_INT+3)
+#define F_CELL (F_PRINT+4)
 #define _F_CELL TO_CAP(F_CELL)
     { .t=Actor_T,       .x=F_CELL+1,    .y=NIL,         .z=UNDEF        },  // (cell <T> <X> <Y> <Z>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CELL+2,    },  // T = arg1
@@ -3100,8 +3089,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     (peg-xform (lambda _ #f) (peg-eq 102))
     (peg-xform (lambda _ #t) (peg-eq 116))
     (peg-xform (lambda _ #?) (peg-eq 63))
-    (peg-xform (lambda _ #unit) (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116)))
-    (peg-xform fix->int lex-number))
+    (peg-xform (lambda _ #unit) (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116))))
   lex-eot)))
 */
 #define G_HASH (G_IGN+8)
@@ -3184,20 +3172,13 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_push,     .y=_G_LWR_I,    .z=G_UNIT+11,   },  // first = (peg-eq 105)
     { .t=Opcode_T,      .x=VM_push,     .y=_G_LWR_T,    .z=G_AND_B,     },  // rest = (peg-eq 116)
 
-#define G_RAWINT (G_UNIT+12)
-#define _G_RAWINT TO_CAP(G_RAWINT)
-    { .t=Actor_T,       .x=G_RAWINT+1,  .y=NIL,         .z=UNDEF,       },  // (peg-xform fix->int (peg-eq 102))
-    { .t=Opcode_T,      .x=VM_push,     .y=F_FIX_INT,   .z=G_RAWINT+2,  },  // func = F_FIX_INT
-    { .t=Opcode_T,      .x=VM_push,     .y=_G_NUMBER,   .z=G_XLAT_B,    },  // ptrn = lex-number
-
-#define G_CONST (G_RAWINT+3)
+#define G_CONST (G_UNIT+12)
 #define _G_CONST TO_CAP(G_CONST)
 #define _G_CONST2 TO_CAP(G_CONST+3)
 #define _G_CONST3 TO_CAP(G_CONST+6)
 #define _G_CONST4 TO_CAP(G_CONST+9)
 #define _G_CONST5 TO_CAP(G_CONST+12)
 #define _G_CONST6 TO_CAP(G_CONST+15)
-#define _G_CONST7 TO_CAP(G_CONST+18)
     { .t=Actor_T,       .x=G_CONST+1,   .y=NIL,         .z=UNDEF,       },  // (peg-xform cadr <ptrn>)
     { .t=Opcode_T,      .x=VM_push,     .y=_F_CADR,     .z=G_CONST+2,   },  // func = F_CADR
     { .t=Opcode_T,      .x=VM_push,     .y=_G_CONST2,   .z=G_XLAT_B,    },  // ptrn = (peg-seq (peg-eq 35) (peg-alt ...) lex-eot)
@@ -3220,22 +3201,12 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
     { .t=Actor_T,       .x=G_CONST+16,  .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
     { .t=Opcode_T,      .x=VM_push,     .y=_G_UNDEF,    .z=G_CONST+17,  },  // first = G_UNDEF
-    { .t=Opcode_T,      .x=VM_push,     .y=_G_CONST7,   .z=G_OR_B,      },  // rest
-
-#if RAWINT_SYNTAX
-    { .t=Actor_T,       .x=G_CONST+19,  .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=_G_UNIT,     .z=G_CONST+20,  },  // first = G_UNIT
-    { .t=Opcode_T,      .x=VM_push,     .y=_G_RAWINT,   .z=G_OR_B,      },  // rest = G_RAWINT
-#else
-    { .t=Actor_T,       .x=G_CONST+19,  .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=_G_UNIT,     .z=G_CONST+20,  },  // first = G_UNIT
-    { .t=Opcode_T,      .x=VM_push,     .y=_G_FAIL,     .z=G_OR_B,      },  // rest = G_FAIL
-#endif
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_UNIT,     .z=G_OR_B,      },  // rest
 
 /*
 (define scm-symbol (peg-xform list->symbol (peg-plus (peg-class DGT UPR LWR SYM))))
 */
-#define G_SYMBOL (G_CONST+21)
+#define G_SYMBOL (G_CONST+18)
 #define _G_SYMBOL TO_CAP(G_SYMBOL)
 #define _G_SYMBOL2 TO_CAP(G_SYMBOL+3)
     { .t=Actor_T,       .x=G_SYMBOL+1,  .y=NIL,         .z=UNDEF,       },  // (peg-xform list->symbol <ptrn>)
@@ -3704,8 +3675,6 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { F_PRINT, "F_PRINT" },
 
 #if SCM_ASM_TOOLS
-    { F_INT_FIX, "F_INT_FIX" },
-    { F_FIX_INT, "F_FIX_INT" },
     { F_CELL, "F_CELL" },
     { F_GET_T, "F_GET_T" },
     { F_GET_X, "F_GET_X" },
@@ -3817,7 +3786,6 @@ static struct { int_t addr; char *label; } symbol_table[] = {
     { G_UNDEF, "G_UNDEF" },
     { F_UNIT, "F_UNIT" },
     { G_UNIT, "G_UNIT" },
-    { G_RAWINT, "G_RAWINT" },
     { G_CONST, "G_CONST" },
     { G_SYMBOL, "G_SYMBOL" },
     { G_OPEN, "G_OPEN" },
@@ -3952,11 +3920,35 @@ int_t cons(int_t head, int_t tail) {
 #define list_5(v1,v2,v3,v4,v5)  cons((v1), cons((v2), cons((v3), cons((v4), cons((v5), NIL)))))
 #define list_6(v1,v2,v3,v4,v5,v6)  cons((v1), cons((v2), cons((v3), cons((v4), cons((v5), cons((v6), NIL))))))
 
-#define car(v) get_x(v)
-#define cdr(v) get_y(v)
+//#define car(v) get_x(v)
+int_t car(int_t v) {
+    if (IS_PAIR(v)) {
+        return get_x(v);
+    }
+    return warning("car() defined only for Pair_T");
+}
+//#define cdr(v) get_y(v)
+int_t cdr(int_t v) {
+    if (IS_PAIR(v)) {
+        return get_y(v);
+    }
+    return warning("cdr() defined only for Pair_T");
+}
 
-#define set_car(v,x) set_x((v),(x))
-#define set_cdr(v,y) set_y((v),(y))
+//#define set_car(v,x) set_x((v),(x))
+int_t set_car(int_t v, int_t x) {
+    if (IS_PAIR(v)) {
+        return set_x(v, x);
+    }
+    return warning("set_car() defined only for Pair_T");
+}
+//#define set_cdr(v,y) set_y((v),(y))
+int_t set_cdr(int_t v, int_t x) {
+    if (IS_PAIR(v)) {
+        return set_y(v, x);
+    }
+    return warning("set_cdr() defined only for Pair_T");
+}
 
 int_t equal(int_t x, int_t y) {
     if (x == y) return TRUE;
@@ -4728,8 +4720,6 @@ int_t init_global_env() {
     bind_global("END_COMMIT", END_COMMIT);
     bind_global("END_RELEASE", END_RELEASE);
 
-    bind_global("CVT_INT_FIX", CVT_INT_FIX);
-    bind_global("CVT_FIX_INT", CVT_FIX_INT);
     bind_global("CVT_LST_NUM", CVT_LST_NUM);
     bind_global("CVT_LST_SYM", CVT_LST_SYM);
 
@@ -4923,6 +4913,8 @@ int_t stack_pop() {
         int_t rest = cdr(sp);
         SET_SP(rest);
         sp = XFREE(sp);
+    } else {
+        item = warning("stack underflow");
     }
     XTRACE(debug_print("stack pop", item));
     return item;
@@ -5387,7 +5379,9 @@ PROC_DECL(vm_if) {
     int_t b = stack_pop();
     //if (b == UNDEF) return error("undefined condition");
     int_t t = GET_IMMD();
+    ASSERT(IS_CODE(t));
     int_t f = GET_CONT();
+    ASSERT(IS_CODE(f));
     return ((b != FALSE) ? t : f);
 }
 
@@ -5431,7 +5425,7 @@ PROC_DECL(vm_send) {
     //XTRACE(debug_print("vm_send target", a));
     if (!IS_ACTOR(a)) {
         set_y(me, UNDEF);  // abort actor transaction
-        return error("vm_send requires an Actor");
+        return warning("vm_send requires an Actor");
     }
     int_t m = NIL;
     if (n == 0) {
@@ -5556,8 +5550,6 @@ PROC_DECL(vm_cvt) {
     int_t w = stack_pop();
     int_t v = UNDEF;
     switch (c) {
-        case CVT_INT_FIX:   v = TO_FIX(w);      break;  // FIXME: ---DEPRECATED---
-        case CVT_FIX_INT:   v = TO_INT(w);      break;  // FIXME: ---DEPRECATED---
         case CVT_LST_NUM:   v = fixnum(w);      break;
         case CVT_LST_SYM:   v = symbol(w);      break;
         default:            v = error("unknown conversion");
@@ -5803,8 +5795,6 @@ static char *end_label(int_t t) {
 }
 static char *conversion_label(int_t f) {
     switch (f) {
-        case CVT_INT_FIX:   return "INT_FIX";
-        case CVT_FIX_INT:   return "FIX_INT";
         case CVT_LST_NUM:   return "LST_NUM";
         case CVT_LST_SYM:   return "LST_SYM";
     }
@@ -6290,6 +6280,11 @@ int_t panic(char *reason) {
     return UNDEF;  // not reached, but typed for easy swap with error()
 }
 
+int_t warning(char *reason) {
+    fprintf(stderr, "\nWarning! %s\n", reason);
+    return UNDEF;
+}
+
 int_t error(char *reason) {
     fprintf(stderr, "\nERROR! %s\n", reason);
     return UNDEF;
@@ -6298,5 +6293,5 @@ int_t error(char *reason) {
 int_t failure(char *_file_, int _line_) {
     fprintf(stderr, "\nASSERT FAILED! %s:%d\n", _file_, _line_);
     exit(-1);
-    return UNDEF;
+    return UNDEF;  // not reached, but typed for easy swap with error()
 }

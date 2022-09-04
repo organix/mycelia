@@ -415,7 +415,7 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
   * `VM_cmp`: `CMP_EQ`, `CMP_GE`, `CMP_GT`, `CMP_LT`, `CMP_LE`, `CMP_NE`, `CMP_CLS`
   * classes: `CTL`, `DGT`, `UPR`, `LWR`, `DLM`, `SYM`, `HEX`, `WSP`
   * `VM_end`: `END_ABORT`, `END_STOP`, `END_COMMIT`, `END_RELEASE`
-  * `VM_cvt`: `CVT_INT_FIX`, `CVT_FIX_INT`, `CVT_LST_NUM`, `CVT_LST_SYM`
+  * `VM_cvt`: `CVT_LST_NUM`, `CVT_LST_SYM`
   * continuations: `RV_SELF`, `CUST_SEND`, `SEND_0`, `COMMIT`, `RESEND`, `RELEASE_0`, `RELEASE`, `RV_FALSE`, `RV_TRUE`, `RV_NIL`, `RV_UNDEF`, `RV_UNIT`, `RV_ZERO`, `RV_ONE`
 
 #### Procedures
@@ -688,8 +688,7 @@ NIL or --->[token,next]--->
     (peg-xform (lambda _ #f) (peg-eq 102))
     (peg-xform (lambda _ #t) (peg-eq 116))
     (peg-xform (lambda _ #?) (peg-eq 63))
-    (peg-xform (lambda _ #unit) (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116)))
-    (peg-xform fix->int lex-number))
+    (peg-xform (lambda _ #unit) (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116))))
   lex-eot)))
 ```
 
