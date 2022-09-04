@@ -100,16 +100,15 @@ typedef int64_t i64;
 #define MSB2   NAT(MSB1>>1)
 #define TAG    (MSB1|MSB2)
 
-#define IS_REF(v)   (!((v) & MSB1))
-#define IS_VAL(v)   ((v) & MSB1)
-#define IS_QUAD(v)  (!((v) & TAG))
-#define IS_CAP(v)   (((v) & TAG) == MSB2)
-#define TO_CAP(q)   INT(((v) & ~MSB1)|MSB2)
 #define TO_REF(v)   INT((v) & ~TAG)
+#define TO_CAP(v)   INT(((v) & ~MSB1) | MSB2)
+#define IS_VAL(v)   ((v) & MSB1)
+#define IS_REF(v)   (!((v) & TAG))
+#define IS_CAP(v)   (((v) & TAG) == MSB2)
 
 #define TO_INT(v)   INT(INT(NAT(v) << 1) >> 1)
 #define TO_FIX(n)   INT((n) | MSB1)
-#define IS_FIX(n)   ((n) & MSB1)
+#define IS_FIX(n)   IS_VAL(n)
 
 typedef struct cell {
     int_t       t;      // proc/type (code offset from proc_zero)
@@ -425,7 +424,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // 11: Pair_T
     { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // 12: Fexpr_T
     { .t=Type_T,        .x=UNDEF,       .y=UNDEF,       .z=UNDEF,       },  // 13: Free_T
-    { .t=Event_T,       .x=100,         .y=NIL,         .z=NIL          },  // <--- START = (A_BOOT)
+#define _A_BOOT TO_CAP(100)                                                 //  <--------------- UPDATE THIS MANUALLY!
+    { .t=Event_T,       .x=_A_BOOT,     .y=NIL,         .z=NIL          },  // START = (A_BOOT)
 #define RV_SELF (START+1)
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=RV_SELF+1,   },  // value = SELF
 #define CUST_SEND (RV_SELF+1)
@@ -512,6 +512,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=SEND_0,      },  // (ptrn custs value . in)
 
 #define G_LANG (G_CALL_B+3)
+#define _G_LANG TO_CAP(G_LANG)
     { .t=Actor_T,       .x=G_LANG+1,    .y=NIL,         .z=UNDEF        },
     { .t=Opcode_T,      .x=VM_push,     .y=UNDEF,       .z=G_CALL_B,    },  // {y:symbol} patched by A_BOOT
 
@@ -522,6 +523,7 @@ cell_t cell_table[CELL_MAX] = {
       (SEND cust #undefined))))
 */
 #define EMPTY_ENV (G_LANG+2)
+#define _EMPTY_ENV TO_CAP(EMPTY_ENV)
     { .t=Actor_T,       .x=RV_UNDEF,    .y=NIL,         .z=UNDEF        },
 
 /*
@@ -531,6 +533,7 @@ cell_t cell_table[CELL_MAX] = {
       (SEND cust (get_z key)) )))  ; extract value from global symbol table
 */
 #define GLOBAL_ENV (EMPTY_ENV+1)
+#define _GLOBAL_ENV TO_CAP(GLOBAL_ENV)
     { .t=Actor_T,       .x=GLOBAL_ENV+1,.y=NIL,         .z=UNDEF        },
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=GLOBAL_ENV+2,},  // symbol = key
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_Z,       .z=CUST_SEND,   },  // get_z(symbol)
@@ -560,13 +563,16 @@ cell_t cell_table[CELL_MAX] = {
 
 #define REPL_R (BOUND_BEH+7)
 #define REPL_E (REPL_R+8)
+#define _REPL_E TO_CAP(REPL_E)
 #define REPL_P (REPL_E+8)
+#define _REPL_P TO_CAP(REPL_P)
 #define REPL_L (REPL_P+3)
 #define REPL_F (REPL_L+4)
-    { .t=Opcode_T,      .x=VM_push,     .y=REPL_F,      .z=REPL_R+1,    },  // fail = REPL_F
-    { .t=Opcode_T,      .x=VM_push,     .y=REPL_E,      .z=REPL_R+2,    },  // ok = REPL_E
+#define _REPL_F TO_CAP(REPL_F)
+    { .t=Opcode_T,      .x=VM_push,     .y=_REPL_F,     .z=REPL_R+1,    },  // fail = REPL_F
+    { .t=Opcode_T,      .x=VM_push,     .y=_REPL_E,     .z=REPL_R+2,    },  // ok = REPL_E
     { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=REPL_R+3,    },  // custs = (ok . fail)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_LANG,      .z=REPL_R+4,    },  // ptrn = G_LANG
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_LANG,     .z=REPL_R+4,    },  // ptrn = G_LANG
     { .t=Opcode_T,      .x=VM_push,     .y=G_START,     .z=REPL_R+5,    },  // G_START
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=REPL_R+6,    },  // start
     { .t=Opcode_T,      .x=VM_push,     .y=S_GETC,      .z=REPL_R+7,    },  // S_GETC
@@ -576,11 +582,12 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=REPL_E+2,    },  // sexpr
     { .t=Opcode_T,      .x=VM_debug,    .y=TO_FIX(888), .z=REPL_E+3,    },
 
-    //{ .t=Opcode_T,      .x=VM_push,     .y=GLOBAL_ENV,  .z=REPL_E+4,    },  // env = GLOBAL_ENV
+    //{ .t=Opcode_T,      .x=VM_push,     .y=_GLOBAL_ENV, .z=REPL_E+4,    },  // env = GLOBAL_ENV
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=REPL_E+4,    },  // env = ()
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=REPL_E+5,    },  // form = sexpr
-    { .t=Opcode_T,      .x=VM_push,     .y=REPL_P,      .z=REPL_E+6,    },  // cust = REPL_P
-    { .t=Opcode_T,      .x=VM_push,     .y=231,         .z=REPL_E+7,    },  // M_EVAL  <--------------- UPDATE THIS MANUALLY!
+    { .t=Opcode_T,      .x=VM_push,     .y=_REPL_P,     .z=REPL_E+6,    },  // cust = REPL_P
+#define _M_EVAL TO_CAP(231)                                                 //  <--------------- UPDATE THIS MANUALLY!
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVAL,     .z=REPL_E+7,    },  // M_EVAL
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL cust form env)
 
     { .t=Actor_T,       .x=REPL_P+1,    .y=NIL,         .z=UNDEF        },
@@ -617,6 +624,7 @@ cell_t cell_table[CELL_MAX] = {
 //
 
 #define A_CLOCK (A_BOOT+13)
+#define _A_CLOCK TO_CAP(A_CLOCK)
     { .t=Actor_T,       .x=A_CLOCK+1,   .y=NIL,         .z=UNDEF        },
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(-1),  .z=A_CLOCK+2,   },
 #define CLOCK_BEH (A_CLOCK+2)
@@ -821,21 +829,27 @@ cell_t cell_table[CELL_MAX] = {
 //
 
 #define M_EVAL (S_PLACEH+12)
+//#define _M_EVAL TO_CAP(M_EVAL) <--- explicitly defined above...
 #define K_COMBINE (M_EVAL+20)
 #define K_APPLY_F (K_COMBINE+15)
 #define M_APPLY (K_APPLY_F+4)
+#define _M_APPLY TO_CAP(M_APPLY)
 #define M_LOOKUP (M_APPLY+17)
+#define _M_LOOKUP TO_CAP(M_LOOKUP)
 #define M_EVLIS_P (M_LOOKUP+23)
 #define M_EVLIS_K (M_EVLIS_P+4)
 #define M_EVLIS (M_EVLIS_K+6)
+#define _M_EVLIS TO_CAP(M_EVLIS)
 #define FX_PAR (M_EVLIS+14)
 #define OP_PAR (FX_PAR+1)
+#define _OP_PAR TO_CAP(OP_PAR)
 #define M_ZIP_IT (OP_PAR+20)
 #define M_ZIP_K (M_ZIP_IT+12)
 #define M_ZIP_P (M_ZIP_K+6)
 #define M_ZIP_R (M_ZIP_P+9)
 #define M_ZIP_S (M_ZIP_R+11)
 #define M_ZIP (M_ZIP_S+7)
+#define _M_ZIP TO_CAP(M_ZIP)
 #define CLOSURE_B (M_ZIP+6)
 #define M_EVAL_B (CLOSURE_B+13)
 #define FEXPR_B (M_EVAL_B+5)
@@ -863,7 +877,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_if,       .y=M_EVAL+4,    .z=M_EVAL+6,    },
 
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=M_EVAL+5,    },  // msg = (cust form env)
-    { .t=Opcode_T,      .x=VM_push,     .y=M_LOOKUP,    .z=SEND_0,      },  // (M_LOOKUP cust key alist)
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_LOOKUP,   .z=SEND_0,      },  // (M_LOOKUP cust key alist)
 
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=M_EVAL+7,    },  // form = arg1
     { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=M_EVAL+8,    },  // form has type Pair_T
@@ -886,7 +900,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=K_COMBINE,   .z=M_EVAL+17,   },  // K_COMBINE
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=M_EVAL+18,   },  // k_combine = (K_COMBINE env tail cust)
 
-    { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=M_EVAL+19,   },  // M_EVAL
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVAL,     .z=M_EVAL+19,   },  // M_EVAL
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL k_combine head env)
 
 /*
@@ -919,10 +933,10 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=K_COMBINE+13,},  // k_apply = (K_APPLY_F cust fn)
 
 #if EVLIS_IS_PAR
-    { .t=Opcode_T,      .x=VM_push,     .y=OP_PAR,      .z=K_COMBINE+14,},  // OP_PAR
+    { .t=Opcode_T,      .x=VM_push,     .y=_OP_PAR,     .z=K_COMBINE+14,},  // OP_PAR
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=RELEASE,     },  // (OP_PAR k_apply opnds env)
 #else
-    { .t=Opcode_T,      .x=VM_push,     .y=M_EVLIS,     .z=K_COMBINE+14,},  // M_EVLIS
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVLIS,    .z=K_COMBINE+14,},  // M_EVLIS
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=RELEASE,     },  // (M_EVLIS k_apply opnds env)
 #endif
 
@@ -1030,7 +1044,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVLIS_P,   .z=M_EVLIS_K+2, },  // M_EVLIS_P
     { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=M_EVLIS_K+3, },  // BECOME (M_EVLIS_P cust head)
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=M_EVLIS_K+4, },  // SELF
-    { .t=Opcode_T,      .x=VM_push,     .y=M_EVLIS,     .z=M_EVLIS_K+5, },  // M_EVLIS
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVLIS,    .z=M_EVLIS_K+5, },  // M_EVLIS
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVLIS SELF rest env)
 
     { .t=Actor_T,       .x=M_EVLIS+1,   .y=NIL,         .z=UNDEF        },  // (cust opnds env)
@@ -1048,7 +1062,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVLIS_K,   .z=M_EVLIS+11,  },  // M_EVLIS_K
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=M_EVLIS+12,  },  // k_eval = (M_EVLIS_K env rest cust)
 
-    { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=M_EVLIS+13,  },  // M_EVAL
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVAL,     .z=M_EVLIS+13,  },  // M_EVAL
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL k_eval first env)
 
 /*
@@ -1062,7 +1076,7 @@ cell_t cell_table[CELL_MAX] = {
         (SEND cust ()))
       )))
 */
-    { .t=Fexpr_T,       .x=OP_PAR,      .y=UNDEF,       .z=UNDEF,       },  // (par . <exprs>)
+    { .t=Fexpr_T,       .x=_OP_PAR,     .y=UNDEF,       .z=UNDEF,       },  // (par . <exprs>)
 
     { .t=Actor_T,       .x=OP_PAR+1,    .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_PAR+2,    },  // exprs = opnds
@@ -1081,8 +1095,8 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=OP_PAR+13,   },  // car(exprs)
     { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=OP_PAR+14,   },  // h_req = (car(exprs) env)
 
-    { .t=Opcode_T,      .x=VM_push,     .y=OP_PAR,      .z=OP_PAR+15,   },  // tail = OP_PAR
-    { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=OP_PAR+16,   },  // head = M_EVAL
+    { .t=Opcode_T,      .x=VM_push,     .y=_OP_PAR,     .z=OP_PAR+15,   },  // tail = OP_PAR
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVAL,     .z=OP_PAR+16,   },  // head = M_EVAL
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=OP_PAR+17,   },  // cust
     { .t=Opcode_T,      .x=VM_push,     .y=FORK_BEH,    .z=OP_PAR+18,   },  // FORK_BEH
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=OP_PAR+19,   },  // ev_fork = (FORK_BEH OP_PAR M_EVAL cust)
@@ -1218,7 +1232,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL_B,    .z=CLOSURE_B+10,},  // M_EVAL_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=CLOSURE_B+11,},  // k_eval = (M_EVAL_B cust body)
 
-    { .t=Opcode_T,      .x=VM_push,     .y=M_ZIP,       .z=CLOSURE_B+12,},  // M_ZIP
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_ZIP,      .z=CLOSURE_B+12,},  // M_ZIP
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(4),   .z=COMMIT,      },  // (M_ZIP k_eval frml args env')
 
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=M_EVAL_B-1,  },
@@ -1257,7 +1271,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL_B,    .z=FEXPR_B+12,  },  // M_EVAL_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=FEXPR_B+13,  },  // k_eval = (M_EVAL_B cust body)
 
-    { .t=Opcode_T,      .x=VM_push,     .y=M_ZIP,       .z=FEXPR_B+14,  },  // M_ZIP
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_ZIP,      .z=FEXPR_B+14,  },  // M_ZIP
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(4),   .z=COMMIT,      },  // (M_ZIP k_eval frml' opnds' env')
 
 /*
@@ -1286,7 +1300,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=K_SEQ_B+8,   },  // env
     { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=K_SEQ_B+9,   },  // expr = first
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=K_SEQ_B+10,  },  // cust = SELF
-    { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=K_SEQ_B+11,  },  // M_EVAL
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVAL,     .z=K_SEQ_B+11,  },  // M_EVAL
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=K_SEQ_B+12,  },  // (M_EVAL SELF first env)
 
     { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-2),  .z=K_SEQ_B+13,  },  // cust rest env
@@ -1311,7 +1325,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(2),   .z=M_IF_K+4,    },  // altn
 
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(3),   .z=M_IF_K+5,    },  // cust
-    { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=M_IF_K+6,    },  // M_EVAL
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVAL,     .z=M_IF_K+6,    },  // M_EVAL
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=RELEASE,     },  // (M_EVAL cust cnsq/altn env)
 
 /*
@@ -1330,6 +1344,7 @@ cell_t cell_table[CELL_MAX] = {
     #unit))                             ; value is UNIT
 */
 #define M_BIND_E (M_IF_K+7)
+#define _M_BIND_E TO_CAP(M_BIND_E)
     { .t=Actor_T,       .x=M_BIND_E+1,  .y=NIL,         .z=UNDEF        },  // (cust key val env)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(4),   .z=M_BIND_E+2,  },  // env = arg3
 
@@ -1381,7 +1396,8 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define FX_QUOTE (M_BIND_E+31)
 #define OP_QUOTE (FX_QUOTE+1)
-    { .t=Fexpr_T,       .x=OP_QUOTE,    .y=UNDEF,       .z=UNDEF,       },  // (quote <form>)
+#define _OP_QUOTE TO_CAP(OP_QUOTE)
+    { .t=Fexpr_T,       .x=_OP_QUOTE,   .y=UNDEF,       .z=UNDEF,       },  // (quote <form>)
 
     { .t=Actor_T,       .x=OP_QUOTE+1,  .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_QUOTE+2,  },  // opnds
@@ -1397,7 +1413,8 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define FX_LAMBDA (OP_QUOTE+3)
 #define OP_LAMBDA (FX_LAMBDA+1)
-    { .t=Fexpr_T,       .x=OP_LAMBDA,   .y=UNDEF,       .z=UNDEF,       },  // (lambda <frml> . <body>)
+#define _OP_LAMBDA TO_CAP(OP_LAMBDA)
+    { .t=Fexpr_T,       .x=_OP_LAMBDA,  .y=UNDEF,       .z=UNDEF,       },  // (lambda <frml> . <body>)
 
     { .t=Actor_T,       .x=OP_LAMBDA+1, .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_LAMBDA+2, },  // opnds
@@ -1419,7 +1436,8 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define FX_VAU (OP_LAMBDA+8)
 #define OP_VAU (FX_VAU+1)
-    { .t=Fexpr_T,       .x=OP_VAU,      .y=UNDEF,       .z=UNDEF,       },  // (vau <frml> <evar> . <body>)
+#define _OP_VAU TO_CAP(OP_VAU)
+    { .t=Fexpr_T,       .x=_OP_VAU,     .y=UNDEF,       .z=UNDEF,       },  // (vau <frml> <evar> . <body>)
 
     { .t=Actor_T,       .x=OP_VAU+1,    .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=Opcode_T,      .x=VM_push,     .y=Fexpr_T,     .z=OP_VAU+2,    },  // Fexpr_T
@@ -1456,7 +1474,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_DEFINE_B+2,},  // value
     { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(3),   .z=K_DEFINE_B+3,},  // frml
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=K_DEFINE_B+4,},  // SELF
-    { .t=Opcode_T,      .x=VM_push,     .y=M_ZIP,       .z=K_DEFINE_B+5,},  // M_ZIP
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_ZIP,      .z=K_DEFINE_B+5,},  // M_ZIP
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(4),   .z=K_DEFINE_B+6,},  // (M_ZIP SELF frml value NIL)
 
     { .t=Opcode_T,      .x=VM_push,     .y=K_DZIP_B,    .z=K_DEFINE_B+7,},  // K_DZIP_B
@@ -1487,7 +1505,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(4),   .z=K_DZIP_B+10, },  // env
     { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-3),  .z=K_DZIP_B+11, },  // rest env value symbol
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=K_DZIP_B+12, },  // SELF
-    { .t=Opcode_T,      .x=VM_push,     .y=M_BIND_E,    .z=K_DZIP_B+13, },  // M_BIND_E
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_BIND_E,   .z=K_DZIP_B+13, },  // M_BIND_E
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(4),   .z=K_DZIP_B+14, },  // (M_BIND_E SELF symbol value env)
 
     { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(-2),  .z=K_DZIP_B+15, },  // cust rest env
@@ -1527,7 +1545,8 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define FX_DEFINE (K_BIND_B+5)
 #define OP_DEFINE (FX_DEFINE+1)
-    { .t=Fexpr_T,       .x=OP_DEFINE,   .y=UNDEF,       .z=UNDEF,       },  // (define <frml> <expr>)
+#define _OP_DEFINE TO_CAP(OP_DEFINE)
+    { .t=Fexpr_T,       .x=_OP_DEFINE,  .y=UNDEF,       .z=UNDEF,       },  // (define <frml> <expr>)
 
     { .t=Actor_T,       .x=OP_DEFINE+1, .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_DEFINE+2, },  // env
@@ -1541,7 +1560,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=K_DEFINE_B,  .z=OP_DEFINE+9, },  // K_DEFINE_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=OP_DEFINE+10,},  // k_define = (K_DEFINE_B cust env frml)
 
-    { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=OP_DEFINE+11,},  // M_EVAL
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVAL,     .z=OP_DEFINE+11,},  // M_EVAL
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL k_define expr env)
 
 /*
@@ -1554,7 +1573,8 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define FX_IF (OP_DEFINE+12)
 #define OP_IF (FX_IF+1)
-    { .t=Fexpr_T,       .x=OP_IF,       .y=UNDEF,       .z=UNDEF,       },  // (if <pred> <cnsq> <altn>)
+#define _OP_IF TO_CAP(OP_IF)
+    { .t=Fexpr_T,       .x=_OP_IF,      .y=UNDEF,       .z=UNDEF,       },  // (if <pred> <cnsq> <altn>)
 
     { .t=Actor_T,       .x=OP_IF+1,     .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=OP_IF+2,     },  // env
@@ -1567,7 +1587,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=M_IF_K,      .z=OP_IF+8,     },  // M_IF_K
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(3),   .z=OP_IF+9,     },  // k_if = (M_IF_K cust env cont)
 
-    { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=OP_IF+10,    },  // M_EVAL
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVAL,     .z=OP_IF+10,    },  // M_EVAL
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL k_if pred env)
 
 /*
@@ -1582,8 +1602,9 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define FX_COND (OP_IF+11)
 #define OP_COND (FX_COND+1)
+#define _OP_COND TO_CAP(OP_COND)
 #define K_COND (OP_COND+17)
-    { .t=Fexpr_T,       .x=OP_COND,     .y=UNDEF,       .z=UNDEF,       },  // (cond (<test> . <body>) . <clauses>)
+    { .t=Fexpr_T,       .x=_OP_COND,    .y=UNDEF,       .z=UNDEF,       },  // (cond (<test> . <body>) . <clauses>)
 
     { .t=Actor_T,       .x=OP_COND+1,   .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_COND+2,   },  // opnds
@@ -1604,7 +1625,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=K_COND,      .z=OP_COND+14,  },  // K_COND
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(4),   .z=OP_COND+15,  },  // k_cond = (K_COND cust body env opnds')
 
-    { .t=Opcode_T,      .x=VM_push,     .y=M_EVAL,      .z=OP_COND+16,  },  // M_EVAL
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVAL,     .z=OP_COND+16,  },  // M_EVAL
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL k_cond test env)
 
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=K_COND-3,    },
@@ -1622,7 +1643,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_self,     .y=UNDEF,       .z=SEND_0,      },  // (SELF . UNIT)
 
     { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(4),   .z=K_COND+8,    },  // body env opnds cust
-    { .t=Opcode_T,      .x=VM_push,     .y=OP_COND,     .z=K_COND+9,    },  // OP_COND
+    { .t=Opcode_T,      .x=VM_push,     .y=_OP_COND,    .z=K_COND+9,    },  // OP_COND
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=RELEASE,     },  // (OP_COND cust opnds env)
 
 /*
@@ -1635,7 +1656,8 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define FX_SEQ (K_COND+10)
 #define OP_SEQ (FX_SEQ+1)
-    { .t=Fexpr_T,       .x=OP_SEQ,      .y=UNDEF,       .z=UNDEF,       },  // (seq . <body>)
+#define _OP_SEQ TO_CAP(OP_SEQ)
+    { .t=Fexpr_T,       .x=_OP_SEQ,     .y=UNDEF,       .z=UNDEF,       },  // (seq . <body>)
 
     { .t=Actor_T,       .x=OP_SEQ+1,    .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=Opcode_T,      .x=VM_push,     .y=UNIT,        .z=OP_SEQ+2,    },  // UNIT
@@ -1651,10 +1673,12 @@ cell_t cell_table[CELL_MAX] = {
 //
 
 #define F_LIST (OP_SEQ+7)
+#define _F_LIST TO_CAP(F_LIST)
     { .t=Actor_T,       .x=F_LIST+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=CUST_SEND,   },  // args
 
 #define F_CONS (F_LIST+2)
+#define _F_CONS TO_CAP(F_CONS)
     { .t=Actor_T,       .x=F_CONS+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
 #if 1
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_CONS+2,    },  // tail = arg2
@@ -1666,26 +1690,31 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=CUST_SEND,   },  // (head . tail)
 
 #define F_CAR (F_CONS+4)
+#define _F_CAR TO_CAP(F_CAR)
     { .t=Actor_T,       .x=F_CAR+1,     .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CAR+2,     },  // pair = arg1
     { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // car(pair)
 
 #define F_CDR (F_CAR+3)
+#define _F_CDR TO_CAP(F_CDR)
     { .t=Actor_T,       .x=F_CDR+1,     .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CDR+2,     },  // pair = arg1
     { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(-1),  .z=CUST_SEND,   },  // cdr(pair)
 
 #define F_CADR (F_CDR+3)
+#define _F_CADR TO_CAP(F_CADR)
     { .t=Actor_T,       .x=F_CADR+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CADR+2,    },  // pair = arg1
     { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(2),   .z=CUST_SEND,   },  // cadr(pair)
 
 #define F_CADDR (F_CADR+3)
+#define _F_CADDR TO_CAP(F_CADDR)
     { .t=Actor_T,       .x=F_CADDR+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CADDR+2,   },  // pair = arg1
     { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(3),   .z=CUST_SEND,   },  // caddr(pair)
 
 #define F_NTH (F_CADDR+3)
+#define _F_NTH TO_CAP(F_NTH)
     { .t=Actor_T,       .x=F_NTH+1,     .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=F_NTH+2,     },  // msg = (cust . args)
 
@@ -1703,6 +1732,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(0),   .z=SEND_0,      },  // (k_nth cust . args)
 
 #define F_NULL_P (F_NTH+12)
+#define _F_NULL_P TO_CAP(F_NULL_P)
     { .t=Actor_T,       .x=F_NULL_P+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NULL_P+2,  },  // args
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NULL_P+3,  },  // args args
@@ -1725,10 +1755,12 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_if,       .y=F_TYPE_P+1,  .z=RV_FALSE,    },
 
 #define F_PAIR_P (F_TYPE_P+9)
+#define _F_PAIR_P TO_CAP(F_PAIR_P)
     { .t=Actor_T,       .x=F_PAIR_P+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_push,     .y=Pair_T,      .z=F_TYPE_P,    },  // type = Pair_T
 
 #define F_BOOL_P (F_PAIR_P+2)
+#define _F_BOOL_P TO_CAP(F_BOOL_P)
     { .t=Actor_T,       .x=F_BOOL_P+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_BOOL_P+2,  },  // args
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_BOOL_P+3,  },  // args args
@@ -1743,6 +1775,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_if,       .y=F_BOOL_P+2,  .z=RV_FALSE,    },
 
 #define F_NUM_P (F_BOOL_P+12)
+#define _F_NUM_P TO_CAP(F_NUM_P)
     { .t=Actor_T,       .x=F_NUM_P+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_P+2,   },  // args
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_P+3,   },  // args args
@@ -1753,14 +1786,17 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_P+2,   .z=RV_FALSE,    },
 
 #define F_SYM_P (F_NUM_P+8)
+#define _F_SYM_P TO_CAP(F_SYM_P)
     { .t=Actor_T,       .x=F_SYM_P+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_push,     .y=Symbol_T,    .z=F_TYPE_P,    },  // type = Symbol_T
 
 #define F_ACT_P (F_SYM_P+2)
+#define _F_ACT_P TO_CAP(F_ACT_P)
     { .t=Actor_T,       .x=F_ACT_P+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_push,     .y=Actor_T,     .z=F_TYPE_P,    },  // type = Actor_T
 
 #define F_EQ_P (F_ACT_P+2)
+#define _F_EQ_P TO_CAP(F_EQ_P)
     { .t=Actor_T,       .x=F_EQ_P+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=F_EQ_P+2,    },  // rest = cdr(args)
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_EQ_P+3,    },  // rest rest
@@ -1772,6 +1808,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_if,       .y=F_EQ_P+2,    .z=RV_FALSE,    },
 
 #define F_NUM_EQ (F_EQ_P+9)
+#define _F_NUM_EQ TO_CAP(F_NUM_EQ)
     { .t=Actor_T,       .x=F_NUM_EQ+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_EQ+2,  },  // args
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_EQ+3,  },  // args args
@@ -1799,6 +1836,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_EQ+9,  .z=RV_FALSE,    },
 
 #define F_NUM_LT (F_NUM_EQ+21)
+#define _F_NUM_LT TO_CAP(F_NUM_LT)
     { .t=Actor_T,       .x=F_NUM_LT+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_LT+2,  },  // args
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_LT+3,  },  // args args
@@ -1826,6 +1864,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_LT+9,  .z=RV_FALSE,    },
 
 #define F_NUM_LE (F_NUM_LT+21)
+#define _F_NUM_LE TO_CAP(F_NUM_LE)
     { .t=Actor_T,       .x=F_NUM_LE+1,  .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_LE+2,  },  // args
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_LE+3,  },  // args args
@@ -1853,6 +1892,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_LE+9,  .z=RV_FALSE,    },
 
 #define F_NUM_ADD (F_NUM_LE+21)
+#define _F_NUM_ADD TO_CAP(F_NUM_ADD)
     { .t=Actor_T,       .x=F_NUM_ADD+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_ADD+2, },  // args
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_ADD+3, },  // args args
@@ -1879,6 +1919,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_alu,      .y=ALU_ADD,     .z=F_NUM_ADD+9, },  // first + second
 
 #define F_NUM_SUB (F_NUM_ADD+20)
+#define _F_NUM_SUB TO_CAP(F_NUM_SUB)
     { .t=Actor_T,       .x=F_NUM_SUB+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_SUB+2, },  // args
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_SUB+3, },  // args args
@@ -1913,6 +1954,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_if,       .y=F_NUM_SUB+15,.z=CUST_SEND,   },
 
 #define F_NUM_MUL (F_NUM_SUB+26)
+#define _F_NUM_MUL TO_CAP(F_NUM_MUL)
     { .t=Actor_T,       .x=F_NUM_MUL+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_NUM_MUL+2, },  // args
     { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_NUM_MUL+3, },  // args args
@@ -1939,16 +1981,19 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_alu,      .y=ALU_MUL,     .z=F_NUM_MUL+9, },  // first * second
 
 #define F_LST_NUM (F_NUM_MUL+20)
+#define _F_LST_NUM TO_CAP(F_LST_NUM)
     { .t=Actor_T,       .x=F_LST_NUM+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_LST_NUM+2, },  // chars = arg1
     { .t=Opcode_T,      .x=VM_cvt,      .y=CVT_LST_NUM, .z=CUST_SEND,   },  // lst_num(chars)
 
 #define F_LST_SYM (F_LST_NUM+3)
+#define _F_LST_SYM TO_CAP(F_LST_SYM)
     { .t=Actor_T,       .x=F_LST_SYM+1, .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_LST_SYM+2, },  // chars = arg1
     { .t=Opcode_T,      .x=VM_cvt,      .y=CVT_LST_SYM, .z=CUST_SEND,   },  // lst_sym(chars)
 
 #define F_PRINT (F_LST_SYM+3)
+#define _F_PRINT TO_CAP(F_PRINT)
     { .t=Actor_T,       .x=F_PRINT+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_PRINT+2,   },
     { .t=Opcode_T,      .x=VM_debug,    .y=TO_FIX(555), .z=F_PRINT+3,   },
@@ -1959,17 +2004,18 @@ cell_t cell_table[CELL_MAX] = {
 // Assembly-language Tools
 //
 
-#define F_INT_FIX (F_PRINT+4)
+#define F_INT_FIX (F_PRINT+4)  // ---DEPRECATED---
     { .t=Actor_T,       .x=F_INT_FIX+1, .y=NIL,         .z=UNDEF        },  // (int->fix <rawint>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_INT_FIX+2, },  // rawint = arg1
     { .t=Opcode_T,      .x=VM_cvt,      .y=CVT_INT_FIX, .z=CUST_SEND,   },  // TO_FIX(rawint)
 
-#define F_FIX_INT (F_INT_FIX+3)
+#define F_FIX_INT (F_INT_FIX+3)  // ---DEPRECATED---
     { .t=Actor_T,       .x=F_FIX_INT+1, .y=NIL,         .z=UNDEF        },  // (fix->int <fixnum>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_FIX_INT+2, },  // fixnum = arg1
     { .t=Opcode_T,      .x=VM_cvt,      .y=CVT_FIX_INT, .z=CUST_SEND,   },  // TO_INT(fixnum)
 
 #define F_CELL (F_FIX_INT+3)
+#define _F_CELL TO_CAP(F_CELL)
     { .t=Actor_T,       .x=F_CELL+1,    .y=NIL,         .z=UNDEF        },  // (cell <T> <X> <Y> <Z>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CELL+2,    },  // T = arg1
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_CELL+3,    },  // X = arg2
@@ -1978,44 +2024,52 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_cell,     .y=TO_FIX(4),   .z=CUST_SEND,   },  // cell(T, X, Y, Z)
 
 #define F_GET_T (F_CELL+6)
+#define _F_GET_T TO_CAP(F_GET_T)
     { .t=Actor_T,       .x=F_GET_T+1,   .y=NIL,         .z=UNDEF        },  // (get-t <cell>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_GET_T+2,   },  // cell = arg1
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_T,       .z=CUST_SEND,   },  // get-t(cell)
 
 #define F_GET_X (F_GET_T+3)
+#define _F_GET_X TO_CAP(F_GET_X)
     { .t=Actor_T,       .x=F_GET_X+1,   .y=NIL,         .z=UNDEF        },  // (get-x <cell>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_GET_X+2,   },  // cell = arg1
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_X,       .z=CUST_SEND,   },  // get-x(cell)
 
 #define F_GET_Y (F_GET_X+3)
+#define _F_GET_Y TO_CAP(F_GET_Y)
     { .t=Actor_T,       .x=F_GET_Y+1,   .y=NIL,         .z=UNDEF        },  // (get-y <cell>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_GET_Y+2,   },  // cell = arg1
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_Y,       .z=CUST_SEND,   },  // get-y(cell)
 
 #define F_GET_Z (F_GET_Y+3)
+#define _F_GET_Z TO_CAP(F_GET_Z)
     { .t=Actor_T,       .x=F_GET_Z+1,   .y=NIL,         .z=UNDEF        },  // (get-z <cell>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_GET_Z+2,   },  // cell = arg1
     { .t=Opcode_T,      .x=VM_get,      .y=FLD_Z,       .z=CUST_SEND,   },  // get-z(cell)
 
 #define F_SET_T (F_GET_Z+3)
+#define _F_SET_T TO_CAP(F_SET_T)
     { .t=Actor_T,       .x=F_SET_T+1,   .y=NIL,         .z=UNDEF        },  // (set-t <cell> <T>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_SET_T+2,   },  // cell = arg1
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_SET_T+3,   },  // T = arg2
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_T,       .z=CUST_SEND,   },  // set-t(cell, T)
 
 #define F_SET_X (F_SET_T+4)
+#define _F_SET_X TO_CAP(F_SET_X)
     { .t=Actor_T,       .x=F_SET_X+1,   .y=NIL,         .z=UNDEF        },  // (set-x <cell> <X>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_SET_X+2,   },  // cell = arg1
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_SET_X+3,   },  // X = arg2
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_X,       .z=CUST_SEND,   },  // set-x(cell, X)
 
 #define F_SET_Y (F_SET_X+4)
+#define _F_SET_Y TO_CAP(F_SET_Y)
     { .t=Actor_T,       .x=F_SET_Y+1,   .y=NIL,         .z=UNDEF        },  // (set-y <cell> <Y>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_SET_Y+2,   },  // cell = arg1
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_SET_Y+3,   },  // Y = arg2
     { .t=Opcode_T,      .x=VM_set,      .y=FLD_Y,       .z=CUST_SEND,   },  // set-y(cell, Y)
 
 #define F_SET_Z (F_SET_Y+4)
+#define _F_SET_Z TO_CAP(F_SET_Z)
     { .t=Actor_T,       .x=F_SET_Z+1,   .y=NIL,         .z=UNDEF        },  // (set-z <cell> <Z>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_SET_Z+2,   },  // cell = arg1
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_SET_Z+3,   },  // Z = arg2
@@ -2230,7 +2284,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=A_EXEC_B,    .z=A_META_B+24, },  // A_EXEC_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=A_META_B+25, },  // k_exec = (A_EXEC_B txn body)
 
-    { .t=Opcode_T,      .x=VM_push,     .y=M_ZIP,       .z=A_META_B+26, },  // M_ZIP
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_ZIP,      .z=A_META_B+26, },  // M_ZIP
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(4),   .z=COMMIT,      },  // (M_ZIP k_exec frml msg aenv)
 
 //      (evbody #unit body (zip frml msg aenv))
@@ -2265,7 +2319,8 @@ cell_t cell_table[CELL_MAX] = {
 */
 #define FX_M_BEH (A_COMMIT_B+2)
 #define OP_M_BEH (FX_M_BEH+1)
-    { .t=Fexpr_T,       .x=OP_M_BEH,    .y=UNDEF,       .z=UNDEF,       },  // (BEH <frml> . <body>)
+#define _OP_M_BEH TO_CAP(OP_M_BEH)
+    { .t=Fexpr_T,       .x=_OP_M_BEH,   .y=UNDEF,       .z=UNDEF,       },  // (BEH <frml> . <body>)
 
     { .t=Actor_T,       .x=OP_M_BEH+1,  .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_M_BEH+2,  },  // opnds
@@ -2283,18 +2338,21 @@ cell_t cell_table[CELL_MAX] = {
       (SEND cust (CREATE (meta-actor-beh (car args)))) )))
 */
 #define F_CREATE (OP_M_BEH+8)
+#define _F_CREATE TO_CAP(F_CREATE)
     { .t=Actor_T,       .x=F_CREATE+1,  .y=NIL,         .z=UNDEF        },  // (CREATE <behavior>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_CREATE+2,  },  // beh = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=M_ACTOR_B,   .z=F_CREATE+3,  },  // M_ACTOR_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // actor = (M_ACTOR_B beh)
 
 #define F_SEND (F_CREATE+4)
+#define _F_SEND TO_CAP(F_SEND)
     { .t=Actor_T,       .x=F_SEND+1,    .y=NIL,         .z=UNDEF        },  // (SEND <actor> <message>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_SEND+2,    },  // msg = arg2
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_SEND+3,    },  // actor = arg1
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(0),   .z=RV_UNIT,     },  // (actor . msg)
 
 #define F_CALL (F_SEND+4)
+#define _F_CALL TO_CAP(F_CALL)
     { .t=Actor_T,       .x=F_CALL+1,    .y=NIL,         .z=UNDEF        },  // (CALL <actor> <args>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_CALL+2,    },  // args = arg2
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=F_CALL+3,    },  // cust = arg0
@@ -2311,6 +2369,7 @@ cell_t cell_table[CELL_MAX] = {
 //
 
 #define G_EMPTY (ACTOR_END+0)
+#define _G_EMPTY TO_CAP(G_EMPTY)
     { .t=Actor_T,       .x=G_EMPTY+1,   .y=NIL,         .z=UNDEF        },
 #define G_EMPTY_B (G_EMPTY+1)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_EMPTY+2,   },  // in
@@ -2320,6 +2379,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_nth,      .y=TO_FIX(1),   .z=SEND_0,      },  // ok = car(custs)
 
 #define G_FAIL (G_EMPTY+6)
+#define _G_FAIL TO_CAP(G_FAIL)
     { .t=Actor_T,       .x=G_FAIL+1,    .y=NIL,         .z=UNDEF        },
 #define G_FAIL_B (G_FAIL+1)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=G_FAIL+2,    },  // in
@@ -2335,6 +2395,7 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=RELEASE_0,   },  // cust
 
 #define G_ANY (G_NEXT_K+4)
+#define _G_ANY TO_CAP(G_ANY)
     { .t=Actor_T,       .x=G_ANY+1,     .y=NIL,         .z=UNDEF        },
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=G_ANY+2,     },  // custs = (ok . fail)
     { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=G_ANY+3,     },  // fail ok
@@ -2478,10 +2539,10 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #define G_PLUS_B (G_OPT_B+6)
 #define G_STAR_B (G_PLUS_B+5)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrn_,      .z=G_OPT_B+0,   },
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EMPTY,     .z=G_OPT_B+1,   },  // G_EMPTY
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EMPTY,    .z=G_OPT_B+1,   },  // G_EMPTY
     { .t=Opcode_T,      .x=VM_push,     .y=G_AND_B,     .z=G_OPT_B+2,   },  // G_AND_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=G_OPT_B+3,   },  // ptrn' = (And ptrn Empty)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EMPTY,     .z=G_OPT_B+4,   },  // G_EMPTY
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EMPTY,    .z=G_OPT_B+4,   },  // G_EMPTY
     { .t=Opcode_T,      .x=VM_push,     .y=G_OR_B,      .z=G_OPT_B+5,   },  // G_OR_B
     { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=RESEND,      },  // BECOME (Or ptrn' Empty)
 
@@ -2495,7 +2556,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
 //  { .t=Opcode_T,      .x=VM_push,     .y=_ptrn_,      .z=G_STAR_B+0,  },
     { .t=Opcode_T,      .x=VM_push,     .y=G_PLUS_B,    .z=G_STAR_B+1,  },  // G_PLUS_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=G_STAR_B+2,  },  // plus = (Plus ptrn)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EMPTY,     .z=G_STAR_B+3,  },  // G_EMPTY
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EMPTY,    .z=G_STAR_B+3,  },  // G_EMPTY
     { .t=Opcode_T,      .x=VM_push,     .y=G_OR_B,      .z=G_STAR_B+4,  },  // G_OR_B
     { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=RESEND,      },  // BECOME (Or plus Empty)
 
@@ -2514,7 +2575,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_push,     .y=G_ALT_B,     .z=G_ALT_B+9,   },  // G_ALT_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=G_ALT_B+11,  },  // rest = (Alt tail)
 
-    { .t=Opcode_T,      .x=VM_push,     .y=G_FAIL,      .z=G_ALT_B+11,  },  // rest = G_FAIL
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_FAIL,     .z=G_ALT_B+11,  },  // rest = G_FAIL
     { .t=Opcode_T,      .x=VM_push,     .y=G_OR_B,      .z=G_ALT_B+12,  },  // G_OR_B
     { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=RESEND,      },  // BECOME
 
@@ -2536,7 +2597,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_push,     .y=G_SEQ_B,     .z=G_SEQ_B+9,   },  // G_SEQ_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=G_SEQ_B+11,  },  // rest = (Seq tail)
 
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EMPTY,     .z=G_SEQ_B+11,  },  // rest = G_EMPTY
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EMPTY,    .z=G_SEQ_B+11,  },  // rest = G_EMPTY
     { .t=Opcode_T,      .x=VM_push,     .y=G_AND_B,     .z=G_SEQ_B+12,  },  // G_AND_B
     { .t=Opcode_T,      .x=VM_beh,      .y=TO_FIX(2),   .z=RESEND,      },  // BECOME
 
@@ -2712,12 +2773,14 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
 #if SCM_PEG_TOOLS
 #define F_G_EQ (S_NEXT_C+10)
+#define _F_G_EQ TO_CAP(F_G_EQ)
     { .t=Actor_T,       .x=F_G_EQ+1,    .y=NIL,         .z=UNDEF        },  // (peg-eq <token>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_EQ+2,    },  // token = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=G_EQ_B,      .z=F_G_EQ+3,    },  // G_EQ_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_EQ_B token)
 
 #define F_G_OR (F_G_EQ+4)
+#define _F_G_OR TO_CAP(F_G_OR)
     { .t=Actor_T,       .x=F_G_OR+1,    .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_OR+2,    },  // first = arg1
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_G_OR+3,    },  // rest = arg2
@@ -2725,6 +2788,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=CUST_SEND,   },  // (G_OR_B first rest)
 
 #define F_G_AND (F_G_OR+5)
+#define _F_G_AND TO_CAP(F_G_AND)
     { .t=Actor_T,       .x=F_G_AND+1,   .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_AND+2,   },  // first = arg1
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_G_AND+3,   },  // rest = arg2
@@ -2732,12 +2796,14 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=CUST_SEND,   },  // (G_AND_B first rest)
 
 #define F_G_NOT (F_G_AND+5)
+#define _F_G_NOT TO_CAP(F_G_NOT)
     { .t=Actor_T,       .x=F_G_NOT+1,   .y=NIL,         .z=UNDEF        },  // (peg-not <peg>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_NOT+2,   },  // peg = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=G_NOT_B,     .z=F_G_NOT+3,   },  // G_NOT_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_NOT_B peg)
 
 #define F_G_CLS (F_G_NOT+4)
+#define _F_G_CLS TO_CAP(F_G_CLS)
     { .t=Actor_T,       .x=F_G_CLS+1,   .y=NIL,         .z=UNDEF        },  // (peg-class . <classes>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=F_G_CLS+2,   },
     { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_G_CLS+3,   },  // args cust
@@ -2759,30 +2825,35 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=SEND_0,      },  // ptrn cust
 
 #define F_G_OPT (F_G_CLS+16)
+#define _F_G_OPT TO_CAP(F_G_OPT)
     { .t=Actor_T,       .x=F_G_OPT+1,   .y=NIL,         .z=UNDEF        },  // (peg-opt <peg>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_OPT+2,   },  // peg = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=G_OPT_B,     .z=F_G_OPT+3,   },  // G_OPT_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_OPT_B peg)
 
 #define F_G_PLUS (F_G_OPT+4)
+#define _F_G_PLUS TO_CAP(F_G_PLUS)
     { .t=Actor_T,       .x=F_G_PLUS+1,  .y=NIL,         .z=UNDEF        },  // (peg-plus <peg>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_PLUS+2,  },  // peg = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=G_PLUS_B,    .z=F_G_PLUS+3,  },  // G_PLUS_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_PLUS_B peg)
 
 #define F_G_STAR (F_G_PLUS+4)
+#define _F_G_STAR TO_CAP(F_G_STAR)
     { .t=Actor_T,       .x=F_G_STAR+1,  .y=NIL,         .z=UNDEF        },  // (peg-star <peg>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_STAR+2,  },  // peg = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=G_STAR_B,    .z=F_G_STAR+3,  },  // G_STAR_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_STAR_B peg)
 
 #define F_G_ALT (F_G_STAR+4)
+#define _F_G_ALT TO_CAP(F_G_ALT)
     { .t=Actor_T,       .x=F_G_ALT+1,   .y=NIL,         .z=UNDEF        },  // (peg-alt . <pegs>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_G_ALT+2,   },  // pegs = args
     { .t=Opcode_T,      .x=VM_push,     .y=G_ALT_B,     .z=F_G_ALT+3,   },  // G_ALT_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_ALT_B pegs)
 
 #define F_G_SEQ (F_G_ALT+4)
+#define _F_G_SEQ TO_CAP(F_G_SEQ)
     { .t=Actor_T,       .x=F_G_SEQ+1,   .y=NIL,         .z=UNDEF        },  // (peg-seq . <pegs>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_G_SEQ+2,   },  // pegs = args
     { .t=Opcode_T,      .x=VM_push,     .y=G_SEQ_B,     .z=F_G_SEQ+3,   },  // G_SEQ_B
@@ -2790,7 +2861,8 @@ Star(pattern) = Or(Plus(pattern), Empty)
 
 #define FX_G_CALL (F_G_SEQ+4)
 #define OP_G_CALL (FX_G_CALL+1)
-    { .t=Fexpr_T,       .x=OP_G_CALL,   .y=UNDEF,       .z=UNDEF,       },  // (peg-call <name>)
+#define _OP_G_CALL TO_CAP(OP_G_CALL)
+    { .t=Fexpr_T,       .x=_OP_G_CALL,  .y=UNDEF,       .z=UNDEF,       },  // (peg-call <name>)
 
     { .t=Actor_T,       .x=OP_G_CALL+1, .y=NIL,         .z=UNDEF        },  // (cust opnds env)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=OP_G_CALL+2, },  // opnds
@@ -2799,6 +2871,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // (G_CALL_B name)
 
 #define F_G_PRED (OP_G_CALL+5)
+#define _F_G_PRED TO_CAP(F_G_PRED)
     { .t=Actor_T,       .x=F_G_PRED+1,  .y=NIL,         .z=UNDEF        },  // (peg-pred <pred> <peg>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_PRED+2,  },  // pred = arg1
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_G_PRED+3,  },  // peg = arg2
@@ -2806,6 +2879,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=CUST_SEND,   },  // (G_PRED_B pred peg)
 
 #define F_G_XFORM (F_G_PRED+5)
+#define _F_G_XFORM TO_CAP(F_G_XFORM)
     { .t=Actor_T,       .x=F_G_XFORM+1, .y=NIL,         .z=UNDEF        },  // (peg-xform func peg)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_G_XFORM+2, },  // func = arg1
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_G_XFORM+3, },  // peg = arg2
@@ -2813,12 +2887,14 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=CUST_SEND,   },  // (G_XLAT_B func peg)
 
 #define F_S_LIST (F_G_XFORM+5)
+#define _F_S_LIST TO_CAP(F_S_LIST)
     { .t=Actor_T,       .x=F_S_LIST+1,  .y=NIL,         .z=UNDEF        },  // (peg-source <list>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_S_LIST+2,  },  // list = arg1
     { .t=Opcode_T,      .x=VM_push,     .y=S_LIST_B,    .z=F_S_LIST+3,  },  // S_LIST_B
     { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(1),   .z=CUST_SEND,   },  // src
 
 #define F_G_START (F_S_LIST+4)
+#define _F_G_START TO_CAP(F_G_START)
     { .t=Actor_T,       .x=F_G_START+1, .y=NIL,         .z=UNDEF        },  // (peg-start <peg> <src>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=F_G_START+2, },  // fail = cust
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=F_G_START+3, },  // ok = cust
@@ -2829,6 +2905,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=SEND_0,      },  // src = arg2
 
 #define F_S_CHAIN (F_G_START+8)
+#define _F_S_CHAIN TO_CAP(F_S_CHAIN)
     { .t=Actor_T,       .x=F_S_CHAIN+1, .y=NIL,         .z=UNDEF        },  // (peg-chain <peg> <src>)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_S_CHAIN+2, },  // peg = arg1
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(3),   .z=F_S_CHAIN+3, },  // src = arg2
@@ -2846,13 +2923,15 @@ Star(pattern) = Or(Plus(pattern), Empty)
 #else // !SCM_PEG_TOOLS
 #define G_END (S_NEXT_C+10)
 #endif // SCM_PEG_TOOLS
+#define _G_END TO_CAP(G_END)
     { .t=Actor_T,       .x=G_END+1,     .y=NIL,         .z=UNDEF        },  // (peg-not peg-any)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_ANY,       .z=G_NOT_B,     },
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_ANY,      .z=G_NOT_B,     },
 
 /*
 (define lex-eol (peg-eq 10))  ; end of line
 */
 #define G_EOL (G_END+2)
+#define _G_EOL TO_CAP(G_EOL)
     { .t=Actor_T,       .x=G_EOL+1,     .y=NIL,         .z=UNDEF        },  // (peg-eq 10)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('\n'),.z=G_EQ_B,      },  // value = '\n' = 10
 
@@ -2860,57 +2939,68 @@ Star(pattern) = Or(Plus(pattern), Empty)
 (define lex-optwsp (peg-star (peg-class WSP)))
 */
 #define G_WSP (G_EOL+2)
+#define _G_WSP TO_CAP(G_WSP)
     { .t=Actor_T,       .x=G_WSP+1,     .y=NIL,         .z=UNDEF        },  // (peg-class WSP)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(WSP), .z=G_CLS_B,     },
 #define G_WSP_S (G_WSP+2)
+#define _G_WSP_S TO_CAP(G_WSP_S)
     { .t=Actor_T,       .x=G_WSP_S+1,   .y=NIL,         .z=UNDEF        },  // (peg-star (peg-class WSP))
-    { .t=Opcode_T,      .x=VM_push,     .y=G_WSP,       .z=G_STAR_B,    },
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_WSP,      .z=G_STAR_B,    },
 
 /*
 (define scm-to-eol (peg-or lex-eol (peg-and peg-any (peg-call scm-to-eol))))
 */
 #define G_TO_EOL (G_WSP_S+2)
+#define _G_TO_EOL TO_CAP(G_TO_EOL)
+#define _G_TO_EOL2 TO_CAP(G_TO_EOL+3)
     { .t=Actor_T,       .x=G_TO_EOL+1,  .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EOL,       .z=G_TO_EOL+2,  },  // first = lex-eol
-    { .t=Opcode_T,      .x=VM_push,     .y=G_TO_EOL+3,  .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EOL,      .z=G_TO_EOL+2,  },  // first = lex-eol
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_TO_EOL2,  .z=G_OR_B,      },  // rest
 
     { .t=Actor_T,       .x=G_TO_EOL+4,  .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_ANY,       .z=G_TO_EOL+5,  },  // first = peg-any
-    { .t=Opcode_T,      .x=VM_push,     .y=G_TO_EOL,    .z=G_AND_B,     },  // rest = scm-to-eol
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_ANY,      .z=G_TO_EOL+5,  },  // first = peg-any
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_TO_EOL,   .z=G_AND_B,     },  // rest = scm-to-eol
 
 /*
 (define scm-comment (peg-and (peg-eq 59) scm-to-eol))
 */
 #define G_SEMIC (G_TO_EOL+6)
+#define _G_SEMIC TO_CAP(G_SEMIC)
     { .t=Actor_T,       .x=G_SEMIC+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 59)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(';'), .z=G_EQ_B,      },  // value = ';' = 59
 #define G_COMMENT (G_SEMIC+2)
+#define _G_COMMENT TO_CAP(G_COMMENT)
     { .t=Actor_T,       .x=G_COMMENT+1, .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_SEMIC,     .z=G_COMMENT+2, },  // first = (peg-eq 59)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_TO_EOL,    .z=G_AND_B,     },  // rest = scm-to-eol
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_SEMIC,    .z=G_COMMENT+2, },  // first = (peg-eq 59)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_TO_EOL,   .z=G_AND_B,     },  // rest = scm-to-eol
 
 /*
 (define scm-optwsp (peg-star (peg-or scm-comment (peg-class WSP))))
 */
 #define G_OPTWSP (G_COMMENT+3)
+#define _G_OPTWSP TO_CAP(G_OPTWSP)
+#define _G_OPTWSP2 TO_CAP(G_OPTWSP+2)
     { .t=Actor_T,       .x=G_OPTWSP+1,  .y=NIL,         .z=UNDEF        },  // (peg-star <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_OPTWSP+2,  .z=G_STAR_B,    },  // ptrn
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_OPTWSP2,  .z=G_STAR_B,    },  // ptrn
 
     { .t=Actor_T,       .x=G_OPTWSP+3,  .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_COMMENT,   .z=G_OPTWSP+4,  },  // first = scm-comment
-    { .t=Opcode_T,      .x=VM_push,     .y=G_WSP,       .z=G_OR_B,      },  // rest = (peg-class WSP)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_COMMENT,  .z=G_OPTWSP+4,  },  // first = scm-comment
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_WSP,      .z=G_OR_B,      },  // rest = (peg-class WSP)
 
 /*
 (define lex-eot (peg-not (peg-class DGT UPR LWR SYM)))  ; end of token
 */
 #define G_PRT (G_OPTWSP+5)
+#define _G_PRT TO_CAP(G_PRT)
     { .t=Actor_T,       .x=G_PRT+1,     .y=NIL,         .z=UNDEF        },  // (peg-class DGT UPR LWR SYM)
     { .t=Opcode_T, .x=VM_push, .y=TO_FIX(DGT|UPR|LWR|SYM), .z=G_CLS_B,  },
 #define G_EOT (G_PRT+2)
+#define _G_EOT TO_CAP(G_EOT)
     { .t=Actor_T,       .x=G_EOT+1,     .y=NIL,         .z=UNDEF        },  // (peg-not (peg-class DGT UPR LWR SYM))
-    { .t=Opcode_T,      .x=VM_push,     .y=G_PRT,       .z=G_NOT_B,     },
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_PRT,      .z=G_NOT_B,     },
 
 #define G_UNDER (G_EOT+2)
+#define _G_UNDER TO_CAP(G_UNDER)
     { .t=Actor_T,       .x=G_UNDER+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 95)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('_'), .z=G_EQ_B,      },  // value = '_' = 95
 
@@ -2918,75 +3008,90 @@ Star(pattern) = Or(Plus(pattern), Empty)
 (define lex-sign (peg-or (peg-eq 45) (peg-eq 43)))  ; [-+]
 */
 #define G_M_SGN (G_UNDER+2)
+#define _G_M_SGN TO_CAP(G_M_SGN)
     { .t=Actor_T,       .x=G_M_SGN+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 45)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('-'), .z=G_EQ_B,      },  // value = '-' = 45
 #define G_P_SGN (G_M_SGN+2)
+#define _G_P_SGN TO_CAP(G_P_SGN)
     { .t=Actor_T,       .x=G_P_SGN+1,   .y=NIL,         .z=UNDEF        },  // (peg-eq 43)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('+'), .z=G_EQ_B,      },  // value = '+' = 43
 #define G_SIGN (G_P_SGN+2)
+#define _G_SIGN TO_CAP(G_SIGN)
     { .t=Actor_T,       .x=G_SIGN+1,    .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_M_SGN,     .z=G_SIGN+2,    },  // first = (peg-eq 45)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_P_SGN,     .z=G_OR_B,      },  // rest = (peg-eq 43)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_M_SGN,    .z=G_SIGN+2,    },  // first = (peg-eq 45)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_P_SGN,    .z=G_OR_B,      },  // rest = (peg-eq 43)
 
 /*
 (define lex-digit (peg-or (peg-class DGT) (peg-eq 95)))  ; [0-9_]
 */
 #define G_DGT (G_SIGN+3)
+#define _G_DGT TO_CAP(G_DGT)
     { .t=Actor_T,       .x=G_DGT+1,     .y=NIL,         .z=UNDEF        },  // (peg-class DGT)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(DGT), .z=G_CLS_B,     },  // class = [0-9]
 #define G_DIGIT (G_DGT+2)
+#define _G_DIGIT TO_CAP(G_DIGIT)
     { .t=Actor_T,       .x=G_DIGIT+1,   .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_DGT,       .z=G_DIGIT+2,   },  // first = (peg-class DGT)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_UNDER,     .z=G_OR_B,      },  // rest = (peg-eq 95)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_DGT,      .z=G_DIGIT+2,   },  // first = (peg-class DGT)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_UNDER,    .z=G_OR_B,      },  // rest = (peg-eq 95)
 
 /*
 (define lex-digits (peg-xform car (peg-and (peg-plus lex-digit) lex-eot)))
 */
 #define G_DIGITS (G_DIGIT+3)
+#define _G_DIGITS TO_CAP(G_DIGITS)
+#define _G_DIGITS2 TO_CAP(G_DIGITS+3)
+#define _G_DIGITS3 TO_CAP(G_DIGITS+6)
     { .t=Actor_T,       .x=G_DIGITS+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform car <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_CAR,       .z=G_DIGITS+2,  },  // func = F_CAR
-    { .t=Opcode_T,      .x=VM_push,     .y=G_DIGITS+3,  .z=G_XLAT_B,    },  // ptrn = (peg-and (peg-plus lex-digit) lex-eot)
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_CAR,      .z=G_DIGITS+2,  },  // func = F_CAR
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_DIGITS2,  .z=G_XLAT_B,    },  // ptrn = (peg-and (peg-plus lex-digit) lex-eot)
 
     { .t=Actor_T,       .x=G_DIGITS+4,  .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_DIGITS+6,  .z=G_DIGITS+5,  },  // first = (peg-plus lex-digit)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EOT,       .z=G_AND_B,     },  // rest = lex-eot
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_DIGITS3,  .z=G_DIGITS+5,  },  // first = (peg-plus lex-digit)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EOT,      .z=G_AND_B,     },  // rest = lex-eot
 
     { .t=Actor_T,       .x=G_DIGITS+7,  .y=NIL,         .z=UNDEF        },  // (peg-plus <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_DIGIT,     .z=G_PLUS_B,    },  // ptrn = lex-digit
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_DIGIT,    .z=G_PLUS_B,    },  // ptrn = lex-digit
 
 /*
 (define lex-number (peg-xform list->number (peg-or (peg-and lex-sign lex-digits) lex-digits)))
 */
 #define G_NUMBER (G_DIGITS+8)
+#define _G_NUMBER TO_CAP(G_NUMBER)
+#define _G_NUMBER2 TO_CAP(G_NUMBER+3)
+#define _G_NUMBER3 TO_CAP(G_NUMBER+6)
     { .t=Actor_T,       .x=G_NUMBER+1,  .y=NIL,         .z=UNDEF        },  // (peg-xform list->number <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_LST_NUM,   .z=G_NUMBER+2,  },  // func = F_LST_NUM
-    { .t=Opcode_T,      .x=VM_push,     .y=G_NUMBER+3,  .z=G_XLAT_B,    },  // ptrn = (peg-or (peg-and lex-sign lex-digits) lex-digits)
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_LST_NUM,  .z=G_NUMBER+2,  },  // func = F_LST_NUM
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_NUMBER2,  .z=G_XLAT_B,    },  // ptrn = (peg-or (peg-and lex-sign lex-digits) lex-digits)
 
     { .t=Actor_T,       .x=G_NUMBER+4,  .y=NIL,         .z=UNDEF        },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_NUMBER+6,  .z=G_NUMBER+5,  },  // first = (peg-and lex-sign lex-digits)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_DIGITS,    .z=G_OR_B,      },  // rest = lex-digits
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_NUMBER3,  .z=G_NUMBER+5,  },  // first = (peg-and lex-sign lex-digits)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_DIGITS,   .z=G_OR_B,      },  // rest = lex-digits
 
     { .t=Actor_T,       .x=G_NUMBER+7,  .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_SIGN,      .z=G_NUMBER+8,  },  // first = lex-sign
-    { .t=Opcode_T,      .x=VM_push,     .y=G_DIGITS,    .z=G_AND_B,     },  // rest = lex-digits
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_SIGN,     .z=G_NUMBER+8,  },  // first = lex-sign
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_DIGITS,   .z=G_AND_B,     },  // rest = lex-digits
 
 /*
 (define scm-ignore (peg-xform (lambda _ '_) (peg-and (peg-plus (peg-eq 95)) lex-eot)))
 */
 #define F_IGN (G_NUMBER+9)
+#define _F_IGN TO_CAP(F_IGN)
     { .t=Actor_T,       .x=F_IGN+1,     .y=NIL,         .z=UNDEF        },  // (lambda _ '_)
     { .t=Opcode_T,      .x=VM_push,     .y=S_IGNORE,    .z=CUST_SEND,   },
 #define G_IGN (F_IGN+2)
+#define _G_IGN TO_CAP(G_IGN)
+#define _G_IGN2 TO_CAP(G_IGN+3)
+#define _G_IGN3 TO_CAP(G_IGN+6)
     { .t=Actor_T,       .x=G_IGN+1,     .y=NIL,         .z=UNDEF        },  // (peg-xform (lambda _ '_) <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_IGN,       .z=G_IGN+2,     },  // func = F_IGN
-    { .t=Opcode_T,      .x=VM_push,     .y=G_IGN+3,     .z=G_XLAT_B,    },  // ptrn = ...
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_IGN,      .z=G_IGN+2,     },  // func = F_IGN
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_IGN2,     .z=G_XLAT_B,    },  // ptrn = ...
 
     { .t=Actor_T,       .x=G_IGN+4,     .y=NIL,         .z=UNDEF        },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_IGN+6,     .z=G_IGN+5,     },  // first = (peg-plus (peg-eq 95))
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EOT,       .z=G_AND_B,     },  // rest = lex-eot
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_IGN3,     .z=G_IGN+5,     },  // first = (peg-plus (peg-eq 95))
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EOT,      .z=G_AND_B,     },  // rest = lex-eot
 
     { .t=Actor_T,       .x=G_IGN+7,     .y=NIL,         .z=UNDEF        },  // (peg-plus (peg-eq 95))
-    { .t=Opcode_T,      .x=VM_push,     .y=G_UNDER,     .z=G_PLUS_B,    },  // ptrn = (peg-eq 95)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_UNDER,    .z=G_PLUS_B,    },  // ptrn = (peg-eq 95)
 
 /*
 (define scm-const (peg-xform cadr (peg-seq
@@ -3000,137 +3105,172 @@ Star(pattern) = Or(Plus(pattern), Empty)
   lex-eot)))
 */
 #define G_HASH (G_IGN+8)
+#define _G_HASH TO_CAP(G_HASH)
     { .t=Actor_T,       .x=G_HASH+1,    .y=NIL,         .z=UNDEF,       },  // (peg-eq 35)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('#'), .z=G_EQ_B,      },  // value = '#' = 35
 #define G_LWR_U (G_HASH+2)
+#define _G_LWR_U TO_CAP(G_LWR_U)
     { .t=Actor_T,       .x=G_LWR_U+1,   .y=NIL,         .z=UNDEF,       },  // (peg-eq 117)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('u'), .z=G_EQ_B,      },  // value = 'u' = 117
 #define G_LWR_N (G_LWR_U+2)
+#define _G_LWR_N TO_CAP(G_LWR_N)
     { .t=Actor_T,       .x=G_LWR_N+1,   .y=NIL,         .z=UNDEF,       },  // (peg-eq 110)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('n'), .z=G_EQ_B,      },  // value = 'n' = 110
 #define G_LWR_I (G_LWR_N+2)
+#define _G_LWR_I TO_CAP(G_LWR_I)
     { .t=Actor_T,       .x=G_LWR_I+1,   .y=NIL,         .z=UNDEF,       },  // (peg-eq 105)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('i'), .z=G_EQ_B,      },  // value = 'i' = 105
 #define G_LWR_T (G_LWR_I+2)
+#define _G_LWR_T TO_CAP(G_LWR_T)
     { .t=Actor_T,       .x=G_LWR_T+1,   .y=NIL,         .z=UNDEF,       },  // (peg-eq 116)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('t'), .z=G_EQ_B,      },  // value = 't' = 116
 #define G_LWR_F (G_LWR_T+2)
+#define _G_LWR_F TO_CAP(G_LWR_F)
     { .t=Actor_T,       .x=G_LWR_F+1,   .y=NIL,         .z=UNDEF,       },  // (peg-eq 102)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('f'), .z=G_EQ_B,      },  // value = 'f' = 102
 #define G_QMARK (G_LWR_F+2)
+#define _G_QMARK TO_CAP(G_QMARK)
     { .t=Actor_T,       .x=G_QMARK+1,   .y=NIL,         .z=UNDEF,       },  // (peg-eq 63)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('?'), .z=G_EQ_B,      },  // value = '?' = 63
 
 #define F_FALSE (G_QMARK+2)
+#define _F_FALSE TO_CAP(F_FALSE)
     { .t=Actor_T,       .x=RV_FALSE,    .y=NIL,         .z=UNDEF,       },  // (lambda _ #f)
 #define G_FALSE (F_FALSE+1)
+#define _G_FALSE TO_CAP(G_FALSE)
     { .t=Actor_T,       .x=G_FALSE+1,   .y=NIL,         .z=UNDEF,       },  // (peg-xform (lambda _ #f) (peg-eq 102))
-    { .t=Opcode_T,      .x=VM_push,     .y=F_FALSE,     .z=G_FALSE+2,   },  // func = F_FALSE
-    { .t=Opcode_T,      .x=VM_push,     .y=G_LWR_F,     .z=G_XLAT_B,    },  // ptrn = (peg-eq 102)
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_FALSE,    .z=G_FALSE+2,   },  // func = F_FALSE
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_LWR_F,    .z=G_XLAT_B,    },  // ptrn = (peg-eq 102)
 
 #define F_TRUE (G_FALSE+3)
+#define _F_TRUE TO_CAP(F_TRUE)
     { .t=Actor_T,       .x=RV_TRUE,     .y=NIL,         .z=UNDEF,       },  // (lambda _ #t)
 #define G_TRUE (F_TRUE+1)
+#define _G_TRUE TO_CAP(G_TRUE)
     { .t=Actor_T,       .x=G_TRUE+1,    .y=NIL,         .z=UNDEF,       },  // (peg-xform (lambda _ #t) (peg-eq 116))
-    { .t=Opcode_T,      .x=VM_push,     .y=F_TRUE,      .z=G_TRUE+2,    },  // func = F_TRUE
-    { .t=Opcode_T,      .x=VM_push,     .y=G_LWR_T,     .z=G_XLAT_B,    },  // ptrn = (peg-eq 116)
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_TRUE,     .z=G_TRUE+2,    },  // func = F_TRUE
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_LWR_T,    .z=G_XLAT_B,    },  // ptrn = (peg-eq 116)
 
 #define F_UNDEF (G_TRUE+3)
+#define _F_UNDEF TO_CAP(F_UNDEF)
     { .t=Actor_T,       .x=RV_UNDEF,    .y=NIL,         .z=UNDEF,       },  // (lambda _ #?)
 #define G_UNDEF (F_UNDEF+1)
+#define _G_UNDEF TO_CAP(G_UNDEF)
     { .t=Actor_T,       .x=G_UNDEF+1,   .y=NIL,         .z=UNDEF,       },  // (peg-xform (lambda _ #?) (peg-eq 63))
-    { .t=Opcode_T,      .x=VM_push,     .y=F_UNDEF,     .z=G_UNDEF+2,   },  // func = F_UNDEF
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QMARK,     .z=G_XLAT_B,    },  // ptrn = G_QMARK
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_UNDEF,    .z=G_UNDEF+2,   },  // func = F_UNDEF
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QMARK,    .z=G_XLAT_B,    },  // ptrn = G_QMARK
 
 #define F_UNIT (G_UNDEF+3)
+#define _F_UNIT TO_CAP(F_UNIT)
     { .t=Actor_T,       .x=RV_UNIT,     .y=NIL,         .z=UNDEF,       },  // (lambda _ #unit)
 #define G_UNIT (F_UNIT+1)
+#define _G_UNIT TO_CAP(G_UNIT)
+#define _G_UNIT2 TO_CAP(G_UNIT+3)
+#define _G_UNIT3 TO_CAP(G_UNIT+6)
+#define _G_UNIT4 TO_CAP(G_UNIT+9)
     { .t=Actor_T,       .x=G_UNIT+1,    .y=NIL,         .z=UNDEF,       },  // (peg-xform (lambda _ #unit) <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_UNIT,      .z=G_UNIT+2,    },  // func = F_UNIT
-    { .t=Opcode_T,      .x=VM_push,     .y=G_UNIT+3,    .z=G_XLAT_B,    },  // ptrn = (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116))
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_UNIT,     .z=G_UNIT+2,    },  // func = F_UNIT
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_UNIT2,    .z=G_XLAT_B,    },  // ptrn = (peg-seq (peg-eq 117) (peg-eq 110) (peg-eq 105) (peg-eq 116))
 
     { .t=Actor_T,       .x=G_UNIT+4,    .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_LWR_U,     .z=G_UNIT+5,    },  // first = (peg-eq 117)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_UNIT+6,    .z=G_AND_B,     },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_LWR_U,    .z=G_UNIT+5,    },  // first = (peg-eq 117)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_UNIT3,    .z=G_AND_B,     },  // rest
 
     { .t=Actor_T,       .x=G_UNIT+7,    .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_LWR_N,     .z=G_UNIT+8,    },  // first = (peg-eq 110)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_UNIT+9,    .z=G_AND_B,     },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_LWR_N,    .z=G_UNIT+8,    },  // first = (peg-eq 110)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_UNIT4,    .z=G_AND_B,     },  // rest
 
     { .t=Actor_T,       .x=G_UNIT+10,   .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_LWR_I,     .z=G_UNIT+11,   },  // first = (peg-eq 105)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_LWR_T,     .z=G_AND_B,     },  // rest = (peg-eq 116)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_LWR_I,    .z=G_UNIT+11,   },  // first = (peg-eq 105)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_LWR_T,    .z=G_AND_B,     },  // rest = (peg-eq 116)
 
 #define G_RAWINT (G_UNIT+12)
+#define _G_RAWINT TO_CAP(G_RAWINT)
     { .t=Actor_T,       .x=G_RAWINT+1,  .y=NIL,         .z=UNDEF,       },  // (peg-xform fix->int (peg-eq 102))
     { .t=Opcode_T,      .x=VM_push,     .y=F_FIX_INT,   .z=G_RAWINT+2,  },  // func = F_FIX_INT
-    { .t=Opcode_T,      .x=VM_push,     .y=G_NUMBER,    .z=G_XLAT_B,    },  // ptrn = lex-number
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_NUMBER,   .z=G_XLAT_B,    },  // ptrn = lex-number
 
 #define G_CONST (G_RAWINT+3)
+#define _G_CONST TO_CAP(G_CONST)
+#define _G_CONST2 TO_CAP(G_CONST+3)
+#define _G_CONST3 TO_CAP(G_CONST+6)
+#define _G_CONST4 TO_CAP(G_CONST+9)
+#define _G_CONST5 TO_CAP(G_CONST+12)
+#define _G_CONST6 TO_CAP(G_CONST+15)
+#define _G_CONST7 TO_CAP(G_CONST+18)
     { .t=Actor_T,       .x=G_CONST+1,   .y=NIL,         .z=UNDEF,       },  // (peg-xform cadr <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_CADR,      .z=G_CONST+2,   },  // func = F_CADR
-    { .t=Opcode_T,      .x=VM_push,     .y=G_CONST+3,   .z=G_XLAT_B,    },  // ptrn = (peg-seq (peg-eq 35) (peg-alt ...) lex-eot)
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_CADR,     .z=G_CONST+2,   },  // func = F_CADR
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_CONST2,   .z=G_XLAT_B,    },  // ptrn = (peg-seq (peg-eq 35) (peg-alt ...) lex-eot)
 
     { .t=Actor_T,       .x=G_CONST+4,   .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_HASH,      .z=G_CONST+5,   },  // first = (peg-eq 35)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_CONST+6,   .z=G_AND_B,     },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_HASH,     .z=G_CONST+5,   },  // first = (peg-eq 35)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_CONST3,   .z=G_AND_B,     },  // rest
 
     { .t=Actor_T,       .x=G_CONST+7,   .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_CONST+9,   .z=G_CONST+8,   },  // first = (peg-alt G_FALSE G_TRUE G_UNDEF G_UNIT)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EOT,       .z=G_AND_B,     },  // rest = lex-eot
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_CONST4,   .z=G_CONST+8,   },  // first = (peg-alt G_FALSE G_TRUE G_UNDEF G_UNIT)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EOT,      .z=G_AND_B,     },  // rest = lex-eot
 
     { .t=Actor_T,       .x=G_CONST+10,  .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_FALSE,     .z=G_CONST+11,  },  // first = G_FALSE
-    { .t=Opcode_T,      .x=VM_push,     .y=G_CONST+12,  .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_FALSE,    .z=G_CONST+11,  },  // first = G_FALSE
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_CONST5,   .z=G_OR_B,      },  // rest
 
     { .t=Actor_T,       .x=G_CONST+13,  .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_TRUE,      .z=G_CONST+14,  },  // first = G_TRUE
-    { .t=Opcode_T,      .x=VM_push,     .y=G_CONST+15,  .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_TRUE,     .z=G_CONST+14,  },  // first = G_TRUE
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_CONST6,   .z=G_OR_B,      },  // rest
 
     { .t=Actor_T,       .x=G_CONST+16,  .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_UNDEF,     .z=G_CONST+17,  },  // first = G_UNDEF
-    { .t=Opcode_T,      .x=VM_push,     .y=G_CONST+18,  .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_UNDEF,    .z=G_CONST+17,  },  // first = G_UNDEF
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_CONST7,   .z=G_OR_B,      },  // rest
 
 #if RAWINT_SYNTAX
     { .t=Actor_T,       .x=G_CONST+19,  .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_UNIT,      .z=G_CONST+20,  },  // first = G_UNIT
-    { .t=Opcode_T,      .x=VM_push,     .y=G_RAWINT,    .z=G_OR_B,      },  // rest = G_RAWINT
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_UNIT,     .z=G_CONST+20,  },  // first = G_UNIT
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_RAWINT,   .z=G_OR_B,      },  // rest = G_RAWINT
 #else
     { .t=Actor_T,       .x=G_CONST+19,  .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_UNIT,      .z=G_CONST+20,  },  // first = G_UNIT
-    { .t=Opcode_T,      .x=VM_push,     .y=G_FAIL,      .z=G_OR_B,      },  // rest = G_FAIL
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_UNIT,     .z=G_CONST+20,  },  // first = G_UNIT
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_FAIL,     .z=G_OR_B,      },  // rest = G_FAIL
 #endif
 
 /*
 (define scm-symbol (peg-xform list->symbol (peg-plus (peg-class DGT UPR LWR SYM))))
 */
 #define G_SYMBOL (G_CONST+21)
+#define _G_SYMBOL TO_CAP(G_SYMBOL)
+#define _G_SYMBOL2 TO_CAP(G_SYMBOL+3)
     { .t=Actor_T,       .x=G_SYMBOL+1,  .y=NIL,         .z=UNDEF,       },  // (peg-xform list->symbol <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_LST_SYM,   .z=G_SYMBOL+2,  },  // func = F_LST_SYM
-    { .t=Opcode_T,      .x=VM_push,     .y=G_SYMBOL+3,  .z=G_XLAT_B,    },  // ptrn = (peg-plus (peg-class DGT UPR LWR SYM))
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_LST_SYM,  .z=G_SYMBOL+2,  },  // func = F_LST_SYM
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_SYMBOL2,  .z=G_XLAT_B,    },  // ptrn = (peg-plus (peg-class DGT UPR LWR SYM))
 
     { .t=Actor_T,       .x=G_SYMBOL+4,  .y=NIL,         .z=UNDEF,       },  // (peg-plus <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_PRT,       .z=G_PLUS_B,    },  // ptrn = (peg-class DGT UPR LWR SYM)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_PRT,      .z=G_PLUS_B,    },  // ptrn = (peg-class DGT UPR LWR SYM)
 
 #define G_OPEN (G_SYMBOL+5)
+#define _G_OPEN TO_CAP(G_OPEN)
     { .t=Actor_T,       .x=G_OPEN+1,    .y=NIL,         .z=UNDEF,       },  // (peg-eq 40)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('('), .z=G_EQ_B,      },  // value = '(' = 40
 #define G_DOT (G_OPEN+2)
+#define _G_DOT TO_CAP(G_DOT)
     { .t=Actor_T,       .x=G_DOT+1,     .y=NIL,         .z=UNDEF,       },  // (peg-eq 46)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('.'), .z=G_EQ_B,      },  // value = '.' = 46
 #define G_CLOSE (G_DOT+2)
+#define _G_CLOSE TO_CAP(G_CLOSE)
     { .t=Actor_T,       .x=G_CLOSE+1,   .y=NIL,         .z=UNDEF,       },  // (peg-eq 41)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(')'), .z=G_EQ_B,      },  // value = ')' = 41
 #define G_QUOTE (G_CLOSE+2)
+#define _G_QUOTE TO_CAP(G_QUOTE)
     { .t=Actor_T,       .x=G_QUOTE+1,   .y=NIL,         .z=UNDEF,       },  // (peg-eq 39)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('\''),.z=G_EQ_B,      },  // value = '\'' = 39
 #define G_BQUOTE (G_QUOTE+2)
+#define _G_BQUOTE TO_CAP(G_BQUOTE)
     { .t=Actor_T,       .x=G_BQUOTE+1,  .y=NIL,         .z=UNDEF,       },  // (peg-eq 96)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('`'), .z=G_EQ_B,      },  // value = '`' = 96
 #define G_COMMA (G_BQUOTE+2)
+#define _G_COMMA TO_CAP(G_COMMA)
     { .t=Actor_T,       .x=G_COMMA+1,   .y=NIL,         .z=UNDEF,       },  // (peg-eq 44)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX(','), .z=G_EQ_B,      },  // value = ',' = 44
 #define G_AT (G_COMMA+2)
+#define _G_AT TO_CAP(G_AT)
     { .t=Actor_T,       .x=G_AT+1,      .y=NIL,         .z=UNDEF,       },  // (peg-eq 64)
     { .t=Opcode_T,      .x=VM_push,     .y=TO_FIX('@'), .z=G_EQ_B,      },  // value = '@' = 64
 
@@ -3149,6 +3289,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
   ))
 */
 #define F_QUOTED (G_AT+2)
+#define _F_QUOTED TO_CAP(F_QUOTED)
     { .t=Actor_T,       .x=F_QUOTED+1,  .y=NIL,         .z=UNDEF,       },  // (lambda (x) (list 'quote (cdr x)))
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=F_QUOTED+2,  },  // ()
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_QUOTED+3,  },  // arg1
@@ -3156,6 +3297,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_push,     .y=S_QUOTE,     .z=F_QUOTED+5,  },  // S_QUOTE
     { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=CUST_SEND,   },  // (S_QUOTE value)
 #define F_QQUOTED (F_QUOTED+6)
+#define _F_QQUOTED TO_CAP(F_QQUOTED)
     { .t=Actor_T,       .x=F_QQUOTED+1, .y=NIL,         .z=UNDEF,       },  // (lambda (x) (list 'quasiquote (cdr x)))
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=F_QQUOTED+2, },  // ()
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_QQUOTED+3, },  // arg1
@@ -3163,6 +3305,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_push,     .y=S_QQUOTE,    .z=F_QQUOTED+5, },  // S_QQUOTE
     { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=CUST_SEND,   },  // (S_QQUOTE value)
 #define F_UNQUOTED (F_QQUOTED+6)
+#define _F_UNQUOTED TO_CAP(F_UNQUOTED)
     { .t=Actor_T,       .x=F_UNQUOTED+1,.y=NIL,         .z=UNDEF,       },  // (lambda (x) (list 'unquote (cdr x)))
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=F_UNQUOTED+2,},  // ()
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_UNQUOTED+3,},  // arg1
@@ -3170,6 +3313,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_push,     .y=S_UNQUOTE,   .z=F_UNQUOTED+5,},  // S_UNQUOTE
     { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=CUST_SEND,   },  // (S_UNQUOTE value)
 #define F_QSPLICED (F_UNQUOTED+6)
+#define _F_QSPLICED TO_CAP(F_QSPLICED)
     { .t=Actor_T,       .x=F_QSPLICED+1,.y=NIL,         .z=UNDEF,       },  // (lambda (x) (list 'unquote-splicing (cddr x)))
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=F_QSPLICED+2,},  // ()
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_QSPLICED+3,},  // arg1
@@ -3177,6 +3321,7 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_push,     .y=S_QSPLICE,   .z=F_QSPLICED+5,},  // S_QSPLICE
     { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=CUST_SEND,   },  // (S_QSPLICE value)
 #define F_PLACEHD (F_QSPLICED+6)
+#define _F_PLACEHD TO_CAP(F_PLACEHD)
     { .t=Actor_T,       .x=F_PLACEHD+1, .y=NIL,         .z=UNDEF,       },  // (lambda (x) (list 'placeholder (cdr x)))
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=F_PLACEHD+2, },  // ()
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(2),   .z=F_PLACEHD+3, },  // arg1
@@ -3184,109 +3329,145 @@ Star(pattern) = Or(Plus(pattern), Empty)
     { .t=Opcode_T,      .x=VM_push,     .y=S_PLACEH,    .z=F_PLACEHD+5, },  // S_PLACEH
     { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(2),   .z=CUST_SEND,   },  // (S_PLACEH value)
 #define F_NIL (F_PLACEHD+6)
+#define _F_NIL TO_CAP(F_NIL)
     { .t=Actor_T,       .x=RV_NIL,      .y=NIL,         .z=UNDEF,       },  // (lambda _ ())
 
 #define G_QUOTED (F_NIL+1)
+#define _G_QUOTED TO_CAP(G_QUOTED)
+#define _G_QUOTED2 TO_CAP(G_QUOTED+3)
+#define _G_QUOTED3 TO_CAP(G_QUOTED+6)
+#define _G_QUOTED4 TO_CAP(G_QUOTED+9)
+#define _G_QUOTED5 TO_CAP(G_QUOTED+12)
+#define _G_QUOTED6 TO_CAP(G_QUOTED+15)
+#define _G_QUOTED7 TO_CAP(G_QUOTED+18)
+#define _G_QUOTED8 TO_CAP(G_QUOTED+21)
+#define _G_QUOTED9 TO_CAP(G_QUOTED+24)
+#define _G_QUOTED10 TO_CAP(G_QUOTED+27)
+#define _G_QUOTED11 TO_CAP(G_QUOTED+30)
+#define _G_QUOTED12 TO_CAP(G_QUOTED+33)
+#define _G_QUOTED13 TO_CAP(G_QUOTED+36)
+#define _G_QUOTED14 TO_CAP(G_QUOTED+39)
+#define _G_QUOTED15 TO_CAP(G_QUOTED+42)
 #define G_DOTTED (G_QUOTED+45)
+#define _G_DOTTED TO_CAP(G_DOTTED)
+#define _G_DOTTED2 TO_CAP(G_DOTTED+3)
+#define _G_DOTTED3 TO_CAP(G_DOTTED+6)
+#define _G_DOTTED4 TO_CAP(G_DOTTED+9)
+#define _G_DOTTED5 TO_CAP(G_DOTTED+12)
 #define G_TAIL (G_DOTTED+15)
+#define _G_TAIL TO_CAP(G_TAIL)
+#define _G_TAIL2 TO_CAP(G_TAIL+3)
+#define _G_TAIL3 TO_CAP(G_TAIL+6)
+#define _G_TAIL4 TO_CAP(G_TAIL+9)
+#define _G_TAIL5 TO_CAP(G_TAIL+12)
+#define _G_TAIL6 TO_CAP(G_TAIL+15)
 #define G_LIST (G_TAIL+18)
+#define _G_LIST TO_CAP(G_LIST)
+#define _G_LIST2 TO_CAP(G_LIST+3)
 #define G_EXPR (G_LIST+6)
+#define _G_EXPR TO_CAP(G_EXPR)
+#define _G_EXPR2 TO_CAP(G_EXPR+3)
+#define _G_EXPR3 TO_CAP(G_EXPR+6)
+#define _G_EXPR4 TO_CAP(G_EXPR+9)
+#define _G_EXPR5 TO_CAP(G_EXPR+12)
 #define G_SEXPR (G_EXPR+15)
+#define _G_SEXPR TO_CAP(G_SEXPR)
+#define _G_SEXPR2 TO_CAP(G_SEXPR+3)
     { .t=Actor_T,       .x=G_QUOTED+1,  .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+3,  .z=G_QUOTED+2,  },  // first
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED2,  .z=G_QUOTED+2,  },  // first
 #if PLACEH_SYNTAX
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+36, .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED13, .z=G_OR_B,      },  // rest
 #else
 #if QQUOTE_SYNTAX
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+9,  .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED4,  .z=G_OR_B,      },  // rest
 #else
-    { .t=Opcode_T,      .x=VM_push,     .y=G_FAIL,      .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_FAIL,     .z=G_OR_B,      },  // rest
 #endif
 #endif
 
     { .t=Actor_T,       .x=G_QUOTED+4,  .y=NIL,         .z=UNDEF,       },  // (peg-xform <func> <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_QUOTED,    .z=G_QUOTED+5,  },  // func
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+6,  .z=G_XLAT_B,    },  // ptrn
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_QUOTED,   .z=G_QUOTED+5,  },  // func
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED3,  .z=G_XLAT_B,    },  // ptrn
 
     { .t=Actor_T,       .x=G_QUOTED+7,  .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTE,     .z=G_QUOTED+8,  },  // first = (peg-eq 39)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_SEXPR,     .z=G_AND_B,     },  // rest = scm-expr
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTE,    .z=G_QUOTED+8,  },  // first = (peg-eq 39)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_SEXPR,    .z=G_AND_B,     },  // rest = scm-expr
 
     { .t=Actor_T,       .x=G_QUOTED+10, .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+12, .z=G_QUOTED+11, },  // first
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+18, .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED5,  .z=G_QUOTED+11, },  // first
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED7,  .z=G_OR_B,      },  // rest
 
     { .t=Actor_T,       .x=G_QUOTED+13, .y=NIL,         .z=UNDEF,       },  // (peg-xform <func> <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_QQUOTED,   .z=G_QUOTED+14, },  // func
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+15, .z=G_XLAT_B,    },  // ptrn
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_QQUOTED,  .z=G_QUOTED+14, },  // func
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED6,  .z=G_XLAT_B,    },  // ptrn
 
     { .t=Actor_T,       .x=G_QUOTED+16, .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_BQUOTE,    .z=G_QUOTED+17, },  // first = (peg-eq 96)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_SEXPR,     .z=G_AND_B,     },  // rest = scm-expr
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_BQUOTE,   .z=G_QUOTED+17, },  // first = (peg-eq 96)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_SEXPR,    .z=G_AND_B,     },  // rest = scm-expr
 
     { .t=Actor_T,       .x=G_QUOTED+19, .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+21, .z=G_QUOTED+20, },  // first
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+30, .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED8,  .z=G_QUOTED+20, },  // first
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED11, .z=G_OR_B,      },  // rest
 
     { .t=Actor_T,       .x=G_QUOTED+22, .y=NIL,         .z=UNDEF,       },  // (peg-xform <func> <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_QSPLICED,  .z=G_QUOTED+23, },  // func
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+24, .z=G_XLAT_B,    },  // ptrn
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_QSPLICED, .z=G_QUOTED+23, },  // func
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED9,  .z=G_XLAT_B,    },  // ptrn
 
     { .t=Actor_T,       .x=G_QUOTED+25, .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_COMMA,     .z=G_QUOTED+26, },  // first = (peg-eq 44)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+27, .z=G_AND_B,     },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_COMMA,    .z=G_QUOTED+26, },  // first = (peg-eq 44)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED10, .z=G_AND_B,     },  // rest
 
     { .t=Actor_T,       .x=G_QUOTED+28, .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_AT,        .z=G_QUOTED+29, },  // first = (peg-eq 64)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_SEXPR,     .z=G_AND_B,     },  // rest = scm-expr
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_AT,       .z=G_QUOTED+29, },  // first = (peg-eq 64)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_SEXPR,    .z=G_AND_B,     },  // rest = scm-expr
 
     { .t=Actor_T,       .x=G_QUOTED+31, .y=NIL,         .z=UNDEF,       },  // (peg-xform <func> <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_UNQUOTED,  .z=G_QUOTED+32, },  // func
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+33, .z=G_XLAT_B,    },  // ptrn
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_UNQUOTED, .z=G_QUOTED+32, },  // func
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED12, .z=G_XLAT_B,    },  // ptrn
 
     { .t=Actor_T,       .x=G_QUOTED+34, .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_COMMA,     .z=G_QUOTED+35, },  // first = (peg-eq 44)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_SEXPR,     .z=G_AND_B,     },  // rest = scm-expr
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_COMMA,    .z=G_QUOTED+35, },  // first = (peg-eq 44)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_SEXPR,    .z=G_AND_B,     },  // rest = scm-expr
 
     { .t=Actor_T,       .x=G_QUOTED+37, .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+39, .z=G_QUOTED+38, },  // first
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED14, .z=G_QUOTED+38, },  // first
 #if QQUOTE_SYNTAX
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+9,  .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED4,  .z=G_OR_B,      },  // rest
 #else
-    { .t=Opcode_T,      .x=VM_push,     .y=G_FAIL,      .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_FAIL,     .z=G_OR_B,      },  // rest
 #endif
 
     { .t=Actor_T,       .x=G_QUOTED+40, .y=NIL,         .z=UNDEF,       },  // (peg-xform <func> <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_PLACEHD,   .z=G_QUOTED+41, },  // func
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED+42, .z=G_XLAT_B,    },  // ptrn
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_PLACEHD,  .z=G_QUOTED+41, },  // func
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED15, .z=G_XLAT_B,    },  // ptrn
 
     { .t=Actor_T,       .x=G_QUOTED+43, .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QMARK,     .z=G_QUOTED+44, },  // first = (peg-eq 63)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_SEXPR,     .z=G_AND_B,     },  // rest = scm-expr
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QMARK,    .z=G_QUOTED+44, },  // first = (peg-eq 63)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_SEXPR,    .z=G_AND_B,     },  // rest = scm-expr
 
 /*
 (define scm-dotted (peg-xform caddr
   (peg-seq scm-optwsp (peg-eq 46) (peg-call scm-sexpr) scm-optwsp (peg-eq 41))))
 */
     { .t=Actor_T,       .x=G_DOTTED+1,  .y=NIL,         .z=UNDEF,       },  // (peg-xform <func> <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_CADDR,     .z=G_DOTTED+2,  },  // func = caddr
-    { .t=Opcode_T,      .x=VM_push,     .y=G_DOTTED+3,  .z=G_XLAT_B,    },  // ptrn
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_CADDR,    .z=G_DOTTED+2,  },  // func = caddr
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_DOTTED2,  .z=G_XLAT_B,    },  // ptrn
 
     { .t=Actor_T,       .x=G_DOTTED+4,  .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_OPTWSP,    .z=G_DOTTED+5,  },  // first = scm-optwsp
-    { .t=Opcode_T,      .x=VM_push,     .y=G_DOTTED+6,  .z=G_AND_B,     },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_OPTWSP,   .z=G_DOTTED+5,  },  // first = scm-optwsp
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_DOTTED3,  .z=G_AND_B,     },  // rest
 
     { .t=Actor_T,       .x=G_DOTTED+7,  .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_DOT,       .z=G_DOTTED+8,  },  // first = (peg-eq 46)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_DOTTED+9,  .z=G_AND_B,     },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_DOT,      .z=G_DOTTED+8,  },  // first = (peg-eq 46)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_DOTTED4,  .z=G_AND_B,     },  // rest
 
     { .t=Actor_T,       .x=G_DOTTED+10, .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_SEXPR,     .z=G_DOTTED+11, },  // first = scm-sexpr
-    { .t=Opcode_T,      .x=VM_push,     .y=G_DOTTED+12, .z=G_AND_B,     },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_SEXPR,    .z=G_DOTTED+11, },  // first = scm-sexpr
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_DOTTED5,  .z=G_AND_B,     },  // rest
 
     { .t=Actor_T,       .x=G_DOTTED+13, .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_OPTWSP,    .z=G_DOTTED+14, },  // first = scm-optwsp
-    { .t=Opcode_T,      .x=VM_push,     .y=G_CLOSE,     .z=G_AND_B,     },  // rest = (peg-eq 41)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_OPTWSP,   .z=G_DOTTED+14, },  // first = scm-optwsp
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_CLOSE,    .z=G_AND_B,     },  // rest = (peg-eq 41)
 
 /*
 (define scm-tail (peg-xform cdr (peg-and
@@ -3298,84 +3479,87 @@ Star(pattern) = Or(Plus(pattern), Empty)
       (peg-or scm-dotted (peg-call scm-tail)) )) )))
 */
     { .t=Actor_T,       .x=G_TAIL+1,    .y=NIL,         .z=UNDEF,       },  // (peg-xform <func> <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_CDR,       .z=G_TAIL+2,    },  // func = cdr
-    { .t=Opcode_T,      .x=VM_push,     .y=G_TAIL+3,    .z=G_XLAT_B,    },  // ptrn
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_CDR,      .z=G_TAIL+2,    },  // func = cdr
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_TAIL2,    .z=G_XLAT_B,    },  // ptrn
 
     { .t=Actor_T,       .x=G_TAIL+4,    .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_OPTWSP,    .z=G_TAIL+5,    },  // first = scm-optwsp
-    { .t=Opcode_T,      .x=VM_push,     .y=G_TAIL+6,    .z=G_AND_B,     },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_OPTWSP,   .z=G_TAIL+5,    },  // first = scm-optwsp
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_TAIL3,    .z=G_AND_B,     },  // rest
 
     { .t=Actor_T,       .x=G_TAIL+7,    .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_TAIL+9,    .z=G_TAIL+8,    },  // first = (peg-xform ...)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_TAIL+12,   .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_TAIL4,    .z=G_TAIL+8,    },  // first = (peg-xform ...)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_TAIL5,    .z=G_OR_B,      },  // rest
 
     { .t=Actor_T,       .x=G_TAIL+10,   .y=NIL,         .z=UNDEF,       },  // (peg-xform <func> <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_NIL,       .z=G_TAIL+11,   },  // func = (lambda _ ())
-    { .t=Opcode_T,      .x=VM_push,     .y=G_CLOSE,     .z=G_XLAT_B,    },  // ptrn = (peg-eq 41)
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_NIL,      .z=G_TAIL+11,   },  // func = (lambda _ ())
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_CLOSE,    .z=G_XLAT_B,    },  // ptrn = (peg-eq 41)
 
     { .t=Actor_T,       .x=G_TAIL+13,   .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EXPR,      .z=G_TAIL+14,   },  // first = scm-expr
-    { .t=Opcode_T,      .x=VM_push,     .y=G_TAIL+15,   .z=G_AND_B,     },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EXPR,     .z=G_TAIL+14,   },  // first = scm-expr
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_TAIL6,    .z=G_AND_B,     },  // rest
 
     { .t=Actor_T,       .x=G_TAIL+16,   .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_DOTTED,    .z=G_TAIL+17,   },  // first = scm-dotted
-    { .t=Opcode_T,      .x=VM_push,     .y=G_TAIL,      .z=G_OR_B,      },  // rest = scm-tail
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_DOTTED,   .z=G_TAIL+17,   },  // first = scm-dotted
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_TAIL,     .z=G_OR_B,      },  // rest = scm-tail
 
 /*
 (define scm-list (peg-xform cdr (peg-and (peg-eq 40) scm-tail)))
 */
     { .t=Actor_T,       .x=G_LIST+1,    .y=NIL,         .z=UNDEF,       },  // (peg-xform <func> <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_CDR,       .z=G_LIST+2,    },  // func = cdr
-    { .t=Opcode_T,      .x=VM_push,     .y=G_LIST+3,    .z=G_XLAT_B,    },  // ptrn
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_CDR,      .z=G_LIST+2,    },  // func = cdr
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_LIST2,    .z=G_XLAT_B,    },  // ptrn
 
     { .t=Actor_T,       .x=G_LIST+4,    .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_OPEN,      .z=G_LIST+5,    },  // first = (peg-eq 40)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_TAIL,      .z=G_AND_B,     },  // rest = scm-tail
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_OPEN,     .z=G_LIST+5,    },  // first = (peg-eq 40)
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_TAIL,     .z=G_AND_B,     },  // rest = scm-tail
 
 /*
 (define scm-expr (peg-alt scm-list scm-ignore scm-const lex-number scm-quoted scm-symbol))
 */
     { .t=Actor_T,       .x=G_EXPR+1,    .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_LIST,      .z=G_EXPR+2,    },  // first = scm-list
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EXPR+3,    .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_LIST,     .z=G_EXPR+2,    },  // first = scm-list
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EXPR2,    .z=G_OR_B,      },  // rest
 
     { .t=Actor_T,       .x=G_EXPR+4,    .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_IGN,       .z=G_EXPR+5,    },  // first = scm-ignore
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EXPR+6,    .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_IGN,      .z=G_EXPR+5,    },  // first = scm-ignore
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EXPR3,    .z=G_OR_B,      },  // rest
 
     { .t=Actor_T,       .x=G_EXPR+7,    .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_CONST,     .z=G_EXPR+8,    },  // first = scm-const
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EXPR+9,    .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_CONST,    .z=G_EXPR+8,    },  // first = scm-const
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EXPR4,    .z=G_OR_B,      },  // rest
 
     { .t=Actor_T,       .x=G_EXPR+10,   .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_NUMBER,    .z=G_EXPR+11,   },  // first = lex-number
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EXPR+12,   .z=G_OR_B,      },  // rest
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_NUMBER,   .z=G_EXPR+11,   },  // first = lex-number
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EXPR5,   .z=G_OR_B,      },  // rest
 
     { .t=Actor_T,       .x=G_EXPR+13,   .y=NIL,         .z=UNDEF,       },  // (peg-or <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_QUOTED,    .z=G_EXPR+14,   },  // first = scm-quoted
-    { .t=Opcode_T,      .x=VM_push,     .y=G_SYMBOL,    .z=G_OR_B,      },  // rest = scm-symbol
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_QUOTED,   .z=G_EXPR+14,   },  // first = scm-quoted
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_SYMBOL,   .z=G_OR_B,      },  // rest = scm-symbol
 
 /*
 (define scm-sexpr (peg-xform cdr (peg-and scm-optwsp scm-expr)))
 */
     { .t=Actor_T,       .x=G_SEXPR+1,   .y=NIL,         .z=UNDEF,       },  // (peg-xform <func> <ptrn>)
-    { .t=Opcode_T,      .x=VM_push,     .y=F_CDR,       .z=G_SEXPR+2,   },  // func = cdr
-    { .t=Opcode_T,      .x=VM_push,     .y=G_SEXPR+3,   .z=G_XLAT_B,    },  // ptrn
+    { .t=Opcode_T,      .x=VM_push,     .y=_F_CDR,      .z=G_SEXPR+2,   },  // func = cdr
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_SEXPR2,   .z=G_XLAT_B,    },  // ptrn
 
     { .t=Actor_T,       .x=G_SEXPR+4,   .y=NIL,         .z=UNDEF,       },  // (peg-and <first> <rest>)
-    { .t=Opcode_T,      .x=VM_push,     .y=G_OPTWSP,    .z=G_SEXPR+5,   },  // first = scm-optwsp
-    { .t=Opcode_T,      .x=VM_push,     .y=G_EXPR,      .z=G_AND_B,     },  // rest = scm-expr
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_OPTWSP,   .z=G_SEXPR+5,   },  // first = scm-optwsp
+    { .t=Opcode_T,      .x=VM_push,     .y=_G_EXPR,     .z=G_AND_B,     },  // rest = scm-expr
 
 #define S_EMPTY (G_SEXPR+6)
+#define _S_EMPTY TO_CAP(S_EMPTY)
     { .t=Actor_T,       .x=S_EMPTY+1,   .y=NIL,         .z=UNDEF,       },
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=S_VALUE,     },  // ()
 
 #define A_PRINT (S_EMPTY+2)
+#define _A_PRINT TO_CAP(A_PRINT)
     { .t=Actor_T,       .x=A_PRINT+1,   .y=NIL,         .z=UNDEF,       },
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=A_PRINT+2,   },
     { .t=Opcode_T,      .x=VM_debug,    .y=TO_FIX(7331),.z=COMMIT,      },
 
 #define A_QUIT (A_PRINT+3)
+#define _A_QUIT TO_CAP(A_QUIT)
     { .t=Actor_T,       .x=A_QUIT+1,    .y=NIL,         .z=UNDEF,       },
     { .t=Opcode_T,      .x=VM_end,      .y=END_STOP,    .z=UNDEF,       },  // kill thread
 
@@ -3708,7 +3892,7 @@ static int_t gc_free_cell(int_t addr);  // FORWARD DECLARATION
 #define IS_EVENT(n) TYPEQ(Event_T,(n))
 #define IS_FREE(n)  TYPEQ(Free_T,(n))
 #define IS_PAIR(n)  TYPEQ(Pair_T,(n))
-#define IS_ACTOR(n) TYPEQ(Actor_T,(n))
+#define IS_ACTOR(v) (IS_CAP(v) && TYPEQ(Actor_T,TO_REF(v)))
 #define IS_FEXPR(n) TYPEQ(Fexpr_T,(n))
 #define IS_SYM(n)   TYPEQ(Symbol_T,(n))
 #define IS_CODE(n)  TYPEQ(Opcode_T,(n))
@@ -3747,6 +3931,9 @@ static void cell_reclaim(int_t addr) {
 }
 
 int_t cell_free(int_t addr) {
+    if (IS_CAP(addr)) {
+        addr = TO_REF(addr);
+    }
     ASSERT(IN_HEAP(addr));
     ASSERT(!IS_FREE(addr));  // prevent double-free
     cell_reclaim(addr);
@@ -3903,6 +4090,9 @@ static void gc_dump_map() {  // dump memory allocation map
 }
 
 static int_t gc_scan_cell(int_t addr) {  // mark cell be scanned
+    if (IS_CAP(addr)) {
+        addr = TO_REF(addr);
+    }
     if (IN_HEAP(addr)) {
         if (gc_marks[addr] == gc_prev_gen) {
             gc_marks[addr] = GC_SCAN;
@@ -3912,6 +4102,9 @@ static int_t gc_scan_cell(int_t addr) {  // mark cell be scanned
 }
 
 static int_t gc_mark_cell(int_t addr) {  // mark cell in-use
+    if (IS_CAP(addr)) {
+        addr = TO_REF(addr);
+    }
     if (IN_HEAP(addr)) {
         gc_marks[addr] = gc_next_gen;
         gc_scan_cell(get_t(addr));
@@ -3923,6 +4116,9 @@ static int_t gc_mark_cell(int_t addr) {  // mark cell in-use
 }
 
 static int_t gc_free_cell(int_t addr) {  // mark cell free
+    if (IS_CAP(addr)) {
+        addr = TO_REF(addr);
+    }
     if (IN_HEAP(addr)) {
         gc_marks[addr] = GC_FREE;
     }
@@ -4087,7 +4283,13 @@ static void gc_dump_map() {  // dump memory allocation map
 
 i32 gc_mark_cells(int_t val) {  // mark cells reachable from `val`
     i32 cnt = 0;
-    while (IN_HEAP(val)) {
+    while (1) {
+        if (IS_CAP(val)) {
+            val = TO_REF(val);
+        }
+        if (!IN_HEAP(val)) {
+            break;  // only gc heap quad-cells
+        }
         if (gc_get_mark(val)) {
             break;  // cell already marked
         }
@@ -4360,46 +4562,46 @@ int_t init_global_env() {
     sym_install(S_SELF);
 #endif
 
-    bind_global("peg-lang", G_SEXPR);  // language parser start symbol
-    bind_global("empty-env", EMPTY_ENV);
-    bind_global("global-env", GLOBAL_ENV);
+    bind_global("peg-lang", _G_SEXPR);  // language parser start symbol
+    bind_global("empty-env", _EMPTY_ENV);
+    bind_global("global-env", _GLOBAL_ENV);
 
-    bind_global("eval", M_EVAL);
-    bind_global("apply", M_APPLY);
+    bind_global("eval", _M_EVAL);
+    bind_global("apply", _M_APPLY);
     bind_global("quote", FX_QUOTE);
     bind_global("lambda", FX_LAMBDA);
     bind_global("vau", FX_VAU);
     bind_global("define", FX_DEFINE);
-    bind_global("zip", M_ZIP);
+    bind_global("zip", _M_ZIP);
     bind_global("if", FX_IF);
     bind_global("cond", FX_COND);
 #if !EVLIS_IS_PAR
     bind_global("par", FX_PAR);
 #endif
     bind_global("seq", FX_SEQ);
-    bind_global("list", F_LIST);
-    bind_global("cons", F_CONS);
-    bind_global("car", F_CAR);
-    bind_global("cdr", F_CDR);
-    bind_global("eq?", F_EQ_P);
-    bind_global("pair?", F_PAIR_P);
-    bind_global("symbol?", F_SYM_P);
-    bind_global("cadr", F_CADR);
-    bind_global("caddr", F_CADDR);
-    bind_global("nth", F_NTH);
-    bind_global("null?", F_NULL_P);
-    bind_global("boolean?", F_BOOL_P);
-    bind_global("number?", F_NUM_P);
-    bind_global("actor?", F_ACT_P);
-    bind_global("=", F_NUM_EQ);
-    bind_global("<", F_NUM_LT);
-    bind_global("<=", F_NUM_LE);
-    bind_global("+", F_NUM_ADD);
-    bind_global("-", F_NUM_SUB);
-    bind_global("*", F_NUM_MUL);
-    bind_global("list->number", F_LST_NUM);
-    bind_global("list->symbol", F_LST_SYM);
-    bind_global("print", F_PRINT);
+    bind_global("list", _F_LIST);
+    bind_global("cons", _F_CONS);
+    bind_global("car", _F_CAR);
+    bind_global("cdr", _F_CDR);
+    bind_global("eq?", _F_EQ_P);
+    bind_global("pair?", _F_PAIR_P);
+    bind_global("symbol?", _F_SYM_P);
+    bind_global("cadr", _F_CADR);
+    bind_global("caddr", _F_CADDR);
+    bind_global("nth", _F_NTH);
+    bind_global("null?", _F_NULL_P);
+    bind_global("boolean?", _F_BOOL_P);
+    bind_global("number?", _F_NUM_P);
+    bind_global("actor?", _F_ACT_P);
+    bind_global("=", _F_NUM_EQ);
+    bind_global("<", _F_NUM_LT);
+    bind_global("<=", _F_NUM_LE);
+    bind_global("+", _F_NUM_ADD);
+    bind_global("-", _F_NUM_SUB);
+    bind_global("*", _F_NUM_MUL);
+    bind_global("list->number", _F_LST_NUM);
+    bind_global("list->symbol", _F_LST_SYM);
+    bind_global("print", _F_PRINT);
 
 #if (SCM_PEG_TOOLS || SCM_ASM_TOOLS)
     bind_global("CTL", TO_FIX(CTL));
@@ -4413,45 +4615,45 @@ int_t init_global_env() {
 #endif
 
 #if SCM_PEG_TOOLS
-    bind_global("peg-empty", G_EMPTY);
-    bind_global("peg-fail", G_FAIL);
-    bind_global("peg-any", G_ANY);
-    bind_global("peg-eq", F_G_EQ);
-    bind_global("peg-or", F_G_OR);
-    bind_global("peg-and", F_G_AND);
-    bind_global("peg-not", F_G_NOT);
-    bind_global("peg-class", F_G_CLS);
-    bind_global("peg-opt", F_G_OPT);
-    bind_global("peg-plus", F_G_PLUS);
-    bind_global("peg-star", F_G_STAR);
-    bind_global("peg-alt", F_G_ALT);
-    bind_global("peg-seq", F_G_SEQ);
+    bind_global("peg-empty", _G_EMPTY);
+    bind_global("peg-fail", _G_FAIL);
+    bind_global("peg-any", _G_ANY);
+    bind_global("peg-eq", _F_G_EQ);
+    bind_global("peg-or", _F_G_OR);
+    bind_global("peg-and", _F_G_AND);
+    bind_global("peg-not", _F_G_NOT);
+    bind_global("peg-class", _F_G_CLS);
+    bind_global("peg-opt", _F_G_OPT);
+    bind_global("peg-plus", _F_G_PLUS);
+    bind_global("peg-star", _F_G_STAR);
+    bind_global("peg-alt", _F_G_ALT);
+    bind_global("peg-seq", _F_G_SEQ);
     bind_global("peg-call", FX_G_CALL);
-    bind_global("peg-pred", F_G_PRED);
-    bind_global("peg-xform", F_G_XFORM);
-    bind_global("peg-source", F_S_LIST);
-    bind_global("peg-start", F_G_START);
-    bind_global("peg-chain", F_S_CHAIN);
+    bind_global("peg-pred", _F_G_PRED);
+    bind_global("peg-xform", _F_G_XFORM);
+    bind_global("peg-source", _F_S_LIST);
+    bind_global("peg-start", _F_G_START);
+    bind_global("peg-chain", _F_S_CHAIN);
 
-    bind_global("peg-end", G_END);
-    bind_global("lex-eol", G_EOL);
-    bind_global("lex-optwsp", G_WSP_S);
-    bind_global("scm-to-eol", G_TO_EOL);
-    bind_global("scm-comment", G_COMMENT);
-    bind_global("scm-optwsp", G_OPTWSP);
-    bind_global("lex-eot", G_EOT);
-    bind_global("scm-const", G_CONST);
-    bind_global("lex-sign", G_SIGN);
-    bind_global("lex-digit", G_DIGIT);
-    bind_global("lex-digits", G_DIGITS);
-    bind_global("lex-number", G_NUMBER);
-    bind_global("scm-symbol", G_SYMBOL);
-    bind_global("scm-quoted", G_QUOTED);
-    bind_global("scm-dotted", G_DOTTED);
-    bind_global("scm-tail", G_TAIL);
-    bind_global("scm-list", G_LIST);
-    bind_global("scm-expr", G_EXPR);
-    bind_global("scm-sexpr", G_SEXPR);
+    bind_global("peg-end", _G_END);
+    bind_global("lex-eol", _G_EOL);
+    bind_global("lex-optwsp", _G_WSP_S);
+    bind_global("scm-to-eol", _G_TO_EOL);
+    bind_global("scm-comment", _G_COMMENT);
+    bind_global("scm-optwsp", _G_OPTWSP);
+    bind_global("lex-eot", _G_EOT);
+    bind_global("scm-const", _G_CONST);
+    bind_global("lex-sign", _G_SIGN);
+    bind_global("lex-digit", _G_DIGIT);
+    bind_global("lex-digits", _G_DIGITS);
+    bind_global("lex-number", _G_NUMBER);
+    bind_global("scm-symbol", _G_SYMBOL);
+    bind_global("scm-quoted", _G_QUOTED);
+    bind_global("scm-dotted", _G_DOTTED);
+    bind_global("scm-tail", _G_TAIL);
+    bind_global("scm-list", _G_LIST);
+    bind_global("scm-expr", _G_EXPR);
+    bind_global("scm-sexpr", _G_SEXPR);
 #endif // SCM_PEG_TOOLS
 
 #if SCM_ASM_TOOLS
@@ -4548,28 +4750,26 @@ int_t init_global_env() {
     bind_global("RV_ZERO", RV_ZERO);
     bind_global("RV_ONE", RV_ONE);
 
-    bind_global("int->fix", F_INT_FIX);
-    bind_global("fix->int", F_FIX_INT);
-    bind_global("cell", F_CELL);
-    bind_global("get-t", F_GET_T);
-    bind_global("get-x", F_GET_X);
-    bind_global("get-y", F_GET_Y);
-    bind_global("get-z", F_GET_Z);
-    bind_global("set-t", F_SET_T);
-    bind_global("set-x", F_SET_X);
-    bind_global("set-y", F_SET_Y);
-    bind_global("set-z", F_SET_Z);
+    bind_global("cell", _F_CELL);
+    bind_global("get-t", _F_GET_T);
+    bind_global("get-x", _F_GET_X);
+    bind_global("get-y", _F_GET_Y);
+    bind_global("get-z", _F_GET_Z);
+    bind_global("set-t", _F_SET_T);
+    bind_global("set-x", _F_SET_X);
+    bind_global("set-y", _F_SET_Y);
+    bind_global("set-z", _F_SET_Z);
 #endif //SCM_ASM_TOOLS
 
 #if META_ACTORS
     bind_global("BEH", FX_M_BEH);
-    bind_global("CREATE", F_CREATE);
-    bind_global("SEND", F_SEND);
-    bind_global("CALL", F_CALL);
+    bind_global("CREATE", _F_CREATE);
+    bind_global("SEND", _F_SEND);
+    bind_global("CALL", _F_CALL);
 #endif // META_ACTORS
 
-    bind_global("a-print", A_PRINT);
-    bind_global("quit", A_QUIT);
+    bind_global("a-print", _A_PRINT);
+    bind_global("quit", _A_QUIT);
     return UNIT;
 }
 
@@ -4586,7 +4786,7 @@ static long event_count = 0;
 #define event_q_empty() (!IS_EVENT(e_queue_head))
 
 int_t event_q_put(int_t event) {
-    //XTRACE(debug_print("event_q_put", event));
+    XTRACE(debug_print("event_q_put", event));
     ASSERT(IS_EVENT(event));
     ASSERT(IS_ACTOR(get_x(event)));
     set_z(event, NIL);
@@ -4602,6 +4802,7 @@ int_t event_q_put(int_t event) {
 int_t event_q_pop() {
     if (event_q_empty()) return UNDEF; // event queue empty
     int_t event = e_queue_head;
+    XTRACE(debug_print("event_q_pop", event));
     ASSERT(IS_EVENT(event));
     ASSERT(IS_ACTOR(get_x(event)));
     e_queue_head = get_z(event);
@@ -4645,6 +4846,7 @@ static long instruction_count = 0;
 int_t cont_q_put(int_t cont) {
     //XTRACE(debug_print("cont_q_put", cont));
     ASSERT(IN_HEAP(cont));
+    //XTRACE(debug_print("cont_q_put code", get_t(cont)));
     ASSERT(IS_CODE(get_t(cont)));
     set_z(cont, NIL);
     if (cont_q_empty()) {
@@ -4659,6 +4861,7 @@ int_t cont_q_put(int_t cont) {
 int_t cont_q_pop() {
     if (cont_q_empty()) return UNDEF; // cont queue empty
     int_t cont = k_queue_head;
+    //XTRACE(debug_print("cont_q_pop", cont));
     ASSERT(IN_HEAP(cont));
     k_queue_head = get_z(cont);
     set_z(cont, NIL);
@@ -4728,11 +4931,16 @@ int_t stack_pop() {
 int_t stack_clear() {
     int_t ep = GET_EP();
     int_t me = get_x(ep);
+    //XTRACE(debug_print("stack_clear me", me));
+    ASSERT(IS_ACTOR(me));
+    me = TO_REF(me);
     int_t stop = get_y(me);  // stop at new stack top
+    //XTRACE(debug_print("stack_clear stop", stop));
     int_t sp = GET_SP();
     sane = SANITY;
     while ((sp != stop) && IS_PAIR(sp)) {
         int_t rest = cdr(sp);
+        //XTRACE(debug_print("stack_clear free", sp));
         XFREE(sp);
         sp = rest;
         if (sane-- == 0) return panic("insane stack_clear");
@@ -4745,7 +4953,7 @@ typedef long clk_t;  // **MUST** be a _signed_ type to represent past/future
 static clk_t clk_ticks() {
     return (clk_t)clock();
 }
-int_t clk_handler = A_CLOCK;
+int_t clk_handler = _A_CLOCK;
 clk_t clk_timeout = 0;
 static int_t interrupt() {  // service interrupts (if any)
     clk_t now = clk_ticks();
@@ -4779,11 +4987,12 @@ static int_t dispatch() {  // dispatch next event (if any)
         return UNDEF;  // event queue empty
     }
     int_t event = event_q_pop();
-    XTRACE(debug_print("dispatch event", event));
+    //XTRACE(debug_print("dispatch event", event));
     ASSERT(IS_EVENT(event));
     int_t target = get_x(event);
     XTRACE(debug_print("dispatch target", target));
     ASSERT(IS_ACTOR(target));
+    target = TO_REF(target);
     if (get_z(target) != UNDEF) {  // target actor busy
 #if INCLUDE_DEBUG
         if (runtime_trace != FALSE) {
@@ -4794,7 +5003,10 @@ static int_t dispatch() {  // dispatch next event (if any)
         return FALSE;  // try busy actor later...
     }
     int_t ip = get_x(target);  // actor behavior (initial IP)
+    //XTRACE(debug_print("dispatch ip", ip));
+    ASSERT(IS_CODE(ip));
     int_t sp = get_y(target);  // actor state (initial SP)
+    //XTRACE(debug_print("dispatch sp", sp));
     ASSERT((sp == NIL) || IS_PAIR(sp));
     // begin actor transaction
     set_z(target, NIL);  // start with empty set of new events
@@ -4874,6 +5086,8 @@ PROC_DECL(vm_typeq) {
     int_t v = stack_pop();
     if (t == Fixnum_T) {
         v = (IS_FIX(v) ? TRUE : FALSE);
+    } else if (t == Actor_T) {
+        v = (IS_ACTOR(v) ? TRUE : FALSE);
     } else if (IS_CELL(v)) {
         v = ((t == get_t(v)) ? TRUE : FALSE);
     } else {
@@ -4894,6 +5108,10 @@ PROC_DECL(vm_cell) {
     if (n > 1) { x = stack_pop(); }
     int_t t = stack_pop();
     int_t v = cell_new(t, x, y, z);
+    if (t == Actor_T) {
+        // v = TO_CAP(v);
+        return error("use vm_new to create Actors");
+    }
     stack_push(v);
     return GET_CONT();
 }
@@ -4919,8 +5137,10 @@ PROC_DECL(vm_set) {
     int_t f = GET_IMMD();
     int_t v = stack_pop();
     int_t sp = GET_SP();
-    if (!IS_PAIR(sp)) return error("set requires a cell");
     int_t cell = car(sp);
+    if ((f == FLD_T) && (v == Actor_T)) {
+        return error("use vm_new to create Actors");
+    }
     if (IS_CELL(cell)) {
         switch (f) {
             case FLD_T:     set_t(cell, v);     break;
@@ -4929,6 +5149,8 @@ PROC_DECL(vm_set) {
             case FLD_Z:     set_z(cell, v);     break;
             default:        return error("unknown field");
         }
+    } else {
+        return error("set requires a cell");
     }
     return GET_CONT();
 }
@@ -5094,11 +5316,17 @@ PROC_DECL(vm_roll) {
 PROC_DECL(vm_alu) {
     int_t op = GET_IMMD();
     if (op == ALU_NOT) {  // special case for unary NOT
-        int_t n = TO_INT(stack_pop());
+        int_t n = stack_pop();
+        if (!IS_FIX(n)) return error("vm_alu requires Fixnum args");
+        n = TO_INT(n);
         stack_push(TO_FIX(~n));
     } else {
-        int_t m = TO_INT(stack_pop());
-        int_t n = TO_INT(stack_pop());
+        int_t m = stack_pop();
+        if (!IS_FIX(m)) return error("vm_alu requires Fixnum args");
+        m = TO_INT(m);
+        int_t n = stack_pop();
+        if (!IS_FIX(n)) return error("vm_alu requires Fixnum args");
+        n = TO_INT(n);
         switch (op) {
             case ALU_AND:   stack_push(TO_FIX(n & m));  break;
             case ALU_OR:    stack_push(TO_FIX(n | m));  break;
@@ -5130,8 +5358,12 @@ PROC_DECL(vm_cmp) {
         int_t n = stack_pop();
         stack_push((n != m) ? TRUE : FALSE);
     } else {                            // all other relations require numbers
-        int_t m = TO_INT(stack_pop());
-        int_t n = TO_INT(stack_pop());
+        int_t m = stack_pop();
+        if (!IS_FIX(m)) return error("vm_cmp relation requires Fixnum args");
+        m = TO_INT(m);
+        int_t n = stack_pop();
+        if (!IS_FIX(n)) return error("vm_cmp relation requires Fixnum args");
+        n = TO_INT(n);
         switch (rel) {
             case CMP_GE:    stack_push((n >= m) ? TRUE : FALSE);    break;
             case CMP_GT:    stack_push((n > m)  ? TRUE : FALSE);    break;
@@ -5170,11 +5402,13 @@ PROC_DECL(vm_msg) {
 PROC_DECL(vm_self) {
     int_t ep = GET_EP();
     int_t me = get_x(ep);
+    ASSERT(IS_ACTOR(me));
     stack_push(me);
     return GET_CONT();
 }
 
 static int_t pop_list(int_t n) {
+    // FIXME: repurpose cells from the stack instead of allocating new ones...
     int_t c;
     if (n > 0) {
         int_t h = stack_pop();
@@ -5186,16 +5420,19 @@ static int_t pop_list(int_t n) {
     return c;
 }
 PROC_DECL(vm_send) {
+    //XTRACE(debug_print("vm_send self", self));
     int_t n = TO_INT(GET_IMMD());
     int_t ep = GET_EP();
     int_t me = get_x(ep);
+    //XTRACE(debug_print("vm_send me", me));
+    ASSERT(IS_ACTOR(me));
+    me = TO_REF(me);
     int_t a = stack_pop();  // target
-#if 0
+    //XTRACE(debug_print("vm_send target", a));
     if (!IS_ACTOR(a)) {
         set_y(me, UNDEF);  // abort actor transaction
-        return error("SEND requires an Actor");
+        return error("vm_send requires an Actor");
     }
-#endif
     int_t m = NIL;
     if (n == 0) {
         m = stack_pop();  // message
@@ -5206,6 +5443,7 @@ PROC_DECL(vm_send) {
     }
     int_t ev = cell_new(Event_T, a, m, get_z(me));
     set_z(me, ev);
+    //XTRACE(debug_print("vm_send event", ev));
     return GET_CONT();
 }
 
@@ -5213,6 +5451,7 @@ PROC_DECL(vm_new) {
     int_t n = TO_INT(GET_IMMD());
     if (n < 0) return error("vm_new (n < 0) invalid");
     int_t ip = stack_pop();  // behavior
+    ASSERT(IS_CODE(ip));
 #if 0
     while (n--) {
         // compose behavior
@@ -5237,6 +5476,9 @@ PROC_DECL(vm_new) {
     }
     int_t a = cell_new(Actor_T, ip, sp, UNDEF);
 #endif
+    if (IN_HEAP(a)) {
+        a = TO_CAP(a);
+    }
     stack_push(a);
     return GET_CONT();
 }
@@ -5246,7 +5488,11 @@ PROC_DECL(vm_beh) {
     if (n < 0) return error("vm_beh (n < 0) invalid");
     int_t ep = GET_EP();
     int_t me = get_x(ep);
+    //XTRACE(debug_print("vm_beh me", me));
+    ASSERT(IS_ACTOR(me));
+    me = TO_REF(me);
     int_t ip = stack_pop();  // behavior
+    ASSERT(IS_CODE(ip));
     set_x(me, ip);
     if (n > 0) {
         int_t sp = GET_SP();
@@ -5263,6 +5509,7 @@ PROC_DECL(vm_beh) {
     } else {
         set_y(me, NIL);
     }
+    //XTRACE(debug_print("vm_beh me'", me));
     return GET_CONT();
 }
 
@@ -5271,6 +5518,9 @@ PROC_DECL(vm_end) {
     int_t m = TO_INT(n);
     int_t ep = GET_EP();
     int_t me = get_x(ep);
+    //XTRACE(debug_print("vm_end me", me));
+    ASSERT(IS_ACTOR(me));
+    me = TO_REF(me);
     int_t rv = UNIT;  // STOP
     if (m < 0) {  // ABORT
         int_t r = stack_pop();  // reason
@@ -5285,7 +5535,7 @@ PROC_DECL(vm_end) {
         stack_clear();
         int_t e = get_z(me);
         sane = SANITY;
-        while (e != NIL) {
+        while (IS_EVENT(e)) {
             int_t es = get_z(e);
             event_q_put(e);
             e = es;
@@ -5306,8 +5556,8 @@ PROC_DECL(vm_cvt) {
     int_t w = stack_pop();
     int_t v = UNDEF;
     switch (c) {
-        case CVT_INT_FIX:   v = TO_FIX(w);      break;
-        case CVT_FIX_INT:   v = TO_INT(w);      break;
+        case CVT_INT_FIX:   v = TO_FIX(w);      break;  // FIXME: ---DEPRECATED---
+        case CVT_FIX_INT:   v = TO_INT(w);      break;  // FIXME: ---DEPRECATED---
         case CVT_LST_NUM:   v = fixnum(w);      break;
         case CVT_LST_SYM:   v = symbol(w);      break;
         default:            v = error("unknown conversion");
@@ -5473,6 +5723,9 @@ void print_labelled(char *prefix, int_t addr) {
 void debug_print(char *label, int_t addr) {
     fprintf(stderr, "%s: ", label);
     print_labelled("", addr);
+    if (IS_CAP(addr)) {
+        addr = TO_REF(addr);
+    }
     if (IS_CELL(addr)) {
         fprintf(stderr, " =");
         print_labelled(" {t:", get_t(addr));
@@ -5696,6 +5949,8 @@ int_t debugger() {
     static int_t run = TRUE;    // free-running
 #endif
     static int_t bp_ip = 0;
+    static int_t wp_cell = 0;
+    static cell_t wp_data;
     static int_t s_cnt = 0;
     static int_t n_cnt = 0;
     static int_t n_ep = 0;
@@ -5714,6 +5969,25 @@ int_t debugger() {
     }
     if (GET_IP() == bp_ip) {
         skip = FALSE;
+    }
+    if (wp_cell) {
+        if ((get_t(wp_cell) != wp_data.t)
+        ||  (get_x(wp_cell) != wp_data.x)
+        ||  (get_y(wp_cell) != wp_data.y)
+        ||  (get_z(wp_cell) != wp_data.z)) {
+            //debug_print("watchpoint", wp_cell);
+            print_labelled("watchpoint: ", wp_cell);
+            fprintf(stderr, " =");
+            print_labelled(" {t:", wp_data.t);
+            print_labelled(", x:", wp_data.x);
+            print_labelled(", y:", wp_data.y);
+            print_labelled(", z:", wp_data.z);
+            fprintf(stderr, "}\n");
+            //debug_print("changed to", wp_cell);
+            debug_print("   updated", wp_cell);
+            wp_data = cell_zero[wp_cell];  // update cached value
+            skip = FALSE;
+        }
     }
     if (skip != FALSE) {
         if (runtime_trace != FALSE) {
@@ -5746,6 +6020,21 @@ int_t debugger() {
                 fprintf(stderr, "break at ip=%"PdI"\n", bp_ip);
             } else {
                 fprintf(stderr, "no breakpoint\n");
+            }
+            continue;
+        }
+        if (*cmd == 'w') {                  // watch(point)
+            cmd = db_cmd_token(&p);
+            int wp = wp_cell;
+            if (*cmd) {
+                wp = db_num_cmd(cmd);
+            }
+            wp_cell = wp;
+            if (wp_cell) {
+                wp_data = cell_zero[wp_cell];
+                fprintf(stderr, "watch cell=%"PdI"\n", wp_cell);
+            } else {
+                fprintf(stderr, "no watch cell\n");
             }
             continue;
         }
@@ -5826,11 +6115,12 @@ int_t debugger() {
             switch (*cmd) {
                 case 'h' : fprintf(stderr, "h[elp] <command> -- get help on <command>\n"); continue;
                 case 'b' : fprintf(stderr, "b[reak] <inst> -- set breakpoint at <inst> (0=none, default: IP)\n"); continue;
+                case 'w' : fprintf(stderr, "w[atch] <addr> -- set watchpoint on <addr> (0=none)\n"); continue;
                 case 'c' : fprintf(stderr, "c[ontinue] -- continue running freely\n"); continue;
-                case 's' : fprintf(stderr, "s[tep] <n> -- set <n> instructions (default: 1)\n"); continue;
+                case 's' : fprintf(stderr, "s[tep] <n> -- step <n> instructions (default: 1)\n"); continue;
                 case 'n' : fprintf(stderr, "n[ext] <n> -- next <n> instructions in thread (default: 1)\n"); continue;
                 case 'd' : fprintf(stderr, "d[isasm] <n> <inst> -- disassemble <n> instructions (defaults: 1 IP)\n"); continue;
-                case 'p' : fprintf(stderr, "p[rint] <addr> -- print list at <addr>\n"); continue;
+                case 'p' : fprintf(stderr, "p[rint] <addr> -- print value at <addr>\n"); continue;
                 case 't' : fprintf(stderr, "t[race] -- toggle instruction tracing (default: on)\n"); continue;
                 case 'i' : fprintf(stderr, "i[nfo] <topic> -- get information on <topic>\n"); continue;
                 case 'q' : fprintf(stderr, "q[uit] -- quit runtime\n"); continue;
@@ -5848,7 +6138,8 @@ int_t debugger() {
             continue;
         }
 #endif
-        fprintf(stderr, "h[elp] b[reak] c[ontinue] s[tep] n[ext] d[isasm] p[rint] t[race] i[nfo] q[uit]\n");
+        //fprintf(stderr, "h[elp] b[reak] c[ontinue] s[tep] n[ext] d[isasm] p[rint] t[race] i[nfo] q[uit]\n");
+        fprintf(stderr, "b[reak] w[atch] c[ontinue] s[tep] n[ext] d[isasm] p[rint] t[race] i[nfo] q[uit]\n");
     }
 }
 #endif // INCLUDE_DEBUG

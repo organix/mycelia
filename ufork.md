@@ -272,6 +272,7 @@ The diagram below shows a typical graph of quad-cells
 representing the contents of the `e_queue` (event queue)
 and the `k_queue` (continuation queue).
 These two queues, plus the global symbol table,
+and the interrupt-handling actors,
 form the root-set of objects for garbage-collection.
 
 ```
@@ -419,8 +420,6 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 
 #### Procedures
 
-  * `(int->fix `_rawint_`)`
-  * `(fix->int `_fixnum_`)`
   * `(cell `_T_` `_X_` `_Y_` `_Z_`)`
   * `(get-t `_cell_`)`
   * `(get-x `_cell_`)`
@@ -435,10 +434,10 @@ COMMIT:     [END,+1,?]        RELEASE:    [END,+2,?]
 
 ```
 (define print
-  (cell Actor_T
-    (cell VM_msg '#-1  ; (fix->int -1)
-      (cell VM_push a-print
-        (cell VM_send '#0  ; (fix->int 0)
+  (cell Actor_T  ; ---DEPRECATED---
+    (cell Opcode_T VM_msg 1
+      (cell Opcode_T VM_push a-print
+        (cell Opcode_T VM_send 0
           RV_UNIT)))
     ()))
 
