@@ -258,8 +258,6 @@ _reason_          | {x:VM_end, y:ABORT}           | &mdash;  | abort actor trans
 &mdash;           | {x:VM_end, y:STOP}            | &mdash;  | stop current continuation (thread)
 &mdash;           | {x:VM_end, y:COMMIT}          | &mdash;  | commit actor transaction
 &mdash;           | {x:VM_end, y:RELEASE}         | &mdash;  | commit transaction and free actor
-_rawint_          | {x:VM_cvt, y:INT_FIX, z:_K_}  | _fixnum_ | convert _rawint_ to _fixnum_
-_fixnum_          | {x:VM_cvt, y:FIX_INT, z:_K_}  | _rawint_ | convert _fixnum_ to _rawint_
 _chars_           | {x:VM_cvt, y:LST_NUM, z:_K_}  | _fixnum_ | convert _chars_ to _fixnum_
 _chars_           | {x:VM_cvt, y:LST_SYM, z:_K_}  | _symbol_ | convert _chars_ to _symbol_
 _char_            | {x:VM_putc, z:_K_}            | &mdash;  | write _char_ to console

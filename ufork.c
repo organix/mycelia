@@ -567,6 +567,7 @@ cell_t cell_table[CELL_MAX] = {
 #define REPL_L (REPL_P+3)
 #define REPL_F (REPL_L+4)
 #define _REPL_F TO_CAP(REPL_F)
+#define _M_EVAL TO_CAP(231)                                                 //  <--------------- UPDATE THIS MANUALLY!
     { .t=Opcode_T,      .x=VM_push,     .y=_REPL_F,     .z=REPL_R+1,    },  // fail = REPL_F
     { .t=Opcode_T,      .x=VM_push,     .y=_REPL_E,     .z=REPL_R+2,    },  // ok = REPL_E
     { .t=Opcode_T,      .x=VM_pair,     .y=TO_FIX(1),   .z=REPL_R+3,    },  // custs = (ok . fail)
@@ -584,7 +585,6 @@ cell_t cell_table[CELL_MAX] = {
     { .t=Opcode_T,      .x=VM_push,     .y=NIL,         .z=REPL_E+4,    },  // env = ()
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(1),   .z=REPL_E+5,    },  // form = sexpr
     { .t=Opcode_T,      .x=VM_push,     .y=_REPL_P,     .z=REPL_E+6,    },  // cust = REPL_P
-#define _M_EVAL TO_CAP(231)                                                 //  <--------------- UPDATE THIS MANUALLY!
     { .t=Opcode_T,      .x=VM_push,     .y=_M_EVAL,     .z=REPL_E+7,    },  // M_EVAL
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=COMMIT,      },  // (M_EVAL cust form env)
 
@@ -829,7 +829,7 @@ cell_t cell_table[CELL_MAX] = {
 #define M_EVAL (S_PLACEH+12)
 //#define _M_EVAL TO_CAP(M_EVAL) <--- explicitly defined above...
 #define K_COMBINE (M_EVAL+20)
-#define K_APPLY_F (K_COMBINE+15)
+#define K_APPLY_F (K_COMBINE+17)
 #define M_APPLY (K_APPLY_F+4)
 #define _M_APPLY TO_CAP(M_APPLY)
 #define M_LOOKUP (M_APPLY+17)
@@ -913,28 +913,30 @@ cell_t cell_table[CELL_MAX] = {
 //  { .t=Opcode_T,      .x=VM_push,     .y=_cust_,      .z=K_COMBINE+0, },
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_COMBINE+1, },  // fn
     { .t=Opcode_T,      .x=VM_typeq,    .y=Actor_T,     .z=K_COMBINE+2, },  // fn has type Actor_T
-    { .t=Opcode_T,      .x=VM_if,       .y=K_COMBINE+10,.z=K_COMBINE+3, },
+    { .t=Opcode_T,      .x=VM_if,       .y=K_COMBINE+12,.z=K_COMBINE+3, },
 
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_COMBINE+4, },  // fn
     { .t=Opcode_T,      .x=VM_typeq,    .y=Fexpr_T,     .z=K_COMBINE+5, },  // fn has type Fexpr_T
-    { .t=Opcode_T,      .x=VM_if,       .y=K_COMBINE+7, .z=K_COMBINE+6, },
+    { .t=Opcode_T,      .x=VM_if,       .y=K_COMBINE+9, .z=K_COMBINE+6, },
 
-    { .t=Opcode_T,      .x=VM_push,     .y=UNDEF,       .z=RELEASE_0,   },  // UNDEF
+    { .t=Opcode_T,      .x=VM_push,     .y=UNDEF,       .z=K_COMBINE+7, },  // UNDEF
+    { .t=Opcode_T,      .x=VM_roll,     .y=TO_FIX(2),   .z=K_COMBINE+8, },  // UNDEF cust
+    { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(0),   .z=RELEASE,     },  // (cust . UNDEF)
 
-    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_COMBINE+8, },  // env opnds cust fn
-    { .t=Opcode_T,      .x=VM_get,      .y=FLD_X,       .z=K_COMBINE+9, },  // oper = get_x(fn)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_COMBINE+10,},  // env opnds cust fn
+    { .t=Opcode_T,      .x=VM_get,      .y=FLD_X,       .z=K_COMBINE+11,},  // oper = get_x(fn)
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=RELEASE,     },  // (oper cust args env)
 
 // env opnds cust
-    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_COMBINE+11,},  // fn
-    { .t=Opcode_T,      .x=VM_push,     .y=K_APPLY_F,   .z=K_COMBINE+12,},  // K_APPLY_F
-    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=K_COMBINE+13,},  // k_apply = (K_APPLY_F cust fn)
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(0),   .z=K_COMBINE+13,},  // fn
+    { .t=Opcode_T,      .x=VM_push,     .y=K_APPLY_F,   .z=K_COMBINE+14,},  // K_APPLY_F
+    { .t=Opcode_T,      .x=VM_new,      .y=TO_FIX(2),   .z=K_COMBINE+15,},  // k_apply = (K_APPLY_F cust fn)
 
 #if EVLIS_IS_PAR
-    { .t=Opcode_T,      .x=VM_push,     .y=_OP_PAR,     .z=K_COMBINE+14,},  // OP_PAR
+    { .t=Opcode_T,      .x=VM_push,     .y=_OP_PAR,     .z=K_COMBINE+16,},  // OP_PAR
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=RELEASE,     },  // (OP_PAR k_apply opnds env)
 #else
-    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVLIS,    .z=K_COMBINE+14,},  // M_EVLIS
+    { .t=Opcode_T,      .x=VM_push,     .y=_M_EVLIS,    .z=K_COMBINE+16,},  // M_EVLIS
     { .t=Opcode_T,      .x=VM_send,     .y=TO_FIX(3),   .z=RELEASE,     },  // (M_EVLIS k_apply opnds env)
 #endif
 
@@ -1792,9 +1794,15 @@ cell_t cell_table[CELL_MAX] = {
 #define F_ACT_P (F_SYM_P+2)
 #define _F_ACT_P TO_CAP(F_ACT_P)
     { .t=Actor_T,       .x=F_ACT_P+1,   .y=NIL,         .z=UNDEF        },  // (cust . args)
-    { .t=Opcode_T,      .x=VM_push,     .y=Actor_T,     .z=F_TYPE_P,    },  // type = Actor_T
+    { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-1),  .z=F_ACT_P+2,   },  // args
+    { .t=Opcode_T,      .x=VM_pick,     .y=TO_FIX(1),   .z=F_ACT_P+3,   },  // args args
+    { .t=Opcode_T,      .x=VM_typeq,    .y=Pair_T,      .z=F_ACT_P+4,   },  // args has type Pair_T
+    { .t=Opcode_T,      .x=VM_if,       .y=F_ACT_P+5,   .z=RV_TRUE,     },
+    { .t=Opcode_T,      .x=VM_part,     .y=TO_FIX(1),   .z=F_ACT_P+6,   },  // rest first
+    { .t=Opcode_T,      .x=VM_typeq,    .y=Actor_T,     .z=F_ACT_P+7,   },  // first has type Actor_T
+    { .t=Opcode_T,      .x=VM_if,       .y=F_ACT_P+2,   .z=RV_FALSE,    },
 
-#define F_EQ_P (F_ACT_P+2)
+#define F_EQ_P (F_ACT_P+8)
 #define _F_EQ_P TO_CAP(F_EQ_P)
     { .t=Actor_T,       .x=F_EQ_P+1,    .y=NIL,         .z=UNDEF        },  // (cust . args)
     { .t=Opcode_T,      .x=VM_msg,      .y=TO_FIX(-2),  .z=F_EQ_P+2,    },  // rest = cdr(args)
@@ -3925,14 +3933,14 @@ int_t car(int_t v) {
     if (IS_PAIR(v)) {
         return get_x(v);
     }
-    return warning("car() defined only for Pair_T");
+    return UNDEF; //warning("car() defined only for Pair_T");
 }
 //#define cdr(v) get_y(v)
 int_t cdr(int_t v) {
     if (IS_PAIR(v)) {
         return get_y(v);
     }
-    return warning("cdr() defined only for Pair_T");
+    return UNDEF; //warning("cdr() defined only for Pair_T");
 }
 
 //#define set_car(v,x) set_x((v),(x))
@@ -4309,7 +4317,7 @@ i32 gc_mark_roots(int_t dump) {  // mark cells reachable from the root-set
     cnt += gc_mark_cells(e_queue_head);
     cnt += gc_mark_cells(k_queue_head);
     cnt += gc_mark_cells(gc_root_set);
-    if (dump == TRUE) {
+    if (dump != FALSE) {
         gc_dump_map();
     }
     return cnt;
@@ -4332,7 +4340,7 @@ i32 gc_mark_and_sweep(int_t dump) {
     i32 f = gc_clear();
     i32 m = gc_mark_roots(dump);
     i32 a = gc_sweep();
-    if (dump) {
+    if (dump != FALSE) {
         fprintf(stderr,
             "gc: top=%"PRId32" free=%"PRId32" used=%"PRId32" avail=%"PRId32"\n",
             t, f, m, a);
@@ -5185,24 +5193,26 @@ static int_t extract_nth(int_t m, int_t n) {
     int_t v = UNDEF;
     if (n == 0) {  // entire list/message
         v = m;
-    } else if (n > 0) {  // item at index
+    } else if (n > 0) {  // item at n-th index
         sane = SANITY;
         while (IS_PAIR(m)) {
-            if (--n == 0) {
-                v = car(m);
-                break;
-            }
+            if (--n == 0) break;
             m = cdr(m);
             if (sane-- == 0) return panic("insane extract_nth");
+        }
+        if (n == 0) {
+            v = car(m);
         }
     } else {  // use -n to select the n-th tail
         sane = SANITY;
         while (IS_PAIR(m)) {
-            m = cdr(m);
             if (++n == 0) break;
+            m = cdr(m);
             if (sane-- == 0) return panic("insane extract_nth");
         }
-        v = m;
+        if (n == 0) {
+            v = cdr(m);
+        }
     }
     return v;
 }
