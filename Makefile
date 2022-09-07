@@ -67,12 +67,6 @@ wart: wart.c
 wart.i: wart.c
 	cc -E -o $@ $<
 
-ufork: ufork.c
-	cc -Os -o $@ $<
-
-ufork.i: ufork.c
-	cc -E -o $@ $<
-
 clean:
 	rm -f *.o
 	rm -f *.i
@@ -84,4 +78,3 @@ clean:
 	rm -f *~ core
 	rm -f quartet
 	rm -f wart
-	rm -f ufork
