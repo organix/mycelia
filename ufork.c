@@ -5029,6 +5029,7 @@ static int_t execute() {  // execute next VM instruction
     // execute next continuation
     XTRACE(debug_print("execute cont", k_queue_head));
     int_t ip = GET_IP();
+    XTRACE(debug_print("execute inst", ip));
     //ASSERT(IS_CELL(ip));
     ASSERT(IS_CODE(ip));
 #if INCLUDE_DEBUG
@@ -5036,7 +5037,6 @@ static int_t execute() {  // execute next VM instruction
         return FALSE;  // debugger quit
     }
 #endif
-    XTRACE(debug_print("execute inst", ip));
     int_t event = GET_EP();
     int_t opcode = get_x(ip);
     nat_t ofs = NAT(TO_INT(opcode));
@@ -5048,7 +5048,7 @@ static int_t execute() {  // execute next VM instruction
     SET_IP(ip);  // update IP
     int_t cont = cont_q_pop();
     XTRACE(debug_print("execute done", cont));
-    if (IN_HEAP(ip)) {
+    if (IS_CODE(ip)) {
         cont_q_put(cont);  // enqueue continuation
     } else {
         // if "thread" is dead, free cont and event
@@ -5128,6 +5128,8 @@ PROC_DECL(vm_get) {
             case FLD_Z:     v = get_z(cell);    break;
             default:        return error("unknown field");
         }
+    } else {
+        v = warning("vm_get requires a cell");
     }
     stack_push(v);
     return GET_CONT();
@@ -5150,7 +5152,7 @@ PROC_DECL(vm_set) {
             default:        return error("unknown field");
         }
     } else {
-        return error("set requires a cell");
+        return error("vm_set requires a cell");
     }
     return GET_CONT();
 }
