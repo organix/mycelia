@@ -196,6 +196,15 @@ For capability Strings, a [data-link-escape](https://en.wikipedia.org/wiki/C0_an
 (which is `2#00010000`, or `^P` in ASCII) can provide the desired semantics,
 interpreting the rest of the String as binary-octet data.
 
+#### Extended Types (recommendation)
+
+Application-specific extended types may be represented as _Encoded Strings_ (`2#00001110`).
+The encoding is specified by an application-chosen String.
+In a given application, the Strings representing encodings are likely to be heavily used.
+Therefore, we recommend marking the first occurance with the _memo_ bit
+and using the single-octet _memo reference_ index for subsequent occurances.
+This technique may also be used to embed already-encoded values verbatim, as octet sequences.
+
 ### Array
 
 An extended Array may (`2#00000110`), or may not (`2#00000100`), specify an element _count_.
