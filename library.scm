@@ -35,8 +35,10 @@
 (define equal?
   (lambda (x y)
     (if (pair? x)
-        (if (equal? (car x) (car y))
-            (equal? (cdr x) (cdr y))
+        (if (pair? y)
+            (if (equal? (car x) (car y))
+                (equal? (cdr x) (cdr y))
+                #f)
             #f)
         (eq? x y))))
 
