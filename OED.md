@@ -73,8 +73,9 @@ A 3-component _Number_ also includes a _base_,
 encoded as an additional _Number_.
 The default _exponent_ is 0.
 The default _base_ is 10.
-The _size_ fields is a _Number_ describing
+The _size_ field is a _Number_ describing
 the number of significant **bits** in the _integer_ value.
+If the _size_ is 0, the _Number_ is 0, and there are no _integer_ octets.
 The octets of the _integer_ value (LSB to MSB) follow the _size_.
 If the number of significant bits is not a multiple of 8,
 the final octet (MSB) will be padded according to the _sign_.
@@ -99,7 +100,7 @@ particularly when link data compression is likely.
   * Extension BLOB: _type_=`2#1000_1011` _meta_::Value _size_::Number _data_::Octet\*
   * UTF-8 String: _type_=`2#1000_1100` _length_::Number _size_::Number _data_::Octet\*
 
-The _size_ fields is a _Number_ describing
+The _size_ field is a _Number_ describing
 the number of **octets** in the _data_.
 If the encoding is UTF-8,
 the _length_ field is a _Number_ describing the
@@ -115,22 +116,23 @@ are prepended to the _data_ octets.
 The _Array_ type represents an arbitrary-sized sequence of _Value_ elements.
 The values are not required to have the same type.
 
-  * Array: _type_=`2#1000_1000` _length_::Number _size_::Number _elements_::Octet\*
+  * Array: _type_=`2#1000_1000` _length_::Number _size_::Number _elements_::Value\*
 
-The _size_ fields is a _Number_ describing
+The _size_ field is a _Number_ describing
 the number of **octets** in the _elements_.
 The _length_ field is a _Number_ describing the
 the number of _elements_ in the _Array_.
 If the _length_ is 0, there is no _size_ field (and no _elements_).
 
 The _Object_ type represents an arbitrary-sized collection of _name_/_value_ members.
-Each _name_ should be a _String_.
+Each _name_ should be a _String_ for JSON compatibility,
+otherwise the JSON value is the _String_ of encoded octets.
 Each _value_ may be any type,
 including nested _Object_ or _Array_ values.
 
-  * Object: _type_=`2#1000_1001` _length_::Number _size_::Number _members_::Octet\*
+  * Object: _type_=`2#1000_1001` _length_::Number _size_::Number _members_::(_name_::Value _value_::Value)\*
 
-The _size_ fields is a _Number_ describing
+The _size_ field is a _Number_ describing
 the number of **octets** in the _members_.
 The _length_ field is a _Number_ describing the
 the number of _members_ in the _Object_.
@@ -149,7 +151,7 @@ type/prefix   | suffix                                                     | des
 `2#1000_0101` | _exp_::Number _size_::Number _int_::Octet\*                | Number (negative decimal)
 `2#1000_0110` | _base_::Number _exp_::Number _size_::Number _int_::Octet\* | Number (positive rational)
 `2#1000_0111` | _base_::Number _exp_::Number _size_::Number _int_::Octet\* | Number (negative rational)
-`2#1000_1000` | _length_::Number _size_::Number _elements_::Octet\*        | Array
+`2#1000_1000` | _length_::Number _size_::Number _elements_::Value\*        | Array
 `2#1000_1001` | _length_::Number _size_::Number _members_::Octet\*         | Object
 `2#1000_1010` | _size_::Number _data_::Octet\*                             | String (Raw BLOB)
 `2#1000_1011` | _meta_::Value _size_::Number _data_::Octet\*               | String (Extension BLOB)
