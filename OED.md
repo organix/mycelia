@@ -47,7 +47,7 @@ However, it is unclear how large the range should be.
 
 The most basic form of arbitrary-sized _Numbers_
 are arbitrary-length bit-strings.
-With the addition of a _sign_ bits,
+With the addition of a _sign_ bit,
 we can describe any finite _integer_ value.
 By adding an _integer_ field for an _exponent_,
 we can describe any finite _decimal_ value (assuming base-10).
@@ -85,7 +85,7 @@ Rational numbers may be encoded as an _exponent_ of -1,
 with the _integer_ as the numerator, and the _base_ as the denominator.
 
 The _String_ type represent an arbitrary-sized sequence of Unicode code-points.
-UTF-8 has become to default encoding for data throughout the world-wide-web,
+UTF-8 has become the default encoding for textual data throughout the world-wide-web,
 so we require explicit support for that encoding.
 Raw octet data (BLOBs) is also an important use-case,
 where the code-points represented are restricted to the range 0 thru 255.
@@ -137,6 +137,16 @@ the number of **octets** in the _members_.
 The _length_ field is a _Number_ describing the
 the number of _members_ in the _Object_.
 If the _length_ is 0, there is no _size_ field (and no _members_).
+
+## Interoperability
+
+Every OED document corresponds to a JSON document
+containing all the same data,
+although without some of the meta-data describing representations.
+Converting a JSON document to OED and back to JSON
+should result in an equivalent document.
+Following the recommendations in [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259)
+will increase the portability of OED documents.
 
 ## Summary
 
