@@ -74,10 +74,12 @@ encoded as an additional _Number_.
 The default _exponent_ is 0.
 The default _base_ is 10.
 The _size_ field is a _Number_ describing
-the number of significant **bits** in the _integer_ value.
-If the _size_ is 0, the _Number_ is 0, and there are no _integer_ octets.
+the number of **bits** in the _integer_ value.
+There is no requirement that a _Number_ is encoded with the minimum number of octets.
+If the _size_ is 0, the _Number_ is 0 (if positive) or -1 (if negative),
+and there are no _integer_ octets.
 The octets of the _integer_ value (LSB to MSB) follow the _size_.
-If the number of significant bits is not a multiple of 8,
+If the number of encoded bits is not a multiple of 8,
 the final octet (MSB) will be padded according to the _sign_.
 The number designated is equal to (_integer_ × _base_ ^ _exponent_).
 Note that all the components are signed.
