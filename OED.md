@@ -110,10 +110,10 @@ the number of code-points in the _String_.
 If the _length_ is 0, there is no _size_ field (and no _data_).
 The extension encoding includes a _meta_ field,
 which is an arbitrary (OED-encoded) _Value_.
-If the extension meta-data is not understood,
-or on conversion to JSON,
-the octets of the encoded _meta_ field
-are prepended to the _data_ octets.
+An extension BLOB _meta_ value cannot be, or contain, another extention BLOB.
+The extension may be converted to a _String_
+by treating the octets of the entire encoded value
+(including the Extention BLOB type prefix) as code-points.
 
 The _Array_ type represents an arbitrary-sized sequence of _Value_ elements.
 The values are not required to have the same type.
