@@ -146,7 +146,18 @@ function encode(value) {
     //return undefined;  // default: encode failed
 }
 
+function compose_number({ integer, exponent = 0, base = 10 }) {
+    return integer * (base ** exponent);
+}
 function decode_integer({ octets, offset }) {
+    let number = decode_number({ octets, offset });
+    if (number.error) return number;  // report error
+    if (Number.isSafeInteger(number.value)) {
+        return number;
+    }
+    return { error: "integer value required", octets, offset, value: number.value };
+}
+function decode_number({ octets, offset }) {
 /*
 `2#0xxx_xxxx` | -                                                          | positive small integer (0..127)
 `2#1000_0010` | _size_::Number _int_::Octet\*                              | Number (positive integer)
@@ -159,20 +170,39 @@ function decode_integer({ octets, offset }) {
 `2#101x_xxxx` | -                                                          | negative small integer (-96..-65)
 `2#11xx_xxxx` | -                                                          | negative small integer (-64..-1)
 */
-    const prefix = octets[offset];
+    let prefix = octets[offset];
     if (typeof prefix !== "number") return { error: "offset out-of-bounds", octets, offset };
-    if (prefix <= 0b0111_1111) return { value: prefix, octets, offset: offset + 1 };
-    if (prefix >= 0b1001_0000) return { value: (prefix - radix), octets, offset: offset + 1 };
-    if ((prefix & ~num_sign_bit) !== integer_octet) {
-        return { error: "unrecognized OED integer", octets, offset };
+    offset += 1;
+    if (prefix <= 0b0111_1111) return { value: prefix, octets, offset };
+    if (prefix >= 0b1001_0000) return { value: (prefix - radix), octets, offset };
+    let sign = (prefix & num_sign_bit) ? -1 : 1;
+    prefix &= ~num_sign_bit;  // mask off sign bit
+    let base = 10;
+    let exponent = 0;
+    if (prefix === rational_octet) {
+        base = decode_integer({ octets, offset });
+        if (base.error) return base;  // report error
+        offset = base.offset;
+        base = base.value;
+        exponent = decode_integer({ octets, offset });
+        if (exponent.error) return exponent;  // report error
+        offset = exponent.offset;
+        exponent = exponent.value;
+    } else if (prefix === decimal_octet) {
+        exponent = decode_integer({ octets, offset });
+        if (exponent.error) return exponent;  // report error
+        offset = exponent.offset;
+        exponent = exponent.value;
+    } else if (prefix !== integer_octet) {
+        return { error: "unrecognized OED number", octets, offset: offset - 1 };
     }
-    const size = decode_integer({ octets, offset: offset + 1 });
+    const size = decode_integer({ octets, offset });
     if (size.error) return size;  // report error
     let bits = size.value;
     offset = size.offset;
     let value = 0;
     let scale = 1;
-    if (prefix & num_sign_bit) {
+    if (sign < 0) {
         // negative integer
         while (bits > 0) {
             value += scale * (octets[offset] ^ 0xFF);
@@ -191,8 +221,9 @@ function decode_integer({ octets, offset }) {
         }
     }
     if (offset != (size.offset + (size.value / 8))) {
-        return { error: "offset does not match OED integer size", octets, offset };
+        return { error: "offset does not match OED number size", octets, offset };
     }
+    value = compose_number({ integer: value, base, exponent });
     return { value, octets, offset };
 }
 function decode_string({ octets, offset }) {
