@@ -22,8 +22,9 @@ The encoding should acheive the following goals:
   * Lossless translation from JSON and machine types
   * Well-defined translation to JSON and machine types
   * Extension mechanism for application-defined representations
-  * Capabilities distinguished from other data-types
+  * Capabilities can be distinguished from other data-types
   * Easy-to-implement encode/decode
+  * Encoded data is navigable without fully decoding
 
 ## Design
 
@@ -74,7 +75,7 @@ encoded as an additional _Number_.
 The default _exponent_ is 0.
 The default _base_ is 10.
 The _size_ field is a _Number_ describing
-the number of **bits** in the _integer_ value.
+the number of **bits** (not octets) in the _integer_ value.
 There is no requirement that a _Number_ is encoded with the minimum number of octets.
 If the _size_ is 0, the _Number_ is 0 (if positive) or -1 (if negative),
 and there are no _integer_ octets.
@@ -89,7 +90,7 @@ with the _integer_ as the numerator, and the _base_ as the denominator.
 The _String_ type represent an arbitrary-sized sequence of Unicode code-points.
 UTF-8 has become the default encoding for textual data throughout the world-wide-web,
 so we require explicit support for that encoding.
-Raw octet data (BLOBs) is also an important use-case,
+Raw octet data (BLOBs) are also an important use-case,
 where the code-points represented are restricted to the range 0 thru 255.
 In order to support extensions for application-defined representations,
 and to encapsulate foreign data verbatim,
@@ -121,8 +122,8 @@ The values are not required to have the same type.
   * Array: _type_=`2#1000_1000` _length_::Number _size_::Number _elements_::Value\*
 
 The _size_ field is a _Number_ describing
-the number of **octets** in the _elements_.
-The _length_ field is a _Number_ describing the
+the number of **octets** encoding the _elements_.
+The _length_ field is a _Number_ describing
 the number of _elements_ in the _Array_.
 If the _length_ is 0, there is no _size_ field (and no _elements_).
 
@@ -135,8 +136,8 @@ including nested _Object_ or _Array_ values.
   * Object: _type_=`2#1000_1001` _length_::Number _size_::Number _members_::(_name_::Value _value_::Value)\*
 
 The _size_ field is a _Number_ describing
-the number of **octets** in the _members_.
-The _length_ field is a _Number_ describing the
+the number of **octets** encoding the _members_.
+The _length_ field is a _Number_ describing
 the number of _members_ in the _Object_.
 If the _length_ is 0, there is no _size_ field (and no _members_).
 
