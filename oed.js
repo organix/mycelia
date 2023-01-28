@@ -150,7 +150,7 @@ function compose_number({ integer, exponent = 0, base = 10 }) {
     return integer * (base ** exponent);
 }
 function decode_integer({ octets, offset }) {
-    let number = decode_number({ octets, offset });
+    let number = decode({ octets, offset });
     if (number.error) return number;  // report error
     if (Number.isSafeInteger(number.value)) {
         return number;
@@ -320,19 +320,43 @@ function decode_object({ octets, offset }) {
     }
     return { error: "unrecognized OED object", octets, offset };
 }
-function decode({ octets, offset }) {
-    if (octets === undefined) return { error: "missing property 'octets'" };
+const decoder = (function () {
+    function literal(value) {
+        return ({ octets, offset }) => ({ value, octets, offset: offset + 1 });
+    }
+    let handler = [];
+    let prefix = 0;
+    while (prefix < false_octet) {
+        handler[prefix] = literal(prefix);  // small positive integer
+        prefix += 1;
+    }
+    handler[false_octet] = literal(false);
+    handler[true_octet] = literal(true);
+    handler[integer_octet] = decode_number;
+    handler[integer_octet | num_sign_bit] = decode_number;
+    handler[decimal_octet] = decode_number;
+    handler[decimal_octet | num_sign_bit] = decode_number;
+    handler[rational_octet] = decode_number;
+    handler[rational_octet | num_sign_bit] = decode_number;
+    handler[array_octet] = decode_array;
+    handler[object_octet] = decode_object;
+    handler[string_octet] = decode_string;
+    handler[null_octet] = literal(null);
+    prefix = radix - 1;
+    while (prefix > null_octet) {
+        handler[prefix] = literal(prefix - radix);  // small negative integer
+        prefix -= 1;
+    }
+    return handler;
+})();
+function decode(array) {
+    let { octets = array, offset = 0 } = array;  // destructure parameters
     const prefix = octets[offset];
     if (typeof prefix !== "number") return { error: "offset out-of-bounds", octets, offset };
-    if (prefix === false_octet) return { value: false, octets, offset: offset + 1 };
-    if (prefix === true_octet) return { value: true, octets, offset: offset + 1 };
-    if (prefix === null_octet) return { value: null, octets, offset: offset + 1 };
-    if (prefix <= 0b0111_1111) return { value: prefix, octets, offset: offset + 1 };
-    if (prefix >= 0b1001_0000) return { value: (prefix - radix), octets, offset: offset + 1 };
-    if ((prefix & ~num_sign_bit) === integer_octet) return decode_integer({ octets, offset });
-    if (prefix === string_octet) return decode_string({ octets, offset });
-    if (prefix === array_octet) return decode_array({ octets, offset });
-    if (prefix === object_octet) return decode_object({ octets, offset });
+    let handler = decoder[prefix];
+    if (typeof handler === "function") {
+        return handler({ octets, offset });
+    }
     return { error: "unrecognized OED value", octets, offset };
 }
 
