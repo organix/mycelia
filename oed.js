@@ -2,6 +2,7 @@
 // Dale Schumacher
 // 2023-01-27
 // Public Domain
+// `decompose_number` based on code by Douglas Crockford and James Diacono
 
 const false_octet =     0b1000_0000;    // 128 = false
 const true_octet =      0b1000_0001;    // 129 = true
