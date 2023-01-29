@@ -20,6 +20,40 @@ const radix = 256;
 const utf8encoder = new TextEncoder();
 const utf8decoder = new TextDecoder();
 
+function decompose_number(number) {
+    let sign = 1;
+    let integer = number;
+    let exponent = 0;
+    if (number < 0) {  // remove sign
+        sign = -1;
+        integer = -integer;
+    }
+    if (Number.isFinite(number) && (number !== 0)) {
+        exponent = -1128;
+        let reduction = integer;  // reduce integer to determine exponent
+        while (reduction !== 0) {
+            exponent += 1;
+            reduction /= 2;
+        }
+        reduction = exponent;  // reduce exponent to determine integer
+        while (reduction > 0) {
+            integer /= 2;
+            reduction -= 1;
+        }
+        while (reduction < 0) {
+            integer *= 2;
+            reduction += 1;
+        }
+        while (integer % 2 === 0) {  // push information into exponent
+            integer /= 2;
+            exponent += 1;
+        }
+    }
+    if (sign < 0) {  // restore sign
+        integer = -integer;
+    }
+    return { integer, exponent, base: 2 };
+}
 function encode_integer(integer) {
     console.log("encode_integer", integer);
     if (integer < 0) {
@@ -46,6 +80,33 @@ function encode_integer(integer) {
         digits.unshift(integer_octet, digits.length * 8);
         return new Uint8Array(digits);
     }
+}
+function encode_number(number) {
+    let sign_bit = (number < 0) ? num_sign_bit : 0;
+    let prefix = integer_octet | sign_bit;
+    let base = [];
+    let exponent = [];
+    number = decompose_number(number);
+    if (number.base !== 10) {
+        prefix = rational_octet | sign_bit;
+        base = encode_integer(number.base);
+        exponent = encode_integer(number.exponent);
+    } else if (number.exponent !== 0) {
+        prefix = decimal_octet | sign_bit;
+        exponent = encode_integer(number.exponent);
+    }
+    let integer = encode_integer(number.integer);
+    if (integer.length > 1) {
+        integer = integer.subarray(1);  // exclude integer prefix
+    } else {
+        integer = new Uint8Array([8, integer[0]]);  // small integer encoded as a 8-bit integer
+    }
+    const octets = new Uint8Array(1 + base.length + exponent.length + integer.length);
+    octets.set([prefix], 0);
+    octets.set(base, 1);
+    octets.set(exponent, 1 + base.length);
+    octets.set(integer, 1 + base.length + exponent.length);
+    return octets;
 }
 function encode_string(string) {
     console.log("encode_string", string);
@@ -138,7 +199,7 @@ function encode(value) {
     if (value === true) return new Uint8Array([true_octet]);
     if (value === null) return new Uint8Array([null_octet]);
     if (Number.isSafeInteger(value)) return encode_integer(value);
-    //if (Number.isFinite(value)) return encode_float(value);
+    if (Number.isFinite(value)) return encode_number(value);
     if (typeof value === "string") return encode_string(value);
     //if (value?.constructor === Uint8Array) return encode_blob(value);
     if (Array.isArray(value)) return encode_array(value);
