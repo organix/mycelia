@@ -327,6 +327,16 @@ function decode_string({ octets, offset }) {
         if (blob.error) return blob;  // report error
         const value = Array.from(blob.value, (octet) => (String.fromCodePoint(octet))).join("");
         return { value, octets, offset: blob.offset };
+    } else if (prefix === extension_octet) {
+        const meta = decode({ octets, offset: offset + 1 });
+        if (meta.error) return meta;  // report error
+        const size = decode_integer({ octets, offset: meta.offset });
+        if (size.error) return size;  // report error
+        const blob = octets.subarray(offset, size.offset + size.value);
+        const value = Array.from(blob, (octet) => (String.fromCodePoint(octet))).join("");
+        offset = size.offset + size.value;
+        const data = octets.subarray(size.offset, offset);
+        return { value, octets, offset, meta, data };
     }
     return { error: "unrecognized OED string", octets, offset };
 }
@@ -430,8 +440,9 @@ const decoder = (function () {
     handler[rational_octet | num_sign_bit] = decode_number;
     handler[array_octet] = decode_array;
     handler[object_octet] = decode_object;
-    handler[string_octet] = decode_string;
     handler[blob_octet] = decode_blob;
+    handler[extension_octet] = decode_string;
+    handler[string_octet] = decode_string;
     handler[null_octet] = literal(null);
     prefix = radix - 1;
     while (prefix > null_octet) {
@@ -440,8 +451,8 @@ const decoder = (function () {
     }
     return handler;
 })();
-function decode(array) {
-    let { octets = array, offset = 0 } = array;  // destructure parameters
+function decode(data) {
+    let { octets = data, offset = 0 } = data;  // destructure parameters
     const prefix = octets[offset];
     if (typeof prefix !== "number") return { error: "offset out-of-bounds", octets, offset };
     let handler = decoder[prefix];
