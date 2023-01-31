@@ -74,6 +74,11 @@ function encode_integer(integer) {
     if (integer < 0) {
         // negative integer
         if (integer >= -112) return new Uint8Array([radix + integer]);  // small negative integer
+        const integer_type = (integer_octet | num_sign_bit);
+        if (integer >= -0x100) return new Uint8Array([integer_type, 8, (integer & 0xFF)]);
+        if (integer >= -0x10000) return new Uint8Array([integer_type, 16, (integer & 0xFF), ((integer >> 8) & 0xFF)]);
+        if (integer >= -0x1000000) return new Uint8Array([integer_type, 24, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF)]);
+        if (integer >= -0x100000000) return new Uint8Array([integer_type, 32, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF), ((integer >> 24) & 0xFF)]);
         integer = -integer - 1;
         const digits = [];
         while (integer > 0) {
@@ -81,22 +86,23 @@ function encode_integer(integer) {
             digits.push(digit);
             integer = Math.floor(integer / radix);
         }
-        digits.unshift((integer_octet | num_sign_bit), digits.length * 8);
+        digits.unshift(integer_type, digits.length * 8);
         return new Uint8Array(digits);
     } else {
         // non-negative integer
         if (integer <= 127) return new Uint8Array([integer]);  // small positive integer
-        if (integer <= 0xFF) return new Uint8Array([integer_octet, 8, (integer & 0xFF)]);
-        if (integer <= 0xFFFF) return new Uint8Array([integer_octet, 16, (integer & 0xFF), ((integer >> 8) & 0xFF)]);
-        if (integer <= 0xFFFFFF) return new Uint8Array([integer_octet, 24, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF)]);
-        if (integer <= 0xFFFFFFFF) return new Uint8Array([integer_octet, 32, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF), ((integer >> 24) & 0xFF)]);
+        const integer_type = integer_octet;
+        if (integer <= 0xFF) return new Uint8Array([integer_type, 8, (integer & 0xFF)]);
+        if (integer <= 0xFFFF) return new Uint8Array([integer_type, 16, (integer & 0xFF), ((integer >> 8) & 0xFF)]);
+        if (integer <= 0xFFFFFF) return new Uint8Array([integer_type, 24, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF)]);
+        if (integer <= 0xFFFFFFFF) return new Uint8Array([integer_type, 32, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF), ((integer >> 24) & 0xFF)]);
         const digits = [];
         while (integer > 0) {
             const digit = (integer % radix);
             digits.push(digit);
             integer = Math.floor(integer / radix);
         }
-        digits.unshift(integer_octet, digits.length * 8);
+        digits.unshift(integer_type, digits.length * 8);
         return new Uint8Array(digits);
     }
 }
