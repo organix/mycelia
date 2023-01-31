@@ -86,20 +86,10 @@ function encode_integer(integer) {
     } else {
         // non-negative integer
         if (integer <= 127) return new Uint8Array([integer]);  // small positive integer
-        /*
-        if (integer <= 0xFF) {
-            return new Uint8Array(integer_octet, 8, (integer & 0xFF));
-        }
-        if (integer <= 0xFFFF) {
-            return new Uint8Array(integer_octet, 16, (integer & 0xFF), ((integer >> 8) & 0xFF));
-        }
-        if (integer <= 0xFFFFFF) {
-            return new Uint8Array(integer_octet, 24, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF));
-        }
-        if (integer <= 0xFFFFFFFF) {
-            return new Uint8Array(integer_octet, 32, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF), ((integer >> 24) & 0xFF));
-        }
-        */
+        if (integer <= 0xFF) return new Uint8Array([integer_octet, 8, (integer & 0xFF)]);
+        if (integer <= 0xFFFF) return new Uint8Array([integer_octet, 16, (integer & 0xFF), ((integer >> 8) & 0xFF)]);
+        if (integer <= 0xFFFFFF) return new Uint8Array([integer_octet, 24, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF)]);
+        if (integer <= 0xFFFFFFFF) return new Uint8Array([integer_octet, 32, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF), ((integer >> 24) & 0xFF)]);
         const digits = [];
         while (integer > 0) {
             const digit = (integer % radix);
