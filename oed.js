@@ -15,12 +15,22 @@ const object_octet =    0b1000_1001;    // 137 = Object
 const blob_octet =      0b1000_1010;    // 138 = String (blob)
 const extension_octet = 0b1000_1011;    // 139 = String (extension)
 const string_octet =    0b1000_1100;    // 140 = String (utf8)
+const string_memo =     0b1000_1101;    // 141 = String (utf8) + memoize
+const memo_reference =  0b1000_1110;    // 142 = retrieve memoized
 const null_octet =      0b1000_1111;    // 143 = null
 
 const radix = 256;
 const utf8encoder = new TextEncoder();
 const utf8decoder = new TextDecoder();
 
+function stringify(iterable) {
+    if (iterable.length < 32768) {
+        return String.fromCodePoint(...iterable);
+    }
+    return Array.from(iterable, function (code) {
+        return String.fromCodePoint(code);
+    }).join("");
+}
 function decompose_number(number) {
     let sign = 1;
     let integer = number;
@@ -55,8 +65,12 @@ function decompose_number(number) {
     }
     return { integer, exponent, base: 2 };
 }
+function compose_number({ integer, exponent = 0, base = 10 }) {
+    return integer * (base ** exponent);
+}
+
 function encode_integer(integer) {
-    console.log("encode_integer", integer);
+    //console.log("encode_integer", integer);
     if (integer < 0) {
         // negative integer
         if (integer >= -112) return new Uint8Array([radix + integer]);  // small negative integer
@@ -72,6 +86,20 @@ function encode_integer(integer) {
     } else {
         // non-negative integer
         if (integer <= 127) return new Uint8Array([integer]);  // small positive integer
+        /*
+        if (integer <= 0xFF) {
+            return new Uint8Array(integer_octet, 8, (integer & 0xFF));
+        }
+        if (integer <= 0xFFFF) {
+            return new Uint8Array(integer_octet, 16, (integer & 0xFF), ((integer >> 8) & 0xFF));
+        }
+        if (integer <= 0xFFFFFF) {
+            return new Uint8Array(integer_octet, 24, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF));
+        }
+        if (integer <= 0xFFFFFFFF) {
+            return new Uint8Array(integer_octet, 32, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF), ((integer >> 24) & 0xFF));
+        }
+        */
         const digits = [];
         while (integer > 0) {
             const digit = (integer % radix);
@@ -83,7 +111,7 @@ function encode_integer(integer) {
     }
 }
 function encode_number(number) {
-    console.log("encode_number", number);
+    //console.log("encode_number", number);
     let sign_bit = (number < 0) ? num_sign_bit : 0;
     let prefix = integer_octet | sign_bit;
     let base = [];
@@ -111,7 +139,7 @@ function encode_number(number) {
     return octets;
 }
 function encode_string(string) {
-    console.log("encode_string", string);
+    //console.log("encode_string", string);
     let count = 0;
     for (const codepoint of string) {
         count += 1;
@@ -130,7 +158,7 @@ function encode_string(string) {
     return octets;
 }
 function encode_blob(blob) {
-    console.log("encode_blob", blob);
+    //console.log("encode_blob", blob);
     const size = encode_integer(blob.length);
     const octets = new Uint8Array(1 + size.length + blob.length);
     octets.set([blob_octet], 0);
@@ -139,7 +167,7 @@ function encode_blob(blob) {
     return octets;
 }
 function encode_array(array) {
-    console.log("encode_array", array);
+    //console.log("encode_array", array);
     if (array.length === 0) {
         return new Uint8Array([array_octet, 0]);  // empty array
     }
@@ -153,7 +181,7 @@ function encode_array(array) {
         size += octets.length;
         elements.push(octets);
     });
-    console.log("encode_array: elements =", elements);
+    //console.log("encode_array: elements =", elements);
     const length_octets = encode_integer(elements.length);
     const size_octets = encode_integer(size);
     const octets = new Uint8Array(1 + length_octets.length + size_octets.length + size);
@@ -171,7 +199,7 @@ function encode_array(array) {
     return octets;
 }
 function encode_object(object) {
-    console.log("encode_object", object);
+    //console.log("encode_object", object);
     const keys = Object.keys(object);
     if (keys.length === 0) {
         return new Uint8Array([object_octet, 0]);  // empty object
@@ -188,7 +216,7 @@ function encode_object(object) {
             members.push(value_octets);
         }
     });
-    console.log("encode_object: members =", members);
+    //console.log("encode_object: members =", members);
     const length_octets = encode_integer(members.length / 2);
     const size_octets = encode_integer(size);
     const octets = new Uint8Array(1 + length_octets.length + size_octets.length + size);
@@ -206,30 +234,28 @@ function encode_object(object) {
     return octets;
 }
 function encode(value) {
+    if (Number.isSafeInteger(value)) return encode_integer(value);
+    if (typeof value === "string") return encode_string(value);
+    if (Number.isFinite(value)) return encode_number(value);
+    if (value === null) return new Uint8Array([null_octet]);
     if (value === false) return new Uint8Array([false_octet]);
     if (value === true) return new Uint8Array([true_octet]);
-    if (value === null) return new Uint8Array([null_octet]);
-    if (Number.isSafeInteger(value)) return encode_integer(value);
-    if (Number.isFinite(value)) return encode_number(value);
-    if (typeof value === "string") return encode_string(value);
-    if (value?.constructor === Uint8Array) return encode_blob(value);
     if (Array.isArray(value)) return encode_array(value);
+    if (value?.constructor === Uint8Array) return encode_blob(value);
     if (typeof value === "object") return encode_object(value);
     //return undefined;  // default: encode failed
 }
 
-function compose_number({ integer, exponent = 0, base = 10 }) {
-    return integer * (base ** exponent);
-}
-function decode_integer({ octets, offset }) {
-    let number = decode({ octets, offset });
+function decode_integer(octets, offset) {
+    //let number = decode({ octets, offset });
+    let number = decode_number(octets, offset);
     if (number.error) return number;  // report error
     if (Number.isSafeInteger(number.value)) {
         return number;
     }
     return { error: "integer value required", octets, offset, value: number.value };
 }
-function decode_number({ octets, offset }) {
+function decode_number(octets, offset) {
 /*
 `2#0xxx_xxxx` | -                                                          | positive small integer (0..127)
 `2#1000_0010` | _size_::Number _int_::Octet\*                              | Number (positive integer)
@@ -252,23 +278,23 @@ function decode_number({ octets, offset }) {
     let base = 10;
     let exponent = 0;
     if (prefix === rational_octet) {
-        base = decode_integer({ octets, offset });
+        base = decode_integer(octets, offset);
         if (base.error) return base;  // report error
         offset = base.offset;
         base = base.value;
-        exponent = decode_integer({ octets, offset });
+        exponent = decode_integer(octets, offset);
         if (exponent.error) return exponent;  // report error
         offset = exponent.offset;
         exponent = exponent.value;
     } else if (prefix === decimal_octet) {
-        exponent = decode_integer({ octets, offset });
+        exponent = decode_integer(octets, offset);
         if (exponent.error) return exponent;  // report error
         offset = exponent.offset;
         exponent = exponent.value;
     } else if (prefix !== integer_octet) {
         return { error: "unrecognized OED number", octets, offset: offset - 1 };
     }
-    const size = decode_integer({ octets, offset });
+    const size = decode_integer(octets, offset);
     if (size.error) return size;  // report error
     let bits = size.value;
     offset = size.offset;
@@ -298,7 +324,7 @@ function decode_number({ octets, offset }) {
     value = compose_number({ integer: value, base, exponent });
     return { value, octets, offset };
 }
-function decode_string({ octets, offset }) {
+function decode_string(octets, offset) {
 /*
 `2#1000_1010` | _size_::Number _data_::Octet\*                             | String (Raw BLOB)
 `2#1000_1011` | _meta_::Value _size_::Number _data_::Octet\*               | String (Extension BLOB)
@@ -310,12 +336,12 @@ function decode_string({ octets, offset }) {
     if (typeof prefix !== "number") return { error: "offset out-of-bounds", octets, offset };
     if (prefix === string_octet) {
         // utf8-encoded String
-        const length = decode_integer({ octets, offset: offset + 1 });
+        const length = decode_integer(octets, offset + 1);
         if (length.error) return length;  // report error
         if (length.value === 0) {
             return { value: "", octets, offset: length.offset };  // empty string
         }
-        const size = decode_integer({ octets, offset: length.offset });
+        const size = decode_integer(octets, length.offset);
         if (size.error) return size;  // report error
         const data = octets.subarray(size.offset, (size.offset + size.value));
         const value = utf8decoder.decode(data);
@@ -323,29 +349,29 @@ function decode_string({ octets, offset }) {
             return { value, octets, offset: (size.offset + size.value) };
         }
     } else if (prefix === blob_octet) {
-        const blob = decode_blob({ octets, offset });
+        const blob = decode_blob(octets, offset);
         if (blob.error) return blob;  // report error
-        const value = Array.from(blob.value, (octet) => (String.fromCodePoint(octet))).join("");
+        const value = stringify(blob.value);
         return { value, octets, offset: blob.offset };
     } else if (prefix === extension_octet) {
         const meta = decode({ octets, offset: offset + 1 });
         if (meta.error) return meta;  // report error
-        const size = decode_integer({ octets, offset: meta.offset });
+        const size = decode_integer(octets, meta.offset);
         if (size.error) return size;  // report error
         const blob = octets.subarray(offset, size.offset + size.value);
-        const value = Array.from(blob, (octet) => (String.fromCodePoint(octet))).join("");
+        const value = stringify(blob);
         offset = size.offset + size.value;
         const data = octets.subarray(size.offset, offset);
         return { value, octets, offset, meta, data };
     }
     return { error: "unrecognized OED string", octets, offset };
 }
-function decode_blob({ octets, offset }) {
+function decode_blob(octets, offset) {
     const prefix = octets[offset];
     if (typeof prefix !== "number") return { error: "offset out-of-bounds", octets, offset };
     if (prefix === blob_octet) {
         // raw octet sequence
-        const size = decode_integer({ octets, offset: offset + 1 });
+        const size = decode_integer(octets, offset + 1);
         if (size.error) return size;  // report error
         offset = size.offset + size.value;
         const value = octets.subarray(size.offset, offset);
@@ -353,7 +379,7 @@ function decode_blob({ octets, offset }) {
     }
     return { error: "unrecognized OED blob", octets, offset };
 }
-function decode_array({ octets, offset }) {
+function decode_array(octets, offset) {
 /*
 `2#1000_1000` | _length_::Number _size_::Number _elements_::Value\*        | Array
 */
@@ -361,12 +387,12 @@ function decode_array({ octets, offset }) {
     if (typeof prefix !== "number") return { error: "offset out-of-bounds", octets, offset };
     if (prefix === array_octet) {
         // Array
-        const length = decode_integer({ octets, offset: offset + 1 });
+        const length = decode_integer(octets, offset + 1);
         if (length.error) return length;  // report error
         if (length.value === 0) {
             return { value: [], octets, offset: length.offset };  // empty array
         }
-        const size = decode_integer({ octets, offset: length.offset });
+        const size = decode_integer(octets, length.offset);
         if (size.error) return size;  // report error
         const value = new Array(length.value);
         let index = 0;
@@ -385,7 +411,7 @@ function decode_array({ octets, offset }) {
     }
     return { error: "unrecognized OED array", octets, offset };
 }
-function decode_object({ octets, offset }) {
+function decode_object(octets, offset) {
 /*
 `2#1000_1001` | _length_::Number _size_::Number _members_::Octet\*         | Object
 */
@@ -393,18 +419,18 @@ function decode_object({ octets, offset }) {
     if (typeof prefix !== "number") return { error: "offset out-of-bounds", octets, offset };
     if (prefix === object_octet) {
         // Object
-        const length = decode_integer({ octets, offset: offset + 1 });
+        const length = decode_integer(octets, offset + 1);
         if (length.error) return length;  // report error
         if (length.value === 0) {
             return { value: {}, octets, offset: length.offset };  // empty object
         }
-        const size = decode_integer({ octets, offset: length.offset });
+        const size = decode_integer(octets, length.offset);
         if (size.error) return size;  // report error
         const value = {};
         let index = 0;
         offset = size.offset;
         while (index < length.value) {
-            const key = decode_string({ octets, offset });
+            const key = decode_string(octets, offset);
             if (key.error) return key;  // report error
             offset = key.offset;
             const member = decode({ octets, offset });
@@ -420,9 +446,10 @@ function decode_object({ octets, offset }) {
     }
     return { error: "unrecognized OED object", octets, offset };
 }
+/*
 const decoder = (function () {
     function literal(value) {
-        return ({ octets, offset }) => ({ value, octets, offset: offset + 1 });
+        return (octets, offset) => ({ value, octets, offset: offset + 1 });
     }
     let handler = [];
     let prefix = 0;
@@ -451,15 +478,43 @@ const decoder = (function () {
     }
     return handler;
 })();
-function decode(data) {
-    let { octets = data, offset = 0 } = data;  // destructure parameters
+function decode(source) {
+    let { octets = source, offset = 0 } = source;  // destructure parameters
     const prefix = octets[offset];
     if (typeof prefix !== "number") return { error: "offset out-of-bounds", octets, offset };
     let handler = decoder[prefix];
     if (typeof handler === "function") {
-        return handler({ octets, offset });
+        return handler(octets, offset);
     }
     return { error: "unrecognized OED value", octets, offset };
+}
+*/
+function decode(source) {
+    let { octets = source, offset = 0 } = source;  // destructure parameters
+    const prefix = octets[offset];
+    if (typeof prefix !== "number") return { error: "offset out-of-bounds", octets, offset };
+    switch (prefix) {
+        case false_octet:
+            return { value: false, octets, offset: offset + 1 };
+        case true_octet:
+            return { value: true, octets, offset: offset + 1 };
+        case array_octet:
+            return decode_array(octets, offset);
+        case object_octet:
+            return decode_object(octets, offset);
+        case blob_octet:
+            return decode_blob(octets, offset);
+        case extension_octet:
+        case string_octet:
+            return decode_string(octets, offset);
+        case string_memo:
+        case memo_reference:
+            return { error: "memoization not supported", octets, offset };
+        case null_octet:
+            return { value: null, octets, offset: offset + 1 };
+        default:
+            return decode_number(octets, offset);
+    }
 }
 
 export default Object.freeze({encode, decode});
