@@ -1,6 +1,6 @@
 // oed.js
 // Dale Schumacher
-// 2023-01-27
+// 2023-02-25
 // Public Domain
 // `decompose_number` based on code by Douglas Crockford and James Diacono
 
@@ -71,40 +71,26 @@ function compose_number({ integer, exponent = 0, base = 10 }) {
 
 function encode_integer(integer) {
     //console.log("encode_integer", integer);
-    if (integer < 0) {
-        // negative integer
-        if (integer >= -112) return new Uint8Array([radix + integer]);  // small negative integer
-        const integer_type = (integer_octet | num_sign_bit);
-        if (integer >= -0x100) return new Uint8Array([integer_type, 8, (integer & 0xFF)]);
-        if (integer >= -0x10000) return new Uint8Array([integer_type, 16, (integer & 0xFF), ((integer >> 8) & 0xFF)]);
-        if (integer >= -0x1000000) return new Uint8Array([integer_type, 24, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF)]);
-        if (integer >= -0x100000000) return new Uint8Array([integer_type, 32, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF), ((integer >> 24) & 0xFF)]);
-        integer = -integer - 1;
-        const digits = [];
-        while (integer > 0) {
-            const digit = (integer % radix) ^ 0xFF;
-            digits.push(digit);
-            integer = Math.floor(integer / radix);
-        }
-        digits.unshift(integer_type, digits.length * 8);
-        return new Uint8Array(digits);
-    } else {
-        // non-negative integer
-        if (integer <= 127) return new Uint8Array([integer]);  // small positive integer
-        const integer_type = integer_octet;
-        if (integer <= 0xFF) return new Uint8Array([integer_type, 8, (integer & 0xFF)]);
-        if (integer <= 0xFFFF) return new Uint8Array([integer_type, 16, (integer & 0xFF), ((integer >> 8) & 0xFF)]);
-        if (integer <= 0xFFFFFF) return new Uint8Array([integer_type, 24, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF)]);
-        if (integer <= 0xFFFFFFFF) return new Uint8Array([integer_type, 32, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF), ((integer >> 24) & 0xFF)]);
-        const digits = [];
-        while (integer > 0) {
-            const digit = (integer % radix);
-            digits.push(digit);
-            integer = Math.floor(integer / radix);
-        }
-        digits.unshift(integer_type, digits.length * 8);
-        return new Uint8Array(digits);
+    let integer_type = integer_octet;
+    if ((integer >= -112) && (integer <= 127)) {
+        return new Uint8Array([integer & 0xFF]);  // small 2's-complement integer
     }
+    if (integer < 0) {
+        integer_type |= num_sign_bit;  // encode sign bit
+        integer = -integer;  // encode _natural_ magnitude
+    }
+    if (integer <= 0xFF) return new Uint8Array([integer_type, 8, (integer & 0xFF)]);
+    if (integer <= 0xFFFF) return new Uint8Array([integer_type, 16, (integer & 0xFF), ((integer >> 8) & 0xFF)]);
+    if (integer <= 0xFFFFFF) return new Uint8Array([integer_type, 24, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF)]);
+    if (integer <= 0xFFFFFFFF) return new Uint8Array([integer_type, 32, (integer & 0xFF), ((integer >> 8) & 0xFF), ((integer >> 16) & 0xFF), ((integer >> 24) & 0xFF)]);
+    const digits = [];
+    while (integer > 0) {
+        const digit = (integer % radix);
+        digits.push(digit);
+        integer = Math.floor(integer / radix);
+    }
+    digits.unshift(integer_type, digits.length * 8);
+    return new Uint8Array(digits);
 }
 function encode_number(number) {
     //console.log("encode_number", number);
@@ -254,12 +240,12 @@ function decode_integer(octets, offset) {
 function decode_number(octets, offset) {
 /*
 `2#0xxx_xxxx` | -                                                          | positive small integer (0..127)
-`2#1000_0010` | _size_::Number _int_::Octet\*                              | Number (positive integer)
-`2#1000_0011` | _size_::Number _int_::Octet\*                              | Number (negative integer)
-`2#1000_0100` | _exp_::Number _size_::Number _int_::Octet\*                | Number (positive decimal)
-`2#1000_0101` | _exp_::Number _size_::Number _int_::Octet\*                | Number (negative decimal)
-`2#1000_0110` | _base_::Number _exp_::Number _size_::Number _int_::Octet\* | Number (positive rational)
-`2#1000_0111` | _base_::Number _exp_::Number _size_::Number _int_::Octet\* | Number (negative rational)
+`2#1000_0010` | _size_::Number _nat_::Octet\*                              | Number (positive integer)
+`2#1000_0011` | _size_::Number _nat_::Octet\*                              | Number (negative integer)
+`2#1000_0100` | _exp_::Number _size_::Number _nat_::Octet\*                | Number (positive decimal)
+`2#1000_0101` | _exp_::Number _size_::Number _nat_::Octet\*                | Number (negative decimal)
+`2#1000_0110` | _base_::Number _exp_::Number _size_::Number _nat_::Octet\* | Number (positive rational)
+`2#1000_0111` | _base_::Number _exp_::Number _size_::Number _nat_::Octet\* | Number (negative rational)
 `2#1001_xxxx` | -                                                          | negative small integer (-112..-97)
 `2#101x_xxxx` | -                                                          | negative small integer (-96..-65)
 `2#11xx_xxxx` | -                                                          | negative small integer (-64..-1)
@@ -269,7 +255,7 @@ function decode_number(octets, offset) {
     offset += 1;
     if (prefix <= 0b0111_1111) return { value: prefix, octets, offset };
     if (prefix >= 0b1001_0000) return { value: (prefix - radix), octets, offset };
-    let sign = (prefix & num_sign_bit) ? -1 : 1;
+    const sign = (prefix & num_sign_bit) ? -1 : 1;
     prefix &= ~num_sign_bit;  // mask off sign bit
     let base = 10;
     let exponent = 0;
@@ -296,28 +282,17 @@ function decode_number(octets, offset) {
     offset = size.offset;
     let value = 0;
     let scale = 1;
-    if (sign < 0) {
-        // negative integer
-        while (bits > 0) {
-            value += scale * (octets[offset] ^ 0xFF);
-            offset += 1;
-            scale *= radix;
-            bits -= 8;
-        }
-        value = -(value + 1);
-    } else {
-        // non-negative integer
-        while (bits > 0) {
-            value += scale * octets[offset];
-            offset += 1;
-            scale *= radix;
-            bits -= 8;
-        }
+    while (bits > 0) {
+        value += scale * octets[offset];
+        offset += 1;
+        scale *= radix;
+        bits -= 8;
     }
     if (offset != (size.offset + (size.value / 8))) {
         return { error: "offset does not match OED number size", octets, offset };
     }
-    value = compose_number({ integer: value, base, exponent });
+    const integer = (sign < 0) ? -value : value;
+    value = compose_number({ integer, base, exponent });
     return { value, octets, offset };
 }
 function decode_string(octets, offset) {
@@ -514,3 +489,89 @@ function decode(source) {
 }
 
 export default Object.freeze({encode, decode});
+
+/*
+// test helpers
+
+let buf = new Uint8Array([              // buffer (9 + 22 = 31 octets)
+    0x88,                               // Array
+    0x82, 16, 2, 0,                     // length (2 elements)
+    0x82, 16, 22, 0,                    // size (13 + 9 = 22 octets)
+    0x8B,                               // [0] = Ext (9 + 4 = 13 octets free)
+    0x82, 16, 0, 0,                     //       meta (0 offset)
+    0x82, 16, 4, 0,                     //       size (4 octets)
+    0xDE, 0xAD, 0xBE, 0xEF,             //       data (4 octets)
+    0x8A,                               // [1] = Blob (5 + 4 = 9 octets used)
+    0x82, 16, 4, 0,                     //       size (4 octets)
+    0xCA, 0xFE, 0xBA, 0xBE]);           //       data (4 octets)
+
+const max_unicode = 0x10FFFF;
+function getRandomInt(max) {
+    return Math.floor(Math.random() * max);
+}
+const a_size = 32767;
+const array = new Array(a_size);
+for (let i = 0; i < a_size; i += 1) {
+    array[i] = getRandomInt(max_unicode);
+}
+
+const repeat = 1000;
+let t0 = performance.now();
+let s0 = Array.from(array, (code) => (String.fromCodePoint(code))).join("");
+for (let j = 0; j < repeat; j += 1) {
+    s0 = Array.from(array, (code) => (String.fromCodePoint(code))).join("");
+}
+let t1 = performance.now();
+let s1 = String.fromCodePoint(...array);
+for (let j = 0; j < repeat; j += 1) {
+    s1 = String.fromCodePoint(...array);
+}
+let t2 = performance.now();
+
+const repeat = 100;
+let t3 = performance.now();
+for (let j = 0; j < repeat; j += 1) {
+    s3 = encode(array);
+}
+let t4 = performance.now();
+[Math.round(t4 - t3), t3, t4]
+
+function buffer_equal(a, b) {
+    const length = a?.length;
+    if (typeof length !== "number") return false;
+    if (length !== b?.length) return false;
+    for (let i = 0; i < length; i += 1) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
+}
+
+function test_range(assertion, min, max, trials = 1000) {
+    const diff = max - min;
+    if (diff < 0) throw("required (`min` < `max`)");
+    const mid = Math.round((max + min) / 2);
+    if (!assertion(max)) throw("failed! max=" + max);
+    if (!assertion(mid)) throw("failed! mid=" + mid);
+    if (!assertion(min)) throw("failed! min=" + min);
+    while (trials > 0) {
+        const num = Math.floor(Math.random() * diff) + min;
+        if (!assertion(num)) throw("failed! num=" + num);
+        trials -= 1;
+    }
+    return true;
+}
+test_range((n) => (
+        buffer_equal(encode_integer(n), encode_fixnum(n))
+    ), -1000, 1000);
+test_range((n) => (
+        buffer_equal(encode_integer(n), encode_fixnum(n))
+    ), Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, 1_000_000);
+
+function timed(operation) {
+    const t0 = performance.now();
+    operation();
+    const t1 = performance.now();
+    return [Math.floor(t1 - t0), t0, t1]
+}
+
+*/

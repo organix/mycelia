@@ -1,6 +1,6 @@
 # Octet-Encoded Data (OED)
 
-For more-efficient network transmission,
+For more-efficient network transmission and storage,
 we propose an octet-stream encoding
 which is compatible with [JSON](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 There are multiple ways to encode the same abstract JSON value.
@@ -10,7 +10,7 @@ Every valid JSON value can be represented in OED.
 Values may be round-tripped without semantic loss.
 Arbitrarily large values are fully supported.
 Decimal values can be represented exactly,
-without loss due to base-2 translation.
+without loss due to (for example) base-2 translation.
 
 ## Goals
 
@@ -25,6 +25,7 @@ The encoding should acheive the following goals:
   * Capabilities can be distinguished from other data-types
   * Easy-to-implement encode/decode
   * Encoded data is navigable without fully decoding
+  * Efficient to use as an in-memory data format
 
 ## Design
 
@@ -47,7 +48,8 @@ for additional fields of larger encodings.
 However, it is unclear how large the range should be.
 
 The most basic form of arbitrary-sized _Numbers_
-are arbitrary-length bit-strings.
+are arbitrary-length bit-strings
+representing _natural_ numbers.
 With the addition of a _sign_ bit,
 we can describe any finite _integer_ value.
 By adding an _integer_ field for an _exponent_,
@@ -57,16 +59,17 @@ we can describe any finite _rational_ value,
 and encode alternate bases (such as 2 for IEEE floats)
 without loss of precision.
 
-  * Positive Integer: _type_=`2#1000_0010` _size_::Number _integer_::Octet\*
-  * Negative Integer: _type_=`2#1000_0011` _size_::Number _integer_::Octet\*
-  * Positive Decimal: _type_=`2#1000_0100` _exponent_::Number _size_::Number _integer_::Octet\*
-  * Negative Decimal: _type_=`2#1000_0101` _exponent_::Number _size_::Number _integer_::Octet\*
-  * Positive Rational: _type_=`2#1000_0110` _base_::Number _exponent_::Number _size_::Number _integer_::Octet\*
-  * Negative Rational: _type_=`2#1000_0111` _base_::Number _exponent_::Number _size_::Number _integer_::Octet\*
+  * Positive Integer: _type_=`2#1000_0010` _size_::Number _natural_::Octet\*
+  * Negative Integer: _type_=`2#1000_0011` _size_::Number _natural_::Octet\*
+  * Positive Decimal: _type_=`2#1000_0100` _exponent_::Number _size_::Number _natural_::Octet\*
+  * Negative Decimal: _type_=`2#1000_0101` _exponent_::Number _size_::Number _natural_::Octet\*
+  * Positive Rational: _type_=`2#1000_0110` _base_::Number _exponent_::Number _size_::Number _natural_::Octet\*
+  * Negative Rational: _type_=`2#1000_0111` _base_::Number _exponent_::Number _size_::Number _natural_::Octet\*
 
-The basic encoding is 2's-complement, least-significant-byte first.
-The _sign_ is _positive_ (0) or _negative_ (1).
-All bits above the most-significant bit are assumed to match the sign.
+The basic encoding is sign and magnitude,
+least-significant-octet first.
+The _sign_ is _positive_ (0) or _negative_ (1),
+held in the LSB of the _type_ prefix octet.
 A 1-component _Number_ is just an _integer_ value.
 A 2-component _Number_ also includes an _exponent_,
 encoded as an additional _Number_.
@@ -75,17 +78,18 @@ encoded as an additional _Number_.
 The default _exponent_ is 0.
 The default _base_ is 10.
 The _size_ field is a _Number_ describing
-the number of **bits** (not octets) in the _integer_ value.
+the number of **bits** (not octets) in the _natural_ value.
 There is no requirement that a _Number_ is encoded with the minimum number of octets.
-If the _size_ is 0, the _Number_ is 0 (if positive) or -1 (if negative),
-and there are no _integer_ octets.
-The octets of the _integer_ value (LSB to MSB) follow the _size_.
+If the _size_ is 0, the _Number_ is 0,
+and there are no _natural_ octets.
+The octets of the _natural_ value (LSB to MSB) follow the _size_.
 If the number of encoded bits is not a multiple of 8,
-the final octet (MSB) will be padded according to the _sign_.
-The number designated is equal to (_integer_ × _base_ ^ _exponent_).
-Note that all the components are signed.
+the final octet (MSB) will be padded with 0.
+The number designated is equal to (_natural_ × _base_ ^ _exponent_),
+or (-_natural_ × _base_ ^ _exponent_) if the _sign_ is negative.
+Note that the _base_ and _exponent_ are signed integers.
 Rational numbers may be encoded as an _exponent_ of -1,
-with the _integer_ as the numerator, and the _base_ as the denominator.
+with the signed magnitude as the numerator, and the _base_ as the denominator.
 
 The _String_ type represent an arbitrary-sized sequence of Unicode code-points.
 UTF-8 has become the default encoding for textual data throughout the world-wide-web,
@@ -157,12 +161,12 @@ type/prefix   | suffix                                                     | des
 `2#0xxx_xxxx` | -                                                          | positive small integer (0..127)
 `2#1000_0000` | -                                                          | `false`
 `2#1000_0001` | -                                                          | `true`
-`2#1000_0010` | _size_::Number _int_::Octet\*                              | Number (positive integer)
-`2#1000_0011` | _size_::Number _int_::Octet\*                              | Number (negative integer)
-`2#1000_0100` | _exp_::Number _size_::Number _int_::Octet\*                | Number (positive decimal)
-`2#1000_0101` | _exp_::Number _size_::Number _int_::Octet\*                | Number (negative decimal)
-`2#1000_0110` | _base_::Number _exp_::Number _size_::Number _int_::Octet\* | Number (positive rational)
-`2#1000_0111` | _base_::Number _exp_::Number _size_::Number _int_::Octet\* | Number (negative rational)
+`2#1000_0010` | _size_::Number _nat_::Octet\*                              | Number (positive integer)
+`2#1000_0011` | _size_::Number _nat_::Octet\*                              | Number (negative integer)
+`2#1000_0100` | _exp_::Number _size_::Number _nat_::Octet\*                | Number (positive decimal)
+`2#1000_0101` | _exp_::Number _size_::Number _nat_::Octet\*                | Number (negative decimal)
+`2#1000_0110` | _base_::Number _exp_::Number _size_::Number _nat_::Octet\* | Number (positive rational)
+`2#1000_0111` | _base_::Number _exp_::Number _size_::Number _nat_::Octet\* | Number (negative rational)
 `2#1000_1000` | _length_::Number _size_::Number _elements_::Value\*        | Array
 `2#1000_1001` | _length_::Number _size_::Number _members_::Octet\*         | Object
 `2#1000_1010` | _size_::Number _data_::Octet\*                             | String (Raw BLOB)
