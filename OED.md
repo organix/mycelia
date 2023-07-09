@@ -152,7 +152,8 @@ although without some of the meta-data describing representations.
 Converting a JSON document to OED and back to JSON
 should result in an equivalent document.
 Following the recommendations in [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259)
-will increase the portability of OED documents.
+and/or [RFC 7493](https://datatracker.ietf.org/doc/html/rfc7493)
+will increase the portability and interoperability of OED documents.
 
 ## Summary
 

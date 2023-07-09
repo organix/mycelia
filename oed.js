@@ -288,7 +288,7 @@ function decode_number(octets, offset) {
         scale *= radix;
         bits -= 8;
     }
-    if (offset != (size.offset + (size.value / 8))) {
+    if (offset != (size.offset + Math.ceil(size.value / 8))) {
         return { error: "offset does not match OED number size", octets, offset };
     }
     const integer = (sign < 0) ? -value : value;
