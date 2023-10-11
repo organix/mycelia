@@ -45,7 +45,9 @@ Including both positive and negative numbers
 in the single-octet encoding
 keeps the encoding small
 for additional fields of larger encodings.
-However, it is unclear how large the range should be.
+However, it is unclear how large the range should be,
+so we will used all the encoding space that remains
+after encoding the other types.
 
 The most basic form of arbitrary-sized _Numbers_
 are arbitrary-length bit-strings
