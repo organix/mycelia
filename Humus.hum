@@ -36,7 +36,7 @@ LET pair_of(value) = (value, value)
 LET call_pair_beh(head, tail) = \(cust, req).[
   SEND pair_of(req) TO NEW fork_beh(cust, head, tail)
 ]
-LET fork_pair_beh(cust) = \(head, tail).[ SEND PR(head, tail) TO cust ]  # PR results
+LET fork_pair_beh(cust) = \(head, tail).[ SEND (head, tail) TO cust ]  # pair results
 
 LET serializer_beh(svc) = \(cust, req).[
   CREATE tag WITH tag_beh(SELF)
@@ -47,7 +47,7 @@ LET serializer_busy_beh(svc, cust, tag, Q) = \msg.[
   CASE msg OF
   ($tag, res) : [
     SEND res TO cust
-    IF $Q.pop() = ((cust', req'), Q') [
+    IF $Q_pop(Q) = ((cust', req'), Q') [
       CREATE tag' WITH tag_beh(SELF)
       BECOME serializer_busy_beh(svc, cust', tag', Q')
       SEND (tag', req') TO svc
@@ -56,7 +56,7 @@ LET serializer_busy_beh(svc, cust, tag, Q) = \msg.[
     ]
   ]
   (cust', req') : [
-    BECOME serializer_busy_beh(svc, cust, tag, Q.put(cust', req'))
+    BECOME serializer_busy_beh(svc, cust, tag, Q_put(Q, cust', req'))
   ]
   END
 ]
@@ -64,7 +64,7 @@ LET serializer_busy_beh(svc, cust, tag, Q) = \msg.[
 CREATE undefined WITH \(cust, _).[ SEND ? TO cust ]
 CREATE empty_env WITH \(cust, req).[
   SEND ? TO cust
-  SEND #undefined, req TO warning
+#  SEND #undefined, req TO log_warning
 ]
 LET env_beh(ident, value, next) = \(cust, req).[
   CASE req OF
@@ -104,7 +104,7 @@ LET unbound_env_beh(scope, ident, waiting, next) = \(cust, req).[
   ]
   (#bind, $ident, value) : [
     BECOME bound_env_beh(scope, ident, value, next)
-    SEND waiting TO NEW \(first, rest) [  # deliver value to waiting
+    SEND waiting TO NEW \(first, rest).[  # deliver value to waiting
       SEND value TO first
       SEND rest TO SELF
     ]
@@ -185,7 +185,7 @@ LET new_expr_beh(b_expr) = \(cust, #eval, env).[
   SEND k_create TO actor_factory  # allocate a new actor address
   CREATE k_create WITH \actor.[
     CASE actor OF
-    ? : [ SEND (#throw, #no-actor, ident) TO cust ]  # exception
+    ? : [ SEND (#throw, #no-actor, ?) TO cust ]  # exception
     _ : [
       SEND (k_self, #eval, NEW self_env_beh(actor, env)) TO b_expr
       CREATE k_self WITH \beh_fn.[
@@ -196,6 +196,7 @@ LET new_expr_beh(b_expr) = \(cust, #eval, env).[
         ]
         END
       ]
+    ]
     END
   ]
 ]
@@ -343,7 +344,7 @@ LET send_stmt_beh(m_expr, a_expr) = \(cust, #exec, env).[
   CREATE fork WITH call_pair_beh(a_expr, m_expr)
   SEND (k_send, #eval, env) TO fork
   CREATE k_send WITH \(target, msg).[
-    LET event = $PR(target, msg)
+    LET event = $(target, msg)
     CASE is_valid_event(event) OF
     TRUE : [ SEND (NIL, (event, NIL), ?) TO cust ]  # effects
     _ : [ SEND (#throw, #bad-send, event) TO cust ]  # exception
@@ -411,7 +412,7 @@ LET block_env_beh(next, effects) = \(cust, req).[
   ]
   (#new, actor, beh_fn) : [  # capture actor creation effect
       LET effects' = $(((actor, beh_fn), NIL), NIL, ?)
-      BECOME block_env_beh(next, merge_effects(effects, effects')
+      BECOME block_env_beh(next, merge_effects(effects, effects'))
       SEND actor TO cust
   ]
   (#merge, effects') : [  # extract captured effects
@@ -456,7 +457,7 @@ LET actor_beh(beh_fn) = \(sponsor, message).[
 
 LET lazy_init_beh(beh) = \msg.[
   BECOME beh
-  SEND msg TO self
+  SEND msg TO SELF
 ]
 LET stem_cell_beh(cust) = \beh.[
   BECOME beh
