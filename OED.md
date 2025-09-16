@@ -10,7 +10,7 @@ Every valid JSON value can be represented in OED.
 Values may be round-tripped without semantic loss.
 Arbitrarily large values are fully supported.
 Decimal values can be represented exactly,
-without loss due to (for example) base-2 translation.
+without loss (for example) due to base-2 translation.
 
 ## Goals
 
@@ -46,12 +46,12 @@ in the single-octet encoding
 keeps the encoding small
 for additional fields of larger encodings.
 However, it is unclear how large the range should be,
-so we will used all the encoding space that remains
+so we will use all the encoding space that remains
 after encoding the other types.
 
 The most basic form of arbitrary-sized _Numbers_
 are arbitrary-length bit-strings
-representing _natural_ numbers.
+representing _natural_ numbers (starting with _zero_).
 With the addition of a _sign_ bit,
 we can describe any finite _integer_ value.
 By adding an _integer_ field for an _exponent_,
@@ -73,7 +73,7 @@ least-significant-octet first.
 The _sign_ is _positive_ (0) or _negative_ (1),
 held in the LSB of the _type_ prefix octet.
 A 1-component _Number_ is just an _integer_ value.
-A 2-component _Number_ also includes an _exponent_,
+A 2-component _Number_ includes an _exponent_,
 encoded as an additional _Number_.
 A 3-component _Number_ also includes a _base_,
 encoded as an additional _Number_.
@@ -91,9 +91,9 @@ The number designated is equal to (_natural_ × _base_ ^ _exponent_),
 or (-_natural_ × _base_ ^ _exponent_) if the _sign_ is negative.
 Note that the _base_ and _exponent_ are signed integers.
 Rational numbers may be encoded as an _exponent_ of -1,
-with the signed magnitude as the numerator, and the _base_ as the denominator.
+with the signed magnitude as the numerator, and the (positive) _base_ as the denominator.
 
-The _String_ type represent an arbitrary-sized sequence of Unicode code-points.
+The _String_ type represents an arbitrary-length sequence of Unicode code-points.
 UTF-8 has become the default encoding for textual data throughout the world-wide-web,
 so we require explicit support for that encoding.
 Raw octet data (BLOBs) are also an important use-case,
@@ -101,7 +101,7 @@ where the code-points represented are restricted to the range 0 thru 255.
 In order to support extensions for application-defined representations,
 and to encapsulate foreign data verbatim,
 BLOBs may be labelled with encoding meta-data.
-It is unclear if a [memoization](https://github.com/organix/mycelia/blob/master/BOSE.md#string) feature
+It is unclear if a [memoization feature](BOSE.md#string)
 is worth the additional complexity it introduces,
 particularly when link data compression is likely.
 
@@ -117,11 +117,12 @@ the number of code-points in the _String_.
 If the _length_ is 0, there is no _size_ field (and no _data_).
 The extension encoding includes a _meta_ field,
 which is an arbitrary (OED-encoded) _Value_.
-The extension may be converted to a _String_
+Extension BLOBs may be used to encode _Capability_ values.
+An extension may be converted to a _String_
 by treating the octets of the entire encoded value
 (including the Extention BLOB type prefix) as code-points.
 
-The _Array_ type represents an arbitrary-sized sequence of _Value_ elements.
+The _Array_ type represents an arbitrary-length sequence of _Value_ elements.
 The values are not required to have the same type.
 
   * Array: _type_=`2#1000_1000` _length_::Number _size_::Number _elements_::Value\*
@@ -132,7 +133,7 @@ The _length_ field is a _Number_ describing
 the number of _elements_ in the _Array_.
 If the _length_ is 0, there is no _size_ field (and no _elements_).
 
-The _Object_ type represents an arbitrary-sized collection of _name_/_value_ members.
+The _Object_ type represents an arbitrary-length collection of _name_/_value_ members.
 Each _name_ should be a _String_ for JSON compatibility,
 otherwise the JSON value is the _String_ of encoded octets.
 Each _value_ may be any type,
