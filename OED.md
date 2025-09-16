@@ -101,7 +101,7 @@ where the code-points represented are restricted to the range 0 thru 255.
 In order to support extensions for application-defined representations,
 and to encapsulate foreign data verbatim,
 BLOBs may be labelled with encoding meta-data.
-It is unclear if a memoization feature
+It is unclear if a [memoization](https://github.com/organix/mycelia/blob/master/BOSE.md#string) feature
 is worth the additional complexity it introduces,
 particularly when link data compression is likely.
 
