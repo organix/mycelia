@@ -25,7 +25,7 @@ The encoding should acheive the following goals:
   * Capabilities can be distinguished from other data-types
   * Easy-to-implement encode/decode
   * Encoded data is navigable without fully decoding
-  * Efficient to use as an in-memory data format
+  * Reasonbly efficient to use as an in-memory data format
 
 ## Design
 
@@ -37,17 +37,20 @@ A single octet for each typed value.
 The four remaining JSON types,
 _Number_, _String_, _Array_, and _Object_,
 can encode arbitrarily-large values,
-so we will need a _Number_ to describe their _size_.
+so we will need a _Number_ (non-negative integer)
+to describe their _size_.
 A single-octet encoding for small integers
 provides a base-case for the recursive definition
 of _size_ of the _size_.
-Including both positive and negative numbers
+Including both positive and negative integers
 in the single-octet encoding
 keeps the encoding small
 for additional fields of larger encodings.
 However, it is unclear how large the range should be,
 so we will use all the encoding space that remains
 after encoding the other types.
+
+### Number
 
 The most basic form of arbitrary-sized _Numbers_
 are arbitrary-length bit-strings
@@ -56,7 +59,7 @@ With the addition of a _sign_ bit,
 we can describe any finite _integer_ value.
 By adding an _integer_ field for an _exponent_,
 we can describe any finite _decimal_ value (assuming base-10).
-By adding another _integer_ field for _base_,
+By adding another (non-negative) _integer_ field for _base_,
 we can describe any finite _rational_ value,
 and encode alternate bases (such as 2 for IEEE floats)
 without loss of precision.
@@ -74,24 +77,25 @@ The _sign_ is _positive_ (0) or _negative_ (1),
 held in the LSB of the _type_ prefix octet.
 A 1-component _Number_ is just an _integer_ value.
 A 2-component _Number_ includes an _exponent_,
-encoded as an additional _Number_.
+encoded as an additional (signed integer) _Number_.
 A 3-component _Number_ also includes a _base_,
-encoded as an additional _Number_.
+encoded as an additional (non-negative integer) _Number_.
 The default _exponent_ is 0.
 The default _base_ is 10.
-The _size_ field is a _Number_ describing
-the number of **bits** (not octets) in the _natural_ value.
+The _size_ field is a (non-negative integer) _Number_ describing
+the number of **bits** (not octets) in the _natural_ magnitude.
 There is no requirement that a _Number_ is encoded with the minimum number of octets.
 If the _size_ is 0, the _Number_ is 0,
 and there are no _natural_ octets.
-The octets of the _natural_ value (LSB to MSB) follow the _size_.
+The octets of the _natural_ magnitude (LSB to MSB) follow the _size_.
 If the number of encoded bits is not a multiple of 8,
 the final octet (MSB) will be padded with 0.
 The number designated is equal to (_natural_ × _base_ ^ _exponent_),
 or (-_natural_ × _base_ ^ _exponent_) if the _sign_ is negative.
-Note that the _base_ and _exponent_ are signed integers.
 Rational numbers may be encoded as an _exponent_ of -1,
-with the signed magnitude as the numerator, and the (positive) _base_ as the denominator.
+with the signed magnitude as the numerator, and the _base_ as the denominator.
+
+### String
 
 The _String_ type represents an arbitrary-length sequence of Unicode code-points.
 UTF-8 has become the default encoding for textual data throughout the world-wide-web,
@@ -109,10 +113,10 @@ particularly when link data compression is likely.
   * Extension BLOB: _type_=`2#1000_1011` _meta_::Value _size_::Number _data_::Octet\*
   * UTF-8 String: _type_=`2#1000_1100` _length_::Number _size_::Number _data_::Octet\*
 
-The _size_ field is a _Number_ describing
+The _size_ field is a (non-negative integer) _Number_ describing
 the number of **octets** in the _data_.
 If the encoding is UTF-8,
-the _length_ field is a _Number_ describing the
+the _length_ field is a (non-negative integer) _Number_ describing the
 the number of code-points in the _String_.
 If the _length_ is 0, there is no _size_ field (and no _data_).
 The extension encoding includes a _meta_ field,
@@ -122,16 +126,20 @@ An extension may be converted to a _String_
 by treating the octets of the entire encoded value
 (including the Extention BLOB type prefix) as code-points.
 
+### Array
+
 The _Array_ type represents an arbitrary-length sequence of _Value_ elements.
 The values are not required to have the same type.
 
   * Array: _type_=`2#1000_1000` _length_::Number _size_::Number _elements_::Value\*
 
-The _size_ field is a _Number_ describing
+The _size_ field is a (non-negative integer) _Number_ describing
 the number of **octets** encoding the _elements_.
-The _length_ field is a _Number_ describing
+The _length_ field is a (non-negative integer) _Number_ describing
 the number of _elements_ in the _Array_.
 If the _length_ is 0, there is no _size_ field (and no _elements_).
+
+### Object
 
 The _Object_ type represents an arbitrary-length collection of _name_/_value_ members.
 Each _name_ should be a _String_ for JSON compatibility,
@@ -141,9 +149,9 @@ including nested _Object_ or _Array_ values.
 
   * Object: _type_=`2#1000_1001` _length_::Number _size_::Number _members_::(_name_::Value _value_::Value)\*
 
-The _size_ field is a _Number_ describing
+The _size_ field is a (non-negative integer) _Number_ describing
 the number of **octets** encoding the _members_.
-The _length_ field is a _Number_ describing
+The _length_ field is a (non-negative integer) _Number_ describing
 the number of _members_ in the _Object_.
 If the _length_ is 0, there is no _size_ field (and no _members_).
 
