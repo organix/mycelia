@@ -25,7 +25,7 @@ The encoding should acheive the following goals:
   * Capabilities can be distinguished from other data-types
   * Easy-to-implement encode/decode
   * Encoded data is navigable without fully decoding
-  * Reasonbly efficient to use as an in-memory data format
+  * Reasonably efficient to use as an in-memory data format
 
 ## Design
 
